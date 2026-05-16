@@ -1,12 +1,18 @@
 /**
  * FeedbackModal — popup post-analyse
  *
- * Triggers :
- *   1. Auto : scroll > 60% OU 5s après première interaction (scroll/clic) — jamais sur page idle
- *   2. Externe : openFeedback() — ex. clic "Copier le message"
+ * V3.4.14+ (2026-05-16) — Refonte Phase 1 + 2 :
+ *   - Persistance : table `analysis_feedback` via POST /api/feedback.
+ *   - Trigger UNIQUEMENT externe via openFeedback() — appelé sur clic
+ *     "Copier le message" (moment de valeur). Plus de scroll/timer auto.
+ *   - Découplage : step "reward" affiché UNIQUEMENT si choice === "positive".
+ *     Sur neutral / negative → on saute direct au step "done" remerciement.
+ *     L'utilisateur mécontent ne se voit pas proposer une "récompense" qui
+ *     paraît déplacée — il a un message d'écoute.
+ *   - Reward reformulé : on assume que GMC est une suite naturelle du parcours
+ *     VMD (analyser → gérer), wording centré sur "continuer son projet".
  *
- * Flow : feedback (👍/😐/❌ + texte) → reward (activation GMC) → done (Trustpilot conditionnel)
- * Persistence : localStorage 'vmdf_feedback_shown' avec TTL 7 jours
+ * Persistence anti-spam : localStorage 'vmdf_feedback_shown' avec TTL 7 jours.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -20,8 +26,6 @@ import { toast } from "sonner";
 
 const STORAGE_KEY      = "vmdf_feedback_shown";
 const TTL_DAYS         = 7;
-const INTERACTION_WAIT = 5_000;   // ms après première interaction
-const SCROLL_THRESHOLD = 0.60;    // 60% de la page
 const TRUSTPILOT_URL   = "https://fr.trustpilot.com/evaluate/verifiermondevis.fr";
 const TEXT_MAX         = 200;
 
@@ -29,8 +33,15 @@ const TEXT_MAX         = 200;
 
 type Choice  = "positive" | "neutral" | "negative";
 type Step    = "feedback" | "reward" | "done";
-// État intermédiaire de l'activation (credibility delay)
 type Activating = "idle" | "activating" | "activated";
+type VerdictColor = "VERT" | "ORANGE" | "ROUGE";
+
+export interface UseFeedbackOptions {
+  /** Analyse en cours (pour persister la soumission côté serveur). */
+  analysisId?: string | null;
+  /** Verdict global courant (snapshot pour cohorter en admin). */
+  verdict?: VerdictColor | null;
+}
 
 // ─── Tracking helper ──────────────────────────────────────────────────────────
 
@@ -60,6 +71,38 @@ function markShown() {
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
+async function persistFeedback(opts: {
+  analysisId: string;
+  choice: Choice;
+  text: string;
+  verdict: VerdictColor | null;
+}): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) {
+    // Pas de session : on log uniquement Amplitude, pas la peine de tenter l'API.
+    // Cas marginal (l'analyse n'est normalement accessible que connecté).
+    return;
+  }
+  const res = await fetch("/api/feedback", {
+    method: "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      analysis_id: opts.analysisId,
+      choice: opts.choice,
+      text: opts.text.trim() || undefined,
+      verdict_at_submission: opts.verdict ?? undefined,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error || "Erreur sauvegarde feedback");
+  }
+}
+
 async function activateGererMonChantier(): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
@@ -88,13 +131,14 @@ const CHOICES: { id: Choice; emoji: string; label: string }[] = [
 ];
 
 function StepFeedback({
-  choice, text, onChoice, onText, onNext,
+  choice, text, submitting, onChoice, onText, onNext,
 }: {
-  choice:   Choice | null;
-  text:     string;
-  onChoice: (c: Choice) => void;
-  onText:   (t: string) => void;
-  onNext:   () => void;
+  choice:     Choice | null;
+  text:       string;
+  submitting: boolean;
+  onChoice:   (c: Choice) => void;
+  onText:     (t: string) => void;
+  onNext:     () => void;
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -144,16 +188,23 @@ function StepFeedback({
 
       <Button
         onClick={onNext}
-        disabled={!choice}
+        disabled={!choice || submitting}
         className="w-full h-11 rounded-xl font-semibold"
       >
-        Continuer →
+        {submitting ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Envoi…
+          </span>
+        ) : (
+          "Continuer →"
+        )}
       </Button>
     </div>
   );
 }
 
-// ─── Step 2 — Reward ─────────────────────────────────────────────────────────
+// ─── Step 2 — Reward (uniquement si choice positive) ─────────────────────────
 
 function StepReward({
   activating, onActivate, onSkip,
@@ -165,27 +216,29 @@ function StepReward({
   return (
     <div className="flex flex-col gap-5 text-center">
       <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-        <span className="text-3xl">🏗️</span>
+        <span className="text-3xl">🎁</span>
       </div>
 
       {activating === "activating" ? (
         <div className="flex flex-col items-center gap-2 py-2">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <p className="text-sm font-medium text-slate-600">
-            Merci pour votre retour 🙏<br />
-            <span className="text-slate-400">Activation en cours…</span>
+            Activation en cours…
           </p>
         </div>
       ) : (
         <>
           <div>
-            <p className="text-lg font-bold text-slate-900">Merci pour votre retour !</p>
-            <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
-              Débloquez{" "}
-              <strong className="text-slate-700">GérerMonChantier</strong>{" "}
-              gratuitement — suivez votre chantier, paiements et alertes depuis une seule interface.
+            <p className="text-lg font-bold text-slate-900">
+              Merci pour votre retour 🙏
             </p>
-            <p className="text-xs text-slate-400 mt-2">Utilisé par +200 propriétaires</p>
+            <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+              Petit cadeau : on vous ouvre l'accès à{" "}
+              <strong className="text-slate-700">GérerMonChantier</strong>,
+              notre outil pour piloter la suite — paiements, planning, alertes —
+              dans le prolongement de votre analyse de devis.
+            </p>
+            <p className="text-xs text-slate-400 mt-2">Gratuit, sans carte bancaire</p>
           </div>
 
           <div>
@@ -194,11 +247,8 @@ function StepReward({
               disabled={activating !== "idle"}
               className="w-full h-12 rounded-xl font-semibold text-base"
             >
-              🎁 Débloquer mon accès offert
+              ✨ Débloquer mon accès offert
             </Button>
-            <p className="text-xs text-slate-400 mt-1.5">
-              Suivi chantier, paiements et alertes
-            </p>
           </div>
 
           <button
@@ -215,7 +265,13 @@ function StepReward({
 
 // ─── Step 3 — Done ───────────────────────────────────────────────────────────
 
-function StepDone({ choice, onClose }: { choice: Choice; onClose: () => void }) {
+function StepDone({
+  choice, rewardActivated, onClose,
+}: {
+  choice:          Choice;
+  rewardActivated: boolean;
+  onClose:         () => void;
+}) {
   return (
     <div className="flex flex-col gap-5 text-center">
       <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
@@ -223,19 +279,45 @@ function StepDone({ choice, onClose }: { choice: Choice; onClose: () => void }) 
       </div>
 
       <div>
-        <p className="text-base font-bold text-slate-900">🎁 Accès débloqué !</p>
-        <p className="text-sm text-slate-500 mt-1">
-          Votre accès GérerMonChantier est maintenant actif.
-        </p>
+        {rewardActivated ? (
+          <>
+            <p className="text-base font-bold text-slate-900">🎁 Accès débloqué !</p>
+            <p className="text-sm text-slate-500 mt-1">
+              Votre accès GérerMonChantier est maintenant actif.
+            </p>
+          </>
+        ) : choice === "positive" ? (
+          <>
+            <p className="text-base font-bold text-slate-900">Merci 🙏</p>
+            <p className="text-sm text-slate-500 mt-1">
+              Votre retour nous aide vraiment à améliorer l'outil.
+            </p>
+          </>
+        ) : choice === "neutral" ? (
+          <>
+            <p className="text-base font-bold text-slate-900">Merci pour votre retour</p>
+            <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+              On note vos remarques et on continue d'améliorer l'analyse.
+              N'hésitez pas à nous écrire si quelque chose n'a pas été clair.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-base font-bold text-slate-900">Désolé que ça n'ait pas répondu à vos attentes</p>
+            <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+              Votre retour honnête nous aide vraiment à progresser. Si vous avez
+              30 secondes, écrivez-nous à <a className="underline" href="mailto:hello@verifiermondevis.fr">hello@verifiermondevis.fr</a> —
+              on lit chaque message.
+            </p>
+          </>
+        )}
       </div>
 
-      {choice !== "negative" ? (
+      {choice === "positive" && !rewardActivated && (
         <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-left">
           <p className="text-sm text-slate-700 leading-relaxed mb-3">
-            Merci 🙏<br />
-            Votre retour nous aide vraiment à améliorer l'outil.
-            <br /><br />
-            Si l'analyse vous a été utile, vous pouvez nous aider en laissant un avis.
+            Si l'analyse vous a été utile, vous pouvez nous aider en laissant un
+            avis — ça fait toute la différence pour un petit outil comme le nôtre.
           </p>
           <a
             href={TRUSTPILOT_URL}
@@ -250,11 +332,6 @@ function StepDone({ choice, onClose }: { choice: Choice; onClose: () => void }) 
             Laisser un avis sur Trustpilot
           </a>
         </div>
-      ) : (
-        <p className="text-sm text-slate-500 leading-relaxed">
-          On travaille continuellement à améliorer les analyses.
-          Votre retour honnête nous aide à progresser — merci. 🙏
-        </p>
       )}
 
       <Button variant="outline" onClick={onClose} className="w-full h-10 rounded-xl">
@@ -266,13 +343,15 @@ function StepDone({ choice, onClose }: { choice: Choice; onClose: () => void }) 
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
 
-const STEPS: Step[] = ["feedback", "reward", "done"];
+const STEPS_WITH_REWARD: Step[] = ["feedback", "reward", "done"];
+const STEPS_NO_REWARD:   Step[] = ["feedback", "done"];
 
-function ProgressBar({ step }: { step: Step }) {
-  const idx = STEPS.indexOf(step);
+function ProgressBar({ step, withReward }: { step: Step; withReward: boolean }) {
+  const sequence = withReward ? STEPS_WITH_REWARD : STEPS_NO_REWARD;
+  const idx = sequence.indexOf(step);
   return (
     <div className="flex gap-1.5 mb-5">
-      {STEPS.map((_, i) => (
+      {sequence.map((_, i) => (
         <div
           key={i}
           className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
@@ -286,50 +365,31 @@ function ProgressBar({ step }: { step: Step }) {
 
 // ─── Hook — source de vérité unique ───────────────────────────────────────────
 
-export function useFeedback() {
+export function useFeedback(opts: UseFeedbackOptions = {}) {
+  const { analysisId = null, verdict = null } = opts;
+
   const [open,       setOpen]       = useState(false);
   const [step,       setStep]       = useState<Step>("feedback");
   const [choice,     setChoice]     = useState<Choice | null>(null);
   const [text,       setText]       = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [activating, setActivating] = useState<Activating>("idle");
 
-  // ── Trigger intelligent (scroll > 60% OU 5s après première interaction) ───
-  const triggeredRef   = useRef(false);
-  const interactedRef  = useRef(false);
-  const interactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // V3.4.14+ — refs pour lire la valeur courante des props sans causer de
+  // re-création des callbacks (qui invaliderait le useMemo du Modal).
+  const analysisIdRef = useRef(analysisId);
+  const verdictRef    = useRef(verdict);
+  useEffect(() => { analysisIdRef.current = analysisId; }, [analysisId]);
+  useEffect(() => { verdictRef.current    = verdict;    }, [verdict]);
 
-  const tryOpen = useCallback((trigger: string) => {
-    if (triggeredRef.current) return;
-    if (hasBeenShown()) return;
-    triggeredRef.current = true;
-    setOpen(true);
-    track("feedback_open", { trigger });
-  }, []);
+  const triggeredRef = useRef(false);
 
-  useEffect(() => {
-    if (hasBeenShown()) return;
-
-    const onInteraction = () => {
-      if (interactedRef.current) return;
-      interactedRef.current = true;
-      interactTimerRef.current = setTimeout(() => tryOpen("interaction_timer"), INTERACTION_WAIT);
-    };
-
-    const onScroll = () => {
-      onInteraction(); // l'interaction démarre aussi le timer
-      const scrolled = window.scrollY / (document.body.scrollHeight - window.innerHeight);
-      if (scrolled >= SCROLL_THRESHOLD) tryOpen("scroll");
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("click",  onInteraction, { passive: true, once: true });
-
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("click",  onInteraction);
-      if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
-    };
-  }, [tryOpen]);
+  // V3.4.14+ — SUPPRESSION de l'auto-scroll/timer. Trigger UNIQUEMENT externe
+  // (via openFeedback) → déclenché sur un "moment de valeur" : clic "Copier le
+  // message" pour négocier (cf. AnalysisResult onCopy={openFeedback}).
+  // Raison : l'auto-trigger au scroll 60% intervenait pendant la lecture
+  // (= dérangeant) → taux de réponse proche de zéro. On préfère ne montrer
+  // la modal que quand l'utilisateur a tiré une valeur concrète de l'outil.
 
   // ── ESC pour fermer ───────────────────────────────────────────────────────
   const close = useCallback(() => setOpen(false), []);
@@ -341,11 +401,11 @@ export function useFeedback() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
 
-  // ── Trigger externe ───────────────────────────────────────────────────────
+  // ── Trigger externe — UNIQUE entry point ──────────────────────────────────
   const openFeedback = useCallback(() => {
     if (hasBeenShown()) return;
-    triggeredRef.current = true; // évite double-trigger auto
-    if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
+    if (triggeredRef.current) return;
+    triggeredRef.current = true;
     setOpen(true);
     track("feedback_open", { trigger: "manual" });
   }, []);
@@ -356,17 +416,46 @@ export function useFeedback() {
     track("feedback_choice", { choice: c });
   }, []);
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback(async () => {
     if (!choice) return;
+    setSubmitting(true);
+
+    // Tracking Amplitude (existant)
     if (text.trim()) track("feedback_text", { length: text.trim().length });
+
+    // Persistance DB (nouveau — non bloquant si échec)
+    const aid = analysisIdRef.current;
+    if (aid) {
+      try {
+        await persistFeedback({
+          analysisId: aid,
+          choice,
+          text,
+          verdict: verdictRef.current,
+        });
+      } catch (err) {
+        console.error("[feedback] persist failed:", err);
+        // On NE bloque PAS l'utilisateur — Amplitude a déjà la donnée et la modal
+        // continue son flow. Un toast silencieux aurait été inutile (l'utilisateur
+        // n'a rien à corriger).
+      }
+    }
+
     markShown();
-    setStep("reward");
+    setSubmitting(false);
+
+    // V3.4.14+ — Découplage : reward UNIQUEMENT si choice positive.
+    // Sur neutral/negative, on saute au "done" pour ne pas paraître insistant.
+    if (choice === "positive") {
+      setStep("reward");
+    } else {
+      setStep("done");
+    }
   }, [choice, text]);
 
   const handleActivate = useCallback(async () => {
     setActivating("activating");
     try {
-      // Délai crédibilité : 600–800ms avant d'appeler l'API
       await new Promise((r) => setTimeout(r, 700));
       await activateGererMonChantier();
       track("reward_activated");
@@ -388,6 +477,9 @@ export function useFeedback() {
   // ── Modal mémoïsé (zéro re-render parent lors de la frappe textarea) ──────
   const Modal = useMemo(() => {
     if (!open) return null;
+
+    const withReward = choice === "positive";
+    const rewardActivated = activating === "activated";
 
     return (
       <>
@@ -422,12 +514,13 @@ export function useFeedback() {
             <X className="h-4 w-4" />
           </button>
 
-          <ProgressBar step={step} />
+          <ProgressBar step={step} withReward={withReward} />
 
           {step === "feedback" && (
             <StepFeedback
               choice={choice}
               text={text}
+              submitting={submitting}
               onChoice={handleChoice}
               onText={setText}
               onNext={handleNext}
@@ -443,13 +536,13 @@ export function useFeedback() {
           )}
 
           {step === "done" && choice && (
-            <StepDone choice={choice} onClose={close} />
+            <StepDone choice={choice} rewardActivated={rewardActivated} onClose={close} />
           )}
         </div>
       </>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, step, choice, text, activating]);
+  }, [open, step, choice, text, submitting, activating]);
 
   return { openFeedback, FeedbackModal: Modal };
 }

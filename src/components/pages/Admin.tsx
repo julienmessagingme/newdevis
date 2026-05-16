@@ -13,6 +13,7 @@ import RegisteredUsersTable from "@/components/admin/sections/RegisteredUsersTab
 import SubscribersTable from "@/components/admin/sections/SubscribersTable";
 import RecentDevisTable from "@/components/admin/sections/RecentDevisTable";
 import ReturningUsersSection from "@/components/admin/sections/ReturningUsersSection";
+import FeedbackSection from "@/components/admin/sections/FeedbackSection";
 
 const Admin = () => {
   const [loading, setLoading] = useState(true);
@@ -178,6 +179,8 @@ const Admin = () => {
           downloadingId={downloadingId}
           onDownload={downloadFile}
         />
+
+        <FeedbackSection />
 
         {/* Conformité et anonymisation */}
         <section className="mb-8">

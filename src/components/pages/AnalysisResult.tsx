@@ -326,7 +326,15 @@ const AnalysisResult = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   // Raw conclusion_ia JSON received from ConclusionIA once generated (may arrive after initial render)
   const [conclusionIaLive, setConclusionIaLive] = useState<string | null>(null);
-  const { openFeedback, FeedbackModal } = useFeedback();
+  // V3.4.14+ — analysisId + verdict passés à useFeedback pour la persistance DB
+  // (table analysis_feedback). analysisId fiable dès le mount via URL ; verdict
+  // est sync via useEffect plus bas car effectiveScore est calculé après.
+  // useFeedback lit en refs en interne → pas de re-render si verdict change.
+  const [verdictForFeedback, setVerdictForFeedback] = useState<"VERT" | "ORANGE" | "ROUGE" | null>(null);
+  const { openFeedback, FeedbackModal } = useFeedback({
+    analysisId: id ?? null,
+    verdict: verdictForFeedback,
+  });
   const [showTrustpilotModal, setShowTrustpilotModal] = useState(false);
   const { user: authUser, isAnonymous: rawIsAnonymous, isPermanent: rawIsPermanent, loading: authLoading, convertToPermanent } = useAnonymousAuth();
   const { isPremium, lifetimeAnalysisCount } = usePremium();
@@ -635,6 +643,13 @@ const AnalysisResult = () => {
 
     return result.score_legacy;
   }, [analysis, cachedN8NData, conclusionIaLive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // V3.4.14+ — sync verdictForFeedback à chaque changement d'effectiveScore.
+  // Permet à la modal de stocker en DB le snapshot du verdict au moment où le
+  // user soumet son feedback (utile pour cohorter en admin : "négatifs sur ROUGE").
+  useEffect(() => {
+    setVerdictForFeedback(effectiveScore ?? null);
+  }, [effectiveScore]);
 
   // ---- Waiting message rotation (must be before any conditional return) ----
   const [waitingMsgIdx, setWaitingMsgIdx] = useState(0);
