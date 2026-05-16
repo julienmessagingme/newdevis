@@ -130,14 +130,19 @@ export default function Sidebar({ result, activeSection, onSelect, badges, mobil
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:relative lg:translate-x-0 lg:z-auto lg:flex-none lg:pb-5
       `}>
-        {/* Brand */}
-        <div className="cr-sb-brand">
+        {/* Brand — clic = retour à l'accueil du chantier */}
+        <button
+          type="button"
+          className="cr-sb-brand"
+          onClick={() => { onSelect('budget'); onCloseMobile(); }}
+          title="Retour à l'accueil du chantier"
+        >
           <div className="cr-sb-brand-mark"><GmcMark /></div>
           <div className="cr-sb-brand-text">
             <div className="l1">Gérer<span className="or">Mon</span>Chantier</div>
             <div className="l2">Pilote IA · cockpit</div>
           </div>
-        </div>
+        </button>
 
         {/* Project picker → tous mes chantiers */}
         <a href="/mon-chantier" className="cr-project-picker">

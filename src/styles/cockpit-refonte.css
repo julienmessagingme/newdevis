@@ -35,24 +35,31 @@
 }
 .cr-sb-brand{
   display:flex; align-items:center; gap:8px;
+  width:100%; text-align:left;
   padding:6px 6px 14px;
+  border:none;
   border-bottom:1px solid rgba(255,255,255,.10);
+  background:transparent;
+  cursor:pointer;
 }
+.cr-sb-brand:hover{opacity:.85}
 .cr-sb-brand-mark{
-  width:32px; height:32px;
+  width:30px; height:30px;
   border-radius:9px;
   background:rgba(255,255,255,.10);
   display:flex; align-items:center; justify-content:center;
   flex-shrink:0;
 }
-.cr-sb-brand-mark svg{width:28px; height:28px}
-.cr-sb-brand-text{display:flex; flex-direction:column; line-height:1; min-width:0}
+.cr-sb-brand-mark svg{width:26px; height:26px}
+.cr-sb-brand-text{display:flex; flex-direction:column; line-height:1; flex:1; min-width:0}
 .cr-sb-brand-text .l1{
   font-family:"Syne",sans-serif;
-  font-size:13px; font-weight:800;
-  letter-spacing:-0.015em;
+  font-size:12px; font-weight:800;
+  letter-spacing:-0.02em;
   color:#fff;
   white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .cr-sb-brand-text .l1 .or{color:var(--cr-orange)}
 .cr-sb-brand-text .l2{
