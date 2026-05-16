@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.13";
+const ENGINE_VERSION = "3.4.14";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -673,6 +673,90 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
   } catch {
     // raw_text invalide
+  }
+
+  // ── V3.4.14 (2026-05-16) — Bypass complet si devis étranger ─────────────────
+  //
+  // Le catalogue marché (`market_prices`), les vérifications SIRET/RGE/RNE et
+  // l'analyse financière sont tous calibrés sur la réglementation FRANÇAISE.
+  // Comparer un devis belge (TVA 6% réno, IBAN BE86, prix posés en BE) au
+  // catalogue FR produit des +1500€ fantômes et des verdicts incohérents.
+  //
+  // Quand `is_foreign_quote=true` (détecté par extract.ts / country.ts), on :
+  //   1. Bypass Gemini conclusion (gain ~2-4s + 0 token consommé)
+  //   2. Bypass verdictEngine (verdict déterministe = signer_avec_negociation)
+  //   3. Bypass comparaison catalogue (surcout=0, comparison_indicative=true)
+  //   4. Génère un wording dédié + champ foreign_quote pour la bannière UI
+  //
+  // La sécurité paiement (IBAN, acompte, modes) ET les sections sanitaires
+  // RESTENT visibles via BlockSecurite — uniquement le scoring prix est désactivé.
+  //
+  // Lecture de is_foreign_quote depuis 2 emplacements (compatibilité format) :
+  //   - parsed.extracted (format actuel — V3.4.14+)
+  //   - parsed.extracted_data (format legacy)
+  // ────────────────────────────────────────────────────────────────────────
+  try {
+    const parsed = JSON.parse(analysis.raw_text || "{}");
+    const extractedActuel = parsed.extracted as Record<string, unknown> | undefined;
+    const extractedLegacy2 = parsed.extracted_data as Record<string, unknown> | undefined;
+    const isForeign =
+      (extractedActuel?.is_foreign_quote === true) ||
+      (extractedLegacy2?.is_foreign_quote === true);
+
+    if (isForeign) {
+      const countryCode =
+        (extractedActuel?.country_code as string | undefined) ||
+        (extractedLegacy2?.country_code as string | undefined) ||
+        "OTHER";
+      const countryLabel =
+        (extractedActuel?.country_label as string | undefined) ||
+        (extractedLegacy2?.country_label as string | undefined) ||
+        "étranger";
+
+      console.log(`[conclusion] FOREIGN QUOTE bypass — country=${countryCode} (${countryLabel}) — pas d'appel Gemini, pas de matching catalogue`);
+
+      const foreignConclusion: ConclusionData & { engine_version: string } = {
+        verdict_global:      "eleve_justifie",
+        phrase_intro:        `Ce devis provient d'une entreprise située en ${countryLabel}. L'outil VerifierMonDevis est calibré sur la réglementation et les tarifs français — la comparaison automatique au marché, les vérifications SIRET/RGE et les ratios financiers ne s'appliquent pas. La sécurité paiement (IBAN, modalités) et les anomalies de structure restent vérifiables.`,
+        anomalies:           [],
+        justifications:      `Vérifications hors comparaison prix : examinez manuellement les tarifs auprès d'un comparateur local ${countryLabel}, vérifiez l'inscription au registre du commerce du pays (BCE pour la Belgique, RCS Luxembourg, etc.), et demandez 1-2 devis concurrents locaux pour valider le niveau de prix.`,
+        has_anomalies:       false,
+        verdict_decisionnel: "signer_avec_negociation",
+        surcout_global:      { min: 0, max: 0 },
+        niveau_risque:       "modéré",
+        actions_avant_signature: [
+          `Comparer le prix à 1-2 devis concurrents locaux (${countryLabel}) — le tarif marché diffère du marché français.`,
+          `Vérifier l'inscription officielle de l'entreprise au registre du commerce local (BCE pour la Belgique, RCS Luxembourg, ZEFIX pour la Suisse, Handelsregister pour l'Allemagne).`,
+          "Vérifier l'IBAN affiché dans la section paiement — pour un virement international, contrôler aussi le BIC/SWIFT.",
+        ],
+        verdict_reasons: {
+          summary: `Comparaison prix non applicable — entreprise située en ${countryLabel}`,
+          reasons: [
+            `Le catalogue de prix de référence (475+ postes) est constitué de tarifs français — pas pertinent pour un devis ${countryLabel}.`,
+            `Les vérifications réglementaires (SIRET, RGE, RNE/Pappers, sinistres financiers) sont basées sur les API publiques françaises — pas accessibles pour ${countryLabel}.`,
+          ],
+          context: [
+            "Les sections Sécurité paiement (IBAN, acompte, modes) et anomalies de structure restent valides quelle que soit la nationalité du devis.",
+          ],
+        },
+        comparison_indicative: true,
+        foreign_quote: {
+          country_code: countryCode,
+          country_label: countryLabel,
+        },
+        generated_at: new Date().toISOString(),
+        engine_version: ENGINE_VERSION,
+      };
+
+      await (supabase as any)
+        .from("analyses")
+        .update({ conclusion_ia: JSON.stringify(foreignConclusion) })
+        .eq("id", analysisId);
+
+      return jsonOk({ conclusion: foreignConclusion, cached: false });
+    }
+  } catch {
+    // raw_text invalide — continue avec le flow normal (qui re-tentera lui aussi le parse)
   }
 
   // ── Parse scoring (critères rouges + oranges pour verdictEngine) ────────────

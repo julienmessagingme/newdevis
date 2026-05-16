@@ -1,6 +1,7 @@
 import type { ExtractedData } from "./types.ts";
 import type { DomainConfig } from "./domain-config.ts";
 import { PipelineError, isPipelineError, repairTruncatedJson, GEMINI_AI_URL } from "./utils.ts";
+import { detectQuoteCountry } from "./country.ts";
 
 // ============================================================
 // PHASE 1: EXTRACTION WITH EXTRACT-DOCUMENT CALL
@@ -218,7 +219,8 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     "adresse": "adresse complète ou null",
     "email": "adresse email de l'entreprise trouvée dans le document (en-tête, pied de page, mentions légales, site web) ou null",
     "telephone": "numéro de téléphone de l'entreprise trouvé dans le document (en-tête, pied de page, mentions légales) ou null",
-    "iban": "IBAN complet ou null",
+    "iban": "IBAN complet ou null. CHERCHE SUR TOUTES LES PAGES, surtout les DERNIÈRES (souvent en bas du dernier feuillet) et les pieds de page. Patterns à reconnaître : 'IBAN', 'RIB', 'Compte', 'Numéro de compte', 'BIC', 'BANQUE', 'Banque'. Format : 2 LETTRES PAYS (FR, BE, LU, CH, DE, ES, IT, NL, GB) + 2 chiffres + 12 à 30 caractères alphanumériques. L'IBAN peut être précédé d'un tiret, d'un em-dash, deux-points ou tirets longs (ex: 'FORTIS Banque - IBAN — BE86 0019 6093 7650' → extraire 'BE86 0019 6093 7650'). NE T'ARRÊTE PAS à la première page — un IBAN sur un devis multi-pages se trouve presque toujours sur la dernière page avec les modalités de paiement.",
+    "tva_intracom": "Numéro de TVA intracommunautaire si présent (ex: 'TVA: BE1000162842', 'TVA Intracom FR12345678901', 'BTW BE...'). Format : 2 LETTRES PAYS + chiffres (et éventuellement lettres). Restitue avec le préfixe pays. null sinon.",
     "assurance_decennale_mentionnee": true | false | null,
     "assurance_rc_pro_mentionnee": true | false | null,
     "certifications_mentionnees": []
@@ -462,6 +464,21 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
       return trimmed;
     };
 
+    // V3.4.14 (2026-05-16) — Détection devis étranger avant return.
+    // Agrège 4 signaux (IBAN, TVA intracom, adresse, taux TVA) pour décider
+    // si on bypass le matching catalogue marché côté conclusion.ts.
+    const countryDetection = detectQuoteCountry({
+      entreprise: {
+        ...parsed.entreprise,
+        // tva_intracom peut être stocké séparément OU collé dans le SIRET par Gemini
+        tva_intracom: parsed.entreprise?.tva_intracom ?? parsed.entreprise?.siret ?? null,
+      },
+      totaux: parsed.totaux,
+    });
+    if (countryDetection.is_foreign) {
+      console.log(`[extract] FOREIGN QUOTE detected: country=${countryDetection.country_code} (${countryDetection.country_label}) | signals=${JSON.stringify(countryDetection.signals)}`);
+    }
+
     return {
       type_document: typeDocument,
       entreprise: {
@@ -602,6 +619,10 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
               : [],
           }))
         : undefined,
+      // V3.4.14 — propagation de la détection pays vers conclusion.ts via raw_text
+      country_code: countryDetection.country_code,
+      country_label: countryDetection.country_label,
+      is_foreign_quote: countryDetection.is_foreign,
     };
 
   } catch (error) {

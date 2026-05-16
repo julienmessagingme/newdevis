@@ -223,7 +223,11 @@ function ConclusionDisplay({
   // un seul "micro-station" → hero "+11 100€" alarmiste contredit par texte
   // "ce qui justifie le montant global". On masque le hero dans ce cas.
   const isComparisonIndicative = conclusion.comparison_indicative === true;
-  const showAccusatoryHero    = hasSurcout && !isVerdictSigner && !isComparisonIndicative;  // RÈGLE 2 + 3 + V3.4.13
+  // V3.4.14 (2026-05-16) — Devis étranger : on masque TOUT le bloc hero/comparaison
+  // car aucun chiffre n'est fiable (catalogue FR vs prix BE/LU/CH/DE).
+  const isForeignQuote = Boolean(conclusion.foreign_quote);
+  const foreignCountryLabel = conclusion.foreign_quote?.country_label ?? null;
+  const showAccusatoryHero    = hasSurcout && !isVerdictSigner && !isComparisonIndicative && !isForeignQuote;  // RÈGLE 2 + 3 + V3.4.13 + V3.4.14
   const surcoutWithoutAnomaly = hasSurcout && anomCount === 0;         // RÈGLE 4
 
   // Wording neutre quand on a un surcoût détecté mais qu'on ne peut pas l'afficher accusatoire
@@ -264,11 +268,38 @@ function ConclusionDisplay({
   return (
     <div className="space-y-4">
 
+      {/* V3.4.14 (2026-05-16) — Bannière dédiée devis étranger
+          Affichée AVANT le verdict, masque tous les chiffres de comparaison.
+          Le catalogue marché, vérifs SIRET/RGE/RNE et analyse financière sont
+          calibrés FR — non applicables sur un devis BE/LU/CH/DE. */}
+      {isForeignQuote && (
+        <div className="rounded-xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100/60 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl leading-none flex-shrink-0 mt-0.5" aria-hidden="true">🌍</span>
+            <div className="min-w-0">
+              <p className="text-base font-bold text-amber-900 leading-snug">
+                Devis {foreignCountryLabel} détecté
+              </p>
+              <p className="text-sm text-amber-800/90 mt-1.5 leading-relaxed">
+                L'outil VerifierMonDevis est calibré sur la <strong>réglementation et les tarifs français</strong>.
+                La comparaison automatique au marché, les vérifications SIRET/RGE/RNE et l'analyse financière
+                <strong> ne s'appliquent pas</strong> à ce devis.
+              </p>
+              <p className="text-xs text-amber-800/80 mt-2 leading-relaxed">
+                ✓ Ce qui reste fiable : sécurité paiement (IBAN, acompte, modes), anomalies de structure,
+                modalités contractuelles. Pour valider le prix, demandez 1-2 devis concurrents locaux en {foreignCountryLabel}.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ═══════════════════════════════════════════════════════════
           SECTION 1 — SURCOÛT (chiffre principal)
           V3.3.1 — Affiché UNIQUEMENT si action requise (RÈGLE 2 + 3).
           Wording adapté selon présence d'anomalies pointées (RÈGLE 4).
           V3.4.13 — Masqué aussi si comparison_indicative (catalogue sous-couvrant).
+          V3.4.14 — Masqué aussi si devis étranger.
       ════════════════════════════════════════════════════════════ */}
       {showAccusatoryHero && (
         <div className="text-center py-2">
@@ -292,7 +323,7 @@ function ConclusionDisplay({
           quand le catalogue marché sous-couvre la prestation (overprice > +50%
           SANS anomalie identifiée poste par poste). Cas typique : assainissement
           réhabilitation, prestations très techniques, lots regroupés. */}
-      {isComparisonIndicative && !isVerdictSigner && (
+      {isComparisonIndicative && !isVerdictSigner && !isForeignQuote && (
         <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 px-4 py-3.5">
           <p className="text-sm font-semibold text-amber-900 leading-snug">
             <span aria-hidden="true">ℹ️ </span>

@@ -128,6 +128,19 @@ export interface ExtractedData {
   multiple_quotes?: boolean;
   /** Liste des devis individuels (peuplé uniquement si multiple_quotes=true) */
   devis_list?: DevisSegment[];
+  /**
+   * V3.4.14 (2026-05-16) — Détection devis étranger.
+   * country_code = ISO-2 ("FR", "BE", "LU", "CH", "DE", ...).
+   * is_foreign_quote = true si country_code ≠ "FR".
+   * Calculé par detectQuoteCountry() dans country.ts à partir de 4 signaux
+   * (IBAN, TVA intracom, adresse, taux TVA).
+   * Quand is_foreign_quote=true, conclusion.ts bypass complètement le matching
+   * catalogue marché (calibré FR) et renvoie un verdict "comparaison indisponible"
+   * + bannière explicative.
+   */
+  country_code?: string;
+  country_label?: string;
+  is_foreign_quote?: boolean;
 }
 
 // ============================================================

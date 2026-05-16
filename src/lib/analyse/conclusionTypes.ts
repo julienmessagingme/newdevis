@@ -58,6 +58,19 @@ export interface ConclusionData {
    */
   comparison_indicative?: boolean;
 
+  /**
+   * V3.4.14 (2026-05-16) — Devis étranger (Belgique, Luxembourg, Suisse, etc.).
+   * Le catalogue marché, les vérifications SIRET/RGE/RNE et l'analyse financière
+   * sont calibrés sur la réglementation française. Quand `is_foreign=true`,
+   * la conclusion est entièrement bypassée (pas d'appel Gemini, pas de comparaison
+   * catalogue) et un wording dédié est généré côté serveur.
+   * UI : ConclusionIA affiche une bannière ambre explicite, masque le hero surcoût.
+   */
+  foreign_quote?: {
+    country_code: string;
+    country_label: string;
+  };
+
   // ── Métadonnée ─────────────────────────────────────────────────────────────
   generated_at: string;
 }
