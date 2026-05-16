@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import {
-  ArrowLeft, Pencil, Wallet, Layers,
-  Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen, LogOut,
+  Wallet, Layers, Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen, LogOut,
 } from 'lucide-react';
 import type { ChantierIAResult } from '@/types/chantier-ia';
 
@@ -55,68 +55,105 @@ export const NAV_GROUPS: NavGroup[] = [
 // Flat list pour les composants qui en ont besoin (breadcrumbs, etc.)
 export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
-export default function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {
+const supabase = createClient(
+  import.meta.env.PUBLIC_SUPABASE_URL,
+  import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+);
+
+/** Mark GMC — maison + bras de grue (design system). */
+function GmcMark() {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+      <rect x="2" y="2" width="44" height="44" rx="11" fill="#fff" fillOpacity="0.08" />
+      <path d="M11 30 L24 18 L37 30 L37 39 L11 39 Z" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round" fill="none" />
+      <rect x="21" y="32" width="6" height="7" stroke="#fff" strokeWidth="1.6" fill="none" />
+      <line x1="14" y1="12" x2="32" y2="12" stroke="#F58A06" strokeWidth="2" strokeLinecap="round" />
+      <line x1="14" y1="12" x2="14" y2="30" stroke="#F58A06" strokeWidth="2" strokeLinecap="round" />
+      <rect x="27" y="20" width="4" height="3" fill="#F58A06" />
+    </svg>
+  );
+}
+
+/** Variante visuelle du badge à partir de son texte (alerte / ok / info). */
+function badgeClass(text: string): string {
+  if (text.includes('✓') || /\bOK\b/i.test(text)) return 'badge ok';
+  if (text.includes('⚠')) return 'badge';
+  return 'badge gold';
+}
+
+export default function Sidebar({ result, activeSection, onSelect, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {
+  const [user, setUser] = useState<{ name: string; initials: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled || !data.user) return;
+      const meta = data.user.user_metadata ?? {};
+      const rawName = (meta.full_name || meta.name || data.user.email?.split('@')[0] || 'Mon compte') as string;
+      const initials = rawName
+        .split(/[\s.@_-]+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(p => p[0]?.toUpperCase() ?? '')
+        .join('') || 'JD';
+      setUser({ name: rawName, initials });
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <>
       {/* Overlay mobile */}
       {mobileOpen && (
-        <div className="fixed inset-0 bg-black/20 z-30 lg:hidden" onClick={onCloseMobile} />
+        <div className="fixed inset-0 bg-black/30 z-30 lg:hidden" onClick={onCloseMobile} />
       )}
 
       <aside className={`
-        fixed top-0 left-0 h-full w-[280px] lg:w-[240px] bg-white border-r border-gray-100 z-40 flex flex-col
+        cr-sidebar
+        fixed top-0 left-0 h-full w-[248px] z-40
         pb-[max(0.5rem,env(safe-area-inset-bottom))]
         transition-transform duration-300 ease-in-out
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:relative lg:translate-x-0 lg:z-auto lg:flex-none lg:pb-0
+        lg:relative lg:translate-x-0 lg:z-auto lg:flex-none lg:pb-5
       `}>
-        {/* Projet — logo seul, pas de doublon nom/budget */}
-        <div className="px-4 py-4 border-b border-gray-50">
-          <a href="/mon-chantier"
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mb-3 transition-colors">
-            <ArrowLeft className="h-3 w-3" /> Mes chantiers
-          </a>
-          <button
-            onClick={() => { onSelect('budget'); onCloseMobile(); }}
-            className="flex items-center gap-2.5 w-full text-left hover:opacity-80 transition-opacity"
-          >
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-lg shrink-0">
-              {result.emoji}
-            </div>
-            <span className="text-xs text-gray-400 truncate">Accueil du chantier</span>
-          </button>
-          {onAmeliorer && (
-            <button
-              onClick={onAmeliorer}
-              className="mt-2.5 w-full flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl px-3 py-2 transition-all"
-            >
-              <Pencil className="h-3 w-3 shrink-0" />
-              Modifier le projet
-            </button>
-          )}
+        {/* Brand */}
+        <div className="cr-sb-brand">
+          <div className="cr-sb-brand-mark"><GmcMark /></div>
+          <div className="cr-sb-brand-text">
+            <div className="l1">Gérer<span className="or">Mon</span>Chantier</div>
+            <div className="l2">Pilote IA · cockpit</div>
+          </div>
         </div>
 
+        {/* Project picker → tous mes chantiers */}
+        <a href="/mon-chantier" className="cr-project-picker">
+          <div className="cr-pp-icon">{result.emoji ?? '🏗️'}</div>
+          <div className="cr-pp-text">
+            <div className="cr-pp-name">{result.nom}</div>
+            <div className="cr-pp-sub">Tous mes chantiers</div>
+          </div>
+          <div className="cr-pp-chev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+          </div>
+        </a>
+
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-3">
+        <nav className="cr-nav">
           {NAV_GROUPS.map(group => (
-            <div key={group.label}>
-              <p className="text-[9px] font-bold text-gray-300 uppercase tracking-widest px-2 mb-1">{group.label}</p>
+            <div key={group.label} className="cr-nav-section">
+              <div className="cr-nav-label">{group.label}</div>
               {group.items.map(item => {
                 const active = activeSection === item.id;
                 const badge  = badges[item.id];
                 return (
-                  <button key={item.id}
+                  <button
+                    key={item.id}
                     onClick={() => { onSelect(item.id); onCloseMobile(); }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5 transition-all text-left group ${
-                      active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}>
-                    <item.icon className={`h-4 w-4 shrink-0 transition-colors ${active ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {badge && (
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${badge.style}`}>
-                        {badge.text}
-                      </span>
-                    )}
+                    className={`cr-nav-item${active ? ' active' : ''}`}
+                  >
+                    <span className="ic"><item.icon /></span>
+                    <span className="lbl">{item.label}</span>
+                    {badge && <span className={badgeClass(badge.text)}>{badge.text}</span>}
                   </button>
                 );
               })}
@@ -124,27 +161,41 @@ export default function Sidebar({ result, activeSection, onSelect, rangeMin, ran
           ))}
         </nav>
 
-        {/* Paramètres + Déconnexion (bas) */}
-        <div className="px-3 pb-4 pt-3 border-t border-gray-50 space-y-1">
+        {/* Footer — profil + actions */}
+        <div className="cr-sb-foot">
+          {onAmeliorer && (
+            <button type="button" onClick={onAmeliorer} className="cr-sb-link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
+              Modifier le projet
+            </button>
+          )}
           <button
+            type="button"
             onClick={() => { onSelect('settings'); onCloseMobile(); }}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-              activeSection === 'settings' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-            }`}>
-            <Settings className={`h-4 w-4 ${activeSection === 'settings' ? 'text-blue-600' : 'text-gray-400'}`} />
+            className="cr-sb-link"
+          >
+            <Settings />
             Paramètres
           </button>
-          {/* Sign out cross-domain (vmd.fr ET gmc.fr) — délégué au helper partagé */}
           <button
             type="button"
             onClick={async () => {
               const { signOutCrossDomain } = await import('@/lib/auth/signOut');
               await signOutCrossDomain('/');
             }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all">
-            <LogOut className="h-4 w-4 text-gray-400" />
+            className="cr-sb-link danger"
+          >
+            <LogOut />
             Déconnexion
           </button>
+
+          <div className="cr-sb-profile">
+            <div className="av">{user?.initials ?? 'JD'}</div>
+            <div className="who">
+              <div className="n">{user?.name ?? 'Mon compte'}</div>
+              <div className="r">Pilote du chantier</div>
+            </div>
+          </div>
         </div>
       </aside>
     </>

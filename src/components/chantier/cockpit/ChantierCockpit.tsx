@@ -34,6 +34,7 @@ import UserCoordonnees from './UserCoordonnees';
 import OwnerChannelToggle from './OwnerChannelToggle';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
+import '@/styles/cockpit-refonte.css';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -593,8 +594,10 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
     );
   }
 
+  const isHome = activeSection === 'budget' && !showBudgetDetail;
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f7f8fc]">
+    <div className="gmc-cockpit flex h-screen overflow-hidden">
 
       {/* ── Sidebar ───────────────────────────────────────────────────────── */}
       <Sidebar
@@ -610,13 +613,12 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
       />
 
       {/* ── Contenu principal ──────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="cr-main flex-1 flex flex-col overflow-hidden">
         {/* ── Header minimal : nom chantier + menu mobile ───────────────────
-            Vague A5 : hamburger retiré sur mobile (redondant avec BottomNav).
-            La sidebar slide reste accessible via long-tap sur le logo emoji
-            (pattern alternatif : pas de tap qui ouvre le menu, mais le user
-            peut toujours accéder à "Mes chantiers" via le BottomNav > Plus). */}
-        <header className="bg-white border-b border-gray-100 px-5 py-3 shrink-0">
+            Sur desktop (lg+), l'accueil affiche son propre header projet
+            (refonte cockpit) → on masque ce header. Les autres sections le
+            gardent pour le contexte. Sur mobile il reste toujours visible. */}
+        <header className={`bg-white border-b border-gray-100 px-5 py-3 shrink-0 ${isHome ? 'lg:hidden' : ''}`}>
           <div className="flex items-center gap-3">
             {/* Hamburger conservé uniquement sur tablette (lg- ≤ width < lg) au cas où
                 le user a un viewport entre 768 et 1024px où le BottomNav est encore
