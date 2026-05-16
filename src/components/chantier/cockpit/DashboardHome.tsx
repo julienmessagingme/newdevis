@@ -7,10 +7,6 @@ import '@/styles/cockpit-refonte.css';
 
 const fmtEurShort = (n: number) => (n >= 1000 ? fmtK(n) : `${Math.round(n)} €`);
 
-function fmtDateShort(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 /**
  * Extrait le nom de l'entreprise depuis le libellé d'un document.
  * Coupe la description du devis/facture : "Gouttière Alu System - devis pour
@@ -259,16 +255,6 @@ function DashboardHome({
     return list;
   }, [documents, onGoToTresorerie, onGoToDocuments]);
 
-  // ── Méta header : démarrage + réception ────────────────────────────────────
-  const planningStartDate = useMemo(() => {
-    const dates = lots.filter(l => l.date_debut).map(l => new Date(l.date_debut!).getTime());
-    return dates.length > 0 ? new Date(Math.min(...dates)) : null;
-  }, [lots]);
-  const receptionDate = useMemo(() => {
-    const dates = lots.filter(l => l.date_fin).map(l => new Date(l.date_fin!).getTime());
-    return dates.length > 0 ? new Date(Math.max(...dates)) : null;
-  }, [lots]);
-
   // ── Stepper de démarrage ───────────────────────────────────────────────────
   const hasDevis  = documents.some(d => d.document_type === 'devis');
   const hasBudget = !!(budgetReel && budgetReel > 0);
@@ -313,12 +299,6 @@ function DashboardHome({
             <span className="emoji">{chantierEmoji ?? lots[0]?.emoji ?? '🏠'}</span>
             {chantierNom || 'Mon chantier'}
           </h1>
-          <div className="cr-ph-meta">
-            {planningStartDate && <><span>Démarré le <b>{fmtDateShort(planningStartDate.toISOString())}</b></span><span className="sep">·</span></>}
-            {receptionDate
-              ? <span>Réception cible · <b>{fmtDateShort(receptionDate.toISOString())}</b></span>
-              : <span><b>{total}</b> intervenant{total > 1 ? 's' : ''} · <b>{documents.length}</b> document{documents.length > 1 ? 's' : ''}</span>}
-          </div>
         </div>
       </div>
 
