@@ -44,32 +44,23 @@
 }
 .cr-sb-brand:hover{opacity:.85}
 .cr-sb-brand-mark{
-  width:30px; height:30px;
+  width:34px; height:34px;
   border-radius:9px;
   background:rgba(255,255,255,.10);
   display:flex; align-items:center; justify-content:center;
   flex-shrink:0;
 }
-.cr-sb-brand-mark svg{width:26px; height:26px}
-.cr-sb-brand-text{display:flex; flex-direction:column; line-height:1; flex:1; min-width:0}
+.cr-sb-brand-mark svg{width:30px; height:30px}
+.cr-sb-brand-text{display:flex; flex-direction:column; min-width:0}
 .cr-sb-brand-text .l1{
   font-family:"Syne",sans-serif;
-  font-size:12px; font-weight:800;
-  letter-spacing:-0.02em;
+  font-size:14px; font-weight:800;
+  letter-spacing:-0.015em;
+  line-height:1.06;
   color:#fff;
   white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
 }
 .cr-sb-brand-text .l1 .or{color:var(--cr-orange)}
-.cr-sb-brand-text .l2{
-  font-family:"JetBrains Mono",monospace;
-  font-size:9px; font-weight:700;
-  color:rgba(255,255,255,.55);
-  letter-spacing:.10em;
-  text-transform:uppercase;
-  margin-top:3px;
-}
 
 .cr-project-picker{
   background:rgba(255,255,255,.06);

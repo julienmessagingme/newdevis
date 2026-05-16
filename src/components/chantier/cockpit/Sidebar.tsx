@@ -139,8 +139,8 @@ export default function Sidebar({ result, activeSection, onSelect, badges, mobil
         >
           <div className="cr-sb-brand-mark"><GmcMark /></div>
           <div className="cr-sb-brand-text">
-            <div className="l1">Gérer<span className="or">Mon</span>Chantier</div>
-            <div className="l2">Pilote IA · cockpit</div>
+            <div className="l1">Gérer<span className="or">Mon</span></div>
+            <div className="l1">Chantier</div>
           </div>
         </button>
 
