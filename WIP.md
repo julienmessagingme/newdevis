@@ -11,6 +11,26 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🟢 Refonte accueil cockpit chantier — design GMC navy/crème (2026-05-16)
+
+Implémentation du design `11_cockpit_chantier_refonte.html` (bundle Claude Design) sur la page d'accueil du cockpit (`/mon-chantier/[id]` → `ChantierCockpit` + `DashboardHome`).
+
+**Livré** :
+- `src/styles/cockpit-refonte.css` — tokens design (navy `#1A4A7F`, crème `#F5F1E8`, gold, sage) + classes composants, scopées `.gmc-cockpit`, préfixées `cr-`. JetBrains Mono ajoutée.
+- `Sidebar.tsx` — navy dégradé, logo GMC SVG, project picker, 3 sections, barre orange active. Carte profil en bas qui ouvre un **menu au clic** (Modifier le projet / Paramètres / Déconnexion).
+- `DashboardHome.tsx` — header projet (H1 Syne = nom du chantier), stepper "Démarrage N/4", 3 quick actions, grille 2-col (cartes intervenants + budget/stats/alerte IA). Plus de toggle Cartes/Liste : cartes uniquement. Carte intervenant épurée = métier + dernière action (devis reçu / facture payée / frais + nom entreprise) + date.
+- `ChantierCockpit.tsx` — shell crème, header masqué sur desktop pour l'accueil.
+
+**⚠️ Rollback "ancien look"** : l'ancien cockpit = état au commit **`7386f8d`** (dernier avant la refonte). La refonte = commits **`a52bf24` → `ebf5410`**. Pour revenir en arrière :
+```
+git revert --no-commit a52bf24^..ebf5410 && git commit -m "revert: ancien look cockpit"
+```
+(ou restaurer `ChantierCockpit.tsx` / `DashboardHome.tsx` / `Sidebar.tsx` / `index.css` depuis `7386f8d` et supprimer `src/styles/cockpit-refonte.css`).
+
+**À valider** : rendu live non vérifié (le cockpit exige une session authentifiée). Build prod OK. Vérifier sur `gerermonchantier.fr/mon-chantier/<id>` : sidebar navy, header = nom chantier, stepper, cartes intervenants, carte profil → menu. Mobile (BottomNav) inchangé.
+
+---
+
 ## Refonte mobile cockpit GMC (Trésorerie / Budget / Échéancier)
 
 🟢 **M1+M2+M3+M4 + Vague A + Vague B + V3.4.13 livrés 2026-05-13/16. À tester E2E par Julien.**

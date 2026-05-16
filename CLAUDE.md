@@ -112,6 +112,15 @@ Avant de créer un nouveau composant cockpit : trouver le bon dossier domaine. S
 | `DashboardWidgets.tsx` | (supprimé, 3 exports inlinés dans DashboardHome) | 2026-05-08 |
 | `EcheancierRefonte.tsx` | `Echeancier.tsx` | 2026-05-08 |
 
+### Refonte accueil cockpit — design GMC navy/crème (2026-05-16)
+
+`ChantierCockpit` + `DashboardHome` + `Sidebar` refondus selon le design `11_cockpit_chantier_refonte.html`. Nouvelle feuille `src/styles/cockpit-refonte.css` (tokens navy `#1A4A7F` / crème / gold / sage, classes `cr-*` scopées `.gmc-cockpit`, JetBrains Mono ajoutée). La refonte ne touche que **l'accueil cockpit + la sidebar** — les autres onglets gardent leur style indigo. Détail complet dans `WIP.md`.
+
+**Rollback "ancien look"** : ancien cockpit = état au commit **`7386f8d`** (dernier avant refonte) ; refonte = commits **`a52bf24` → `ebf5410`**. Revenir en arrière :
+```
+git revert --no-commit a52bf24^..ebf5410 && git commit -m "revert: ancien look cockpit"
+```
+
 ---
 
 ## Modèles IA par tâche
