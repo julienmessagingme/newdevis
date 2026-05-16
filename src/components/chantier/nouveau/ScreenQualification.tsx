@@ -118,7 +118,7 @@ export default function ScreenQualification({
   ];
 
   return (
-    <div className="min-h-screen bg-[#080d1a] flex flex-col items-center justify-center px-4 py-16">
+    <div className="min-h-screen bg-[#080d1a] flex flex-col items-center justify-center px-4 py-8 sm:py-16 pb-[max(2rem,env(safe-area-inset-bottom))]">
       <div className="w-full max-w-lg">
 
         {/* Barre de progression étapes */}
@@ -189,10 +189,10 @@ export default function ScreenQualification({
                 {elements.length > 1 && (
                   <button
                     onClick={() => removeElement(idx)}
-                    className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-slate-300 transition-all p-0.5 rounded"
-                    title="Supprimer"
+                    aria-label={`Supprimer ${el.label}`}
+                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-slate-500 hover:text-slate-300 active:text-slate-200 transition-all p-2 -mr-1 rounded-lg touch-manipulation"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-4 h-4" aria-hidden="true" />
                   </button>
                 )}
               </li>
@@ -214,28 +214,33 @@ export default function ScreenQualification({
                   }}
                   placeholder="Ex : Portail automatique"
                   autoFocus
-                  className="flex-1 bg-transparent text-white text-sm placeholder-slate-600 outline-none border-b border-white/20 pb-1 focus:border-blue-500/50 transition-colors"
+                  inputMode="text"
+                  autoCorrect="off"
+                  autoCapitalize="sentences"
+                  enterKeyHint="done"
+                  className="flex-1 bg-transparent text-white text-sm placeholder-slate-600 outline-none border-b border-white/20 h-10 focus:border-blue-500/50 transition-colors"
                 />
                 <button
                   onClick={addElement}
                   disabled={!newLabel.trim()}
-                  className="text-blue-400 hover:text-blue-300 disabled:opacity-30 text-xs font-medium transition-colors"
+                  className="text-blue-400 hover:text-blue-300 disabled:opacity-30 text-sm font-medium transition-colors px-3 py-2 -mr-1 rounded-lg touch-manipulation"
                 >
                   Ajouter
                 </button>
                 <button
                   onClick={() => { setAdding(false); setNewLabel(''); }}
-                  className="text-slate-600 hover:text-slate-400 transition-colors"
+                  aria-label="Annuler l'ajout"
+                  className="text-slate-500 hover:text-slate-400 active:text-slate-300 transition-colors p-2 -mr-1 rounded-lg touch-manipulation"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
             ) : (
               <button
                 onClick={() => setAdding(true)}
-                className="flex items-center gap-2 text-slate-500 hover:text-slate-300 text-xs transition-colors"
+                className="flex items-center gap-2 text-slate-500 hover:text-slate-300 active:text-slate-200 text-sm transition-colors py-2 -my-2 -ml-1 px-1 rounded-lg touch-manipulation"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" aria-hidden="true" />
                 Ajouter un élément
               </button>
             )}
@@ -243,7 +248,7 @@ export default function ScreenQualification({
         </div>
 
         {/* Budget + Duration estimates */}
-        <div className="grid grid-cols-2 gap-3 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-8">
           <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl px-5 py-4">
             <div className="flex items-center gap-2 mb-2">
               <Wallet className="w-3.5 h-3.5 text-slate-500" />
@@ -275,17 +280,17 @@ export default function ScreenQualification({
         <div className="space-y-3">
           <button
             onClick={handleSubmit}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold rounded-xl py-3.5 text-sm transition-all"
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold rounded-xl py-4 sm:py-3.5 text-base sm:text-sm transition-all touch-manipulation min-h-[48px]"
           >
             Créer mon plan
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-4 h-4" aria-hidden="true" />
           </button>
 
           <button
             onClick={onBack}
-            className="w-full flex items-center justify-center gap-1.5 text-slate-500 hover:text-slate-300 text-sm py-2 transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 text-slate-500 hover:text-slate-300 active:text-slate-200 text-sm py-3 transition-colors touch-manipulation min-h-[44px]"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
             Modifier mon projet
           </button>
         </div>

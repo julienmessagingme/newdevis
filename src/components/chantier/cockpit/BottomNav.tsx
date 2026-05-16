@@ -96,9 +96,9 @@ export default function BottomNav({ activeSection, onSelect, badges }: BottomNav
               <button
                 onClick={() => setMoreOpen(false)}
                 className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
-                aria-label="Fermer"
+                aria-label="Fermer le menu"
               >
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
             <ul className="px-3 pb-3">

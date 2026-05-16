@@ -22,6 +22,7 @@ import VersementsDrawer from '../tresorerie/VersementsDrawer';
 import PaiementDrawer, { type PaiementContext } from '../tresorerie/PaiementDrawer';
 import OrphansReconciliationModal from './OrphansReconciliationModal';
 import type { LotChantier } from '@/types/chantier-ia';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -760,6 +761,7 @@ function ActionBar({
   onAddDepense,
   onToggleAll,
   allExpanded,
+  isMobile = false,
 }: {
   search: string; onSearch: (v: string) => void;
   filterDevis: FilterDevis; onFilterDevis: (v: FilterDevis) => void;
@@ -769,20 +771,30 @@ function ActionBar({
   onAddDepense?: () => void;
   onToggleAll?: () => void;
   allExpanded?: boolean;
+  /** V3.4.14+ — propagé depuis BudgetTab via useIsMobile() pour amplifier les
+   * zones tactiles (input search, CTAs). Sur desktop, on garde le sizing dense
+   * existant. */
+  isMobile?: boolean;
 }) {
   const sel = 'text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-300 w-full md:w-auto';
+  // V3.4.14+ — hauteur tactile mobile pour la saisie de recherche (h-11 = 44px = WCAG)
+  const inputClass = isMobile
+    ? "w-full pl-9 pr-9 h-11 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300 placeholder:text-gray-400"
+    : "w-full pl-8 pr-7 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300 placeholder:text-gray-400";
   return (
     <div className="px-5 py-3 border-b border-gray-100 flex flex-col md:flex-row md:items-center gap-2 md:gap-3 md:flex-wrap">
       <div className="relative w-full md:flex-1 md:min-w-[180px] md:max-w-xs">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+        <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${isMobile ? 'h-4 w-4' : 'h-3.5 w-3.5'} text-gray-400 pointer-events-none`} aria-hidden="true" />
         <input
           value={search} onChange={e => onSearch(e.target.value)}
           placeholder="Rechercher un artisan…"
-          className="w-full pl-8 pr-7 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300 placeholder:text-gray-400"
+          inputMode="search"
+          aria-label="Rechercher un artisan"
+          className={inputClass}
         />
         {search && (
-          <button onClick={() => onSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5">
-            <X className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+          <button onClick={() => onSearch('')} aria-label="Effacer la recherche" className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5">
+            <X className="h-3 w-3 text-gray-400 hover:text-gray-600" aria-hidden="true" />
           </button>
         )}
       </div>
@@ -822,16 +834,16 @@ function ActionBar({
       {/* Dépense rapide — achat matériaux / paiement liquide sans document */}
       <button
         onClick={onAddDepense}
-        className="w-full md:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 text-[12px] font-semibold hover:bg-orange-100 transition-colors shrink-0"
+        className={`w-full md:w-auto flex items-center justify-center gap-1.5 ${isMobile ? 'px-4 min-h-[44px] text-sm' : 'px-3.5 py-2 text-[12px]'} rounded-lg border border-orange-200 bg-orange-50 text-orange-700 font-semibold hover:bg-orange-100 transition-colors shrink-0 touch-manipulation`}
       >
-        <Plus className="h-3.5 w-3.5" />
+        <Plus className={isMobile ? 'h-4 w-4' : 'h-3.5 w-3.5'} aria-hidden="true" />
         Dépense
       </button>
       <button
         onClick={onAddDocument}
-        className="w-full md:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-[12px] font-semibold hover:bg-indigo-700 transition-colors shrink-0"
+        className={`w-full md:w-auto flex items-center justify-center gap-1.5 ${isMobile ? 'px-4 min-h-[44px] text-sm' : 'px-3.5 py-2 text-[12px]'} rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors shrink-0 touch-manipulation`}
       >
-        <Plus className="h-3.5 w-3.5" />
+        <Plus className={isMobile ? 'h-4 w-4' : 'h-3.5 w-3.5'} aria-hidden="true" />
         Ajouter un document
       </button>
     </div>
@@ -913,8 +925,8 @@ function ArtisanDrawer({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/40 sm:bg-black/20 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col">
+      <div className="fixed inset-0 bg-black/40 sm:bg-black/20 z-40" onClick={onClose} aria-hidden="true" />
+      <div role="dialog" aria-modal="true" aria-label="Détail artisan" className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col pb-[max(0px,env(safe-area-inset-bottom))]">
 
         {/* En-tête */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -927,8 +939,8 @@ function ArtisanDrawer({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0 ml-2">
-            <X className="h-4 w-4 text-gray-500" />
+          <button onClick={onClose} aria-label="Fermer le détail artisan" className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0 ml-2">
+            <X className="h-4 w-4 text-gray-500" aria-hidden="true" />
           </button>
         </div>
 
@@ -1389,6 +1401,13 @@ export default function BudgetTab({
   rangeMax?:  number;
   initialEnveloppePrevue?: number | null;
 }) {
+  // V3.4.14+ — Harmonisation useIsMobile() (cf. CLAUDE.md "Composants mobile dédiés").
+  // Utilisé pour : safe-area padding sur le drawer artisan, hauteur tactile search,
+  // sizing tactile des CTA action bar. Le full split (BudgetTabMobile dédié) est en
+  // backlog — pour l'instant on amplifie les zones tactiles qui posaient le plus
+  // de problèmes pendant les sessions mobile réelles (audit Vague C 2026-05-16).
+  const isMobile = useIsMobile();
+
   const { data, loading, error, refresh, backfillToast } = useBudgetData(chantierId, token);
 
   const [search,       setSearch]       = useState('');
@@ -1857,6 +1876,7 @@ export default function BudgetTab({
         onAddDepense={() => setDepenseRapide('open')}
         onToggleAll={allLotIds.length > 0 ? toggleAll : undefined}
         allExpanded={allExpanded}
+        isMobile={isMobile}
       />
 
       {/* ── Vue mobile : cartes artisans (ÉTAPE 1&2) ───────────────────────── */}
@@ -2373,7 +2393,7 @@ export default function BudgetTab({
                                       className={`w-20 text-[12px] font-bold border-b-2 outline-none bg-transparent pb-0.5 text-right ${isOver ? 'border-red-400 text-red-600' : 'border-indigo-400 text-gray-800'}`}
                                       placeholder="montant €"
                                     />
-                                    <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500"><X className="h-3 w-3" /></button>
+                                    <button onClick={() => setInlineAcompte(null)} aria-label="Annuler la saisie d'acompte" className="text-gray-300 hover:text-gray-500"><X className="h-3 w-3" aria-hidden="true" /></button>
                                   </div>
                                   {isOver && (
                                     <span className="text-[9px] text-red-500">Max {fmtEur(max!)}</span>
@@ -2728,8 +2748,8 @@ export default function BudgetTab({
       {/* ── Drawer dépense rapide ─────────────────────────────────────────── */}
       {depenseRapide === 'open' && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setDepenseRapide(null)} />
-          <div className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col">
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setDepenseRapide(null)} aria-hidden="true" />
+          <div role="dialog" aria-modal="true" aria-label="Enregistrer une dépense" className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col pb-[max(0px,env(safe-area-inset-bottom))]">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
@@ -2737,8 +2757,8 @@ export default function BudgetTab({
                 <h3 className="text-[15px] font-bold text-gray-900">Enregistrer une dépense</h3>
                 <p className="text-[10px] text-orange-500 mt-0.5">Achat matériaux, paiement liquide, frais annexes…</p>
               </div>
-              <button onClick={() => setDepenseRapide(null)} className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100">
-                <X className="h-5 w-5" />
+              <button onClick={() => setDepenseRapide(null)} aria-label="Fermer la dépense rapide" className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
 

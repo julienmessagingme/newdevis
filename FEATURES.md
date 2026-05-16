@@ -991,31 +991,85 @@ Résultat final = gravité maximale des critères prix + risque.
 
 ---
 
-## 18. Feedback post-analyse — FeedbackModal (2026-05-01)
+## 18. Feedback post-analyse — FeedbackModal (refonte V3.4.14, 2026-05-16)
 
-Popup de feedback contextuel qui s'ouvre après la consultation d'une analyse.
+Popup de feedback contextuel qui s'ouvre après que l'utilisateur a tiré une vraie valeur de l'analyse.
 
-### Flow
+### Flow (refonte)
 
-1. **Step 1 — Feedback** : question "Cette analyse vous a-t-elle aidé ?" + 3 boutons (👍/😐/❌) + textarea optionnelle (max 200 chars)
-2. **Step 2 — Reward** : offre d'activation GérerMonChantier gratuit ("🎁 Débloquer mon accès offert")
-3. **Step 3 — Done** : si 👍/😐 → bouton Trustpilot avec phrase de transition ; si ❌ → message empathique uniquement
+1. **Step 1 — Feedback** : question "Cette analyse vous a-t-elle aidé ?" + 3 boutons (👍/😐/❌) + textarea optionnelle (max 200 chars). Bouton Continuer disable + spinner pendant la persistance.
+2. **Step 2 — Reward (UNIQUEMENT si choix 👍 positif)** : offre d'activation GérerMonChantier gratuit ("✨ Débloquer mon accès offert"). Wording centré sur "continuer son projet" plutôt que "+200 propriétaires". Sur 😐 ou ❌ → step 2 est sauté.
+3. **Step 3 — Done** : wording adapté au choix :
+   - 👍 reward activé : "🎁 Accès débloqué — accès GMC actif"
+   - 👍 reward skip : "Merci 🙏 + bouton Trustpilot"
+   - 😐 : "Merci pour votre retour, on note vos remarques"
+   - ❌ : "Désolé que ça n'ait pas répondu à vos attentes — écrivez-nous à hello@verifiermondevis.fr"
 
-### Triggers
+### Trigger (refonte)
 
-- **Auto** : scroll > 60% de la page OU 5 secondes après la première interaction (scroll/clic) — jamais sur page idle
-- **Manuel** : clic sur "Copier le message pour négocier" dans ConclusionIA
-- **Anti-spam** : `localStorage` avec TTL 7 jours
+**UNIQUEMENT manuel** via `openFeedback()` appelé par `onCopy` du composant `ConclusionIA` (clic "Copier le message pour négocier") = vrai moment de valeur. Le déclenchement auto au scroll 60% / timer 5s a été supprimé : il interrompait la lecture et le taux de réponse était ~0%.
 
-### Tracking Amplitude
+**Anti-spam** : `localStorage` avec TTL 7 jours (inchangé).
+
+### Persistance (nouveau V3.4.14)
+
+Table dédiée `analysis_feedback` (PK `id`, FK `analysis_id` CASCADE + `user_id` CASCADE, UNIQUE `(user_id, analysis_id)`, choice CHECK, text TEXT, `verdict_at_submission` snapshot, created_at, updated_at).
+
+- `POST /api/feedback` — Bearer JWT obligatoire, upsert idempotent via ON CONFLICT. Le user_id vient toujours du JWT validé, jamais du body.
+- RLS user-own : un utilisateur peut INSERT/SELECT/UPDATE son propre feedback. Pas de DELETE policy.
+
+### Admin (nouveau V3.4.14)
+
+Section "Feedback utilisateurs" dans `/admin` (rendue par `FeedbackSection.tsx`) avec :
+- Compteurs total / 👍 positive / 😐 neutral / ❌ negative
+- Tableau filtré par choice (pills cliquables)
+- Pour chaque ligne : date, choix avec emoji, snapshot verdict (VERT/ORANGE/ROUGE), email user (mailto), lien vers l'analyse, commentaire texte
+- Source : `GET /api/admin/feedback` (rôle admin requis via `user_roles`), enrichit `auth.admin.listUsers` + `analyses.file_name`
+
+Permet de cohorter "feedbacks négatifs sur des verdicts ROUGE" → wording trop alarmant ? Et de relancer ciblé un user mécontent par email.
+
+### Tracking Amplitude (inchangé en parallèle de la DB)
 
 `feedback_open` · `feedback_choice` · `feedback_text` · `reward_activated` · `reward_skipped` · `trustpilot_click`
 
 ### Architecture
 
-- `useFeedback()` hook — source de vérité unique, expose `{ openFeedback, FeedbackModal }`
+- `useFeedback({ analysisId, verdict })` hook — accepte les opts pour la persistance DB, expose `{ openFeedback, FeedbackModal }`
+- `POST /api/feedback` — persiste, fallback silencieux si fail (Amplitude a déjà la donnée, l'UI continue son flow)
 - `POST /api/activate-chantier` — userId déduit du JWT Bearer, écrit `user_metadata.gerer_mon_chantier_access: true`
 - Intégré dans `AnalysisResult.tsx` + prop `onCopy` dans `ConclusionIA`
+
+---
+
+## 18bis. Détection devis étranger — bannière 🌍 (V3.4.14, 2026-05-16)
+
+Quand l'utilisateur upload un devis émis par une entreprise hors-France (Belgique, Luxembourg, Suisse, Allemagne, etc.), l'outil détecte automatiquement la nationalité du devis et bypass complètement le scoring catalogue marché — qui est calibré sur la réglementation et les tarifs français.
+
+### Comment c'est détecté
+
+Helper `detectQuoteCountry(extracted)` dans `supabase/functions/analyze-quote/country.ts` agrège 4 signaux :
+1. **Préfixe IBAN** (BE86, FR76, LU28, CH56, DE89…) → signal FORT, gagne seul
+2. **Préfixe TVA intracom** (BE1000162842, LU12345678…) → signal FORT, gagne seul
+3. **Mots-clés adresse** : "Belgique", "Luxembourg", "Schweiz", "Deutschland", "España"… → signal modéré, gagne sans contradiction
+4. **Taux TVA non-FR** (6% / 21% / 17% / 19% / 22% selon pays) → signal faible, confirme uniquement un autre signal
+
+Le verdict pays va dans `extracted_data.country_code` ("FR" / "BE" / "LU" / "CH" / "DE" / "ES" / "IT" / "GB" / "NL" / "OTHER") et `is_foreign_quote` (boolean).
+
+### Ce que voit l'utilisateur
+
+Bannière ambre 🌍 dédiée AVANT le verdict :
+> **Devis Belgique détecté**
+> L'outil VerifierMonDevis est calibré sur la réglementation et les tarifs français. La comparaison automatique au marché, les vérifications SIRET/RGE/RNE et l'analyse financière ne s'appliquent pas à ce devis.
+> ✓ Ce qui reste fiable : sécurité paiement (IBAN, acompte, modes), anomalies de structure, modalités contractuelles. Pour valider le prix, demandez 1-2 devis concurrents locaux en Belgique.
+
+Le hero "+X €" alarmiste est entièrement masqué (`showAccusatoryHero` ANDé avec `!isForeignQuote`). Le verdict décisionnel passe en "À négocier" avec 3 actions adaptées : registre commerce local (BCE Belgique / RCS Luxembourg / ZEFIX Suisse / Handelsregister Allemagne), 1-2 devis concurrents locaux, vérification IBAN/BIC pour virement international.
+
+### Architecture
+
+- `extract.ts` post-extraction : appelle `detectQuoteCountry` après le parsing Gemini, ajoute les champs au `ExtractedData` retourné
+- `conclusion.ts` sortie anticipée : si `is_foreign_quote=true` → ConclusionData synthétique sans appel Gemini ni matching catalogue (gain ~2-4s + 0 token Gemini)
+- `ConclusionIA.tsx` : nouvelle prop `conclusion.foreign_quote` → rend la bannière ambre + masque les chiffres de comparaison
+- Le prompt d'extraction IBAN a été renforcé pour scanner TOUTES les pages (l'IBAN d'un devis multi-pages est presque toujours sur la dernière page avec les modalités de paiement, ratés systématiques avant V3.4.14)
 
 ---
 

@@ -32,6 +32,22 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 - ✅ B4 Optimistic UI dans EcheancierMobile.toggleEntreeStatut + deleteEntree (update local immédiat, rollback si API échoue, haptics success/error)
 - ✅ B5 `overscroll-x-contain` ajouté sur 4 fichiers (LotDetail, PlanningTimeline, TimelineHorizontale, ScreenAmeliorations) + nouveau hook `useScrollIntoViewOnFocus` pour inputs masqués par le clavier mobile
 
+### Vague C — Polish a11y + mobile (livré 2026-05-16)
+
+🟢 **Livré dans le commit V3.4.14 — fixes ciblés a11y + ScreenQualification mobile + amorce BudgetTab `useIsMobile()`.**
+
+- ✅ **C1 A11y aria-label** : 8+ boutons icon-only sans label dans BudgetTab (X close drawer artisan, X close acompte inline, X close dépense rapide, X clear search), Echeancier (X close formulaire entrée, X delete entrée, X delete payment event), DepenseRapideModal (X close + `role="dialog"` + `aria-labelledby`), BottomNav (X close menu "Plus"). Pattern systématique : `aria-label="action explicite"` sur le `<button>` + `aria-hidden="true"` sur l'icône Lucide enfant.
+- ✅ **C2 ScreenQualification mobile** : remove button visible sur mobile (était `opacity-0 group-hover:opacity-100` → invisible au touch), touch targets `p-2`/`min-h-[48px]` sur les CTA "Créer mon plan" et "Modifier mon projet", input "Ajouter un élément" `h-10` + `inputMode="text"` + `autoCapitalize="sentences"` + `enterKeyHint="done"`, grid Budget+Durée passe en `grid-cols-1 sm:grid-cols-2` (anti-cramping <375px), safe-area-inset-bottom sur le container.
+- ✅ **C3 BudgetTab `useIsMobile()`** : hook importé et utilisé au niveau du composant principal, propagé en prop `isMobile` à `ActionBar`. Sur mobile : input search h-11 (44px tactile WCAG), `inputMode="search"`, `aria-label`, CTA "+ Dépense" / "+ Ajouter un document" passent en `min-h-[44px]` `text-sm` `px-4`, icônes Plus `h-4 w-4`. Drawer artisan + drawer dépense rapide gagnent `pb-[max(0px,env(safe-area-inset-bottom))]` + `role="dialog"` + `aria-modal` + `aria-label`.
+
+**Ce qu'il RESTE à faire (Vague C résiduelle)** :
+- 🟠 Split complet BudgetTab → `BudgetTabMobile.tsx` dédié (per audit Vague C : ~25-30% du JSX diffère, sections cibles = ActionBar/Devis rows/Facture rows/Drawers en bottom-sheet). Pas urgent : les fixes ciblés Vague C suffisent au confort tactile immédiat. À ressortir si feedback user "le tableau est illisible sur mobile" remonte.
+- 🟠 Audit aria-label messagerie (ConversationThread, WhatsAppThread) — non audité dans Vague C, à programmer si plainte screen reader.
+
+### Livré dans le même commit (hors Vague C)
+
+- ✅ **Migration `20260516140000_market_prices_anc_technique_enrichment.sql`** : +17 entrées catalogue dont l'entrée structurelle `anc_rehabilitation_complete` 14-25k€ qui fix à terme le cas d'origine V3.4.13 (devis ANC 22k€ matché à `micro_station_epuration` seul → fausse anomalie +11k€). Couvre aussi filtre à sable, phytoépuration, tertre infiltration, épandage traditionnel, étude pédo, terrassement ANC, géothermie verticale/horizontale, cuves eau pluie, élévateur PMR, bardage HPL/mélèze, domotique studio/maison complète, photovoltaïque granulaire par kWc. `generic_family` populé pour fallback V3.6 matcher (anc_filiere, domotique, bardage_exterieur).
+
 ### V3.4.13 — Garde plausibilité UPSIDE (livré 2026-05-16)
 
 Bug observé : devis assainissement réhabilitation complète 22k€ matché à un seul "micro-station" catalogue 7-14k€ → hero "+11 100€" alarmiste contredit par conclusion textuelle "ce qui justifie le montant global".

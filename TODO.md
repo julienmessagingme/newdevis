@@ -36,6 +36,10 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 - [ ] **I5 — Vue expert / novice en toggle** : le tableau Budget reste dense par défaut (6 colonnes). À faire : toggle "🌱 Vue simple / 🔧 Vue détaillée" dans ActionBar. En mode simple → masquer "Facturé" et "Avancement", garder Artisan/Engagé/Solde/Actions. Persistance localStorage. Refonte invasive du tableau (colgroup table-fixed + headers + cells) → planifier un sprint dédié pour éviter régressions.
 
+- [ ] **BudgetTabMobile split complet** : la Vague C polish (2026-05-16) a ajouté `useIsMobile()` pour amplifier les zones tactiles dans ActionBar (search h-11, CTAs min-h-44px) et les drawers (safe-area-inset-bottom + role dialog). Mais ~25-30% du JSX bénéficierait d'un composant mobile dédié (pattern `TresorerieMobile` / `EcheancierMobile`) plutôt que des classes Tailwind responsive imbriquées. Sections cibles : ActionBar single-col stack + filtres en bottom-sheet, Devis rows / Facture rows en cards empilées (déjà partiel via `ArtisanCardMobile`), Drawer artisan en bottom-sheet plein écran. À attaquer si feedback user "le tableau est illisible sur mobile" remonte ou si on observe un drop-off mobile sur l'onglet Budget. Fichier cible : `src/components/chantier/cockpit/budget/BudgetTabMobile.tsx` + wrapper d'export default avec routing isMobile + state shared via props.
+
+- [ ] **Audit a11y messagerie + assistant** : la Vague C polish (2026-05-16) a fixé les aria-label sur BudgetTab/Echeancier/DepenseRapideModal/BottomNav/ScreenQualification mais n'a PAS audité `ConversationThread` ni `WhatsAppThread` (panneau messagerie). Tour rapide à programmer : send button, search clear, scroll-to-bottom, attach paperclip — vérifier qu'ils ont tous `aria-label` + icônes `aria-hidden`. Effort ~30 min.
+
 - [x] ~~**Pencil edit durée LotDetail (touch target)**~~ — fait 2026-05-09. Pencil + Check + X durée passés à `w-11 h-11 lg:w-7 lg:h-7` (44 mobile, 28 desktop) avec `aria-label` + `touch-manipulation`. `LotDetail.tsx:143,148,162`.
 
 ---

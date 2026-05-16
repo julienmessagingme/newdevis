@@ -381,8 +381,8 @@ export function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
           <h3 className="text-sm font-extrabold text-gray-900">
             {coherenceAlert ? '⚠️ Plan de financement à mettre à jour' : 'Ajouter une entrée de fonds'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
-            <X className="h-4 w-4" />
+          <button onClick={onClose} aria-label="Fermer le formulaire" className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -647,8 +647,9 @@ function EntreeRow({ entree, onToggle, onDelete, onSave, deleting }: {
             Annuler
           </button>
           <button data-no-edit onClick={onDelete} disabled={deleting}
+            aria-label="Supprimer l'entrée"
             className="p-2 rounded-lg border border-red-100 text-red-300 hover:text-red-500 hover:border-red-300 transition-colors">
-            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <X className="h-3.5 w-3.5" aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -683,8 +684,9 @@ function EntreeRow({ entree, onToggle, onDelete, onSave, deleting }: {
         </button>
       </div>
       <button data-no-edit onClick={e => { e.stopPropagation(); onDelete(); }} disabled={deleting}
+        aria-label="Supprimer l'entrée"
         className="text-gray-200 hover:text-red-400 transition-colors p-1 rounded-lg shrink-0">
-        {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+        {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <X className="h-3.5 w-3.5" aria-hidden="true" />}
       </button>
     </div>
   );

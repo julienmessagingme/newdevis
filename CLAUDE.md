@@ -191,6 +191,22 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
   **V3.4.7 — Garde plausibilité underprice (commit `3dceae8`)** dans `verdictEngine.ts` ligne ~825 : si `overprice_pct < -0.20` (devis > 20% sous le marché), au lieu d'afficher "X k€ sous la moyenne du marché", on affiche "Comparaison globale indicative — la fourchette marché agrégée n'est pas représentative sur ce profil de devis". Cas d'origine : multi-devis SALLEM affichait "170.8 k€ sous la moyenne" en Vert (PDF non segmenté + bounds gonflés par cumul postes hétérogènes). Aberration qui décrédibilisait l'analyse.
 
+  **V3.4.14 — Détection devis étranger + bypass catalogue marché (2026-05-16)** dans `supabase/functions/analyze-quote/country.ts` (nouveau) + `extract.ts` + `conclusion.ts` :
+  - **Helper `detectQuoteCountry(extracted)`** : agrège 4 signaux (préfixe IBAN BE/LU/CH/DE, préfixe TVA intracom `BE1000162842`, mots-clés adresse "Belgique"/"Luxembourg"/..., taux TVA non-FR 6%/21%/17%/19%). IBAN ou TVA préfixe = signal FORT (gagne seul). Adresse = signal modéré (gagne sans contradiction). Taux TVA seul = pas assez (peut être DOM-TOM mal extrait). FR par défaut.
+  - **`extract.ts`** : prompt Gemini IBAN renforcé pour scanner TOUTES les pages (l'IBAN d'un devis multi-pages est presque toujours sur la dernière page, ratés systématiques avant le fix). Nouveau champ `tva_intracom` extrait séparément. `country_code` + `is_foreign_quote` ajoutés à `ExtractedData`.
+  - **`conclusion.ts` sortie anticipée** : si `is_foreign_quote=true` → ConclusionData synthétique sans appel Gemini ni matching catalogue. `verdict_decisionnel="signer_avec_negociation"`, `surcout_global={0,0}`, `comparison_indicative=true`, nouveau champ `foreign_quote{country_code,country_label}`. Actions dédiées : registre commerce local + devis concurrents locaux.
+  - **`ConclusionIA.tsx`** : nouvelle bannière ambre 🌍 "Devis {pays} détecté" affichée AVANT le verdict, masque le hero surcout (`showAccusatoryHero` ANDé avec `!isForeignQuote`), explique que sécurité paiement (IBAN, acompte) ET structure restent fiables mais comparaison prix non applicable.
+  - **Cas d'origine** : devis Casafit (Belgique) — IBAN BE86 non détecté (prompt ne forçait pas le scan dernière page) + faux surcoût +1500€ généré par comparaison au catalogue FR (TVA 6% réno BE vs catalogue FR posé à 20%).
+  - **Anti-régression** : les analyses FR classiques ne sont pas affectées (`country_code="FR"`/`is_foreign=false` par défaut). Bypass kick uniquement si 1 signal FORT (IBAN/TVA préfixe non-FR) ou 1 signal modéré confirmé.
+  - **Limite** : analyses étrangères déjà uploadées AVANT le déploiement gardent leur ancienne extraction (pas de `is_foreign_quote` en `raw_text`) → re-upload requis. Les nouvelles analyses partent directement avec la détection.
+
+  **V3.4.14 — Enrichissement catalogue ANC + prestations techniques sous-couvertes (2026-05-16)** migration `20260516140000_market_prices_anc_technique_enrichment.sql` :
+  - **+17 entrées** dont l'entrée structurelle `anc_rehabilitation_complete` 14-25k€ qui fix À TERME le cas V3.4.13 (devis ANC réhabilitation complète 22k€ matché à `micro_station_epuration` seul → fausse anomalie +11k€). Avant : seuls `fosse_septique_installation` et `micro_station_epuration` couvraient l'ANC en forfait isolé. La V3.4.13 reste utile comme filet (cas restants où le catalogue sous-couvre toujours).
+  - Couvre aussi : filtre à sable drainé (8-14k), filtre planté/phytoépuration (9-16k), tertre infiltration (10-18k), épandage souterrain (6-10k), étude pédologique préalable (0.6-1.5k), terrassement spécifique ANC (2.5-5.5k).
+  - Prestations techniques sous-couvertes : géothermie verticale (forage par ml 90-200€) + horizontale (forfait 4-9k), cuve eau pluie enterrée (3.5-8k) vs aérienne (0.4-1.8k), élévateur PMR plateforme (8-18k), bardage HPL haut gamme (95-180€/m²) + mélèze (75-150€/m²), domotique studio (1.5-4.5k) vs maison complète (4.5-14k), photovoltaïque granulaire par kWc (1700-2400€).
+  - **`generic_family`** populé pour fallback matcher V3.6 : `anc_filiere` (regroupe les 4 filières de traitement → si Gemini signature trop générique "Création système ANC", fallback sur la famille moyenne), `domotique`, `bardage_exterieur`.
+  - **Anti-régression** : avant toute future modif catalogue, vérifier qu'aucune entrée FR retournée par `matchMarketCategory` ne s'écrase sur les nouvelles `anc_*`. Les fourchettes ANC sont assez hautes (14-25k forfait) — un mismatch sur un petit poste plomberie générique le placerait dans une fourchette aberrante.
+
   **V3.4.13 — Garde plausibilité UPSIDE symétrique (2026-05-16)** dans `verdictEngine.ts` ligne ~862 + nouveau flag `comparison_indicative` dans `ConclusionData` :
   - Si `overprice_pct > +0.50` (devis +50% au-dessus du marché) ET aucune anomalie identifiée poste par poste (`sanitizedAnomalies.length === 0` ET `wa.anomalies_count === 0`), c'est presque toujours un catalogue qui **SOUS-COUVRE** la vraie prestation.
   - Côté `conclusion.ts` : flag `comparison_indicative: true` set dans `ConclusionData`.
@@ -254,7 +270,7 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
   **Source unique de vérité pour la pastille** (V3.3) : `effectiveScore` dans `AnalysisResult.tsx` lit `conclusion_ia.verdict_global` (ou `conclusionIaLive`) en priorité, exactement comme le multi-devis lit `global_metrics.verdict_global`. Plus de divergence pastille header vs bandeau verdict. **Ne jamais** revenir à un recompute `computeVerdict` côté client en source primaire.
 
-  **ENGINE_VERSION + cache invalidation automatique** : `conclusion_ia.engine_version` stocké à chaque génération. Au cache hit, si version DB ≠ `ENGINE_VERSION` constante du code → régénération forcée automatique (pas besoin de bouton "Régénérer"). À **incrémenter à chaque changement de logique scoring** (ex: 3.3 → 3.3.1). État courant : **`ENGINE_VERSION = "3.4.13"`** (V3.4.13 = garde plausibilité UPSIDE symétrique + flag `comparison_indicative` dans ConclusionData pour masquer le hero alarmiste quand le catalogue sous-couvre la prestation).
+  **ENGINE_VERSION + cache invalidation automatique** : `conclusion_ia.engine_version` stocké à chaque génération. Au cache hit, si version DB ≠ `ENGINE_VERSION` constante du code → régénération forcée automatique (pas besoin de bouton "Régénérer"). À **incrémenter à chaque changement de logique scoring** (ex: 3.3 → 3.3.1). État courant : **`ENGINE_VERSION = "3.4.14"`** (V3.4.14 = détection devis étranger + bypass complet catalogue marché si `is_foreign_quote=true` + prompt IBAN renforcé sur toutes pages + bannière 🌍 dédiée + enrichissement catalogue ANC réhabilitation complète & prestations techniques sous-couvertes).
 
   **Test unitaire** : `npx tsx src/lib/analyse/verdictEngine.test.ts` (27 cas, 0 régression). Cas critiques anti-régression :
   - Kern Terrassement (3 anomalies carrelage × 21% du devis) → escalade a_negocier ✓
@@ -606,6 +622,39 @@ function EcheancierDesktop(props) { /* 1900 lignes de hooks + JSX */ }
 Sinon les hooks de la version desktop seraient appelés conditionnellement → crash "Rendered fewer hooks than expected".
 
 État P0 mobile cockpit → voir `WIP.md`.
+
+### Accessibilité — règles aria-label (Vague C 2026-05-16)
+
+Pattern systématique pour tout bouton icon-only (close X, delete, search clear, edit, ...) :
+```tsx
+<button onClick={onClose} aria-label="Fermer le détail artisan" className="...">
+  <X className="h-4 w-4" aria-hidden="true" />
+</button>
+```
+Règles inviolables :
+1. **Tout `<button>` qui ne contient QUE des icônes Lucide doit avoir `aria-label`** — phrase courte explicite ("Fermer le formulaire", "Supprimer cet acompte", "Annuler la saisie d'acompte"), pas "Fermer" générique.
+2. **Toute icône Lucide à l'intérieur d'un bouton avec aria-label doit avoir `aria-hidden="true"`** — sinon le screen reader lit deux fois le label.
+3. **Tout `<div className="fixed inset-0 ..." role="dialog">` doit avoir `aria-modal="true"` ET `aria-label` ou `aria-labelledby`** — le titre `<h2>` peut être référencé via `aria-labelledby="modalTitle-id"`.
+4. **Tout backdrop overlay (la div semi-transparente cliquable derrière la modal) doit avoir `aria-hidden="true"`** — c'est purement décoratif, le screen reader ne doit pas l'annoncer.
+
+Composants à jour : `BudgetTab` (4 boutons), `Echeancier` (3 boutons), `DepenseRapideModal` (close + role dialog), `BottomNav` (close menu Plus), `ScreenQualification` (remove + cancel + add inputs).
+
+### `useIsMobile()` — pattern d'amplification tactile minimal (Vague C polish)
+
+Quand on ne veut PAS faire un split mobile/desktop complet (pattern `useIsMobile()` + composant dédié, cf. plus haut), mais qu'on veut quand même que les zones tactiles principales du composant s'agrandissent sur mobile :
+
+```tsx
+const isMobile = useIsMobile();
+// ... pass to child via prop
+<ActionBar isMobile={isMobile} ... />
+
+// Dans ActionBar :
+const inputClass = isMobile
+  ? "w-full h-11 text-sm ..."           // 44px tactile WCAG sur mobile
+  : "w-full py-2 text-[12px] ...";      // sizing dense desktop
+```
+
+À utiliser sur les composants à fort trafic où un split complet serait disproportionné (BudgetTab, FinancementTab à terme). Documenter à chaque fois ce qui est mobile-amplifié (input search ? CTAs ?) vs ce qui reste desktop-dense.
 
 ---
 

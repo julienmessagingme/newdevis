@@ -121,14 +121,14 @@ export default function DepenseRapideModal({ chantierId, token, lots, onClose, o
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-4 pb-4 sm:pb-0">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-4 pb-4 sm:pb-0" role="dialog" aria-modal="true" aria-labelledby="depense-rapide-title">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Ajouter une dépense</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X className="h-5 w-5" />
+          <h2 id="depense-rapide-title" className="font-bold text-gray-900">Ajouter une dépense</h2>
+          <button onClick={onClose} aria-label="Fermer la dépense rapide" className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
