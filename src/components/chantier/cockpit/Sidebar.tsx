@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Wallet, Layers, Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen, LogOut,
+  ChevronUp, Pencil,
 } from 'lucide-react';
 import type { ChantierIAResult } from '@/types/chantier-ia';
 
@@ -83,6 +84,19 @@ function badgeClass(text: string): string {
 
 export default function Sidebar({ result, activeSection, onSelect, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {
   const [user, setUser] = useState<{ name: string; initials: string } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const footRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(e: MouseEvent) {
+      if (footRef.current && !footRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setMenuOpen(false); }
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onEsc); };
+  }, [menuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,39 +175,52 @@ export default function Sidebar({ result, activeSection, onSelect, badges, mobil
           ))}
         </nav>
 
-        {/* Footer — carte profil avec les actions à l'intérieur */}
-        <div className="cr-sb-foot">
-          <div className="cr-sb-profile">
+        {/* Footer — carte profil seule ; clic → menu (modifier / paramètres / déco) */}
+        <div className="cr-sb-foot" ref={footRef}>
+          {menuOpen && (
+            <div className="cr-sb-menu" role="menu">
+              {onAmeliorer && (
+                <button
+                  type="button" role="menuitem" className="cr-sb-menu-item"
+                  onClick={() => { setMenuOpen(false); onAmeliorer(); }}
+                >
+                  <Pencil />
+                  Modifier le projet
+                </button>
+              )}
+              <button
+                type="button" role="menuitem" className="cr-sb-menu-item"
+                onClick={() => { setMenuOpen(false); onSelect('settings'); onCloseMobile(); }}
+              >
+                <Settings />
+                Paramètres
+              </button>
+              <button
+                type="button" role="menuitem" className="cr-sb-menu-item danger"
+                onClick={async () => {
+                  setMenuOpen(false);
+                  const { signOutCrossDomain } = await import('@/lib/auth/signOut');
+                  await signOutCrossDomain('/');
+                }}
+              >
+                <LogOut />
+                Déconnexion
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className={`cr-sb-profile${menuOpen ? ' open' : ''}`}
+            onClick={() => setMenuOpen(o => !o)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
             <div className="av">{user?.initials ?? 'JD'}</div>
             <div className="who">
               <div className="n">{user?.name ?? 'Mon compte'}</div>
               <div className="r">Pilote du chantier</div>
             </div>
-          </div>
-          {onAmeliorer && (
-            <button type="button" onClick={onAmeliorer} className="cr-sb-link">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
-              Modifier le projet
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => { onSelect('settings'); onCloseMobile(); }}
-            className="cr-sb-link"
-          >
-            <Settings />
-            Paramètres
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              const { signOutCrossDomain } = await import('@/lib/auth/signOut');
-              await signOutCrossDomain('/');
-            }}
-            className="cr-sb-link danger"
-          >
-            <LogOut />
-            Déconnexion
+            <ChevronUp className="chev" />
           </button>
         </div>
       </aside>
