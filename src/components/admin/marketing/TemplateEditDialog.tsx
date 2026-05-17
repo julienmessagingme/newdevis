@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Image as ImageIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Image as ImageIcon, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,19 +10,29 @@ import {
 import { toast } from "sonner";
 import CharCountInput from "./CharCountInput";
 import SlideFieldEditor from "./SlideFieldEditor";
+import DecorCanvas from "./DecorCanvas";
 import { MOOD_LABELS, ALL_MOODS, formatDate } from "./helpers";
-import type { TemplateDetail, SlideData, UsageEntry } from "@/types/marketing";
+import type { TemplateDetail, SlideData, DecorElement, UsageEntry } from "@/types/marketing";
 
 /** Tri NATUREL des clés slide_N — localeCompare mettrait slide_10 avant slide_2. */
 const slideNum = (k: string) => parseInt(String(k).replace(/\D/g, ""), 10) || 0;
 
-/** Manifeste public des photos de fond uploadées sur B2 (cf. upload_photos_to_b2.mjs). */
+/** Manifestes publics B2 — photos de fond et assets décor. */
 const PHOTOS_MANIFEST_URL =
   "https://f003.backblazeb2.com/file/verifiermondevismarketing/photos/manifest.json";
+const DECOR_MANIFEST_URL =
+  "https://f003.backblazeb2.com/file/verifiermondevismarketing/decor/manifest.json";
 
 interface BgPhoto {
   product: string;
   kind: string;
+  file: string;
+  url: string;
+}
+
+interface DecorAsset {
+  type: string;
+  variant: string;
   file: string;
   url: string;
 }
@@ -137,16 +147,46 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
   // → évite qu'une réponse lente écrase un aperçu plus récent.
   const previewAborts = useRef<Record<string, AbortController>>({});
 
-  // Galerie des photos de fond (chargée une fois depuis le manifeste B2).
+  // Galerie photos de fond + assets décor (chargés une fois depuis B2).
   const [bgPhotos, setBgPhotos] = useState<BgPhoto[]>([]);
+  const [decorAssets, setDecorAssets] = useState<DecorAsset[]>([]);
   useEffect(() => {
     let cancelled = false;
     fetch(PHOTOS_MANIFEST_URL)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!cancelled && d?.photos) setBgPhotos(d.photos as BgPhoto[]); })
       .catch(() => { /* galerie indisponible — non bloquant */ });
+    fetch(DECOR_MANIFEST_URL)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d?.decor) setDecorAssets(d.decor as DecorAsset[]); })
+      .catch(() => { /* palette indisponible — non bloquant */ });
     return () => { cancelled = true; };
   }, []);
+
+  // Slide dont l'éditeur de décor est ouvert.
+  const [decorEditFor, setDecorEditFor] = useState<string | null>(null);
+
+  // MAJ du décor d'une slide — SANS re-render d'aperçu (DecorCanvas gère son
+  // propre fond ; le décor est manipulé en DOM, baké seulement au commit).
+  const updateSlideDecor = (key: string, els: DecorElement[]) => {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      slides: { ...draft.slides, [key]: { ...draft.slides[key], decor_elements: els } },
+    });
+  };
+
+  // Repasse une slide en décor automatique. null explicite (pas suppression de
+  // clé) → survit à JSON.stringify ; le render traite null comme "auto"
+  // (Array.isArray(null) === false).
+  const resetSlideDecorAuto = (key: string) => {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      slides: { ...draft.slides, [key]: { ...draft.slides[key], decor_elements: null } },
+    });
+    setDecorEditFor(null);
+  };
 
   // Annule timers + fetchs + révoque les blob URLs à la fermeture.
   useEffect(() => {
@@ -342,6 +382,46 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
                               updateSlide(key, { ...slide, bg_photo: file ?? null })
                             }
                           />
+                          {/* Décor — éditeur canvas */}
+                          <div className="space-y-2 border-t pt-3">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (decorEditFor === key) { setDecorEditFor(null); return; }
+                                  if (!slide.decor_elements) updateSlideDecor(key, []);
+                                  setDecorEditFor(key);
+                                }}
+                                className="text-sm font-medium flex items-center gap-1.5 text-primary hover:underline"
+                              >
+                                <Sparkles className="h-3.5 w-3.5" />
+                                Décor —{" "}
+                                {slide.decor_elements
+                                  ? `${slide.decor_elements.length} élément(s)`
+                                  : "auto"}
+                              </button>
+                              {slide.decor_elements && (
+                                <button
+                                  type="button"
+                                  onClick={() => resetSlideDecorAuto(key)}
+                                  className="text-xs text-muted-foreground hover:underline"
+                                >
+                                  revenir au décor auto
+                                </button>
+                              )}
+                            </div>
+                            {decorEditFor === key && templateId && authToken && (
+                              <DecorCanvas
+                                templateId={templateId}
+                                authToken={authToken}
+                                slideKey={key}
+                                slide={slide}
+                                product={template.product}
+                                decorAssets={decorAssets}
+                                onChange={(els) => updateSlideDecor(key, els)}
+                              />
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

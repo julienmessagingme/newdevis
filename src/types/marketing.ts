@@ -244,6 +244,20 @@ export interface TemplateListItem {
   preview_regen_at: string | null;
 }
 
+/** Élément de décor posé librement sur une slide (éditeur canvas).
+ *  xPct/yPct = centre de l'élément en % des dimensions de la slide. */
+export interface DecorElement {
+  type: 'postit' | 'stamp' | 'arrow' | 'seal';
+  /** couleur post-it / type tampon / type flèche */
+  variant?: string;
+  xPct: number;
+  yPct: number;
+  rotation: number;
+  scale: number;
+  /** texte (post-it). Le sceau a son texte de marque fixe. */
+  text?: string;
+}
+
 export interface SlideData {
   template: string;
   text?: string;
@@ -251,6 +265,9 @@ export interface SlideData {
   /** Photo de fond choisie dans l'éditeur (nom de fichier). null/absent = auto.
    *  null explicite (et pas undefined) pour survivre à JSON.stringify au save. */
   bg_photo?: string | null;
+  /** Décor explicite posé via l'éditeur canvas. Absent/null = décor auto ;
+   *  tableau (même []) = override total. */
+  decor_elements?: DecorElement[] | null;
   stat_value?: string;
   step_number?: number;
   author?: string;
