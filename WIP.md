@@ -484,6 +484,18 @@ sur Site URL (vmd.fr). Fix : param renommé `"next"`. Sur gmc.fr, `Login.tsx` fo
 - [ ] Logout depuis gmc.fr ou vmd.fr → user déco des deux domaines (rouvrir l'autre, vérifier /connexion)
 - [ ] Bouton Déconnexion visible sur gmc.fr/ (Espace dropdown), gmc.fr/mon-chantier (sidebar), gmc.fr/mon-chantier/nouveau (header)
 
+### Évolutions post-livraison
+
+**Vidéo démo de la landing (2026-05-16 → 17)**
+- Bouton "Voir une démo en 60 s" dans le Hero (`gmc-landing/Hero.astro`) → ouvre une modale iframe sur `/demo/?embed=1` (fermeture backdrop / croix / Échap, `iframe.src` remis à `about:blank` à la fermeture pour stopper la lecture).
+- `/demo/` = page statique `public/demo/index.html`. Motion design React transpilé **en navigateur** via Babel standalone. `public/demo/vendor/` contient React 18 + Babel UMD servis en local (pas de CDN).
+- `public/demo/animations.jsx` = moteur réutilisable (`Stage` / `Sprite` / easings, expose les helpers sur `window`). `public/demo/video-scenes.jsx` = la vidéo : 12 scènes, ~60 s, canvas 1920×1080 — Hook → Problème → Cerveau → Personas → Hub → Aides → Devis → Planning → Trésorerie → WhatsApp → Journal IA → Outro.
+- **Changer la vidéo** : remplacer `video-scenes.jsx` (export d'un bundle claude.ai/design), puis ajuster la durée affichée dans le bouton du Hero + la meta description de `public/demo/index.html`.
+
+**Header lisible sur mobile (2026-05-17)**
+- `gmc-landing/Header.astro` : sous 640px le bouton **Connexion** est désormais visible (il était `hidden md:inline-flex` → invisible pour les clients existants sur mobile), le CTA est raccourci en "Démarrer" sans flèche, logo en badge seul, paddings/gaps réduits — le texte du CTA ne déborde plus.
+- `gmc-landing/Logo.astro` : nouveau prop `wordmark` (défaut `true`). `wordmark={false}` n'affiche que le badge SVG, sans le texte ni le tagline.
+
 ### Reste à faire (v2)
 
 - Migration DB `signup_source` + `has_gmc_access` (aujourd'hui = allowlist hardcodée dans `src/lib/gmcAccess.ts`)
