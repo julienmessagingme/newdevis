@@ -49,6 +49,11 @@ function relTime(iso?: string | null): string {
   return `il y a ${Math.floor(days / 30)} mois`;
 }
 
+/** Date longue compacte : "12 mai 2026". */
+function fmtBubbleDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 // ── Icônes inline (design) ────────────────────────────────────────────────────
 
 const ArrowRight = () => (
@@ -145,11 +150,100 @@ function ProCard({ lot, docs, onOpen }: { lot: LotChantier; docs: DocumentChanti
   );
 }
 
+// ── Bulle Planning ────────────────────────────────────────────────────────────
+
+interface PlanningSnapshot {
+  debut: string | null;
+  finSouhaitee: string | null;
+  estimatedEnd: string | null;
+}
+
+function PlanningBubble({
+  planning, rdvs, onOpen,
+}: {
+  planning: PlanningSnapshot;
+  rdvs: { titre: string; date: string }[];
+  onOpen: () => void;
+}) {
+  const { debut, finSouhaitee, estimatedEnd } = planning;
+  // Mode : si une date de fin souhaitée existe, on a piloté par la fin.
+  const endMode = !!finSouhaitee;
+  const endDate = endMode ? finSouhaitee : estimatedEnd;
+
+  // Pas de date de début → invitation à créer le planning.
+  if (!debut) {
+    return (
+      <button type="button" className="cr-panel cr-plan" onClick={onOpen}>
+        <div className="cr-plan-head">
+          <div className="cr-plan-title">📅 Planning</div>
+          <span className="cr-plan-chip ar"><ArrowRight /></span>
+        </div>
+        <div className="cr-plan-empty">
+          <span>Aucune date définie pour ce chantier.</span>
+          <span className="cta">Définir le planning <ArrowRight /></span>
+        </div>
+      </button>
+    );
+  }
+
+  const startT = new Date(debut).getTime();
+  const endT = endDate ? new Date(endDate).getTime() : null;
+  const weeks = endT && endT > startT ? Math.max(1, Math.round((endT - startT) / (7 * 86_400_000))) : null;
+
+  const rdvMarkers = (endT && endT > startT)
+    ? rdvs
+        .map(r => {
+          const t = new Date(r.date).getTime();
+          if (Number.isNaN(t)) return null;
+          const pct = (t - startT) / (endT - startT);
+          if (pct < 0 || pct > 1) return null;
+          return { titre: r.titre, date: r.date, pct };
+        })
+        .filter((m): m is { titre: string; date: string; pct: number } => m !== null)
+    : [];
+
+  return (
+    <button type="button" className="cr-panel cr-plan" onClick={onOpen}>
+      <div className="cr-plan-head">
+        <div className="cr-plan-title">📅 Planning</div>
+        <div className="cr-plan-chips">
+          {weeks && <span className="cr-plan-chip">≈ {weeks} sem.</span>}
+          {rdvMarkers.length > 0 && <span className="cr-plan-chip">📌 {rdvMarkers.length} RDV</span>}
+          <span className="cr-plan-chip ar"><ArrowRight /></span>
+        </div>
+      </div>
+      <div className="cr-plan-timeline">
+        <div className="cr-plan-side">
+          <div className="lbl">{endMode ? 'Début estimé' : 'Début'}</div>
+          <div className="dt">{fmtBubbleDate(debut)}</div>
+        </div>
+        <div className="cr-plan-bar">
+          <div className="line" />
+          <div className="cap" />
+          {rdvMarkers.map((m, i) => (
+            <div
+              key={i}
+              className="cr-plan-rdv"
+              style={{ left: `${m.pct * 100}%` }}
+              title={`${m.titre} · ${fmtBubbleDate(m.date)}`}
+            />
+          ))}
+          <div className="arrow" />
+        </div>
+        <div className="cr-plan-side right">
+          <div className="lbl">{endMode ? 'Livraison visée' : 'Livraison estimée'}</div>
+          <div className="dt">{endDate ? fmtBubbleDate(endDate) : '—'}</div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 // ── DashboardHome ─────────────────────────────────────────────────────────────
 
 function DashboardHome({
   lots, documents, docsByLot, displayMin, displayMax, budgetReel, refinedBreakdown, onAffineBudget,
-  onGoToLot, onAddDoc, onGoToAssistant, onGoToTresorerie, onGoToDocuments,
+  onGoToLot, onAddDoc, onGoToAssistant, onGoToTresorerie, onGoToDocuments, onGoToPlanning,
   onAddIntervenant, chantierId, token, urgentActions, chantierNom, chantierEmoji, budget,
 }: {
   chantierNom: string;
@@ -189,6 +283,46 @@ function DashboardHome({
 
   // ── Budget réconcilié — fourni par ChantierCockpit (source unique) ────────
   const budgetTotaux = budget?.totaux ?? null;
+
+  // ── Planning — instantané pour la bulle d'accueil ─────────────────────────
+  const [planning, setPlanning] = useState<PlanningSnapshot | null>(null);
+  useEffect(() => {
+    if (!chantierId || !token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/chantier/${chantierId}/planning`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled) return;
+        if (!res.ok) { setPlanning({ debut: null, finSouhaitee: null, estimatedEnd: null }); return; }
+        const d = await res.json();
+        const ends = ((d.lots ?? []) as { date_fin?: string | null }[])
+          .map(l => l.date_fin)
+          .filter((x): x is string => !!x)
+          .sort();
+        setPlanning({
+          debut: d.dateDebutChantier ?? null,
+          finSouhaitee: d.dateFinSouhaitee ?? null,
+          estimatedEnd: ends.length ? ends[ends.length - 1] : null,
+        });
+      } catch {
+        if (!cancelled) setPlanning({ debut: null, finSouhaitee: null, estimatedEnd: null });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [chantierId, token]);
+
+  // RDV (localStorage) — jalons affichés sur la flèche temporelle.
+  const [rdvs, setRdvs] = useState<{ titre: string; date: string }[]>([]);
+  useEffect(() => {
+    if (!chantierId) return;
+    try {
+      const raw = localStorage.getItem(`rdvs_${chantierId}`);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) setRdvs(parsed);
+    } catch { /* ignore */ }
+  }, [chantierId]);
 
   // Click-outside popover "À traiter"
   useEffect(() => {
@@ -353,36 +487,46 @@ function DashboardHome({
       {/* ── Grille principale ─────────────────────────────────────────────── */}
       <div className="cr-body-grid">
 
-        {/* Intervenants */}
-        <section className="cr-panel">
-          <div className="cr-section-head">
-            <div className="cr-sh-left">
-              <h2 className="cr-sh-title">Intervenants</h2>
-            </div>
-          </div>
+        {/* Colonne gauche : Planning + Intervenants */}
+        <div className="cr-left-col">
 
-          {total === 0 ? (
-            <div className="cr-empty">
-              <span className="em">🏗</span>
-              <p className="t">Aucun intervenant défini</p>
-              <p className="s">Décrivez votre projet et l'IA génère la liste des intervenants et une estimation de budget.</p>
-              <a href="/mon-chantier/nouveau" className="cta"><span>＋</span> Créer avec l'IA</a>
-            </div>
-          ) : (
-            <div className={`cr-intervenants-wrap${lots.length > 6 ? ' scrollable' : ''}`}>
-              <div className="cr-intervenants">
-                {lots.map(lot => (
-                  <ProCard
-                    key={lot.id}
-                    lot={lot}
-                    docs={docsByLot[lot.id] ?? []}
-                    onOpen={() => onGoToLot(lot.id)}
-                  />
-                ))}
+          {/* Bulle Planning */}
+          {planning && (
+            <PlanningBubble planning={planning} rdvs={rdvs} onOpen={onGoToPlanning} />
+          )}
+
+          {/* Intervenants */}
+          <section className="cr-panel">
+            <div className="cr-section-head">
+              <div className="cr-sh-left">
+                <h2 className="cr-sh-title">Intervenants</h2>
               </div>
             </div>
-          )}
-        </section>
+
+            {total === 0 ? (
+              <div className="cr-empty">
+                <span className="em">🏗</span>
+                <p className="t">Aucun intervenant défini</p>
+                <p className="s">Décrivez votre projet et l'IA génère la liste des intervenants et une estimation de budget.</p>
+                <a href="/mon-chantier/nouveau" className="cta"><span>＋</span> Créer avec l'IA</a>
+              </div>
+            ) : (
+              <div className={`cr-intervenants-wrap${lots.length > 6 ? ' scrollable' : ''}`}>
+                <div className="cr-intervenants">
+                  {lots.map(lot => (
+                    <ProCard
+                      key={lot.id}
+                      lot={lot}
+                      docs={docsByLot[lot.id] ?? []}
+                      onOpen={() => onGoToLot(lot.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+        </div>
 
         {/* Colonne droite : budget + stats + alerte */}
         <aside className="cr-right">

@@ -471,6 +471,84 @@
 /* Empty state déjà dans le panneau blanc → pas de double cadre */
 .cr-panel .cr-empty{border:none; background:transparent; padding:32px 16px}
 
+/* Colonne gauche de l'accueil : bulle Planning empilée au-dessus d'Intervenants */
+.cr-left-col{display:flex; flex-direction:column; gap:24px; min-width:0}
+
+/* ── Bulle Planning ── */
+.cr-plan{
+  width:100%; text-align:left; display:block;
+  cursor:pointer; font-family:inherit;
+  transition:transform .15s, box-shadow .15s, border-color .15s;
+}
+.cr-plan:hover{
+  transform:translateY(-1px);
+  box-shadow:0 10px 24px rgba(26,74,127,.10);
+  border-color:var(--cr-navy);
+}
+.cr-plan-head{display:flex; align-items:center; justify-content:space-between; gap:12px}
+.cr-plan-title{
+  font-family:"Syne",sans-serif; font-size:20px; font-weight:800;
+  color:var(--cr-navy); letter-spacing:-0.015em;
+  display:flex; align-items:center; gap:9px;
+}
+.cr-plan-chips{display:flex; align-items:center; gap:10px}
+.cr-plan-chip{
+  font-family:"JetBrains Mono",monospace; font-size:11px; font-weight:700;
+  color:var(--cr-muted); letter-spacing:.02em;
+  white-space:nowrap;
+}
+.cr-plan-chip.ar{color:var(--cr-navy); display:inline-flex}
+.cr-plan-chip.ar svg{width:16px; height:16px}
+
+.cr-plan-timeline{display:flex; align-items:flex-end; gap:16px; margin-top:22px}
+.cr-plan-side{flex-shrink:0; min-width:88px}
+.cr-plan-side.right{text-align:right}
+.cr-plan-side .lbl{
+  font-family:"JetBrains Mono",monospace; font-size:9px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--cr-muted);
+}
+.cr-plan-side .dt{
+  font-size:15px; font-weight:700; color:var(--cr-ink);
+  margin-top:4px; line-height:1.1;
+}
+.cr-plan-bar{flex:1; position:relative; height:26px; min-width:60px}
+.cr-plan-bar .line{
+  position:absolute; left:0; right:0; top:50%;
+  height:4px; transform:translateY(-50%); border-radius:2px;
+  background:linear-gradient(90deg, var(--cr-navy), var(--cr-gold));
+}
+.cr-plan-bar .cap{
+  position:absolute; left:0; top:50%; transform:translate(-50%,-50%);
+  width:11px; height:11px; border-radius:50%;
+  background:var(--cr-navy); border:2.5px solid #fff;
+  box-shadow:0 0 0 1.5px var(--cr-navy);
+}
+.cr-plan-bar .arrow{
+  position:absolute; right:-3px; top:50%; transform:translateY(-50%);
+  width:0; height:0;
+  border-top:7px solid transparent; border-bottom:7px solid transparent;
+  border-left:11px solid var(--cr-gold);
+}
+.cr-plan-rdv{
+  position:absolute; top:50%; transform:translate(-50%,-50%);
+  width:13px; height:13px; border-radius:50%;
+  background:var(--cr-orange); border:2.5px solid #fff;
+  box-shadow:0 1px 4px rgba(245,138,6,.45);
+  cursor:help;
+}
+.cr-plan-empty{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  margin-top:16px;
+  font-size:13px; color:var(--cr-muted);
+}
+.cr-plan-empty .cta{
+  display:inline-flex; align-items:center; gap:7px;
+  background:var(--cr-navy); color:#fff;
+  border-radius:10px; padding:9px 16px;
+  font-size:13px; font-weight:600;
+}
+.cr-plan-empty .cta svg{width:14px; height:14px}
+
 /* Intervenants grid */
 .cr-intervenants-wrap{position:relative}
 .cr-intervenants-wrap.scrollable{max-height:560px; overflow:hidden}
