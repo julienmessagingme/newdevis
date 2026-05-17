@@ -1515,7 +1515,13 @@ export default function BudgetTab({
     }
 
     if (filterDevis !== 'all') result = result.filter(r => r.devisStatut === filterDevis);
-    if (filterPay   !== 'all') result = result.filter(r => r.payStatut   === filterPay);
+    // "À payer" = tout ce qui a un reste à régler (factures vierges ET
+    // partiellement payées) → cohérent avec le KPI "à régler" du camembert.
+    if (filterPay === 'unpaid') {
+      result = result.filter(r => (r.lot.totaux.a_payer ?? 0) > 0);
+    } else if (filterPay !== 'all') {
+      result = result.filter(r => r.payStatut === filterPay);
+    }
 
     switch (sortBy) {
       case 'amount':
