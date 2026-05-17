@@ -108,10 +108,17 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
   const displayMax = refinedRangeMax ?? baseRangeMax;
 
   // ── Budget réel (synchronisé avec BudgetTab via custom event) ────────────
+  // localStorage = couche optimiste locale ; fallback serveur (initialEnveloppePrevue
+  // = chantiers.budget) pour rester cohérent cross-device — sinon le stepper de
+  // démarrage "Budget défini" repasse à non-fait sur un appareil au localStorage vide.
   const [budgetReel, setBudgetReel] = useState<number | null>(() => {
-    if (!chantierId) return null;
-    try { const s = localStorage.getItem(`budget_reel_${chantierId}`); return s ? parseFloat(s) : null; }
-    catch { return null; }
+    if (chantierId) {
+      try {
+        const s = localStorage.getItem(`budget_reel_${chantierId}`);
+        if (s) { const n = parseFloat(s); if (!Number.isNaN(n) && n > 0) return n; }
+      } catch { /* ignore */ }
+    }
+    return (initialEnveloppePrevue && initialEnveloppePrevue > 0) ? initialEnveloppePrevue : null;
   });
   useEffect(() => {
     function handler(e: Event) {
