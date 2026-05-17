@@ -17,12 +17,6 @@ import type { TemplateDetail, SlideData, DecorElement, UsageEntry } from "@/type
 /** Tri NATUREL des clés slide_N — localeCompare mettrait slide_10 avant slide_2. */
 const slideNum = (k: string) => parseInt(String(k).replace(/\D/g, ""), 10) || 0;
 
-/** Manifestes publics B2 — photos de fond et assets décor. */
-const PHOTOS_MANIFEST_URL =
-  "https://f003.backblazeb2.com/file/verifiermondevismarketing/photos/manifest.json";
-const DECOR_MANIFEST_URL =
-  "https://f003.backblazeb2.com/file/verifiermondevismarketing/decor/manifest.json";
-
 interface BgPhoto {
   product: string;
   kind: string;
@@ -147,21 +141,25 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
   // → évite qu'une réponse lente écrase un aperçu plus récent.
   const previewAborts = useRef<Record<string, AbortController>>({});
 
-  // Galerie photos de fond + assets décor (chargés une fois depuis B2).
+  // Galerie photos de fond + assets décor — via la route proxy serveur
+  // (B2 ne renvoie pas de CORS, un fetch direct depuis le navigateur échoue).
   const [bgPhotos, setBgPhotos] = useState<BgPhoto[]>([]);
   const [decorAssets, setDecorAssets] = useState<DecorAsset[]>([]);
   useEffect(() => {
+    if (!authToken) return;
     let cancelled = false;
-    fetch(PHOTOS_MANIFEST_URL)
+    fetch("/api/admin/marketing/assets", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d?.photos) setBgPhotos(d.photos as BgPhoto[]); })
-      .catch(() => { /* galerie indisponible — non bloquant */ });
-    fetch(DECOR_MANIFEST_URL)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d?.decor) setDecorAssets(d.decor as DecorAsset[]); })
-      .catch(() => { /* palette indisponible — non bloquant */ });
+      .then((d) => {
+        if (cancelled || !d) return;
+        setBgPhotos((d.photos ?? []) as BgPhoto[]);
+        setDecorAssets((d.decor ?? []) as DecorAsset[]);
+      })
+      .catch(() => { /* galeries indisponibles — non bloquant */ });
     return () => { cancelled = true; };
-  }, []);
+  }, [authToken]);
 
   // Slide dont l'éditeur de décor est ouvert.
   const [decorEditFor, setDecorEditFor] = useState<string | null>(null);
