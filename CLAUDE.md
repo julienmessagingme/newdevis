@@ -356,6 +356,8 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **Téléphone du propriétaire = `user_metadata.phone`, PAS `user.phone` (bug détecté 2026-05-17)** : le champ natif `auth.users.phone` n'est rempli que par l'auth SMS (jamais utilisée ici). Le numéro saisi dans Settings va dans `raw_user_meta_data.phone`. `context.ts` lisait uniquement `ownerData.user.phone` → `ownerPhone` toujours null → les messages WhatsApp du propriétaire (canal owner) étaient traités comme « numéro inconnu » par l'agent. Fix : lire `user_metadata?.phone ?? user.phone`. Tout code qui résout le téléphone d'un user doit faire ce fallback (cf. `getClientPhone` dans `whatsapp.ts` qui le faisait déjà correctement).
 
+- **Envoi WhatsApp = TOUJOURS via un groupe `@g.us`, jamais en 1-à-1 (règle absolue, 2026-05-17)** : whapi refuse l'envoi à un numéro individuel (`33...@s.whatsapp.net`) → `401 "need channel authorization for send message"`. De plus le webhook whapi ne capte les messages entrants que depuis des groupes (`@g.us`) — un 1-à-1 ne serait jamais lu en retour. `send_whatsapp_message` a un garde-fou qui rejette tout `to` non-`@g.us`. Pour écrire à un contact, l'agent utilise `send_whatsapp_to_contact` (résout le contact → groupe existant via `group_jid` OU crée un groupe dédié à 3 via `create_dedicated`). `list_artisan_whatsapp_targets` liste les groupes existants d'un contact pour que l'agent propose le choix du canal. Ne jamais réintroduire l'option d'envoi à un numéro individuel.
+
 ### Multi-devis — règles d'architecture (2026-05-04)
 
 - **RÈGLE ABSOLUE : un PDF multi-artisans = N analyses indépendantes.** Jamais de mélange de lignes entre artisans, jamais de verdict calculé sur des données croisées.

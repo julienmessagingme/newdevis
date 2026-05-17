@@ -51,6 +51,23 @@ export const BATCH_SCHEMAS: Tool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_artisan_whatsapp_targets",
+      description:
+        "Liste les groupes WhatsApp existants où un contact donné est présent — à appeler AVANT d'écrire à un contact sur WhatsApp, pour proposer le choix du canal à l'utilisateur.\n\n" +
+        "Retourne : existing_groups (groupes WhatsApp actifs contenant ce contact, avec nom + nombre de membres), has_whatsapp, can_create_dedicated.\n\n" +
+        "Workflow : tu appelles ce tool, puis tu présentes les options à l'utilisateur (envoyer dans un groupe existant OU créer un groupe dédié à 3), puis tu envoies via send_whatsapp_to_contact.",
+      parameters: {
+        type: "object",
+        properties: {
+          contact_id: { type: "string", description: "UUID du contact (récupéré via get_contacts_chantier)." },
+        },
+        required: ["contact_id"],
+      },
+    },
+  },
 ];
 
 export const ACTION_SCHEMAS: Tool[] = [
@@ -58,14 +75,37 @@ export const ACTION_SCHEMAS: Tool[] = [
     type: "function",
     function: {
       name: "send_whatsapp_message",
-      description: "Envoie un message WhatsApp à un groupe ou à un contact individuel. REQUIERT confirmation explicite de l'utilisateur. L'agent ne doit JAMAIS envoyer sans que l'utilisateur ait dit 'ok', 'envoie', 'confirme' ou équivalent.",
+      description: "Envoie un message dans un GROUPE WhatsApp dont tu connais déjà le JID (xxx@g.us) — typiquement le canal owner. NE PAS utiliser pour écrire à un contact/artisan : utilise send_whatsapp_to_contact. L'envoi à un numéro individuel est impossible (whapi le refuse). REQUIERT confirmation explicite de l'utilisateur.",
       parameters: {
         type: "object",
         properties: {
-          to:   { type: "string", description: "JID du groupe (xxx@g.us) ou numéro individuel (33XXXXXXXXX@s.whatsapp.net)" },
+          to:   { type: "string", description: "JID du groupe WhatsApp (xxx@g.us). Les numéros individuels (@s.whatsapp.net) sont refusés." },
           body: { type: "string", description: "Contenu du message à envoyer" },
         },
         required: ["to", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_whatsapp_to_contact",
+      description:
+        "Envoie un message WhatsApp à un contact du chantier, via un groupe. C'est LE tool à utiliser quand l'utilisateur demande d'écrire à un artisan/contact.\n\n" +
+        "AVANT d'appeler : appelle list_artisan_whatsapp_targets pour voir les groupes existants, puis demande à l'utilisateur s'il veut écrire dans un groupe existant ou créer un groupe dédié à 3 (lui + GérerMonChantier + le contact).\n\n" +
+        "Deux modes (exclusifs) :\n" +
+        "  • group_jid : envoie dans un groupe existant (JID retourné par list_artisan_whatsapp_targets).\n" +
+        "  • create_dedicated:true : crée un groupe dédié à 3 (owner + GMC + ce contact) puis envoie dedans.\n\n" +
+        "REQUIERT confirmation explicite du texte par l'utilisateur avant l'appel.",
+      parameters: {
+        type: "object",
+        properties: {
+          contact_id:       { type: "string", description: "UUID du contact destinataire (via get_contacts_chantier)." },
+          body:             { type: "string", description: "Contenu du message." },
+          group_jid:        { type: "string", description: "JID d'un groupe existant où envoyer (xxx@g.us). Exclusif avec create_dedicated." },
+          create_dedicated: { type: "boolean", description: "Si true, crée un groupe WhatsApp dédié à 3 (owner + GMC + ce contact) et envoie dedans. Exclusif avec group_jid." },
+        },
+        required: ["contact_id", "body"],
       },
     },
   },
@@ -188,8 +228,130 @@ export const handlers: Record<string, Handler> = {
   send_whatsapp_message: async ({ chantierId, args }) => {
     const to = String(args.to ?? "");
     const body = String(args.body ?? "");
+    // whapi refuse l'envoi 1-à-1 (401 "need channel authorization for send message").
+    // Tout envoi WhatsApp doit passer par un groupe (@g.us). Pour écrire à un contact,
+    // l'agent doit utiliser send_whatsapp_to_contact.
+    if (!to.endsWith("@g.us")) {
+      return JSON.stringify({
+        ok: false, error: "individual_send_blocked",
+        message: "Envoi WhatsApp à un numéro individuel impossible (whapi le refuse). Pour écrire à un contact, utilise send_whatsapp_to_contact. Pour un groupe précis, passe son JID @g.us.",
+      });
+    }
     const result = await sendWhatsApp(chantierId, to, body);
     return JSON.stringify(result);
+  },
+
+  list_artisan_whatsapp_targets: async ({ chantierId, args }) => {
+    const contactId = String(args.contact_id ?? "").trim();
+    if (!contactId) return JSON.stringify({ ok: false, error: "contact_id requis" });
+
+    const sb = supabaseAdmin();
+    const { data: contact } = await sb.from("contacts_chantier")
+      .select("id, nom, telephone, has_whatsapp, chantier_id").eq("id", contactId).single();
+    if (!contact || contact.chantier_id !== chantierId) {
+      return JSON.stringify({ ok: false, error: "Contact introuvable sur ce chantier" });
+    }
+    if (!contact.telephone) {
+      return JSON.stringify({
+        ok: false, error: "no_phone",
+        message: `${contact.nom} n'a pas de téléphone enregistré. Ajoute-le via update_contact avant d'écrire sur WhatsApp.`,
+      });
+    }
+
+    const norm = (p: string) => String(p).replace(/[\s.]/g, "").replace(/^\+/, "").replace(/^0/, "33");
+    const contactNorm = norm(contact.telephone);
+
+    const { data: groups } = await sb.from("chantier_whatsapp_groups")
+      .select("group_jid, name, chantier_whatsapp_members(phone, name, role, status)")
+      .eq("chantier_id", chantierId).eq("is_owner_channel", false);
+
+    const existingGroups: Array<Record<string, unknown>> = [];
+    for (const g of groups ?? []) {
+      const members = ((g as any).chantier_whatsapp_members ?? []).filter((m: any) => m.status === "active");
+      if (!members.some((m: any) => norm(m.phone) === contactNorm)) continue;
+      const artisans = members.filter((m: any) => m.role === "artisan");
+      existingGroups.push({
+        group_jid: (g as any).group_jid,
+        name: (g as any).name,
+        member_count: members.length,
+        other_artisans: artisans.filter((m: any) => norm(m.phone) !== contactNorm).map((m: any) => m.name),
+      });
+    }
+
+    return JSON.stringify({
+      ok: true,
+      contact_nom: contact.nom,
+      has_whatsapp: contact.has_whatsapp !== false,
+      existing_groups: existingGroups,
+      can_create_dedicated: contact.has_whatsapp !== false,
+    });
+  },
+
+  send_whatsapp_to_contact: async ({ chantierId, headers, args }) => {
+    const contactId = String(args.contact_id ?? "").trim();
+    const body = String(args.body ?? "").trim();
+    const groupJid = typeof args.group_jid === "string" ? args.group_jid.trim() : "";
+    const createDedicated = args.create_dedicated === true;
+
+    if (!contactId || !body) {
+      return JSON.stringify({ ok: false, error: "contact_id et body requis" });
+    }
+    if (!groupJid && !createDedicated) {
+      return JSON.stringify({ ok: false, error: "Passe group_jid (groupe existant) OU create_dedicated:true" });
+    }
+    if (groupJid && createDedicated) {
+      return JSON.stringify({ ok: false, error: "group_jid et create_dedicated sont exclusifs — choisis-en un" });
+    }
+
+    const sb = supabaseAdmin();
+    const { data: contact } = await sb.from("contacts_chantier")
+      .select("id, nom, telephone, has_whatsapp, chantier_id").eq("id", contactId).single();
+    if (!contact || contact.chantier_id !== chantierId) {
+      return JSON.stringify({ ok: false, error: "Contact introuvable sur ce chantier" });
+    }
+    if (contact.has_whatsapp === false) {
+      return JSON.stringify({
+        ok: false, error: "no_whatsapp",
+        message: `${contact.nom} est marqué comme n'ayant pas WhatsApp. Propose d'envoyer un email à la place (send_email).`,
+      });
+    }
+
+    let targetJid = groupJid;
+    let createdGroup = false;
+
+    if (createDedicated) {
+      if (!contact.telephone) {
+        return JSON.stringify({ ok: false, error: "no_phone", message: `${contact.nom} n'a pas de téléphone enregistré.` });
+      }
+      const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/whatsapp`, {
+        method: "POST", headers,
+        body: JSON.stringify({ selectedPhones: [contact.telephone], name: `💬 ${contact.nom}`.slice(0, 60) }),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        return JSON.stringify({ ok: false, error: `Création du groupe dédié échouée: ${res.status} ${t.slice(0, 150)}` });
+      }
+      const data = await res.json();
+      targetJid = data?.group?.group_jid ?? "";
+      createdGroup = !data?.already_exists;
+      if (!targetJid) {
+        return JSON.stringify({ ok: false, error: "Groupe dédié créé mais JID introuvable" });
+      }
+    } else {
+      const { data: g } = await sb.from("chantier_whatsapp_groups")
+        .select("group_jid").eq("group_jid", groupJid).eq("chantier_id", chantierId).maybeSingle();
+      if (!g) {
+        return JSON.stringify({ ok: false, error: "Groupe introuvable sur ce chantier — vérifie le group_jid via list_artisan_whatsapp_targets" });
+      }
+    }
+
+    const result = await sendWhatsApp(chantierId, targetJid, body);
+    return JSON.stringify({
+      ...result,
+      contact_nom: contact.nom,
+      group_jid: targetJid,
+      created_dedicated_group: createdGroup,
+    });
   },
 
   create_owner_whatsapp_channel: async ({ chantierId, headers }) => {
