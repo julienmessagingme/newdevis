@@ -33,7 +33,9 @@ interface Props {
 }
 
 // Largeur de rendu réelle d'une slide + tailles de base des décors à scale 1.
-// DOIVENT matcher DECOR_BASE_PX de render_carousels_v3.mjs.
+// postit/stamp/arrow DOIVENT matcher DECOR_BASE_PX de render_carousels_v3.mjs.
+// `seal` est une APPROXIMATION : au rendu, le sceau est dimensionné par son CSS
+// (.brand-seal) ; ici 300px est juste une taille d'aperçu plausible.
 const RENDER_W = 1080;
 const BASE_PX: Record<string, number> = { postit: 188, stamp: 360, arrow: 122, seal: 300 };
 const CANVAS_W = 360; // largeur fixe du canvas éditeur (px)
@@ -76,7 +78,9 @@ export default function DecorCanvas({
   const elements = slide.decor_elements ?? [];
   const [bgUrl, setBgUrl] = useState<string | null>(null);
   const [bgLoading, setBgLoading] = useState(true);
-  const [selected, setSelected] = useState<number | null>(null);
+  // Sélection par id stable (pas par index : un index devient faux après
+  // suppression / réordonnancement d'un élément).
+  const [selected, setSelected] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -153,11 +157,14 @@ export default function DecorCanvas({
     window.removeEventListener("pointerup", onPointerUp);
   }, [onPointerMove, onPointerUp]);
 
-  const beginDrag = (e: React.PointerEvent, index: number, mode: DragMode) => {
+  const beginDrag = (e: React.PointerEvent, id: string, mode: DragMode) => {
+    if (dragRef.current) return; // déjà un drag en cours
     e.stopPropagation();
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const index = elementsRef.current.findIndex((x) => x.id === id);
+    if (index < 0) return;
     const rect = canvas.getBoundingClientRect();
     const el = elementsRef.current[index];
     const cx = rect.left + (el.xPct / 100) * rect.width;
@@ -169,7 +176,7 @@ export default function DecorCanvas({
       startRotation: el.rotation, startScale: el.scale,
       startDist: Math.hypot(e.clientX - cx, e.clientY - cy),
     };
-    setSelected(index);
+    setSelected(id);
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
   };
@@ -178,39 +185,47 @@ export default function DecorCanvas({
   const assetFor = (type: string, variant?: string) =>
     decorAssets.find((a) => a.type === type && (!variant || a.variant === variant));
 
+  // Toutes les actions palette/toolbar lisent elementsRef.current (et pas la
+  // closure `elements`, périmée si 2 actions s'enchaînent avant le re-render).
   const addElement = (type: DecorElement["type"]) => {
-    const variant =
-      type === "seal" ? undefined : assetFor(type)?.variant;
+    const current = elementsRef.current;
+    const variant = type === "seal" ? undefined : assetFor(type)?.variant;
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const el: DecorElement = {
-      type, variant, xPct: 50, yPct: 45, rotation: 0, scale: 1,
+      id, type, variant, xPct: 50, yPct: 45, rotation: 0, scale: 1,
       text: type === "postit" ? "Note" : undefined,
     };
-    onChange([...elements, el]);
-    setSelected(elements.length);
+    onChange([...current, el]);
+    setSelected(id);
   };
 
   const removeSelected = () => {
     if (selected == null) return;
-    onChange(elements.filter((_, i) => i !== selected));
+    onChange(elementsRef.current.filter((e) => e.id !== selected));
     setSelected(null);
   };
 
-  const editText = (index: number) => {
-    const el = elements[index];
-    if (el.type !== "postit") return;
+  const editText = (id: string) => {
+    const els = elementsRef.current;
+    const el = els.find((x) => x.id === id);
+    if (!el || el.type !== "postit") return;
     const next = window.prompt("Texte du post-it :", el.text ?? "");
     if (next == null) return;
-    onChange(elements.map((x, i) => (i === index ? { ...x, text: next.slice(0, 60) } : x)));
+    onChange(els.map((x) => (x.id === id ? { ...x, text: next.slice(0, 60) } : x)));
   };
 
-  const cycleVariant = (index: number) => {
-    const el = elements[index];
-    if (el.type === "seal") return;
+  const cycleVariant = (id: string) => {
+    const els = elementsRef.current;
+    const el = els.find((x) => x.id === id);
+    if (!el || el.type === "seal") return;
     const variants = decorAssets.filter((a) => a.type === el.type).map((a) => a.variant);
     if (variants.length < 2) return;
     const cur = variants.indexOf(el.variant ?? variants[0]);
     const nextVariant = variants[(cur + 1) % variants.length];
-    onChange(elements.map((x, i) => (i === index ? { ...x, variant: nextVariant } : x)));
+    onChange(els.map((x) => (x.id === id ? { ...x, variant: nextVariant } : x)));
   };
 
   // ── Rendu visuel d'un élément ─────────────────────────────────────────────
@@ -298,41 +313,44 @@ export default function DecorCanvas({
           </div>
         )}
 
-        {elements.map((el, i) => (
-          <div
-            key={i}
-            onPointerDown={(e) => beginDrag(e, i, "move")}
-            onDoubleClick={() => editText(i)}
-            style={{
-              position: "absolute",
-              left: `${el.xPct}%`,
-              top: `${el.yPct}%`,
-              transform: `translate(-50%, -50%) rotate(${el.rotation}deg) scale(${el.scale})`,
-              cursor: "move",
-            }}
-            className={selected === i ? "outline outline-2 outline-primary outline-offset-2" : ""}
-          >
-            {renderElementContent(el)}
-            {selected === i && (
-              <>
-                {/* poignée rotation */}
-                <div
-                  onPointerDown={(e) => beginDrag(e, i, "rotate")}
-                  className="absolute left-1/2 -top-6 -translate-x-1/2 w-4 h-4 rounded-full bg-primary text-white flex items-center justify-center cursor-grab"
-                >
-                  <RotateCw className="h-2.5 w-2.5" />
-                </div>
-                {/* poignée resize */}
-                <div
-                  onPointerDown={(e) => beginDrag(e, i, "resize")}
-                  className="absolute -right-2 -bottom-2 w-4 h-4 rounded-full bg-primary text-white flex items-center justify-center cursor-nwse-resize"
-                >
-                  <Maximize2 className="h-2.5 w-2.5" />
-                </div>
-              </>
-            )}
-          </div>
-        ))}
+        {elements.map((el) => {
+          const id = el.id ?? "";
+          return (
+            <div
+              key={id}
+              onPointerDown={(e) => beginDrag(e, id, "move")}
+              onDoubleClick={() => editText(id)}
+              style={{
+                position: "absolute",
+                left: `${el.xPct}%`,
+                top: `${el.yPct}%`,
+                transform: `translate(-50%, -50%) rotate(${el.rotation}deg) scale(${el.scale})`,
+                cursor: "move",
+              }}
+              className={selected === id ? "outline outline-2 outline-primary outline-offset-2" : ""}
+            >
+              {renderElementContent(el)}
+              {selected === id && (
+                <>
+                  {/* poignée rotation */}
+                  <div
+                    onPointerDown={(e) => beginDrag(e, id, "rotate")}
+                    className="absolute left-1/2 -top-6 -translate-x-1/2 w-4 h-4 rounded-full bg-primary text-white flex items-center justify-center cursor-grab"
+                  >
+                    <RotateCw className="h-2.5 w-2.5" />
+                  </div>
+                  {/* poignée resize */}
+                  <div
+                    onPointerDown={(e) => beginDrag(e, id, "resize")}
+                    className="absolute -right-2 -bottom-2 w-4 h-4 rounded-full bg-primary text-white flex items-center justify-center cursor-nwse-resize"
+                  >
+                    <Maximize2 className="h-2.5 w-2.5" />
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <p className="text-[11px] text-muted-foreground">

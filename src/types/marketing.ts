@@ -247,6 +247,8 @@ export interface TemplateListItem {
 /** Élément de décor posé librement sur une slide (éditeur canvas).
  *  xPct/yPct = centre de l'élément en % des dimensions de la slide. */
 export interface DecorElement {
+  /** id stable (généré à la création) — suivi de sélection côté éditeur. */
+  id?: string;
   type: 'postit' | 'stamp' | 'arrow' | 'seal';
   /** couleur post-it / type tampon / type flèche */
   variant?: string;

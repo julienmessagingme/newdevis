@@ -387,11 +387,9 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
                             <div className="flex items-center gap-3 flex-wrap">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  if (decorEditFor === key) { setDecorEditFor(null); return; }
-                                  if (!slide.decor_elements) updateSlideDecor(key, []);
-                                  setDecorEditFor(key);
-                                }}
+                                onClick={() =>
+                                  setDecorEditFor(decorEditFor === key ? null : key)
+                                }
                                 className="text-sm font-medium flex items-center gap-1.5 text-primary hover:underline"
                               >
                                 <Sparkles className="h-3.5 w-3.5" />
