@@ -526,6 +526,11 @@ devis-clarity/
 │
 ├── public/
 │   ├── images/                         # Assets statiques (logos, etc.)
+│   ├── demo/                           # Vidéo démo landing GMC (motion design React)
+│   │   ├── index.html                  # Page /demo/ — transpilée en navigateur (Babel)
+│   │   ├── animations.jsx              # Moteur Stage/Sprite/easings
+│   │   ├── video-scenes.jsx            # La vidéo : 12 scènes, ~60s, 1920×1080
+│   │   └── vendor/                     # React 18 + Babel UMD servis en local
 │   ├── favicon.ico                     # Favicon du site
 │   ├── placeholder.svg                 # Placeholder image
 │   ├── robots.txt                      # Directives pour les crawlers
@@ -692,6 +697,14 @@ Les sections de la landing page sont des composants React indépendants, hydrat�
 
 - `client:load` : Hydratation immédiate (HeroSection)
 - `client:visible` : Hydratation quand visible dans le viewport (toutes les autres sections)
+
+**Landing GMC (`src/components/gmc-landing/`)** — composants `.astro` purs servant `gerermonchantier.fr/` (Header, Logo, Hero, HouseIllustration, HowItWorks, Features, PiloteSection, Pricing, FinalCTA, Footer) :
+
+- `Logo.astro` accepte un prop `wordmark` (défaut `true`) — `false` rend uniquement le badge SVG sans le texte ni le tagline.
+- `Header.astro` est responsive : sous 640px, logo en badge seul, bouton "Connexion" visible, CTA raccourci en "Démarrer". C'est l'une des **3 variantes de Header** (cf. `layout/Header.tsx`, `astro/Header.astro`) — toute modif d'état d'auth doit être synchronisée sur les trois.
+- `Hero.astro` contient un bouton "Voir une démo en 60 s" qui ouvre `/demo/?embed=1` dans une modale iframe.
+
+**Vidéo démo (`public/demo/`)** — page statique servie hors pipeline Astro. `index.html` charge React 18 + Babel UMD locaux (`vendor/`) et transpile `animations.jsx` (moteur `Stage`/`Sprite`) + `video-scenes.jsx` (12 scènes, ~60s) **en navigateur**. La vidéo est l'export d'un bundle claude.ai/design : pour la mettre à jour, remplacer `video-scenes.jsx` puis ajuster la durée dans le bouton du Hero et la meta description de `demo/index.html`.
 
 ### 7.4 Composants blog
 

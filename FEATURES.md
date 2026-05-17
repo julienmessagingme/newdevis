@@ -113,6 +113,12 @@ Depuis 2026-05-07/08, les deux produits ont leur propre domaine — mais c'est *
 | `verifiermondevis.fr/connexion` | Form de connexion brandé VMD (titre, panneau droit, OG, canonical) |
 | `gerermonchantier.fr/connexion` | Form de connexion brandé GMC (titre "Connexion à votre Pilote IA", panneau navy, OG GMC) |
 
+### La landing GMC et sa vidéo démo
+
+Sur `gerermonchantier.fr/`, le visiteur découvre le produit : hero "Votre chantier, piloté au millimètre", deux portes d'entrée ("Je démarre un projet" / "J'ai déjà mes devis"), fonctionnalités, Pilote IA, tarifs.
+
+Sous le hero, un lien **"Voir une démo en 60 s"** ouvre en plein écran (modale) une **vidéo motion design** : 60 secondes, 12 scènes animées qui racontent le parcours — du chaos d'un chantier à son pilotage par l'IA (hub multi-chantiers, simulation d'aides, comparaison de devis, planning en cascade, trésorerie prédictive, canal WhatsApp, journal horodaté). Fermeture par la croix, le fond ou la touche Échap.
+
 ### Comportement post-login
 
 - Login Julien (allowlist GMC) sur `vmd.fr/connexion` → handoff SSO → atterit sur `gerermonchantier.fr/mon-chantier`. URL et marque cohérentes avec le produit accessible.
