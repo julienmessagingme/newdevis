@@ -11,23 +11,21 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
-## 🟢 Refonte accueil cockpit chantier — design GMC navy/crème (2026-05-16)
+## 🟢 Refonte accueil cockpit chantier — design GMC navy/crème (2026-05-16/17)
 
-Implémentation du design `11_cockpit_chantier_refonte.html` (bundle Claude Design) sur la page d'accueil du cockpit (`/mon-chantier/[id]` → `ChantierCockpit` + `DashboardHome`).
+Implémentation du design `11_cockpit_chantier_refonte.html` (bundle Claude Design) sur la page d'accueil du cockpit (`/mon-chantier/[id]` → `ChantierCockpit` + `DashboardHome`). **Livré en prod et itéré en live avec Julien.**
 
 **Livré** :
-- `src/styles/cockpit-refonte.css` — tokens design (navy `#1A4A7F`, crème `#F5F1E8`, gold, sage) + classes composants, scopées `.gmc-cockpit`, préfixées `cr-`. JetBrains Mono ajoutée.
-- `Sidebar.tsx` — navy dégradé, logo GMC SVG, project picker, 3 sections, barre orange active. Carte profil en bas qui ouvre un **menu au clic** (Modifier le projet / Paramètres / Déconnexion).
-- `DashboardHome.tsx` — header projet (H1 Syne = nom du chantier), stepper "Démarrage N/4", 3 quick actions, grille 2-col (cartes intervenants + budget/stats/alerte IA). Plus de toggle Cartes/Liste : cartes uniquement. Carte intervenant épurée = métier + dernière action (devis reçu / facture payée / frais + nom entreprise) + date.
-- `ChantierCockpit.tsx` — shell crème, header masqué sur desktop pour l'accueil.
+- `src/styles/cockpit-refonte.css` — tokens design (navy `#1A4A7F`, crème `#F5F1E8`, gold, sage) + classes `cr-*` scopées `.gmc-cockpit`. JetBrains Mono ajoutée.
+- `Sidebar.tsx` — navy dégradé, logo GMC SVG (logotype 2 lignes, cliquable → accueil), project picker, 3 sections, barre orange active. Carte profil en bas → **menu au clic** (Modifier le projet / Paramètres / Déconnexion). Badges : Documents = nb total de documents, Messagerie = non-lus, style `info` neutre.
+- `DashboardHome.tsx` — header (titre = nom du chantier), stepper "Démarrage N/4", 3 quick actions, grille 2-col. Colonne gauche `cr-left-col` = **bulle Planning** + **panneau Intervenants** (`cr-panel`). Cartes intervenant `ProCard` épurées = métier + dernière action + date. Colonne droite = budget + 2 stats + alerte. Tuile "À régler" cliquable → Budget filtré "À payer".
+- **Bulle Planning** (`PlanningBubble`) — flèche temporelle début→fin, libellés adaptatifs (mode début : "Livraison estimée" ; mode fin : "Début estimé" + "Livraison visée"), jalons RDV avec libellé visible. Cliquable → onglet Planning. CTA "Définir le planning" si pas de dates.
+- `ChantierCockpit.tsx` — shell crème, header masqué desktop sur l'accueil, fetch `/budget` réconcilié passé à `DashboardHome`. Widget chat MessagingMe désactivé sur la page chantier (`BaseLayout noChatWidget`).
+- Renommer un chantier depuis le hub `/mon-chantier` (bouton crayon par carte + "Modifier avec l'IA" via `?edit=1`).
 
-**⚠️ Rollback "ancien look"** : l'ancien cockpit = état au commit **`7386f8d`** (dernier avant la refonte). La refonte = commits **`a52bf24` → `ebf5410`**. Pour revenir en arrière :
-```
-git revert --no-commit a52bf24^..ebf5410 && git commit -m "revert: ancien look cockpit"
-```
-(ou restaurer `ChantierCockpit.tsx` / `DashboardHome.tsx` / `Sidebar.tsx` / `index.css` depuis `7386f8d` et supprimer `src/styles/cockpit-refonte.css`).
+**⚠️ Rollback "ancien look"** : ancien cockpit = commit **`7386f8d`** ; refonte = **`a52bf24` →** suivants. `git revert --no-commit a52bf24^..HEAD` puis commit (HEAD = dernier commit cockpit).
 
-**À valider** : rendu live non vérifié (le cockpit exige une session authentifiée). Build prod OK. Vérifier sur `gerermonchantier.fr/mon-chantier/<id>` : sidebar navy, header = nom chantier, stepper, cartes intervenants, carte profil → menu. Mobile (BottomNav) inchangé.
+**Statut** : en prod, itéré visuellement avec Julien. Mobile (BottomNav) inchangé. Reste : voir TODO si polish.
 
 ---
 

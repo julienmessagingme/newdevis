@@ -112,14 +112,15 @@ Avant de créer un nouveau composant cockpit : trouver le bon dossier domaine. S
 | `DashboardWidgets.tsx` | (supprimé, 3 exports inlinés dans DashboardHome) | 2026-05-08 |
 | `EcheancierRefonte.tsx` | `Echeancier.tsx` | 2026-05-08 |
 
-### Refonte accueil cockpit — design GMC navy/crème (2026-05-16)
+### Refonte accueil cockpit — design GMC navy/crème (2026-05-16/17)
 
-`ChantierCockpit` + `DashboardHome` + `Sidebar` refondus selon le design `11_cockpit_chantier_refonte.html`. Nouvelle feuille `src/styles/cockpit-refonte.css` (tokens navy `#1A4A7F` / crème / gold / sage, classes `cr-*` scopées `.gmc-cockpit`, JetBrains Mono ajoutée). La refonte ne touche que **l'accueil cockpit + la sidebar** — les autres onglets gardent leur style indigo. Détail complet dans `WIP.md`.
+`ChantierCockpit` + `DashboardHome` + `Sidebar` refondus selon le design `11_cockpit_chantier_refonte.html`. Feuille dédiée `src/styles/cockpit-refonte.css` (tokens navy `#1A4A7F` / crème / gold / sage, classes `cr-*` scopées `.gmc-cockpit`, JetBrains Mono). La refonte ne touche que **l'accueil cockpit + la sidebar** — les autres onglets gardent leur style indigo.
 
-**Rollback "ancien look"** : ancien cockpit = état au commit **`7386f8d`** (dernier avant refonte) ; refonte = commits **`a52bf24` → `ebf5410`**. Revenir en arrière :
-```
-git revert --no-commit a52bf24^..ebf5410 && git commit -m "revert: ancien look cockpit"
-```
+Structure de l'accueil (`DashboardHome`) : header (titre = nom du chantier) → stepper démarrage → 3 quick actions → grille 2 colonnes. Colonne gauche = `cr-left-col` : **bulle Planning** (`PlanningBubble` — flèche temporelle début→fin + jalons RDV, cliquable → onglet Planning) au-dessus du **panneau Intervenants** (`cr-panel`, cartes `ProCard`). Colonne droite = budget + 2 stats + alerte. La tuile "À régler" est cliquable → ouvre Budget filtré "À payer" (signal `sessionStorage.cockpitBudgetFilter`).
+
+**Règles** : la sidebar (logo cliquable → accueil, badges Documents=nb total / Messagerie=non-lus, carte profil → menu) est navy ; le widget de chat MessagingMe est désactivé sur la page chantier via `BaseLayout noChatWidget`.
+
+**Rollback "ancien look"** : ancien cockpit = état au commit **`7386f8d`** (dernier avant refonte) ; refonte = commits **`a52bf24` →** suivants. Revenir en arrière : `git revert --no-commit a52bf24^..HEAD` (cible le dernier commit cockpit) puis commit.
 
 ---
 
@@ -398,6 +399,8 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **`contacts_chantier` colonnes** : la colonne téléphone est `telephone` (pas `phone`), le rôle est `role` (pas `metier`). `context.ts` agent doit utiliser `c.telephone` et `c.role`.
 - **`paymentEventsRes` clé** : GET `/payment-events` retourne `{ payment_events: [...] }`, pas `{ data: [...] }`. Toujours accéder via `res?.payment_events`.
 - **`depense_type` ticket/achat/frais = toujours payé** : `ticket_caisse`, `achat_materiaux`, `frais` sont comptés en `paye` dans `budget.ts` quelle que soit `facture_statut`. UI : badge "Payé" statique sans dropdown. Pas d'alerte "Devis manquant" pour ces types (constante `SANS_DEVIS_TYPES` dans `BudgetTab.tsx`). Ne jamais les faire passer par le flux `a_payer`.
+- **`a_payer` réconcilié — règle absolue (2026-05-17)** : dans `budget.ts`, le reste à payer d'une facture `recue`/`payee_partiellement` = `Math.max(0, montant - paye)` où `paye` est réconcilié (paiements Échéancier `payment_events` inclus). **Ne JAMAIS revenir à `recue → a_payer = montant`** : une facture `recue` soldée via l'Échéancier (statut jamais repassé à `payee`) compterait encore en entier → faux "à régler" + double-comptage dans Flux certains. Le bug existe à DEUX endroits : `buildArtisanGroups` ET l'agrégation principale — corriger les deux ensemble. `ticket_caisse`/`frais` (`alwaysPaid`) → `a_payer = 0`. L'API expose `a_payer` par facture. Côté accueil, le compteur "à régler" + l'alerte dérivent de cette donnée réconciliée (jamais de `facture_statut` brut) — `ChantierCockpit` fetch `/budget` → `factureActions`, passe `BudgetSnapshot` à `DashboardHome`. Le filtre BudgetTab "À payer" (`unpaid`) inclut les factures partielles (`r.lot.totaux.a_payer > 0`), cohérent avec le camembert.
+- **Planning — `date_fin_souhaitee` objectif persistant (2026-05-17)** : `chantiers.date_fin_souhaitee` = objectif de livraison (saisi à la genèse OU via "Modifier la date de fin" du planning, qui le persiste désormais). `date_debut_chantier` = ancre du CPM (toujours présente, calculée à rebours via `computeStartDateFromEnd` si on a démarré par une date de fin). Réception **estimée** = `max(lot.date_fin)`, dérivée, jamais stockée. L'API planning gère/renvoie `dateFinSouhaitee` (GET + PATCH) ; `usePlanning` l'expose ; le header planning affiche réception estimée + badge dépassement vs objectif.
 - **`tools.ts` priorite enum** : doit être `["urgent", "important", "normal"]` — jamais `"low"` (rejeté silencieusement par `taches.ts`).
 - **WhatsApp messages — `group_id TEXT`** : `chantier_whatsapp_messages.group_id` est un TEXT stockant le JID brut (ex: `120363xxxxx@g.us`), **pas** un UUID FK vers `chantier_whatsapp_groups`. Intentionnel — la table messages est antérieure à la table groups. Ne pas migrer en UUID FK sans plan de migration des données.
 - **Planning D&D — ne pas reset `delai_avant_jours=0`** : la position visuelle du drag DOIT être convertie en `delai_avant_jours` (jours ouvrés depuis le predecessor.date_fin OU startDate). Sinon le serveur CPM recompute à zéro et la modif visuelle ne persiste pas. Cf. `PlanningTimeline.handleLotMoveWithLane`.

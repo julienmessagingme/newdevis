@@ -1700,7 +1700,7 @@ Le mode est stocké dans `chantiers.project_mode` (TEXT, nullable pour rétrocom
 
 `ChantierCockpit.tsx` (orchestrateur) route entre 9 onglets via la sidebar :
 
-- **Accueil** (`DashboardHome`) : vue synthèse — KPIs budget/trésorerie/intervenants/RDV, ActionCenter (3 boutons priorisés), NextActionsBlock (max 3 actions à traiter), liste des intervenants avec leurs lots
+- **Accueil** (`DashboardHome`) : cockpit refondu (design GMC navy/crème) — header, stepper de démarrage, 3 quick actions, bulle Planning + panneau Intervenants (cartes `ProCard`), carte budget + tuiles À régler/À traiter + alerte IA
 - **Budget & Trésorerie** (`tresorerie/TresoreriePanel`) : 4 onglets internes — Budget · Trésorerie · Échéancier · Preuves de financement (cf. § 21)
 - **Planning** (`PlanningChantier` + `planning/PlanningTimeline`) : Gantt drag/resize avec dépendances DAG (cf. § 22)
 - **Documents** (`documents/DocumentsView`) : upload, analyse, classement (cf. § 24)
@@ -1715,8 +1715,8 @@ Le mode est stocké dans `chantiers.project_mode` (TEXT, nullable pour rétrocom
 Vivent à `src/components/chantier/cockpit/` (racine, pas dans un sous-dossier domaine) :
 
 - **`ChantierCockpit.tsx`** : orchestrateur principal — state global du chantier (`result`, `documents`, `chantierId`, `token`), routing entre `activeSection`, gestion des modals (upload, ajout intervenant, chat drawer). Anciennement `DashboardUnified` (renommé 2026-05-08).
-- **`Sidebar.tsx`** : navigation gauche, liste des sections, badges (`navBadges`) avec compteurs ciblés.
-- **`DashboardHome.tsx`** : vue Accueil — KPIs, ActionCenter, NextActionsBlock, IntervenantsListView. `KpiCard`, `ViewToggle`, `RDV_EMOJI` inlinés depuis l'ancien `DashboardWidgets` (supprimé 2026-05-08).
+- **`Sidebar.tsx`** : navigation gauche navy, logo cliquable, sections, badges (`navBadges`), carte profil → menu.
+- **`DashboardHome.tsx`** : vue Accueil refondue (design GMC) — composants `PlanningBubble` + `ProCard` (cartes intervenant) + carte budget/tuiles. Styles dans `src/styles/cockpit-refonte.css` (classes `cr-*` scopées `.gmc-cockpit`). Reçoit le budget réconcilié (`BudgetSnapshot`) depuis `ChantierCockpit` ; fetch lui-même le planning pour la bulle.
 - **`PageHeader.tsx`** : header de page partagé.
 - **`useInsights.ts`** : hook legacy d'alertes Gemini MOE (à migrer vers `agent_insights` — cf. WIP).
 
@@ -1726,17 +1726,19 @@ Chaque badge ⚠ N pointe vers l'onglet où l'action se résout. **Ne pas réuti
 
 | Onglet | Compteur | Source |
 |---|---|---|
-| `documents` | `devisActions` | devis avec `devis_statut = 'recu'` |
-| `tresorerie` | `factureActions` | factures `recue` ou `payee_partiellement` |
+| `documents` | `documents.length` | nombre total de documents présents |
+| `tresorerie` | `factureActions` | factures avec `a_payer > 0` (reste à régler réconcilié, paiements Échéancier déduits) |
+| `messagerie` | `msgUnread` | messages non lus |
 | `assistant` | `agentInsights.unreadCount` | alertes IA non lues (rouge si critical) |
-| `urgentActions = factureActions + devisActions` | KPI home "actions en attente" uniquement |
+| `urgentActions = factureActions + devisActions` | KPI home "À traiter" uniquement |
 
-### ActionCenter et NextActionsBlock (refacto 2026-05-06)
+### Accueil refondu — composants (design GMC, 2026-05-16/17)
 
-- **`ActionCenter`** (en haut de DashboardHome) : 3 boutons larges, labels clairs — "💸 Enregistrer un paiement" / "📄 Ajouter un devis ou facture" / "👷 Ajouter un artisan". Grid 1-col mobile → 3-col sm+, padding généreux. "Enregistrer un paiement" → drawer inline `depenseOpen`. "Ajouter un devis ou facture" → `onAddDoc`. "Ajouter un artisan" → `onAddIntervenant`.
-- **`NextActionsBlock`** (juste sous les KPIs) : liste contextuelle max 3 items priorisés (P1 factures → P2 devis → P3 lots bloqués → P4 factures manquantes).
-
-**Suppressions 2026-05-06** : `DiyCard` retiré du grid intervenants · `NextActionsMobile` remplacé par `NextActionsBlock` · section "Actions rapides" (boutons pill dispersés) · bouton "Ajouter un intervenant" du header section Intervenants.
+- **3 quick actions** (`cr-quick-row`) : Enregistrer un paiement → `PaiementDrawer` · Ajouter un devis ou facture → `onAddDoc` · Ajouter un artisan → `onAddIntervenant`.
+- **Stepper de démarrage** : N/4 étapes (chantier / 1er artisan / 1er devis / budget), masqué une fois complet.
+- **`PlanningBubble`** : flèche temporelle début→fin + jalons RDV, cliquable → onglet Planning ; CTA "Définir le planning" si pas de dates.
+- **`ProCard`** : carte intervenant = métier + état + dernière action + date. Clic → détail lot.
+- **Tuile "À régler"** cliquable → Budget filtré "À payer" (`sessionStorage.cockpitBudgetFilter`). **Tuile "À traiter"** → popover liste (factures + devis).
 
 ### Sidebar — Menu allégé (2026-05-06)
 
@@ -2075,8 +2077,8 @@ Planification temporelle des lots de chantier avec vue Gantt drag/resize. Modèl
 
 ### API routes
 
-- `GET /api/chantier/[id]/planning` → `{ dateDebutChantier, lots, dependencies }`
-- `PATCH /api/chantier/[id]/planning` → recompute global CPM
+- `GET /api/chantier/[id]/planning` → `{ dateDebutChantier, dateFinSouhaitee, lots, dependencies }`
+- `PATCH /api/chantier/[id]/planning` → recompute global CPM ; accepte/renvoie `dateDebutChantier` + `dateFinSouhaitee` (objectif persistant)
 - `POST /api/chantier/[id]/planning/shift-lot` → `{ lot_id, jours, cascade, raison }`
 - `DELETE /api/chantier/[id]/lots/[lotId]` → cascade : transfert deps (A→X→B avec X supprimé → A→B) + recompute
 - `POST /api/chantier/[id]/lots` → `inferDefaultPredecessors` basé sur TRADE_DURATIONS métier
