@@ -367,6 +367,10 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
   - Le ping WhatsApp proactif de l'ancien caption-mismatch a été retiré — toutes les alertes de cohérence photo passent par les Alertes IA.
   - `AssistantTriPane` : le panneau Alertes IA poll désormais toutes les 20 s (visibility-aware) — avant, `useAgentInsights` ne fetchait qu'au mount, une alerte créée serveur restait invisible jusqu'à un refresh manuel.
 
+- **Journal de chantier — récit + timeline (2026-05-17)** : la journée du Journal est en 2 blocs. **Récit** = digest narratif IA (`chantier_journal.body`) — le digest 19h ne contient PLUS le pied-de-page « Décisions/Alertes » (retiré de `index.ts`). **Timeline** = endpoint `GET /journal/timeline?from=&to=` qui agrège 4 sources : `chantier_activity` (changements de statut) + `documents_chantier.created_at` (dépôts) + `agent_insights` (alertes, types actionnables) + `chantier_assistant_messages.tool_calls` (décisions IA). **Anti-doublon** : les tools de statut (`update_lot_status`, `update_devis_statut`, `mark_lot_completed`) sont exclus de l'extraction des décisions IA car déjà tracés dans `chantier_activity`. Les messages WhatsApp individuels ne sont JAMAIS dans la timeline.
+  - `chantier_activity` : table d'événements horodatés, alimentée par le helper `logChantierActivity()` (`apiHelpers.ts`, insert via service_role). Instrumenté dans `documents/[docId]` PATCH (devis/facture statut) et `lots` PATCH (statut lot). `actor` = `agent` si appel via `X-Agent-Key`, sinon `user`. **Si tu ajoutes une route qui change un statut, appelle `logChantierActivity`** sinon l'événement manque dans la timeline.
+  - Export PDF (jsPDF) + Excel/CSV via `src/lib/chantier/journalExport.ts` — jour affiché ou plage. ⚠️ jsPDF encode en WinAnsi : `pdfSafe()` retire les caractères hors Latin-1 (flèches, emoji) sinon charabia dans le PDF.
+
 ### Multi-devis — règles d'architecture (2026-05-04)
 
 - **RÈGLE ABSOLUE : un PDF multi-artisans = N analyses indépendantes.** Jamais de mélange de lignes entre artisans, jamais de verdict calculé sur des données croisées.
