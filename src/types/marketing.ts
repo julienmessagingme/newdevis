@@ -248,6 +248,8 @@ export interface SlideData {
   template: string;
   text?: string;
   subtext?: string;
+  /** Photo de fond choisie dans l'éditeur (nom de fichier). Absent = auto. */
+  bg_photo?: string;
   stat_value?: string;
   step_number?: number;
   author?: string;

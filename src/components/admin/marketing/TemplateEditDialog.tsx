@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +15,17 @@ import type { TemplateDetail, SlideData, UsageEntry } from "@/types/marketing";
 
 /** Tri NATUREL des clés slide_N — localeCompare mettrait slide_10 avant slide_2. */
 const slideNum = (k: string) => parseInt(String(k).replace(/\D/g, ""), 10) || 0;
+
+/** Manifeste public des photos de fond uploadées sur B2 (cf. upload_photos_to_b2.mjs). */
+const PHOTOS_MANIFEST_URL =
+  "https://f003.backblazeb2.com/file/verifiermondevismarketing/photos/manifest.json";
+
+interface BgPhoto {
+  product: string;
+  kind: string;
+  file: string;
+  url: string;
+}
 
 /** URL du PNG réel d'une slide (preview_urls B2), 1er ratio dispo. */
 function slidePngUrl(
@@ -125,6 +136,17 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
   // Un AbortController par slide : annule le fetch précédent encore en vol
   // → évite qu'une réponse lente écrase un aperçu plus récent.
   const previewAborts = useRef<Record<string, AbortController>>({});
+
+  // Galerie des photos de fond (chargée une fois depuis le manifeste B2).
+  const [bgPhotos, setBgPhotos] = useState<BgPhoto[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(PHOTOS_MANIFEST_URL)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d?.photos) setBgPhotos(d.photos as BgPhoto[]); })
+      .catch(() => { /* galerie indisponible — non bloquant */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Annule timers + fetchs + révoque les blob URLs à la fermeture.
   useEffect(() => {
@@ -312,6 +334,12 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
                             fields={slide}
                             onChange={(updated) => updateSlide(key, updated)}
                           />
+                          <SlidePhotoPicker
+                            product={template.product}
+                            current={slide.bg_photo}
+                            photos={bgPhotos}
+                            onPick={(file) => updateSlide(key, { ...slide, bg_photo: file })}
+                          />
                         </div>
                       </div>
                     </div>
@@ -411,6 +439,67 @@ function SlideCarouselPreview({
       <p className="text-xs text-muted-foreground">
         {safeIdx + 1}/{entries.length} · <span className="font-mono">{slide.template}</span> · {key}
       </p>
+    </div>
+  );
+}
+
+/** Sélecteur de photo de fond d'une slide — galerie repliable. */
+function SlidePhotoPicker({
+  product,
+  current,
+  photos,
+  onPick,
+}: {
+  product: string;
+  current: string | undefined;
+  photos: BgPhoto[];
+  onPick: (file: string | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const list = photos.filter((p) => p.product === product);
+  if (list.length === 0) return null;
+
+  return (
+    <div className="space-y-2 border-t pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-sm font-medium flex items-center gap-1.5 text-primary hover:underline"
+      >
+        <ImageIcon className="h-3.5 w-3.5" />
+        Photo de fond — <span className="font-mono text-xs">{current ?? "auto"}</span>
+      </button>
+      {open && (
+        <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 max-h-52 overflow-y-auto p-1.5 border rounded-md bg-background">
+          <button
+            type="button"
+            onClick={() => { onPick(undefined); setOpen(false); }}
+            className={`aspect-[4/5] rounded border text-[9px] text-muted-foreground flex items-center justify-center ${
+              !current ? "ring-2 ring-primary" : ""
+            }`}
+          >
+            auto
+          </button>
+          {list.map((p) => (
+            <button
+              key={p.file}
+              type="button"
+              title={p.file}
+              onClick={() => { onPick(p.file); setOpen(false); }}
+              className={`aspect-[4/5] rounded border overflow-hidden ${
+                current === p.file ? "ring-2 ring-primary" : ""
+              }`}
+            >
+              <img
+                src={p.url}
+                alt={p.file}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
