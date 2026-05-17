@@ -8,93 +8,127 @@ interface Props {
   onChange: (updated: SlideData) => void;
 }
 
+/**
+ * Éditeur de champs d'une slide — GÉNÉRIQUE.
+ * Affiche un champ pour chaque texte présent dans la slide, quel que soit le
+ * template (les ~30 templates V3 n'étaient pas dans l'ancien switch → "Template
+ * inconnu"). On édite ce qui existe ; on masque les champs structurels.
+ */
+
+// Champs structurels / non-éditables au texte — masqués de l'éditeur.
+const HIDDEN_KEYS = new Set([
+  "template", "product_screen", "background_url", "bg_photo", "decor",
+]);
+
+// Champs rendus en <textarea> (texte long). Les autres → <input> simple.
+const MULTILINE_KEYS = new Set([
+  "text", "subtext", "caption", "quote", "translation", "situation",
+  "verdict_detail", "answer", "before_text", "after_text",
+  "myth_text", "reality_text",
+]);
+
+// Libellés lisibles pour les clés connues (fallback = la clé brute).
+const FIELD_LABELS: Record<string, string> = {
+  text: "Titre / texte principal",
+  subtext: "Sous-titre",
+  headline: "Titre",
+  stat_value: "Chiffre (ex : 70%)",
+  quote: "Citation",
+  translation: "Traduction / explication",
+  caption: "Légende",
+  situation: "Situation",
+  verdict_detail: "Détail du verdict",
+  verdict_label: "Label verdict",
+  flag: "Flag",
+  short_url: "URL courte",
+  prefix: "Préfixe",
+  arrow: "Flèche (texte)",
+  author: "Auteur",
+  label: "Label",
+  section_label: "Label de section",
+  emoji: "Emoji",
+  before_text: "Avant",
+  after_text: "Après",
+  myth_text: "Mythe",
+  reality_text: "Réalité",
+  question: "Question",
+  answer: "Réponse",
+  left_label: "Label gauche",
+  left_value: "Valeur gauche",
+  right_label: "Label droite",
+  right_value: "Valeur droite",
+};
+
 export default function SlideFieldEditor({ templateName, fields, onChange }: Props) {
   const limits = CHAR_LIMITS[templateName] ?? {};
-  const set = (key: string, value: unknown) =>
-    onChange({ ...fields, [key]: value });
+  const set = (key: string, value: unknown) => onChange({ ...fields, [key]: value });
 
-  const textField = (key: string, label: string, multiline = false) => {
-    const val = (fields as unknown as Record<string, unknown>)[key];
-    if (typeof val !== "string" && val !== undefined) return null;
-    return (
-      <CharCountInput
-        key={key}
-        label={label}
-        value={(val as string) ?? ""}
-        maxChars={limits[key] ?? 200}
-        onChange={(v) => set(key, v)}
-        multiline={multiline}
-      />
-    );
-  };
+  const entries = Object.entries(fields as unknown as Record<string, unknown>)
+    .filter(([k]) => !HIDDEN_KEYS.has(k));
 
-  switch (templateName) {
-    case "texte_creme":
-      return <>{textField("text", "Texte principal")}{textField("subtext", "Sous-texte")}</>;
-    case "image_overlay":
-      return <>{textField("text", "Texte overlay")}</>;
-    case "stat_geante":
-      return <>{textField("stat_value", "Stat (ex: 70%)")}{textField("text", "Légende")}</>;
-    case "cta":
-      return <>{textField("text", "CTA texte")}{textField("short_url", "URL courte")}</>;
-    case "fond_couleur":
-      return <>{textField("text", "Texte", true)}{textField("label", "Label")}</>;
-    case "punchline_noir":
-      return <>{textField("text", "Punchline")}</>;
-    case "gradient_doux":
-      return <>{textField("text", "Texte", true)}</>;
-    case "titre_section":
-      return <>{textField("section_label", "Label section")}{textField("text", "Titre")}</>;
-    case "etape_numerotee":
-      return (
-        <>
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Numéro d'étape</label>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={fields.step_number ?? 1}
-              onChange={(e) => set("step_number", parseInt(e.target.value) || 1)}
-              className="w-20 rounded-md border border-input px-3 py-2 text-sm bg-background"
-            />
-          </div>
-          {textField("text", "Texte")}
-          {textField("subtext", "Sous-texte")}
-        </>
-      );
-    case "temoignage":
-      return <>{textField("text", "Témoignage", true)}{textField("author", "Auteur")}</>;
-    case "avant_apres":
-      return <>{textField("before_text", "Avant")}{textField("after_text", "Après")}</>;
-    case "mythe_realite":
-      return <>{textField("myth_text", "Mythe")}{textField("reality_text", "Réalité")}</>;
-    case "verdict":
-      return <>{textField("verdict_label", "Label verdict")}{textField("text", "Texte")}</>;
-    case "comparatif":
-      return (
-        <>
-          {textField("left_label", "Label gauche")}
-          {textField("left_value", "Valeur gauche")}
-          {textField("right_label", "Label droite")}
-          {textField("right_value", "Valeur droite")}
-        </>
-      );
-    case "checklist":
-      return <ItemsEditor items={fields.items ?? []} onChange={(items) => set("items", items)} label="Items checklist" />;
-    case "liste_puces":
-      return <ItemsEditor items={fields.items ?? []} onChange={(items) => set("items", items)} label="Items liste" />;
-    case "hero_image":
-      return <>{textField("text", "Texte")}{textField("label", "Label")}</>;
-    case "question_reponse":
-      return <>{textField("question", "Question")}{textField("answer", "Réponse", true)}</>;
-    case "pov_whatsapp":
-      return <MessagesEditor messages={fields.messages ?? []} onChange={(m) => set("messages", m)} />;
-    case "emoji_accent":
-      return <>{textField("emoji", "Emoji")}{textField("text", "Texte")}</>;
-    default:
-      return <p className="text-xs text-muted-foreground">Template inconnu : {templateName}</p>;
+  const editable = entries.filter(
+    ([, v]) => typeof v === "string" || typeof v === "number" || Array.isArray(v),
+  );
+
+  if (editable.length === 0) {
+    return <p className="text-xs text-muted-foreground">Aucun champ texte sur cette slide.</p>;
   }
+
+  return (
+    <>
+      {editable.map(([key, value]) => {
+        const label = FIELD_LABELS[key] ?? key;
+
+        if (key === "items" && Array.isArray(value)) {
+          return (
+            <ItemsEditor
+              key={key}
+              items={value as string[]}
+              onChange={(items) => set("items", items)}
+              label="Items de la liste"
+            />
+          );
+        }
+        if (key === "messages" && Array.isArray(value)) {
+          return (
+            <MessagesEditor
+              key={key}
+              messages={value as { text: string; time: string; is_sent: boolean }[]}
+              onChange={(m) => set("messages", m)}
+            />
+          );
+        }
+        if (Array.isArray(value)) return null;
+
+        if (typeof value === "number") {
+          return (
+            <div key={key} className="space-y-1">
+              <label className="text-sm font-medium">{label}</label>
+              <input
+                type="number"
+                value={value}
+                onChange={(e) => set(key, parseInt(e.target.value, 10) || 0)}
+                className="w-24 rounded-md border border-input px-3 py-2 text-sm bg-background"
+              />
+            </div>
+          );
+        }
+
+        // string
+        const str = value as string;
+        return (
+          <CharCountInput
+            key={key}
+            label={label}
+            value={str}
+            maxChars={limits[key] ?? 200}
+            multiline={MULTILINE_KEYS.has(key) || str.length > 60}
+            onChange={(v) => set(key, v)}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 function ItemsEditor({

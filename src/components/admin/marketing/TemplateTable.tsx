@@ -1,4 +1,4 @@
-import { Loader2, Pencil, Play, Ban, Eye, RefreshCw } from "lucide-react";
+import { Loader2, Play, Ban, Eye, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   NARRATIVE_LABELS,
@@ -13,10 +13,10 @@ import type { TemplateListItem, NarrativeType, MacroFormat } from "@/types/marke
 interface Props {
   templates: TemplateListItem[];
   loading: boolean;
-  onEdit: (t: TemplateListItem) => void;
+  /** Ouvre la modale unifiée aperçu + édition (bouton œil). */
+  onOpen: (t: TemplateListItem) => void;
   onGenerate: (t: TemplateListItem) => void;
   onToggleActive: (t: TemplateListItem) => void;
-  onPreview?: (t: TemplateListItem) => void;
   onMarkRegen?: (t: TemplateListItem) => void;
 }
 
@@ -32,10 +32,9 @@ function previewSlideCount(t: TemplateListItem): number {
 export default function TemplateTable({
   templates,
   loading,
-  onEdit,
+  onOpen,
   onGenerate,
   onToggleActive,
-  onPreview,
   onMarkRegen,
 }: Props) {
   if (loading) {
@@ -54,10 +53,12 @@ export default function TemplateTable({
     );
   }
 
-  const allInCooldown = (t: TemplateListItem) =>
-    Object.values(t.cooldown_until).every(
-      (v) => v !== null && new Date(v) > new Date(),
-    );
+  const allInCooldown = (t: TemplateListItem) => {
+    const vals = Object.values(t.cooldown_until);
+    // {} → .every() vacuément true : un carrousel sans cooldown ne doit PAS
+    // être affiché "Cooldown" ni voir son bouton Générer désactivé.
+    return vals.length > 0 && vals.every((v) => v !== null && new Date(v) > new Date());
+  };
 
   return (
     <div className="overflow-x-auto rounded-xl border bg-card">
@@ -152,21 +153,14 @@ export default function TemplateTable({
                 </td>
                 <td className="px-3 py-2 text-right">
                   <div className="flex justify-end gap-1">
-                    {onPreview && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onPreview(t)}
-                        disabled={previewSlideCount(t) === 0}
-                        title={
-                          previewSlideCount(t) === 0
-                            ? "Pas encore d'aperçu rendu"
-                            : "Voir l'aperçu carousel"
-                        }
-                      >
-                        <Eye className={`h-3.5 w-3.5 ${previewSlideCount(t) === 0 ? "" : "text-blue-600"}`} />
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onOpen(t)}
+                      title="Ouvrir — aperçu + édition slide par slide"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-blue-600" />
+                    </Button>
                     {onMarkRegen && (
                       <Button
                         variant="ghost"
@@ -181,14 +175,6 @@ export default function TemplateTable({
                         <RefreshCw className={`h-3.5 w-3.5 ${t.preview_regen_at ? "text-amber-600 animate-pulse" : "text-muted-foreground"}`} />
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEdit(t)}
-                      title="Éditer"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

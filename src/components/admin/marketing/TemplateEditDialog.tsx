@@ -10,9 +10,21 @@ import {
 import { toast } from "sonner";
 import CharCountInput from "./CharCountInput";
 import SlideFieldEditor from "./SlideFieldEditor";
-import SlidePreview from "./SlidePreview";
 import { MOOD_LABELS, ALL_MOODS, formatDate } from "./helpers";
 import type { TemplateDetail, SlideData, UsageEntry } from "@/types/marketing";
+
+/** Tri NATUREL des clés slide_N — localeCompare mettrait slide_10 avant slide_2. */
+const slideNum = (k: string) => parseInt(String(k).replace(/\D/g, ""), 10) || 0;
+
+/** URL du PNG réel d'une slide (preview_urls B2), 1er ratio dispo. */
+function slidePngUrl(
+  previewUrls: TemplateDetail["preview_urls"] | undefined,
+  key: string,
+): string | null {
+  if (!previewUrls) return null;
+  const pu = previewUrls as Record<string, Record<string, string> | undefined>;
+  return pu.instagram?.[key] ?? pu.facebook?.[key] ?? pu.tiktok?.[key] ?? null;
+}
 
 interface Props {
   templateId: string | null;
@@ -183,28 +195,47 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Aperçu carrousel
               </h3>
-              <SlideCarouselPreview slides={draft.slides} />
+              <SlideCarouselPreview slides={draft.slides} previewUrls={template.preview_urls} />
             </section>
 
-            {/* Slides */}
+            {/* Slides — vrai PNG + édition côte à côte */}
             <section className="space-y-4">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Slides ({Object.keys(draft.slides).length})
               </h3>
               {Object.entries(draft.slides)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([key, slide]) => (
-                  <div key={key} className="border rounded-lg p-4 space-y-3 bg-muted/20">
-                    <div className="text-xs font-medium text-muted-foreground">
-                      {key} — <span className="font-mono">{slide.template}</span>
+                .sort(([a], [b]) => slideNum(a) - slideNum(b))
+                .map(([key, slide]) => {
+                  const pngUrl = slidePngUrl(template.preview_urls, key);
+                  return (
+                    <div key={key} className="border rounded-lg p-4 bg-muted/20">
+                      <div className="text-xs font-medium text-muted-foreground mb-3">
+                        {key} — <span className="font-mono">{slide.template}</span>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-4">
+                        {pngUrl ? (
+                          <img
+                            src={pngUrl}
+                            alt={key}
+                            className="w-full sm:w-40 shrink-0 rounded-md border self-start"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full sm:w-40 shrink-0 aspect-[4/5] rounded-md border bg-muted/40 flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
+                            aperçu pas encore généré
+                          </div>
+                        )}
+                        <div className="flex-1 space-y-3 min-w-0">
+                          <SlideFieldEditor
+                            templateName={slide.template}
+                            fields={slide}
+                            onChange={(updated) => updateSlide(key, updated)}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <SlideFieldEditor
-                      templateName={slide.template}
-                      fields={slide}
-                      onChange={(updated) => updateSlide(key, updated)}
-                    />
-                  </div>
-                ))}
+                  );
+                })}
             </section>
 
             {/* Usage history */}
@@ -239,19 +270,32 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
   );
 }
 
-function SlideCarouselPreview({ slides }: { slides: Record<string, SlideData> }) {
-  const entries = Object.entries(slides).sort(([a], [b]) => a.localeCompare(b));
+function SlideCarouselPreview({
+  slides,
+  previewUrls,
+}: {
+  slides: Record<string, SlideData>;
+  previewUrls: TemplateDetail["preview_urls"] | undefined;
+}) {
+  const entries = Object.entries(slides).sort(([a], [b]) => slideNum(a) - slideNum(b));
   const [current, setCurrent] = useState(0);
 
   if (entries.length === 0) return null;
 
   const safeIdx = Math.min(Math.max(current, 0), entries.length - 1);
   const [key, slide] = entries[safeIdx];
+  const pngUrl = slidePngUrl(previewUrls, key);
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="relative">
-        <SlidePreview templateName={slide.template} fields={slide} />
+      <div className="relative w-full max-w-[280px]">
+        {pngUrl ? (
+          <img src={pngUrl} alt={key} className="w-full rounded-lg border" />
+        ) : (
+          <div className="aspect-[4/5] w-full rounded-lg border bg-muted/40 flex items-center justify-center text-xs text-muted-foreground text-center p-4">
+            aperçu pas encore généré
+          </div>
+        )}
         {entries.length > 1 && (
           <>
             <button
