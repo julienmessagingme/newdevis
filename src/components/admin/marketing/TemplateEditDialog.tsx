@@ -338,7 +338,9 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
                             product={template.product}
                             current={slide.bg_photo}
                             photos={bgPhotos}
-                            onPick={(file) => updateSlide(key, { ...slide, bg_photo: file })}
+                            onPick={(file) =>
+                              updateSlide(key, { ...slide, bg_photo: file ?? null })
+                            }
                           />
                         </div>
                       </div>
@@ -451,7 +453,7 @@ function SlidePhotoPicker({
   onPick,
 }: {
   product: string;
-  current: string | undefined;
+  current: string | null | undefined;
   photos: BgPhoto[];
   onPick: (file: string | undefined) => void;
 }) {
@@ -482,11 +484,11 @@ function SlidePhotoPicker({
           </button>
           {list.map((p) => (
             <button
-              key={p.file}
+              key={`${p.kind}/${p.file}`}
               type="button"
-              title={p.file}
+              title={`${p.kind} · ${p.file}`}
               onClick={() => { onPick(p.file); setOpen(false); }}
-              className={`aspect-[4/5] rounded border overflow-hidden ${
+              className={`relative aspect-[4/5] rounded border overflow-hidden ${
                 current === p.file ? "ring-2 ring-primary" : ""
               }`}
             >
@@ -496,6 +498,10 @@ function SlidePhotoPicker({
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
+              {/* hero = plein cadre / bg = fond flouté en layout split */}
+              <span className="absolute bottom-0 inset-x-0 bg-black/55 text-white text-[8px] text-center leading-tight">
+                {p.kind}
+              </span>
             </button>
           ))}
         </div>
