@@ -37,15 +37,19 @@ export const POST: APIRoute = async ({ request, params }) => {
 
   const supabase = createServiceClient();
 
-  // 1. Fetch conversation history (last 40 messages for context, keeping tool messages too)
+  // 1. Fetch conversation history — les 40 messages les plus RÉCENTS.
+  // ⚠️ Ne JAMAIS faire `ascending: true + limit` : sur une conversation > 40 messages
+  // ça renvoie les plus ANCIENS et l'agent reçoit un contexte périmé (jamais les
+  // échanges récents) → il "ne garde pas la trace" (bug détecté 2026-05-17).
   const { data: historyRows } = await supabase
     .from('chantier_assistant_messages')
     .select('id, role, content, tool_calls, tool_call_id, agent_initiated, is_read, created_at')
     .eq('chantier_id', chantierId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(40);
 
-  const conversationHistory = historyRows ?? [];
+  // Remis en ordre chronologique ascendant pour l'orchestrator.
+  const conversationHistory = (historyRows ?? []).slice().reverse();
 
   // 2. Insert user message into DB
   const { data: userMsgRow, error: insertErr } = await supabase

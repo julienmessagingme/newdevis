@@ -26,12 +26,15 @@ export const GET: APIRoute = async ({ request, params }) => {
 
   const supabase = createServiceClient();
 
-  // Fetch conversation (chronological order for display)
-  const { data: messages, error } = await supabase
+  // Fetch the LATEST messages (descending), then reverse for chronological display.
+  // ⚠️ Ne JAMAIS faire `ascending: true + limit` : sur une conversation > MESSAGES_LIMIT
+  // ça renvoie les plus ANCIENS messages et coupe la conversation récente → le user
+  // voit son thread "s'effacer" au rechargement (bug détecté 2026-05-17).
+  const { data: latestDesc, error } = await supabase
     .from('chantier_assistant_messages')
     .select('id, role, content, agent_initiated, is_read, created_at')
     .eq('chantier_id', chantierId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(MESSAGES_LIMIT);
 
   if (error) {
@@ -39,8 +42,10 @@ export const GET: APIRoute = async ({ request, params }) => {
     return jsonError('Erreur de base de données', 500);
   }
 
+  const messages = (latestDesc ?? []).slice().reverse();
+
   // Count unread agent-initiated messages before marking them read
-  const unreadCount = (messages ?? []).filter(
+  const unreadCount = messages.filter(
     (m: any) => m.agent_initiated && !m.is_read
   ).length;
 

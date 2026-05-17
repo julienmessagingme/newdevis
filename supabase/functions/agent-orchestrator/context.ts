@@ -100,7 +100,14 @@ export async function buildContext(
   if (chantier?.user_id) {
     try {
       const { data: ownerData } = await supabase.auth.admin.getUserById(chantier.user_id);
-      const rawPhone: string | null = ownerData?.user?.phone ?? null;
+      // Le téléphone du user est presque toujours dans user_metadata.phone (saisi
+      // dans Settings) — le champ natif user.phone n'est rempli que par l'auth SMS,
+      // jamais utilisé ici. Sans le fallback metadata → ownerPhone null → l'agent
+      // voit les messages du propriétaire comme "numéro inconnu" (bug 2026-05-17).
+      const rawPhone: string | null =
+        (ownerData?.user?.user_metadata?.phone as string | undefined) ??
+        ownerData?.user?.phone ??
+        null;
       if (rawPhone) {
         ownerPhone = rawPhone.replace(/^\+/, "").replace(/^0/, "33");
       }
