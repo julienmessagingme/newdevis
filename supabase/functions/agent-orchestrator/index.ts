@@ -10,7 +10,6 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const geminiKey = Deno.env.get("GOOGLE_AI_API_KEY") ?? "";
 const whapiToken = Deno.env.get("WHAPI_TOKEN") ?? "";
-const sendgridKey = Deno.env.get("SENDGRID_API_KEY") ?? "";
 const agentSecretKey = Deno.env.get("AGENT_SECRET_KEY") ?? "";
 const apiBase = Deno.env.get("API_BASE") ?? "https://www.verifiermondevis.fr";
 // Limites des boucles tool calls. Un workflow type "Reçoit msg artisan → vérifie planning →
@@ -275,7 +274,7 @@ serve(async (req) => {
       // Envoi WA / email uniquement si vrai contenu IA
       if (hasRealContent) {
         await sendDigestMessage(
-          supabase, chantierId, ctx.chantier.user_id, ctx.chantier.nom,
+          supabase, chantierId, ctx.chantier.nom,
           ctx.chantier.emoji, digestContent,
         );
 
@@ -654,55 +653,55 @@ async function handleInteractive(
   return { response_text: fallbackText, tool_calls_executed: toolCallsExecuted, tool_trace: toolTrace };
 }
 
-// ── Digest delivery (WhatsApp + Email uniquement — le journal est upsert inline) ─
+// ── Digest delivery — canal WhatsApp privé "Mon Chantier" UNIQUEMENT ──────────
+// Pas d'envoi 1-à-1 au numéro perso (whapi refuse — 401) ni d'email. Si le chantier
+// n'a pas de canal privé (is_owner_channel) configuré, le digest n'est pas envoyé —
+// il reste consultable dans le Journal du cockpit (upsert inline par l'appelant).
+// On n'utilise PAS de fallback "premier groupe" : ça enverrait le digest dans le
+// groupe principal, visible par les artisans.
 
 async function sendDigestMessage(
   supabase: any,
   chantierId: string,
-  userId: string,
   nom: string,
   emoji: string,
   text: string,
 ) {
-  const { data: { user } } = await supabase.auth.admin.getUserById(userId);
-  const phone = user?.phone ?? user?.user_metadata?.phone;
-  const email = user?.email;
+  if (!whapiToken) return;
 
-  const label = `${emoji} ${nom}`.trim();
-
-  if (whapiToken && phone) {
-    const chatId = phone.replace(/^\+/, "") + "@s.whatsapp.net";
-    const msgBody = `\u{1F4CB} Digest — ${label}\n\n${text}`;
-    try {
-      const resp = await fetch("https://gate.whapi.cloud/messages/text", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${whapiToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ to: chatId, body: msgBody }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        const msgId: string | undefined = data?.message?.id;
-        if (msgId) {
-          await supabase.from("whatsapp_outgoing_messages").insert({
-            id: msgId, chantier_id: chantierId, group_jid: chatId, body: msgBody, run_type: "evening",
-          });
-        }
-      }
-    } catch {
-      // fire-and-forget
-    }
+  const { data: ownerChannel } = await supabase
+    .from("chantier_whatsapp_groups")
+    .select("group_jid")
+    .eq("chantier_id", chantierId)
+    .eq("is_owner_channel", true)
+    .maybeSingle();
+  const groupJid: string | null = ownerChannel?.group_jid ?? null;
+  if (!groupJid) {
+    console.warn(`[evening-digest] pas de canal privé pour ${chantierId} — digest dans le Journal uniquement`);
+    return;
   }
 
-  if (sendgridKey && email) {
-    await fetch("https://api.sendgrid.com/v3/mail/send", {
+  const label = `${emoji} ${nom}`.trim();
+  const msgBody = `\u{1F4CB} Digest — ${label}\n\n${text}`;
+  try {
+    const resp = await fetch("https://gate.whapi.cloud/messages/text", {
       method: "POST",
-      headers: { Authorization: `Bearer ${sendgridKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email }] }],
-        from: { email: "noreply@verifiermondevis.fr", name: "GérerMonChantier" },
-        subject: `Digest chantier — ${label}`,
-        content: [{ type: "text/plain", value: text }],
-      }),
-    }).catch(() => {});
+      headers: { Authorization: `Bearer ${whapiToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ to: groupJid, body: msgBody }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const msgId: string | undefined = data?.message?.id;
+      if (msgId) {
+        await supabase.from("whatsapp_outgoing_messages").insert({
+          id: msgId, chantier_id: chantierId, group_jid: groupJid, body: msgBody, run_type: "evening",
+        });
+      }
+    } else {
+      const errTxt = await resp.text().catch(() => "");
+      console.error(`[evening-digest] whapi ${resp.status}: ${errTxt.slice(0, 150)}`);
+    }
+  } catch (err) {
+    console.error("[evening-digest] send error:", err instanceof Error ? err.message : err);
   }
 }
