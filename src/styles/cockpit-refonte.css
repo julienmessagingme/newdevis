@@ -805,6 +805,8 @@
   padding:16px 18px;
   display:flex; flex-direction:column; gap:6px;
   text-align:left;
+  width:100%;
+  font-family:inherit;
 }
 .cr-stat.clickable{cursor:pointer; transition:transform .15s, box-shadow .15s}
 .cr-stat.clickable:hover{transform:translateY(-1px); box-shadow:0 8px 20px rgba(26,74,127,.08)}

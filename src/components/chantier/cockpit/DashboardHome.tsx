@@ -445,15 +445,25 @@ function DashboardHome({
 
           {/* Stats */}
           <div className="cr-stats">
-            <div className="cr-stat">
+            <button
+              type="button"
+              className={`cr-stat${aRegler > 0 ? ' clickable' : ''}`}
+              onClick={aRegler > 0 ? () => {
+                // Ouvre Budget & Trésorerie filtré sur "À payer".
+                try { sessionStorage.setItem('cockpitBudgetFilter', 'unpaid'); } catch { /* ignore */ }
+                onGoToTresorerie();
+              } : undefined}
+            >
               <span className="cr-stat-eyebrow"><span className="em">💸</span>À régler</span>
               <span className={`cr-stat-v ${aRegler > 0 ? 'orange' : 'sage'}`}>
                 {aRegler > 0 ? fmtEurShort(aRegler) : '0 €'}
               </span>
               <span className="cr-stat-sub">
-                {nbARegler === 0 ? 'aucune facture en attente' : `${nbARegler} facture${nbARegler > 1 ? 's' : ''} à régler`}
+                {aRegler > 0
+                  ? `${nbARegler} facture${nbARegler > 1 ? 's' : ''} à régler →`
+                  : 'aucune facture en attente'}
               </span>
-            </div>
+            </button>
             <div ref={actionsRef} style={{ position: 'relative' }}>
               <button
                 type="button"
