@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Image as ImageIcon, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Image as ImageIcon, Sparkles, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -166,14 +166,14 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
   // Slide dont l'éditeur de décor est ouvert.
   const [decorEditFor, setDecorEditFor] = useState<string | null>(null);
 
-  // MAJ du décor d'une slide — SANS re-render d'aperçu (DecorCanvas gère son
-  // propre fond ; le décor est manipulé en DOM, baké seulement au commit).
+  // MAJ du décor d'une slide. Déclenche le re-render debouncé de la vignette
+  // d'aperçu → le décor posé apparaît baké sur la vignette (~1s après). Le
+  // DecorCanvas, lui, garde son fond propre (manipulation en DOM).
   const updateSlideDecor = (key: string, els: DecorElement[]) => {
     if (!draft) return;
-    setDraft({
-      ...draft,
-      slides: { ...draft.slides, [key]: { ...draft.slides[key], decor_elements: els } },
-    });
+    const updated = { ...draft.slides[key], decor_elements: els };
+    setDraft({ ...draft, slides: { ...draft.slides, [key]: updated } });
+    schedulePreview(key, updated);
   };
 
   // Repasse une slide en décor automatique. null explicite (pas suppression de
@@ -203,46 +203,50 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
     previewAborts.current = {};
   }, [templateId]);
 
+  // Rendu IMMÉDIAT de l'aperçu d'1 slide (texte + photo + décor bakés) via le
+  // proxy /preview. Appelé par le bouton "Voir le rendu" et par le debounce.
+  const runPreview = async (key: string, slide: SlideData) => {
+    if (!templateId || !authToken) return;
+    clearTimeout(previewTimers.current[key]);
+    setLivePreviews((p) => ({ ...p, [key]: { url: p[key]?.url ?? "", loading: true } }));
+    previewAborts.current[key]?.abort();
+    const ctrl = new AbortController();
+    previewAborts.current[key] = ctrl;
+    try {
+      const res = await fetch(
+        `/api/admin/marketing/templates/${encodeURIComponent(templateId)}/preview`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ slideKey: key, platform: "instagram", slide }),
+          signal: ctrl.signal,
+        },
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.error ?? `HTTP ${res.status}`);
+      }
+      const url = URL.createObjectURL(await res.blob());
+      setLivePreviews((p) => {
+        const old = p[key]?.url;
+        if (old && old.startsWith("blob:")) URL.revokeObjectURL(old);
+        return { ...p, [key]: { url, loading: false } };
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return; // périmé, ignoré
+      setLivePreviews((p) => ({ ...p, [key]: { url: p[key]?.url ?? "", loading: false } }));
+      toast.error("Aperçu indisponible", {
+        description: err instanceof Error ? err.message : "Erreur",
+      });
+    }
+  };
+
+  // Rendu DEBOUNCÉ (auto, 800ms après la dernière modif).
   const schedulePreview = (key: string, slide: SlideData) => {
     if (!templateId || !authToken) return;
     clearTimeout(previewTimers.current[key]);
     setLivePreviews((p) => ({ ...p, [key]: { url: p[key]?.url ?? "", loading: true } }));
-    previewTimers.current[key] = setTimeout(async () => {
-      // Annule un éventuel rendu précédent de cette slide encore en cours.
-      previewAborts.current[key]?.abort();
-      const ctrl = new AbortController();
-      previewAborts.current[key] = ctrl;
-      try {
-        const res = await fetch(
-          `/api/admin/marketing/templates/${encodeURIComponent(templateId)}/preview`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${authToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ slideKey: key, platform: "instagram", slide }),
-            signal: ctrl.signal,
-          },
-        );
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          throw new Error(d?.error ?? `HTTP ${res.status}`);
-        }
-        const url = URL.createObjectURL(await res.blob());
-        setLivePreviews((p) => {
-          const old = p[key]?.url;
-          if (old && old.startsWith("blob:")) URL.revokeObjectURL(old);
-          return { ...p, [key]: { url, loading: false } };
-        });
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return; // périmé, ignoré
-        setLivePreviews((p) => ({ ...p, [key]: { url: p[key]?.url ?? "", loading: false } }));
-        toast.error("Aperçu live indisponible", {
-          description: err instanceof Error ? err.message : "Erreur",
-        });
-      }
-    }, 800);
+    previewTimers.current[key] = setTimeout(() => runPreview(key, slide), 800);
   };
 
   const updateSlide = (key: string, updated: SlideData) => {
@@ -349,24 +353,38 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
                         )}
                       </div>
                       <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="relative w-full sm:w-40 shrink-0 self-start">
-                          {displayUrl ? (
-                            <img
-                              src={displayUrl}
-                              alt={key}
-                              className="w-full rounded-md border"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="aspect-[4/5] rounded-md border bg-muted/40 flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
-                              aperçu pas encore généré
-                            </div>
-                          )}
-                          {live?.loading && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-md">
-                              <Loader2 className="h-5 w-5 animate-spin text-white" />
-                            </div>
-                          )}
+                        <div className="w-full sm:w-56 shrink-0 self-start space-y-2">
+                          <div className="relative">
+                            {displayUrl ? (
+                              <img
+                                src={displayUrl}
+                                alt={key}
+                                className="w-full rounded-md border"
+                              />
+                            ) : (
+                              <div className="aspect-[4/5] rounded-md border bg-muted/40 flex items-center justify-center text-[11px] text-muted-foreground text-center p-2">
+                                aperçu pas encore généré — clique « Voir le rendu »
+                              </div>
+                            )}
+                            {live?.loading && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 rounded-md">
+                                <Loader2 className="h-5 w-5 animate-spin text-white" />
+                                <span className="text-[10px] text-white">rendu en cours…</span>
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => runPreview(key, slide)}
+                            disabled={live?.loading}
+                            className="w-full text-xs font-medium px-2 py-1.5 rounded border bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 ${live?.loading ? "animate-spin" : ""}`} />
+                            Voir le rendu
+                          </button>
+                          <p className="text-[10px] text-muted-foreground text-center">
+                            Rendu réel (texte + photo + décor). Maj auto après chaque modif.
+                          </p>
                         </div>
                         <div className="flex-1 space-y-3 min-w-0">
                           <SlideFieldEditor
