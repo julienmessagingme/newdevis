@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
+import { proxyImg } from "@/lib/marketing/proxyImg";
 import type { MarketingAsset, MarketingSlide } from "@/types/marketing";
 
 interface CarouselPreviewProps {
@@ -89,7 +90,7 @@ export default function CarouselPreview({ slides, assets }: CarouselPreviewProps
       <div className="relative bg-slate-900 rounded-lg overflow-hidden aspect-square max-h-[480px] mx-auto">
         {slide.imageUrl ? (
           <img
-            src={slide.imageUrl}
+            src={proxyImg(slide.imageUrl)}
             alt={`Slide ${slide.slide_n}`}
             className="w-full h-full object-contain"
             // Backblaze B2 peut bloquer en hotlink protection si on envoie

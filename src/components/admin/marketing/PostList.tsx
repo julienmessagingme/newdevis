@@ -6,6 +6,7 @@ import {
   STATUS_LABELS,
   formatRelativeDate,
 } from "./helpers";
+import { proxyImg } from "@/lib/marketing/proxyImg";
 import type { MarketingPostListItem } from "@/types/marketing";
 
 interface PostListProps {
@@ -60,7 +61,7 @@ export default function PostList({ posts, loading, selectedId, onSelect }: PostL
                 <td className="px-4 py-3">
                   {p.cover_url ? (
                     <img
-                      src={p.cover_url}
+                      src={proxyImg(p.cover_url)}
                       alt=""
                       loading="lazy"
                       className="w-12 h-12 rounded object-cover bg-muted"

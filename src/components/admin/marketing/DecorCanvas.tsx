@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Trash2, RotateCw, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
+import { proxyImg } from "@/lib/marketing/proxyImg";
 import type { DecorElement, SlideData } from "@/types/marketing";
 
 /**
@@ -262,7 +263,7 @@ export default function DecorCanvas({
         </div>
       );
     }
-    return <img src={asset.url} alt={el.type} style={{ width: w }} draggable={false} />;
+    return <img src={proxyImg(asset.url)} alt={el.type} style={{ width: w }} draggable={false} />;
   };
 
   return (
@@ -306,7 +307,7 @@ export default function DecorCanvas({
         style={{ width: CANVAS_W }}
         className="relative aspect-[4/5] rounded-md border bg-muted/40 overflow-hidden select-none touch-none"
       >
-        {bgUrl && <img src={bgUrl} alt="" className="absolute inset-0 w-full h-full" draggable={false} />}
+        {bgUrl && <img src={proxyImg(bgUrl)} alt="" className="absolute inset-0 w-full h-full" draggable={false} />}
         {bgLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
             <Loader2 className="h-5 w-5 animate-spin text-white" />

@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { proxyImg } from "@/lib/marketing/proxyImg";
 import type { GenerateResponse } from "@/types/marketing";
 
 interface GenerateDialogProps {
@@ -174,7 +175,7 @@ export default function GenerateDialog({
               {result.slides.map((s) => (
                 <img
                   key={s.index}
-                  src={s.url}
+                  src={proxyImg(s.url)}
                   alt={`Slide ${s.index}`}
                   referrerPolicy="no-referrer"
                   className="h-48 rounded-lg border shadow-sm shrink-0"

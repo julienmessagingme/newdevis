@@ -12,6 +12,7 @@ import CharCountInput from "./CharCountInput";
 import SlideFieldEditor from "./SlideFieldEditor";
 import DecorCanvas from "./DecorCanvas";
 import { MOOD_LABELS, ALL_MOODS, formatDate } from "./helpers";
+import { proxyImg } from "@/lib/marketing/proxyImg";
 import type { TemplateDetail, SlideData, DecorElement, UsageEntry } from "@/types/marketing";
 
 /** Tri NATUREL des clés slide_N — localeCompare mettrait slide_10 avant slide_2. */
@@ -355,7 +356,7 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
                           <div className="relative">
                             {displayUrl ? (
                               <img
-                                src={displayUrl}
+                                src={proxyImg(displayUrl)}
                                 alt={key}
                                 className="w-full rounded-md border"
                               />
@@ -495,7 +496,7 @@ function SlideCarouselPreview({
     <div className="flex flex-col items-center gap-3">
       <div className="relative w-full max-w-[280px]">
         {pngUrl ? (
-          <img src={pngUrl} alt={key} className="w-full rounded-lg border" />
+          <img src={proxyImg(pngUrl)} alt={key} className="w-full rounded-lg border" />
         ) : (
           <div className="aspect-[4/5] w-full rounded-lg border bg-muted/40 flex items-center justify-center text-xs text-muted-foreground text-center p-4">
             aperçu pas encore généré
@@ -587,7 +588,7 @@ function SlidePhotoPicker({
               }`}
             >
               <img
-                src={p.url}
+                src={proxyImg(p.url)}
                 alt={p.file}
                 className="w-full h-full object-cover"
                 loading="lazy"

@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import { proxyImg } from "@/lib/marketing/proxyImg";
 import type { BackgroundItem } from "@/types/marketing";
 
 interface Props {
@@ -25,7 +26,7 @@ export default function BackgroundGrid({ backgrounds, loading }: Props) {
         <div key={bg.id} className="border rounded-xl overflow-hidden bg-card">
           <div className="aspect-square bg-muted relative">
             <img
-              src={bg.public_url}
+              src={proxyImg(bg.public_url)}
               alt={bg.id}
               referrerPolicy="no-referrer"
               loading="lazy"

@@ -3,6 +3,7 @@ import { Download, ChevronDown, ChevronUp, Loader2, CheckCircle2 } from "lucide-
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { STATUS_LABELS, STATUS_BADGE_CLASS, PRODUCT_BADGE, formatDate } from "./helpers";
+import { proxyImg } from "@/lib/marketing/proxyImg";
 import type { MarketingPostListItem } from "@/types/marketing";
 
 interface Props {
@@ -135,7 +136,7 @@ export default function CarouselGallery({ posts, loading, authToken, onChanged }
                 </p>
                 {p.cover_url && (
                   <img
-                    src={p.cover_url}
+                    src={proxyImg(p.cover_url)}
                     alt="Cover"
                     referrerPolicy="no-referrer"
                     className="h-40 rounded border"
