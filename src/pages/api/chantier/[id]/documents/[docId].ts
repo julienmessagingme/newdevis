@@ -261,7 +261,10 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   }
 
   // ── Lot assignment coherence check (uses document name enriched by extraction) ──
-  if ('lot_id' in updates && updates.lot_id) {
+  // Exclut les photos : pour elles le contrôle de cohérence se fait sur le
+  // CONTENU de l'image (edge function photo-coherence-check, déclenchée plus bas),
+  // pas sur le nom du fichier qui est souvent générique ("Photo WhatsApp …").
+  if ('lot_id' in updates && updates.lot_id && updated.document_type !== 'photo') {
     const docName = updated.nom ?? '';
     const detectedType = detectDevisType(docName);
     if (detectedType !== 'autre') {

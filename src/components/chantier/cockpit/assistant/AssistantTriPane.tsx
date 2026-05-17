@@ -146,7 +146,10 @@ function formatInsight(i: AgentInsight): { icon: string; cls: string } {
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `${date} à ${time}`;
 }
 
 // ── Sous-panneaux ────────────────────────────────────────────────────────────
@@ -386,9 +389,17 @@ export default function AssistantTriPane({
     // Auto-refresh 20s, sauf quand l'onglet est en background (économise les
     // fetch inutiles quand le user n'est pas devant l'écran). Un visibilitychange
     // → visible déclenche un fetch immédiat pour rattraper.
+    // Le tick rafraîchit AUSSI les alertes IA : sans ça le panneau Alertes ne
+    // se met jamais à jour après le chargement initial — une alerte créée côté
+    // serveur (ex: cohérence photo↔lot) resterait invisible jusqu'à un refresh
+    // manuel ou un remount.
+    function tick() {
+      fetchDecisions(true);
+      refreshInsights();
+    }
     function start() {
       if (intervalIdRef.current !== null) return;
-      intervalIdRef.current = setInterval(() => fetchDecisions(true), 20000);
+      intervalIdRef.current = setInterval(tick, 20000);
     }
     function stop() {
       if (intervalIdRef.current === null) return;
@@ -399,7 +410,7 @@ export default function AssistantTriPane({
       if (document.hidden) {
         stop();
       } else {
-        fetchDecisions(true); // rattrapage immédiat
+        tick(); // rattrapage immédiat
         start();
       }
     }
@@ -409,7 +420,7 @@ export default function AssistantTriPane({
       stop();
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [fetchDecisions]);
+  }, [fetchDecisions, refreshInsights]);
 
   // Décisions = nb du jour ; sert juste au compteur du tab mobile
   const decisionsCount = decisions.length;
