@@ -79,7 +79,7 @@ function GmcMark() {
 function badgeClass(text: string): string {
   if (text.includes('✓') || /\bOK\b/i.test(text)) return 'badge ok';
   if (text.includes('⚠')) return 'badge';
-  return 'badge gold';
+  return 'badge info'; // compteur neutre (documents, messages non lus)
 }
 
 export default function Sidebar({ result, activeSection, onSelect, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {

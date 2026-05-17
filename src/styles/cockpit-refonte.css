@@ -143,6 +143,7 @@
 }
 .cr-nav-item .badge.gold{background:rgba(212,165,71,.22); color:#F5C56B}
 .cr-nav-item .badge.ok{background:rgba(58,138,101,.22); color:#7BD0A5}
+.cr-nav-item .badge.info{background:rgba(255,255,255,.14); color:rgba(255,255,255,.82)}
 .cr-nav-item.active{
   background:rgba(255,255,255,.10);
   color:#fff;

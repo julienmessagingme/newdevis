@@ -256,13 +256,14 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
   // ── Badges sidebar ────────────────────────────────────────────────────────
   // Règle : chaque badge pointe vers le contenu de l'onglet qu'il décore.
-  //  - documents : devis à valider (devis_statut = 'recu')
+  //  - documents : nombre total de documents présents
   //  - tresorerie: factures à régler (facture_statut = 'recue' / 'payee_partiellement')
+  //  - messagerie: messages non lus
   //  - assistant : alertes IA non lues + clarifications en attente (agent_insights)
   const navBadges = useMemo<Partial<Record<Section, NavBadge>>>(() => {
     return {
-      documents: devisActions > 0
-        ? { text: `⚠ ${devisActions}`, style: 'bg-amber-100 text-amber-700 border border-amber-200' }
+      documents: documents.length > 0
+        ? { text: `${documents.length}`, style: 'bg-gray-100 text-gray-600' }
         : undefined,
       tresorerie: factureActions > 0
         ? { text: `⚠ ${factureActions}`, style: 'bg-amber-100 text-amber-700 border border-amber-200' }
@@ -279,7 +280,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
           }
         : { text: '✓ OK', style: 'bg-emerald-100 text-emerald-700' },
     };
-  }, [devisActions, factureActions, msgUnread, agentInsights.unreadCount, hasCriticalInsight]);
+  }, [documents.length, factureActions, msgUnread, agentInsights.unreadCount, hasCriticalInsight]);
 
   const selectedLot = lots.find(l => l.id === selectedLotId);
   const hasDiyOpportunity = lots.some(l => l.statut === 'a_trouver');
