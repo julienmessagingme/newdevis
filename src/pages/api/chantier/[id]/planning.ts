@@ -115,15 +115,20 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
   const chantierId = params.id!;
 
-  // 1. date_debut_chantier
-  if (typeof body.dateDebutChantier === 'string') {
-    const { error } = await ctx.supabase
-      .from('chantiers')
-      .update({ date_debut_chantier: body.dateDebutChantier })
-      .eq('id', chantierId);
-    if (error) {
-      console.error('[api/chantier/planning PATCH] chantier update error:', error.message);
-      return jsonError('Erreur lors de la mise à jour de la date de début', 500);
+  // 1. date_debut_chantier + date_fin_souhaitee (objectif persistant)
+  {
+    const chantierPatch: Record<string, string> = {};
+    if (typeof body.dateDebutChantier === 'string') chantierPatch.date_debut_chantier = body.dateDebutChantier;
+    if (typeof body.dateFinSouhaitee === 'string')  chantierPatch.date_fin_souhaitee  = body.dateFinSouhaitee;
+    if (Object.keys(chantierPatch).length > 0) {
+      const { error } = await ctx.supabase
+        .from('chantiers')
+        .update(chantierPatch)
+        .eq('id', chantierId);
+      if (error) {
+        console.error('[api/chantier/planning PATCH] chantier update error:', error.message);
+        return jsonError('Erreur lors de la mise à jour des dates du chantier', 500);
+      }
     }
   }
 
@@ -286,7 +291,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   // 4. Récupère startDate (réponse + recalc)
   const { data: chantierRow } = await ctx.supabase
     .from('chantiers')
-    .select('date_debut_chantier')
+    .select('date_debut_chantier, date_fin_souhaitee')
     .eq('id', chantierId)
     .single();
 
@@ -373,8 +378,13 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     console.warn('[planning PATCH] cache invalidation failed:', e instanceof Error ? e.message : String(e));
   }
 
+  const finSouhaitee = typeof body.dateFinSouhaitee === 'string'
+    ? body.dateFinSouhaitee
+    : chantierRow?.date_fin_souhaitee ?? null;
+
   return jsonOk({
     dateDebutChantier: startDateStr ?? null,
+    dateFinSouhaitee: finSouhaitee,
     lots: finalLots ?? [],
     dependencies: depsToJSON(finalDeps),
   });

@@ -21,6 +21,8 @@ interface PlanningState {
   /** deps : lot_id → Set des prédécesseurs (multi-parent). */
   deps: DependencyMap;
   startDate: Date | null;
+  /** Date de fin souhaitée (objectif) — null si non défini. ISO yyyy-mm-dd. */
+  dateFinSouhaitee: string | null;
   totalWeeks: number;
   loading: boolean;
   saving: boolean;
@@ -48,6 +50,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     lots: [],
     deps: new Map(),
     startDate: null,
+    dateFinSouhaitee: null,
     totalWeeks: 0,
     loading: true,
     saving: false,
@@ -84,7 +87,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       const deps = parseDepsJson(data.dependencies);
       const tw = getTotalWeeks(lots);
 
-      setState({ lots, deps, startDate: sd, totalWeeks: tw, loading: false, saving: false, error: null });
+      setState({ lots, deps, startDate: sd, dateFinSouhaitee: data.dateFinSouhaitee ?? null, totalWeeks: tw, loading: false, saving: false, error: null });
     } catch (e: any) {
       if (e.name === 'AbortError') return;
       if (mySeq !== reqSeqRef.current) return;
@@ -122,7 +125,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       const deps = parseDepsJson(data.dependencies);
       const tw = getTotalWeeks(lots);
 
-      setState({ lots, deps, startDate: sd, totalWeeks: tw, loading: false, saving: false, error: null });
+      setState({ lots, deps, startDate: sd, dateFinSouhaitee: data.dateFinSouhaitee ?? null, totalWeeks: tw, loading: false, saving: false, error: null });
     } catch (e: any) {
       pendingRef.current -= 1;
       if (mySeq !== reqSeqRef.current) return;
@@ -229,16 +232,18 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     patchPlanning({ dateDebutChantier: date.toISOString().split('T')[0] });
   }, [patchPlanning]);
 
-  /** Date de fin → calcule startDate en remontant via le chemin critique du DAG. */
+  /** Date de fin → calcule startDate en remontant via le chemin critique du DAG.
+   *  Persiste aussi date_fin_souhaitee (objectif) → permet l'alerte de dépassement. */
   const updateEndDate = useCallback((endDate: Date) => {
     let computedStartStr = '';
+    const endStr = endDate.toISOString().split('T')[0];
     setState(s => {
       const computedStart = computeStartDateFromEnd(s.lots, endDate, s.deps);
       computedStartStr = computedStart.toISOString().split('T')[0];
       const recomputed = computePlanningDates(s.lots, computedStart, s.deps);
-      return { ...s, startDate: computedStart, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
+      return { ...s, startDate: computedStart, dateFinSouhaitee: endStr, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
-    if (computedStartStr) patchPlanning({ dateDebutChantier: computedStartStr });
+    if (computedStartStr) patchPlanning({ dateDebutChantier: computedStartStr, dateFinSouhaitee: endStr });
   }, [patchPlanning]);
 
   /** Remplace la liste complète des prédécesseurs d'un lot. */

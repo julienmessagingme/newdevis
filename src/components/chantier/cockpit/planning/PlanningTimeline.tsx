@@ -363,7 +363,7 @@ function renderTimelineHeader(
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, deps, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, applyDragChange, recompactPlanning } = usePlanning(chantierId, token);
+  const { lots, deps, startDate, dateFinSouhaitee, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, applyDragChange, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
   // Zoom courant — non persisté volontairement (préférence d'écran, pas de projet).
@@ -381,6 +381,22 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     lots.filter(l => l.duree_jours == null || l.duree_jours <= 0 || !l.date_debut || !l.date_fin),
     [lots]
   );
+
+  // Réception estimée = fin du dernier lot du chemin critique.
+  // Comparée à la date de fin souhaitée (objectif) → alerte de dépassement.
+  const reception = useMemo(() => {
+    const ends = planningLots
+      .map(l => l.date_fin ? new Date(l.date_fin).getTime() : NaN)
+      .filter(t => !Number.isNaN(t));
+    if (ends.length === 0) return null;
+    const estimated = new Date(Math.max(...ends));
+    const objectif = dateFinSouhaitee ? new Date(dateFinSouhaitee) : null;
+    let overshootDays = 0;
+    if (objectif && estimated > objectif) {
+      overshootDays = businessDaysBetween(objectif, estimated);
+    }
+    return { estimated, objectif, overshootDays };
+  }, [planningLots, dateFinSouhaitee]);
 
   // Semaines labels
   const weeks = useMemo(() =>
@@ -766,6 +782,27 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
               <p className="text-lg font-bold text-gray-900">
                 {totalWeeks} semaine{totalWeeks > 1 ? 's' : ''} · {planningLots.length} intervenant{planningLots.length > 1 ? 's' : ''}
               </p>
+              {reception && (
+                <p className="text-xs mt-1 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-gray-500">
+                    🏁 Réception estimée :{' '}
+                    <b className="text-gray-800">
+                      {reception.estimated.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </b>
+                  </span>
+                  {reception.objectif && (
+                    reception.overshootDays > 0 ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                        ⚠ dépasse l'objectif ({reception.objectif.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}) de {reception.overshootDays} j ouvré{reception.overshootDays > 1 ? 's' : ''}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                        ✓ dans les temps
+                      </span>
+                    )
+                  )}
+                </p>
+              )}
             </div>
           </div>
 
