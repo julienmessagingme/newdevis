@@ -461,6 +461,16 @@
   border-radius:999px;
   letter-spacing:.04em;
 }
+/* Panneau blanc — encadre la section Intervenants (cohérent avec la carte budget) */
+.cr-panel{
+  background:#fff;
+  border:1px solid var(--cr-line);
+  border-radius:18px;
+  padding:20px 22px;
+}
+/* Empty state déjà dans le panneau blanc → pas de double cadre */
+.cr-panel .cr-empty{border:none; background:transparent; padding:32px 16px}
+
 /* Intervenants grid */
 .cr-intervenants-wrap{position:relative}
 .cr-intervenants-wrap.scrollable{max-height:560px; overflow:hidden}
@@ -468,7 +478,7 @@
   content:"";
   position:absolute; left:0; right:0; bottom:0;
   height:80px;
-  background:linear-gradient(180deg, transparent 0%, var(--cr-cream) 90%);
+  background:linear-gradient(180deg, transparent 0%, #fff 90%);
   pointer-events:none;
   z-index:2;
 }

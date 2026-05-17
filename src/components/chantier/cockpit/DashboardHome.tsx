@@ -349,7 +349,7 @@ function DashboardHome({
       <div className="cr-body-grid">
 
         {/* Intervenants */}
-        <section>
+        <section className="cr-panel">
           <div className="cr-section-head">
             <div className="cr-sh-left">
               <h2 className="cr-sh-title">Intervenants</h2>
