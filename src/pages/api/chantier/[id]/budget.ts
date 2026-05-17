@@ -59,6 +59,8 @@ interface BudgetFacture {
   montant_paye: number | null;
   facture_statut: string | null;
   depense_type: string | null; // 'frais' = déclaration chat sans pièce. Exclu de "devis manquant".
+  /** Reste à régler réconcilié (paiements Échéancier déduits ; 0 si soldé / litige / ticket_caisse / frais). */
+  a_payer: number;
   payment_terms: {
     type_facture: string;
     pct: number;
@@ -108,13 +110,17 @@ function buildArtisanGroups(devis: BudgetDevis[], factures: BudgetFacture[]): Bu
     let paye = 0, acompte_fact = 0, litige = 0, a_payer = 0;
     for (const f of g.factures) {
       const m = f.montant ?? 0;
-      const p = f.montant_paye ?? 0;
+      const p = f.montant_paye ?? 0; // déjà réconcilié (paiements Échéancier inclus)
       // ticket_caisse et frais = toujours considérés comme payés, peu importe facture_statut
       const alwaysPaid = f.depense_type === 'ticket_caisse' || f.depense_type === 'frais';
-      if      (alwaysPaid || f.facture_statut === 'payee') { paye += m; }
-      else if (f.facture_statut === 'payee_partiellement')  { acompte_fact += p; a_payer += Math.max(0, m - p); }
+      if      (alwaysPaid || f.facture_statut === 'payee' || (m > 0 && p >= m)) { paye += m; }
       else if (f.facture_statut === 'en_litige')            { litige += m; }
-      else if (f.facture_statut === 'recue')                { a_payer += m; }
+      // recue ET payee_partiellement : reste à payer = montant non encore réglé.
+      // Une facture 'recue' soldée via l'Échéancier ne compte plus en a_payer.
+      else if (f.facture_statut === 'recue' || f.facture_statut === 'payee_partiellement') {
+        acompte_fact += p;
+        a_payer      += Math.max(0, m - p);
+      }
     }
     // Artisan sans facture : le solde restant = devis_valides - acomptes déjà payés
     if (g.factures.length === 0 && devis_valides > 0) {
@@ -527,17 +533,25 @@ export const GET: APIRoute = async ({ params, request }) => {
           );
           (doc as Record<string, unknown>).montant = montant;
         }
-        const paye = evFacturePaid != null
-          ? evFacturePaid
-          : doc.facture_statut === 'payee'               ? montant
-          : doc.facture_statut === 'payee_partiellement' ? (doc.montant_paye ?? 0)
-          : 0;
+        // ticket_caisse / frais = toujours soldés, quel que soit facture_statut
+        const depType = (doc as { depense_type?: string | null }).depense_type ?? null;
+        const alwaysPaid = depType === 'ticket_caisse' || depType === 'frais';
+        const paye = alwaysPaid
+          ? montant
+          : evFacturePaid != null
+            ? evFacturePaid
+            : doc.facture_statut === 'payee'               ? montant
+            : doc.facture_statut === 'payee_partiellement' ? (doc.montant_paye ?? 0)
+            : 0;
         const acompte = (paye > 0 && paye < montant) ? paye : 0;
         const litige  = doc.facture_statut === 'en_litige' ? montant : 0;
-        const a_payer =
-          doc.facture_statut === 'recue'               ? montant
-          : doc.facture_statut === 'payee_partiellement' ? Math.max(0, montant - paye)
-          : 0;
+        // Reste à régler = montant non encore couvert. Une facture 'recue' payée
+        // via l'Échéancier (paye réconcilié) ne compte plus en a_payer.
+        const a_payer = (alwaysPaid || litige > 0)
+          ? 0
+          : (doc.facture_statut === 'recue' || doc.facture_statut === 'payee_partiellement')
+            ? Math.max(0, montant - paye)
+            : 0;
 
         bucket.factures.push({
           id:             doc.id,
@@ -545,7 +559,8 @@ export const GET: APIRoute = async ({ params, request }) => {
           montant:        montant || null,
           montant_paye:   paye,
           facture_statut: doc.facture_statut ?? null,
-          depense_type:   (doc as any).depense_type ?? null,
+          depense_type:   depType,
+          a_payer,
           payment_terms:  (doc.payment_terms ?? null) as BudgetFacture['payment_terms'],
           signed_url:     urlMap.get(doc.id) ?? null,
           created_at:     doc.created_at,

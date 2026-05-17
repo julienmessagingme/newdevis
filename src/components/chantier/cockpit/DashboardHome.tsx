@@ -5,6 +5,22 @@ import { fmtK } from '@/lib/chantier/dashboardHelpers';
 import type { BreakdownItem } from './tresorerie/BudgetTresorerie';
 import '@/styles/cockpit-refonte.css';
 
+/** Facture réconciliée renvoyée par l'API budget (a_payer = reste à régler réel). */
+export interface BudgetFactureLite {
+  id: string;
+  nom: string;
+  montant: number | null;
+  montant_paye: number | null;
+  a_payer: number;
+  facture_statut: string | null;
+  depense_type: string | null;
+}
+/** Instantané budget réconcilié — source unique des compteurs "à régler". */
+export interface BudgetSnapshot {
+  totaux: { paye: number; acompte: number; a_payer: number };
+  factures: BudgetFactureLite[];
+}
+
 const fmtEurShort = (n: number) => (n >= 1000 ? fmtK(n) : `${Math.round(n)} €`);
 
 /**
@@ -134,10 +150,11 @@ function ProCard({ lot, docs, onOpen }: { lot: LotChantier; docs: DocumentChanti
 function DashboardHome({
   lots, documents, docsByLot, displayMin, displayMax, budgetReel, refinedBreakdown, onAffineBudget,
   onGoToLot, onAddDoc, onGoToAssistant, onGoToTresorerie, onGoToDocuments,
-  onAddIntervenant, chantierId, token, urgentActions, chantierNom, chantierEmoji,
+  onAddIntervenant, chantierId, token, urgentActions, chantierNom, chantierEmoji, budget,
 }: {
   chantierNom: string;
   chantierEmoji?: string | null;
+  budget?: BudgetSnapshot | null;
   lots: LotChantier[];
   documents: DocumentChantier[];
   docsByLot: Record<string, DocumentChantier[]>;
@@ -170,24 +187,8 @@ function DashboardHome({
   const [actionsOpen, setActionsOpen] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
 
-  // ── Budget réel décaissé + à payer (API budget) ──────────────────────────
-  const [budgetTotaux, setBudgetTotaux] = useState<{ paye: number; acompte: number; a_payer: number } | null>(null);
-  useEffect(() => {
-    if (!chantierId || !token) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/chantier/${chantierId}/budget`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok && !cancelled) {
-          const d = await res.json();
-          setBudgetTotaux({ paye: d.totaux?.paye ?? 0, acompte: d.totaux?.acompte ?? 0, a_payer: d.totaux?.a_payer ?? 0 });
-        }
-      } catch { /* non-bloquant */ }
-    })();
-    return () => { cancelled = true; };
-  }, [chantierId, token]);
+  // ── Budget réconcilié — fourni par ChantierCockpit (source unique) ────────
+  const budgetTotaux = budget?.totaux ?? null;
 
   // Click-outside popover "À traiter"
   useEffect(() => {
@@ -219,31 +220,33 @@ function DashboardHome({
 
   const total = lots.length;
 
-  // ── Montant à régler (factures reçues + partielles) ────────────────────────
-  const { aRegler, nbARegler } = useMemo(() => {
-    let sum = 0, nb = 0;
-    for (const d of documents) {
-      if (d.document_type !== 'facture') continue;
-      if (d.facture_statut === 'recue') { sum += d.montant ?? 0; nb++; }
-      else if (d.facture_statut === 'payee_partiellement') { sum += Math.max(0, (d.montant ?? 0) - (d.montant_paye ?? 0)); nb++; }
-    }
-    return { aRegler: sum, nbARegler: nb };
-  }, [documents]);
+  // ── À régler — source réconciliée (API budget, paiements Échéancier déduits).
+  // Une facture 'recue' soldée via l'Échéancier a a_payer = 0 → exclue.
+  const facturesARegler = useMemo(
+    () => (budget?.factures ?? []).filter(f => f.a_payer > 0),
+    [budget],
+  );
+  // Montant ET nombre dérivent de la même liste de factures → toujours cohérents.
+  // (totaux.a_payer inclut aussi les devis signés sans facture : hors KPI "factures".)
+  const aRegler   = facturesARegler.reduce((s, f) => s + f.a_payer, 0);
+  const nbARegler = facturesARegler.length;
 
   // ── Liste exacte des actions du KPI "À traiter" ────────────────────────────
   const kpiActions = useMemo(() => {
     const list: { id: string; kind: 'facture' | 'devis'; label: string; sub: string; onClick: () => void }[] = [];
+    // Factures à régler — réconciliées (a_payer réel, paiements Échéancier déduits)
+    for (const f of facturesARegler) {
+      const artisan = cleanCompanyName(f.nom) || 'Facture';
+      list.push({
+        id: f.id, kind: 'facture',
+        label: `Régler ${artisan} (${fmtEurShort(f.a_payer)})`,
+        sub: f.facture_statut === 'payee_partiellement' ? 'Solde restant' : 'Facture reçue non soldée',
+        onClick: () => { setActionsOpen(false); onGoToTresorerie(); },
+      });
+    }
+    // Devis à valider — source documents (non concernés par la réconciliation paiement)
     for (const d of documents) {
-      if (d.document_type === 'facture' && (d.facture_statut === 'recue' || d.facture_statut === 'payee_partiellement')) {
-        const artisan = cleanCompanyName(d.nom) || 'Facture';
-        const restant = d.facture_statut === 'payee_partiellement' ? ((d.montant ?? 0) - (d.montant_paye ?? 0)) : (d.montant ?? 0);
-        list.push({
-          id: d.id, kind: 'facture',
-          label: `Régler ${artisan}${restant > 0 ? ` (${fmtEurShort(restant)})` : ''}`,
-          sub: d.facture_statut === 'payee_partiellement' ? 'Solde restant' : 'Facture reçue non soldée',
-          onClick: () => { setActionsOpen(false); onGoToTresorerie(); },
-        });
-      } else if (d.document_type === 'devis' && (d.devis_statut as string) === 'recu') {
+      if (d.document_type === 'devis' && (d.devis_statut as string) === 'recu') {
         list.push({
           id: d.id, kind: 'devis',
           label: `Valider ${d.nom ?? 'devis'}${d.montant ? ` (${fmtEurShort(d.montant)})` : ''}`,
@@ -253,7 +256,7 @@ function DashboardHome({
       }
     }
     return list;
-  }, [documents, onGoToTresorerie, onGoToDocuments]);
+  }, [facturesARegler, documents, onGoToTresorerie, onGoToDocuments]);
 
   // ── Stepper de démarrage ───────────────────────────────────────────────────
   const hasDevis  = documents.some(d => d.document_type === 'devis');

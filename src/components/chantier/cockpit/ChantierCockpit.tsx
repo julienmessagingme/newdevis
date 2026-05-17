@@ -25,7 +25,7 @@ import { fmtK } from '@/lib/chantier/dashboardHelpers';
 import Sidebar, { type Section, type NavBadge } from './Sidebar';
 import BottomNav from './BottomNav';
 import LotDetail from './lots/LotDetail';
-import DashboardHome from './DashboardHome';
+import DashboardHome, { type BudgetSnapshot, type BudgetFactureLite } from './DashboardHome';
 import AnalyseDevisSection from './AnalyseDevisSection';
 import TravauxDIYSection from './TravauxDIYSection';
 import AssistantTriPane from './assistant/AssistantTriPane';
@@ -135,6 +135,33 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
 
+  // ── Budget réconcilié (API) — source unique des compteurs "à régler" ──────
+  // L'API budget déduit les paiements Échéancier : une facture 'recue' soldée
+  // via l'échéancier a a_payer = 0. Évite l'incohérence accueil ↔ Trésorerie.
+  const [budgetData, setBudgetData] = useState<BudgetSnapshot | null>(null);
+  const loadBudget = useCallback(async () => {
+    if (!chantierId || !token) return;
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/budget`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      const factures: BudgetFactureLite[] = [
+        ...((d.lots ?? []) as { factures?: BudgetFactureLite[] }[]).flatMap(l => l.factures ?? []),
+        ...((d.sans_lot?.factures ?? []) as BudgetFactureLite[]),
+      ];
+      setBudgetData({ totaux: d.totaux, factures });
+    } catch { /* non-bloquant */ }
+  }, [chantierId, token]);
+  useEffect(() => { loadBudget(); }, [loadBudget, documents.length]);
+  // Re-sync quand le budget bouge ailleurs (paiement, dépense — event partagé)
+  useEffect(() => {
+    const h = () => loadBudget();
+    window.addEventListener('chantierBudgetChanged', h);
+    return () => window.removeEventListener('chantierBudgetChanged', h);
+  }, [loadBudget]);
+
   // ── Analysis scores (TTC depuis les analyses) ─────────────────────────────
   const allDevisForScores = useMemo(() => documents.filter(d => d.document_type === 'devis'), [documents]);
   const { data: docAnalysisData } = useAnalysisScores(allDevisForScores);
@@ -188,12 +215,11 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
   // ── Actions à traiter par onglet (source de vérité badges sidebar + KPI home) ──
   // Chaque compteur pointe vers l'onglet où l'action se résout réellement, pour que
   // le badge sidebar et le contenu de la page soient cohérents.
+  // Factures réellement à régler : reste à payer réconcilié > 0 (paiements
+  // Échéancier déduits). Tant que le budget n'est pas chargé → 0.
   const factureActions = useMemo(
-    () => documents.filter(d =>
-      d.document_type === 'facture' &&
-      (d.facture_statut === 'recue' || d.facture_statut === 'payee_partiellement')
-    ).length,
-    [documents],
+    () => (budgetData?.factures ?? []).filter(f => f.a_payer > 0).length,
+    [budgetData],
   );
   const devisActions = useMemo(
     () => documents.filter(d => d.document_type === 'devis' && d.devis_statut === 'recu').length,
@@ -348,6 +374,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
           <DashboardHome
             chantierNom={result.nom}
             chantierEmoji={result.emoji}
+            budget={budgetData}
             lots={lots}
             documents={documents}
             docsByLot={docsByLot}
