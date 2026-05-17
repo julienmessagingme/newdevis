@@ -25,14 +25,19 @@ export const GET: APIRoute = async ({ params, request }) => {
     .limit(limit);
 
   if (unreadOnly) query = query.eq('read_by_user', false);
+
+  // Le panneau Alertes ne montre QUE des alertes actionnables. 3 types purement
+  // informatifs sont exclus — de la liste ET du compteur :
+  //  - `digest`              : résumé journalier — info, pas une action
+  //  - `conversation_summary`: résumé de run ("Aucun nouveau message", "Digest
+  //                            du soir") — info, ce n'est pas une alerte
+  //  - `lot_status_change`   : changement de statut lot — info
+  // Si un `type` précis est demandé en query param, on respecte ce filtre tel
+  // quel (permet de consulter un type exclu volontairement).
   if (type) query = query.eq('type', type);
+  else query = query.not('type', 'in', '(digest,conversation_summary,lot_status_change)');
 
   // Parallel fetch: insights list + unread count (independent queries)
-  // Le compteur unread (badge sidebar `assistant` + badge FAB widget) exclut :
-  //  - `digest`              : résumé journalier — info, pas une action
-  //  - `conversation_summary`: résumé de conversation — info
-  //  - `lot_status_change`   : changement statut lot — info
-  // Ces 3 types restent visibles dans la liste mais ne font pas sonner le badge.
   const [listRes, countRes] = await Promise.all([
     query,
     ctx.supabase
