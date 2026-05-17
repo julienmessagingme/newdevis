@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -114,9 +114,68 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
     }
   };
 
+  // ── Aperçu live ───────────────────────────────────────────────────────────
+  // À chaque édition d'une slide, on rend un aperçu PNG réel via le service de
+  // rendu (proxy /preview), debouncé. Remplace l'image B2 sauvegardée tant que
+  // la slide est en cours d'édition.
+  const [livePreviews, setLivePreviews] = useState<
+    Record<string, { url: string; loading: boolean }>
+  >({});
+  const previewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Révoque tous les blob: URLs à la fermeture pour éviter les fuites mémoire.
+  useEffect(() => {
+    if (templateId) return;
+    setLivePreviews((prev) => {
+      for (const p of Object.values(prev)) {
+        if (p.url.startsWith("blob:")) URL.revokeObjectURL(p.url);
+      }
+      return {};
+    });
+    for (const t of Object.values(previewTimers.current)) clearTimeout(t);
+    previewTimers.current = {};
+  }, [templateId]);
+
+  const schedulePreview = (key: string, slide: SlideData) => {
+    if (!templateId || !authToken) return;
+    clearTimeout(previewTimers.current[key]);
+    setLivePreviews((p) => ({ ...p, [key]: { url: p[key]?.url ?? "", loading: true } }));
+    previewTimers.current[key] = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/marketing/templates/${encodeURIComponent(templateId)}/preview`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ slideKey: key, platform: "instagram", slide }),
+          },
+        );
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d?.error ?? `HTTP ${res.status}`);
+        }
+        const url = URL.createObjectURL(await res.blob());
+        setLivePreviews((p) => {
+          const old = p[key]?.url;
+          if (old && old.startsWith("blob:")) URL.revokeObjectURL(old);
+          return { ...p, [key]: { url, loading: false } };
+        });
+      } catch (err) {
+        setLivePreviews((p) => ({ ...p, [key]: { url: p[key]?.url ?? "", loading: false } }));
+        toast.error("Aperçu live indisponible", {
+          description: err instanceof Error ? err.message : "Erreur",
+        });
+      }
+    }, 800);
+  };
+
   const updateSlide = (key: string, updated: SlideData) => {
     if (!draft) return;
     setDraft({ ...draft, slides: { ...draft.slides, [key]: updated } });
+    schedulePreview(key, updated);
   };
 
   return (
@@ -206,25 +265,36 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
               {Object.entries(draft.slides)
                 .sort(([a], [b]) => slideNum(a) - slideNum(b))
                 .map(([key, slide]) => {
-                  const pngUrl = slidePngUrl(template.preview_urls, key);
+                  const live = livePreviews[key];
+                  const displayUrl = live?.url || slidePngUrl(template.preview_urls, key);
                   return (
                     <div key={key} className="border rounded-lg p-4 bg-muted/20">
                       <div className="text-xs font-medium text-muted-foreground mb-3">
                         {key} — <span className="font-mono">{slide.template}</span>
+                        {live?.url && (
+                          <span className="ml-2 text-emerald-600">· aperçu live</span>
+                        )}
                       </div>
                       <div className="flex flex-col sm:flex-row gap-4">
-                        {pngUrl ? (
-                          <img
-                            src={pngUrl}
-                            alt={key}
-                            className="w-full sm:w-40 shrink-0 rounded-md border self-start"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="w-full sm:w-40 shrink-0 aspect-[4/5] rounded-md border bg-muted/40 flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
-                            aperçu pas encore généré
-                          </div>
-                        )}
+                        <div className="relative w-full sm:w-40 shrink-0 self-start">
+                          {displayUrl ? (
+                            <img
+                              src={displayUrl}
+                              alt={key}
+                              className="w-full rounded-md border"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="aspect-[4/5] rounded-md border bg-muted/40 flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
+                              aperçu pas encore généré
+                            </div>
+                          )}
+                          {live?.loading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-md">
+                              <Loader2 className="h-5 w-5 animate-spin text-white" />
+                            </div>
+                          )}
+                        </div>
                         <div className="flex-1 space-y-3 min-w-0">
                           <SlideFieldEditor
                             templateName={slide.template}
