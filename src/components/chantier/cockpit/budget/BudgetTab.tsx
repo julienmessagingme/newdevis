@@ -1412,7 +1412,14 @@ export default function BudgetTab({
 
   const [search,       setSearch]       = useState('');
   const [filterDevis,  setFilterDevis]  = useState<FilterDevis>('all');
-  const [filterPay,    setFilterPay]    = useState<FilterPay>('all');
+  // Signal one-shot depuis l'accueil (clic sur une facture à régler) → ouvre filtré "À payer".
+  const [filterPay,    setFilterPay]    = useState<FilterPay>(() => {
+    try {
+      const intent = sessionStorage.getItem('cockpitBudgetFilter');
+      if (intent) sessionStorage.removeItem('cockpitBudgetFilter');
+      return intent === 'unpaid' ? 'unpaid' : 'all';
+    } catch { return 'all'; }
+  });
   const [sortBy,       setSortBy]       = useState<SortBy>('default');
   const [selected,     setSelected]     = useState<BudgetRow | null>(null);
   const [showAddDoc,   setShowAddDoc]   = useState(false);

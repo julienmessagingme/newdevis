@@ -241,7 +241,12 @@ function DashboardHome({
         id: f.id, kind: 'facture',
         label: `Régler ${artisan} (${fmtEurShort(f.a_payer)})`,
         sub: f.facture_statut === 'payee_partiellement' ? 'Solde restant' : 'Facture reçue non soldée',
-        onClick: () => { setActionsOpen(false); onGoToTresorerie(); },
+        onClick: () => {
+          setActionsOpen(false);
+          // Signal one-shot : BudgetTab ouvrira filtré sur "À payer".
+          try { sessionStorage.setItem('cockpitBudgetFilter', 'unpaid'); } catch { /* ignore */ }
+          onGoToTresorerie();
+        },
       });
     }
     // Devis à valider — source documents (non concernés par la réconciliation paiement)
