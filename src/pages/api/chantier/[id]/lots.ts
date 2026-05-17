@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/api/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent, logChantierActivity } from '@/lib/api/apiHelpers';
 import { estimateMissingPlanningData, computePlanningDates } from '@/lib/chantier/planningUtils';
 
 /**
@@ -145,6 +145,15 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
   if (Object.keys(patch).length === 0) return jsonError('Aucun champ valide à mettre à jour', 400);
 
+  // Statut courant — pour ne loguer dans le Journal qu'un vrai changement.
+  let previousStatut: string | null = null;
+  if (typeof patch.statut === 'string') {
+    const { data: before } = await ctx.supabase
+      .from('lots_chantier').select('statut')
+      .eq('id', lotId).eq('chantier_id', params.id!).single();
+    previousStatut = before?.statut ?? null;
+  }
+
   const { data, error } = await ctx.supabase
     .from('lots_chantier')
     .update(patch)
@@ -156,6 +165,19 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   if (error) {
     console.error('[api/chantier/lots PATCH] error:', error.message);
     return jsonError('Erreur lors de la mise à jour du lot', 500);
+  }
+
+  // Journal — trace le changement de statut du lot dans la timeline.
+  if (typeof patch.statut === 'string' && patch.statut !== previousStatut && data) {
+    const LOT_STATUT_LABEL: Record<string, string> = {
+      a_trouver: 'À trouver', a_faire: 'À faire', en_cours: 'En cours', termine: 'Terminé',
+    };
+    await logChantierActivity(params.id!, {
+      category: 'status_change',
+      actor: ctx.isAgent ? 'agent' : 'user',
+      summary: `Lot « ${data.nom} » : statut → ${LOT_STATUT_LABEL[patch.statut] ?? patch.statut}`,
+      metadata: { lot_id: lotId, field: 'lot_statut', from: previousStatut, to: patch.statut },
+    });
   }
 
   // Invalidate agent context cache

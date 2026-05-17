@@ -37,6 +37,43 @@ export function createServiceClient(): SupabaseClient {
   );
 }
 
+// ── Journal — timeline d'activité ───────────────────────────────────────────
+
+/**
+ * Logue un événement horodaté dans `chantier_activity` — alimente la timeline
+ * du Journal de chantier (changements de statut surtout).
+ *
+ * Insert via service_role (bypass RLS). À AWAITER par l'appelant : sur Vercel
+ * serverless un fire-and-forget peut être coupé avant l'écriture (cf. piège
+ * fire-and-forget). N'échoue jamais le call principal — toute erreur est loggée
+ * et avalée.
+ */
+export async function logChantierActivity(
+  chantierId: string,
+  event: {
+    category: string;
+    actor?: 'user' | 'agent' | 'system';
+    summary: string;
+    detail?: string | null;
+    metadata?: Record<string, unknown> | null;
+  },
+): Promise<void> {
+  try {
+    const sb = createServiceClient();
+    const { error } = await sb.from('chantier_activity').insert({
+      chantier_id: chantierId,
+      category: event.category,
+      actor: event.actor ?? 'user',
+      summary: event.summary,
+      detail: event.detail ?? null,
+      metadata: event.metadata ?? null,
+    });
+    if (error) console.error('[logChantierActivity] insert error:', error.message);
+  } catch (err) {
+    console.error('[logChantierActivity] error:', err instanceof Error ? err.message : err);
+  }
+}
+
 // ── Authentication ──────────────────────────────────────────────────────────
 
 export interface AuthContext {

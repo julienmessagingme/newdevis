@@ -3,7 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DocumentType } from '@/types/chantier-ia';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent, createServiceClient } from '@/lib/api/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent, createServiceClient, logChantierActivity } from '@/lib/api/apiHelpers';
 import { detectDevisType } from '@/utils/extractProjectElements';
 
 const BUCKET          = 'chantier-documents';
@@ -221,6 +221,33 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   if (fetchErr || !updated) {
     return jsonError('Document introuvable après mise à jour', 404);
+  }
+
+  // ── Journal — trace les changements de statut dans la timeline ──────────────
+  {
+    const DEVIS_STATUT_LABEL: Record<string, string> = {
+      en_cours: 'En cours', a_relancer: 'À relancer', valide: 'Validé', attente_facture: 'En attente de facture',
+    };
+    const FACTURE_STATUT_LABEL: Record<string, string> = {
+      recue: 'Reçue', payee: 'Payée', payee_partiellement: 'Payée partiellement', en_litige: 'En litige',
+    };
+    const activityActor = ctx.isAgent ? 'agent' : 'user';
+    if ('devis_statut' in updates && updates.devis_statut !== (doc as Record<string, unknown>).devis_statut) {
+      await logChantierActivity(params.id!, {
+        category: 'status_change',
+        actor: activityActor,
+        summary: `Devis « ${updated.nom} » : statut → ${DEVIS_STATUT_LABEL[updates.devis_statut as string] ?? updates.devis_statut}`,
+        metadata: { document_id: params.docId, field: 'devis_statut', from: (doc as Record<string, unknown>).devis_statut, to: updates.devis_statut },
+      });
+    }
+    if ('facture_statut' in updates && updates.facture_statut !== (doc as Record<string, unknown>).facture_statut) {
+      await logChantierActivity(params.id!, {
+        category: 'status_change',
+        actor: activityActor,
+        summary: `Facture « ${updated.nom} » : statut → ${FACTURE_STATUT_LABEL[updates.facture_statut as string] ?? updates.facture_statut}`,
+        metadata: { document_id: params.docId, field: 'facture_statut', from: (doc as Record<string, unknown>).facture_statut, to: updates.facture_statut },
+      });
+    }
   }
 
   // Invalidate agent context cache (document status/lot changed = stale context)
