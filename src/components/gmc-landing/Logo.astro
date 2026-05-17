@@ -3,9 +3,10 @@ interface Props {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   dark?: boolean;
   animated?: boolean;
+  wordmark?: boolean;
 }
 
-const { size = 'md', dark = false, animated = true } = Astro.props;
+const { size = 'md', dark = false, animated = true, wordmark = true } = Astro.props;
 
 const sizes = {
   sm: { mark: 28, font: 14, gap: 8 },
@@ -69,17 +70,19 @@ const mutedColor = dark ? 'rgba(255,255,255,.55)' : '#677084';
       </linearGradient>
     </defs>
   </svg>
-  <div class="leading-none flex flex-col" style="gap:2px">
-    <span class="font-bold tracking-tight" style={`font-size:${s.font}px;color:${ink}`}>
-      Gérer<span style="color:#F58A06">Mon</span>Chantier
-    </span>
-    <span
-      class="uppercase font-bold tracking-[0.18em]"
-      style={`font-size:${Math.max(8, s.font * 0.45)}px;color:${mutedColor}`}
-    >
-      Pilote IA de chantier
-    </span>
-  </div>
+  {wordmark && (
+    <div class="leading-none flex flex-col" style="gap:2px">
+      <span class="font-bold tracking-tight" style={`font-size:${s.font}px;color:${ink}`}>
+        Gérer<span style="color:#F58A06">Mon</span>Chantier
+      </span>
+      <span
+        class="uppercase font-bold tracking-[0.18em]"
+        style={`font-size:${Math.max(8, s.font * 0.45)}px;color:${mutedColor}`}
+      >
+        Pilote IA de chantier
+      </span>
+    </div>
+  )}
 </div>
 
 <style>
