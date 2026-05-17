@@ -122,8 +122,11 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
     Record<string, { url: string; loading: boolean }>
   >({});
   const previewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Un AbortController par slide : annule le fetch précédent encore en vol
+  // → évite qu'une réponse lente écrase un aperçu plus récent.
+  const previewAborts = useRef<Record<string, AbortController>>({});
 
-  // Révoque tous les blob: URLs à la fermeture pour éviter les fuites mémoire.
+  // Annule timers + fetchs + révoque les blob URLs à la fermeture.
   useEffect(() => {
     if (templateId) return;
     setLivePreviews((prev) => {
@@ -133,7 +136,9 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
       return {};
     });
     for (const t of Object.values(previewTimers.current)) clearTimeout(t);
+    for (const a of Object.values(previewAborts.current)) a.abort();
     previewTimers.current = {};
+    previewAborts.current = {};
   }, [templateId]);
 
   const schedulePreview = (key: string, slide: SlideData) => {
@@ -141,6 +146,10 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
     clearTimeout(previewTimers.current[key]);
     setLivePreviews((p) => ({ ...p, [key]: { url: p[key]?.url ?? "", loading: true } }));
     previewTimers.current[key] = setTimeout(async () => {
+      // Annule un éventuel rendu précédent de cette slide encore en cours.
+      previewAborts.current[key]?.abort();
+      const ctrl = new AbortController();
+      previewAborts.current[key] = ctrl;
       try {
         const res = await fetch(
           `/api/admin/marketing/templates/${encodeURIComponent(templateId)}/preview`,
@@ -151,6 +160,7 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ slideKey: key, platform: "instagram", slide }),
+            signal: ctrl.signal,
           },
         );
         if (!res.ok) {
@@ -164,6 +174,7 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
           return { ...p, [key]: { url, loading: false } };
         });
       } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return; // périmé, ignoré
         setLivePreviews((p) => ({ ...p, [key]: { url: p[key]?.url ?? "", loading: false } }));
         toast.error("Aperçu live indisponible", {
           description: err instanceof Error ? err.message : "Erreur",
