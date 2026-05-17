@@ -74,6 +74,20 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     }
     if (!data) return jsonError('Template non trouvé', 404);
 
+    // Marque le carrousel pour re-render auto des aperçus. Le worker
+    // marketing-regen-worker (PM2 sur le VPS) poll preview_regen_at toutes
+    // les 30s, re-render le carrousel, ré-upload sur B2 et MAJ preview_urls.
+    // → l'utilisateur édite + sauvegarde, le PNG se met à jour tout seul.
+    const { error: regenErr } = await sb
+      .schema('marketing')
+      .from('script_templates')
+      .update({ preview_regen_at: new Date().toISOString() })
+      .eq('id', id);
+    if (regenErr) {
+      console.error('[marketing/templates/:id PATCH] flag regen error:', regenErr.message);
+      // non bloquant : la sauvegarde a réussi, seul l'auto-render est raté
+    }
+
     return jsonOk(data);
   } catch (err) {
     const msg = err instanceof Error ? err.message
