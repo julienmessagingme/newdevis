@@ -226,7 +226,13 @@ function PlanningBubble({
               className="cr-plan-rdv"
               style={{ left: `${m.pct * 100}%` }}
               title={`${m.titre} · ${fmtBubbleDate(m.date)}`}
-            />
+            >
+              <span className="rdv-t">{m.titre}</span>
+              <span className="rdv-d">
+                {new Date(m.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+              </span>
+              <span className="rdv-dot" />
+            </div>
           ))}
           <div className="arrow" />
         </div>

@@ -511,30 +511,44 @@
   font-size:15px; font-weight:700; color:var(--cr-ink);
   margin-top:4px; line-height:1.1;
 }
-.cr-plan-bar{flex:1; position:relative; height:26px; min-width:60px}
+.cr-plan-bar{flex:1; position:relative; height:58px; min-width:60px}
 .cr-plan-bar .line{
-  position:absolute; left:0; right:0; top:50%;
-  height:4px; transform:translateY(-50%); border-radius:2px;
+  position:absolute; left:0; right:0; bottom:9px;
+  height:4px; border-radius:2px;
   background:linear-gradient(90deg, var(--cr-navy), var(--cr-gold));
 }
 .cr-plan-bar .cap{
-  position:absolute; left:0; top:50%; transform:translate(-50%,-50%);
+  position:absolute; left:0; bottom:5.5px; transform:translateX(-50%);
   width:11px; height:11px; border-radius:50%;
   background:var(--cr-navy); border:2.5px solid #fff;
   box-shadow:0 0 0 1.5px var(--cr-navy);
 }
 .cr-plan-bar .arrow{
-  position:absolute; right:-3px; top:50%; transform:translateY(-50%);
+  position:absolute; right:-3px; bottom:4px;
   width:0; height:0;
   border-top:7px solid transparent; border-bottom:7px solid transparent;
   border-left:11px solid var(--cr-gold);
 }
+/* Jalon RDV : libellé + date au-dessus, pastille sur la ligne */
 .cr-plan-rdv{
-  position:absolute; top:50%; transform:translate(-50%,-50%);
+  position:absolute; bottom:5px; transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  cursor:help;
+}
+.cr-plan-rdv .rdv-t{
+  font-size:9.5px; font-weight:700; color:var(--cr-ink);
+  line-height:1.2; max-width:96px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.cr-plan-rdv .rdv-d{
+  font-family:"JetBrains Mono",monospace;
+  font-size:8.5px; font-weight:600; color:var(--cr-orange);
+  letter-spacing:.02em;
+}
+.cr-plan-rdv .rdv-dot{
   width:13px; height:13px; border-radius:50%;
   background:var(--cr-orange); border:2.5px solid #fff;
   box-shadow:0 1px 4px rgba(245,138,6,.45);
-  cursor:help;
 }
 .cr-plan-empty{
   display:flex; align-items:center; gap:12px; flex-wrap:wrap;
