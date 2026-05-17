@@ -84,11 +84,22 @@ export async function buildContext(
     }
   }
 
+  // Normalise un numéro en chiffres purs, indicatif FR. Tolère espaces, points,
+  // tirets, parenthèses, "+", "0" initial, suffixe JID "@s.whatsapp.net".
+  // Indispensable : sans ça un numéro saisi "+33 6 95 98 12 83" ne matche jamais
+  // le "33695981283" reçu de WhatsApp → propriétaire vu comme numéro inconnu.
+  const normalizePhone = (raw: string | null | undefined): string | null => {
+    if (!raw) return null;
+    let d = String(raw).replace(/\D/g, "");
+    if (d.startsWith("0")) d = "33" + d.slice(1);
+    return d.length >= 6 ? d : null;
+  };
+
   // Phone → contact mapping
   const phoneToContact = new Map<string, { nom: string; lot_id: string | null; role: string }>();
   for (const c of contacts) {
-    if (c.telephone) {
-      const norm = c.telephone.replace(/^\+/, "").replace(/^0/, "33");
+    const norm = normalizePhone(c.telephone);
+    if (norm) {
       phoneToContact.set(norm, { nom: c.nom, lot_id: c.lot_id, role: c.role ?? "" });
     }
   }
@@ -108,9 +119,7 @@ export async function buildContext(
         (ownerData?.user?.user_metadata?.phone as string | undefined) ??
         ownerData?.user?.phone ??
         null;
-      if (rawPhone) {
-        ownerPhone = rawPhone.replace(/^\+/, "").replace(/^0/, "33");
-      }
+      ownerPhone = normalizePhone(rawPhone);
     } catch (err) {
       console.error("[context] owner phone fetch error:", err instanceof Error ? err.message : err);
     }
@@ -257,7 +266,7 @@ export async function buildContext(
         contact_role: "proprietaire",
       };
     }
-    const phone = String(m.from_number).replace(/^\+/, "");
+    const phone = normalizePhone(m.from_number) ?? String(m.from_number ?? "").replace(/\D/g, "");
     // Reconnaît le propriétaire quand il écrit depuis son numéro perso
     // (cas owner channel WhatsApp). Sans ça → traité comme inconnu.
     const isOwnerByPhone = ownerPhone !== null && phone === ownerPhone;
