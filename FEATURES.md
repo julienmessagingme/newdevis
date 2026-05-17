@@ -845,7 +845,17 @@ Met à jour un contact existant. *"Jean a changé de numéro, c'est 0612345678"*
 ### G. Communication
 
 #### `send_whatsapp_message(to, body)`
-Envoie un message WhatsApp à un groupe (`xxx@g.us`) ou à un contact individuel (`33XXXXXXXXX@s.whatsapp.net`). **Confirmation explicite obligatoire** : l'IA propose le texte exact, attend "ok / envoie / confirme" avant d'envoyer.
+Envoie un message dans un **groupe WhatsApp** (`xxx@g.us`) déjà connu — typiquement le canal privé owner. L'envoi à un numéro individuel est impossible (whapi le refuse) : le tool a un garde-fou qui rejette tout `to` non-`@g.us`. **Confirmation explicite obligatoire**.
+
+#### `send_whatsapp_to_contact(contact_id, body, group_jid?, create_dedicated?)` *(2026-05-17)*
+LE tool pour « écris un WhatsApp à l'artisan X ». L'IA appelle d'abord `list_artisan_whatsapp_targets` pour voir les groupes existants du contact, puis **demande à l'utilisateur quel canal** :
+- un **groupe existant** (ex: « Groupe principal » — tous les artisans voient) → `group_jid`,
+- un **groupe dédié à 3** (l'utilisateur + GérerMonChantier + l'artisan) → `create_dedicated: true` (le tool crée le groupe puis envoie dedans).
+
+**Confirmation explicite obligatoire** du texte avant l'envoi.
+
+#### `list_artisan_whatsapp_targets(contact_id)` *(2026-05-17)*
+Lecture seule — liste les groupes WhatsApp où un contact est déjà présent, pour que l'IA propose le choix du canal avant `send_whatsapp_to_contact`.
 
 #### `send_email(contact_id, subject, body)` *(vague 2)*
 Envoie un email via SendGrid à un contact existant. Beaucoup d'artisans ne sont qu'en email — préféré pour les communications formelles (relance facture, validation devis écrite). **Confirmation explicite obligatoire** comme WhatsApp.
@@ -940,20 +950,24 @@ Les tools "action" (irréversibles ou irréversibles côté tiers) sont restrein
 
 ---
 
-## 15. Surveillance automatique (digest quotidien)
+## 15. Surveillance automatique (digest quotidien) + Journal de chantier
 
 Une fois par jour à 19h Paris, l'IA agent-orchestrator passe sur tous les chantiers actifs et :
 
 - **Analyse les événements** des dernières 24h (messages WhatsApp, uploads, paiements, modifications planning)
-- **Génère un digest markdown** dans le Journal de chantier
-- **Annexe automatiquement** au digest 3 sections déterministes :
-  - ⚙️ Décisions prises aujourd'hui
-  - ⚠️ Alertes du jour
-  - ❓ Clarifications demandées
+- **Génère un récit narratif** (digest markdown) dans le Journal de chantier
 - **Envoie un message proactif** dans le chat assistant si quelque chose d'important s'est passé
-- **Pousse une alerte WhatsApp** dans le groupe principal si critique
 
-L'IA fait aussi des contrôles déterministes (pas de jetons IA consommés) à chaque upload de document : budget overrun, paiement en retard, lot sans devis, facture en litige, devis à relancer, preuve manquante. Ces alertes apparaissent dans le fil d'activité de l'Assistant et dans le Journal du jour.
+L'IA fait aussi des contrôles déterministes (pas de jetons IA consommés) à chaque upload de document : budget overrun, paiement en retard, lot sans devis, facture en litige, devis à relancer, preuve manquante. Ces alertes apparaissent dans le panneau Alertes IA de l'Assistant et dans le Journal du jour.
+
+### Le Journal de chantier — récit + timeline *(refonte 2026-05-17)*
+
+L'onglet Journal présente chaque journée en **2 blocs** :
+
+1. **Récit du jour** — le digest narratif rédigé par l'IA à 19h.
+2. **Timeline horodatée** — tous les événements de la journée, triés par heure : dépôts de documents, changements de statut (facture passée en payé, devis validé, lot terminé…), décisions prises par l'IA (planning décalé, tâche créée, message envoyé…), alertes émises. Les messages WhatsApp individuels n'y figurent **pas**.
+
+**Export PDF + Excel** : chaque journée — ou une plage de dates au choix (bouton « Période… ») — s'exporte en PDF (rapport mis en page) ou en tableur CSV (lignes date/heure/catégorie/détail). La timeline des changements de statut est précise depuis le 17/05/2026 (date de mise en place du traçage) ; avant cette date, seuls les dépôts de documents, alertes et décisions IA sont reconstitués.
 
 ---
 

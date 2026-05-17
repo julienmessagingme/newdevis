@@ -2317,7 +2317,9 @@ L'agent IA "Pilote de Chantier" : architecture temps réel + digest quotidien. E
 
 ### Mismatch detection (document ↔ lot)
 
-Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-quote/index.ts`, `extract-invoice.ts`, `describe.ts`, `[docId].ts` PATCH. Utilise `detectDevisType()` de `utils/extractProjectElements.ts`. Edge function réplique le mapping inline (Deno).
+**Documents (devis / factures)** : détection par mots-clés du contenu via `detectDevisType()` (`utils/extractProjectElements.ts`). Points : `analyze-quote/index.ts`, `extract-invoice.ts`, `describe.ts`, `[docId].ts` PATCH. Edge function réplique le mapping inline (Deno). Les **photos sont exclues** de ce contrôle (`document_type !== 'photo'`) — leur nom est souvent générique.
+
+**Photos** : edge function `photo-coherence-check` (`verify_jwt=false`) — analyse l'**image** via Gemini Vision (`gemini-2.0-flash`) et la compare au lot affecté. Incohérence → insight `risk_detected` avec `source_event.check='photo_lot_coherence'`, visible uniquement dans le panneau Alertes IA (aucun WhatsApp, aucun message conversation). Déclenchée par `wa-photo-describe` (arrivée d'une photo) et `[docId].ts` PATCH (réaffectation manuelle). Seul gestionnaire des insights `photo_lot_coherence` (dismiss puis ré-insère). Ré-analyse toujours l'image (jamais la `vision_description` stockée, qui peut être le placeholder d'échec) et la répare au passage.
 
 ### Pas de cache contexte (suppression 2026-04-23)
 
@@ -2343,7 +2345,9 @@ Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-
 | `update_lot_status` / `mark_lot_completed` | interactive | Statut lot |
 | `create_task` / `complete_task` | interactive | Checklist (priorite : urgent/important/normal) |
 | `register_expense` | interactive | `amount, label, lot_id? OR lot_name?, vendor?, depense_type?` (défaut `frais`). Si `lot_name` fourni, recherche/crée le lot. |
-| `send_whatsapp_message` | interactive | Confirmation explicite obligatoire |
+| `send_whatsapp_message` | interactive | Envoi dans un GROUPE WhatsApp (`@g.us`) déjà connu — typiquement le canal owner. Garde-fou : rejette tout `to` non-`@g.us` (whapi refuse le 1-à-1). Confirmation explicite obligatoire. |
+| `send_whatsapp_to_contact` | interactive | Écrit à un contact via un groupe : `group_jid` (groupe existant) OU `create_dedicated:true` (crée un groupe à 3 — owner + GMC + contact). LE tool pour « écris un WhatsApp à l'artisan X ». |
+| `list_artisan_whatsapp_targets` | batch + interactive | Liste les groupes WhatsApp existants où un contact est présent — appelé avant `send_whatsapp_to_contact` pour proposer le choix du canal. |
 | `log_insight` / `request_clarification` | interactive | Mémoire long-terme + clarifications |
 
 ### Optimisations coût
@@ -2371,8 +2375,9 @@ Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-
 - `agent_insights` — observations (planning_impact, budget_alert, payment_overdue, conversation_summary, risk_detected, digest, lot_status_change, needs_clarification). Sévérité info/warning/critical. Index dedup unique.
 - `agent_runs` — log des runs LLM (morning/evening). Messages analysés, insights créés, actions prises, tokens.
 - `agent_config` — configuration dual-mode par user.
-- `chantier_journal` — journal de chantier, 1 page/jour. Body markdown, alerts_count, max_severity.
-- `chantier_assistant_messages` — historique chat user/agent. `tool_calls` JSONB pour traçabilité.
+- `chantier_journal` — journal de chantier, 1 page/jour. `body` markdown = **récit narratif seul** (le pied-de-page Décisions/Alertes a été retiré 2026-05-17). alerts_count, max_severity.
+- `chantier_activity` — événements horodatés (changements de statut surtout) alimentant la **timeline** du Journal. Colonnes : `occurred_at`, `category`, `actor` (user/agent/system), `summary`, `detail`, `metadata` JSONB. Insert via helper `logChantierActivity()` (`apiHelpers.ts`, service_role). RLS SELECT owner uniquement.
+- `chantier_assistant_messages` — historique chat user/agent. `tool_calls` JSONB pour traçabilité. Lecture : toujours `order created_at descending + limit + reverse` (jamais `ascending + limit` qui coupe les messages récents).
 - ~~`agent_context_cache`~~ — table dépréciée 2026-04-23 (peut être droppée).
 
 ### Widget homepage — FAB + bulle (refacto 2026-05-10)
@@ -2429,14 +2434,23 @@ Rendu par `assistant/AssistantTriPane.tsx`. Layout 3 colonnes desktop, tabs mobi
 
 **Avant 2026-05-08 (déprécié)** : layout 2 colonnes via `AgentActivityFeed.tsx` (fichier supprimé), feed unifié décisions + insights. Le bandeau alertes du haut avait été supprimé en 2026-04-25 et tout centralisé dans le feed unique. Le refacto 2026-05-08 sépare alertes (gauche) et décisions (droite) en panneaux distincts pour clarifier la hiérarchie cognitive (problèmes à traiter vs ce qui a été fait).
 
-### Digest quotidien
+### Journal de chantier — récit + timeline (2026-05-17)
 
-19h Paris, edge function `agent-orchestrator` cron. Annexe au markdown body de `chantier_journal` 3 sections déterministes :
-- ⚙️ Décisions prises aujourd'hui (tool_calls mutateurs, formattage humain par tool)
-- ⚠️ Alertes du jour (insights severity warning/critical)
-- ❓ Clarifications demandées (insights type=needs_clarification)
+Rendu par `assistant/JournalChantierSection.tsx`. La journée est en **2 blocs distincts** :
 
-Garantit la mémoire long-terme : le panneau Assistant montre **aujourd'hui**, le journal montre **chaque jour archivé**.
+**Bloc 1 — Récit du jour** : le digest narratif rédigé par l'IA à 19h Paris (cron `agent-orchestrator`), stocké dans `chantier_journal.body`. Depuis 2026-05-17 le body ne contient QUE le récit — le pied-de-page déterministe « ⚙️ Décisions / ⚠️ Alertes / ❓ Clarifications » a été retiré (déplacé dans la timeline).
+
+**Bloc 2 — Timeline horodatée** : endpoint `GET /api/chantier/[id]/journal/timeline?from=<ISO>&to=<ISO>`. Agrège 4 sources pour la fenêtre demandée :
+- `chantier_activity` → changements de statut (catégorie `status_change`)
+- `documents_chantier.created_at` → dépôts de documents (`document`)
+- `agent_insights` → alertes émises (`alert`, types actionnables — exclut digest/conversation_summary/lot_status_change)
+- `chantier_assistant_messages.tool_calls` → décisions prises par l'IA (`decision`), **hors** tools de statut (`update_lot_status`, `update_devis_statut`, `mark_lot_completed`) déjà tracés dans `chantier_activity` → évite le doublon.
+
+Les messages WhatsApp individuels ne sont JAMAIS dans la timeline. `from`/`to` sont calculés client-side à minuit locale.
+
+**Export** : `src/lib/chantier/journalExport.ts` — PDF (jsPDF, `pdfSafe()` retire les caractères hors Latin-1) et Excel/CSV (séparateur `;` + BOM UTF-8). Export du jour affiché OU d'une plage de dates (modale).
+
+Garantit la mémoire long-terme : le panneau Assistant montre **aujourd'hui**, le Journal montre **chaque jour archivé**.
 
 ---
 
