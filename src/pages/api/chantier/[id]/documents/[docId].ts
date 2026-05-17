@@ -231,12 +231,15 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   }
 
   // ── Auto-dismiss old "Affectation douteuse" alerts when lot is reassigned ──
+  // Exclut les insights `photo_lot_coherence` : photo-coherence-check en est le
+  // seul gestionnaire (il dismiss puis ré-insère lui-même au bon moment).
   if ('lot_id' in updates) {
     ctx.supabase.from('agent_insights')
       .update({ read_by_user: true })
       .eq('chantier_id', params.id!)
       .eq('type', 'risk_detected')
       .like('source_event->>document_id', params.docId!)
+      .neq('source_event->>check', 'photo_lot_coherence')
       .then(() => {}).catch(() => {});
   }
 
@@ -294,6 +297,16 @@ export const PATCH: APIRoute = async ({ params, request }) => {
       method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ chantier_id: params.id, run_type: 'morning' }),
     }).catch(() => {});
+
+    // Photo réaffectée à un lot → contrôle de cohérence photo ↔ lot. Crée une
+    // alerte silencieuse dans le panneau Alertes IA si le contenu de la photo
+    // ne correspond pas au lot. Aucun WhatsApp, aucun message conversation.
+    if ('lot_id' in updates && updates.lot_id && updated.document_type === 'photo') {
+      fetch(`${_sbUrl}/functions/v1/photo-coherence-check`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chantier_id: params.id, doc_id: params.docId }),
+      }).catch(() => {});
+    }
   }
 
   return jsonOk({ document: updated });

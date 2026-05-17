@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.analysis-maintenance]
 verify_jwt = false
+
+[functions.photo-coherence-check]
+verify_jwt = false

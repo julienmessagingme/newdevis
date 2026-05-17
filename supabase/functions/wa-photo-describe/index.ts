@@ -14,7 +14,6 @@ const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const geminiKey  = Deno.env.get("GOOGLE_AI_API_KEY") ?? "";
-const whapiToken = Deno.env.get("WHAPI_TOKEN") ?? "";
 
 interface PhotoDescribePayload {
   chantier_id: string;
@@ -179,11 +178,14 @@ RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un de
     return new Response(JSON.stringify({ ok: false, error: updateErr.message }), { status: 500 });
   }
 
-  // Si Vision détecte que le caption ne correspond pas au contenu de la photo :
-  //   1. Crée un insight needs_clarification (Activité IA + agent orchestrator).
-  //   2. Envoie un message proactif dans le canal owner WhatsApp ("t'es sûr ?")
-  //      pour que le user puisse confirmer/corriger sans attendre le digest.
-  if (captionMismatch && captionMismatch.trim().length > 0) {
+  // Contrôle de cohérence photo ↔ lot — alerte SILENCIEUSE : le seul canal de
+  // sortie est le panneau Alertes IA (pas de WhatsApp, pas de message dans la
+  // conversation de l'assistant).
+  const hasCaptionMismatch = !!(captionMismatch && captionMismatch.trim().length > 0);
+
+  // Cas 1 — le texte joint (caption) affirme un type de travaux qui contredit
+  // visiblement la photo → insight needs_clarification.
+  if (hasCaptionMismatch) {
     const { data: chantierRow } = await supabase
       .from("chantiers").select("user_id").eq("id", chantier_id).single();
     if (chantierRow?.user_id) {
@@ -192,40 +194,23 @@ RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un de
         user_id:  chantierRow.user_id,
         type:     "needs_clarification",
         severity: "warning",
-        title:    `Photo : caption ne correspond pas au contenu`,
+        title:    `Photo : le texte joint ne correspond pas au contenu`,
         body:     `Caption envoyé : "${(caption ?? "").trim()}". Analyse Vision : ${description}. Anomalie : ${captionMismatch}`,
         source_event: { check: "caption_vs_vision_mismatch", document_id: doc_id, caption: caption ?? null },
       });
     }
+  }
 
-    // Notif proactive owner channel
-    if (whapiToken) {
-      const { data: ownerGroup } = await supabase
-        .from("chantier_whatsapp_groups")
-        .select("group_jid")
-        .eq("chantier_id", chantier_id)
-        .eq("is_owner_channel", true)
-        .maybeSingle();
-      if (ownerGroup?.group_jid) {
-        const captionShort = (caption ?? "").trim().slice(0, 80);
-        const lotPart = confirmedLotNom ? ` (j'ai classé sur le lot "${confirmedLotNom}")` : "";
-        const askText =
-          `📸 Photo reçue avec le caption « ${captionShort} »${lotPart}, mais ce que je vois ne colle pas : ${captionMismatch}\n\n` +
-          `Tu confirmes que c'est bien le bon lot, ou je dois la déplacer ailleurs ?`;
-        try {
-          await fetch("https://gate.whapi.cloud/messages/text", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${whapiToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ to: ownerGroup.group_jid, body: askText }),
-          });
-        } catch (err) {
-          console.error("[wa-photo-describe] owner channel send error:", err instanceof Error ? err.message : err);
-        }
-      }
-    }
+  // Cas 2 — Vision n'a pas confirmé de lot : le document garde le lot déduit du
+  // numéro de l'expéditeur, potentiellement faux. On délègue le contrôle de
+  // cohérence photo ↔ lot à photo-coherence-check (insight si incohérent).
+  // Inutile si un caption mismatch est déjà signalé ci-dessus.
+  if (!confirmedLotNom && lot_hint_nom && !hasCaptionMismatch) {
+    await fetch(`${supabaseUrl}/functions/v1/photo-coherence-check`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ chantier_id, doc_id }),
+    }).catch(() => {});
   }
 
   return new Response(JSON.stringify({
