@@ -53,6 +53,11 @@ export const GET: APIRoute = async ({ request }) => {
       cooldown_until: {},
     }));
 
+    // Le dashboard ne montre que les carrousels V3 (macro_format renseigné).
+    // Les ~100 anciens templates pré-V3 restent en base mais sont masqués
+    // de la liste — ils ne sont ni rendus ni utilisés par le pipeline actuel.
+    templates = templates.filter((t) => t.macro_format !== null);
+
     if (product) templates = templates.filter((t) => t.product === product);
     if (narrativeType) templates = templates.filter((t) => t.narrative_type === narrativeType);
     if (mood) templates = templates.filter((t) => t.mood === mood);
