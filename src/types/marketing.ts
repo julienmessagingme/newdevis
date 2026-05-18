@@ -270,6 +270,11 @@ export interface SlideData {
   /** Décor explicite posé via l'éditeur canvas. Absent/null = décor auto ;
    *  tableau (même []) = override total. */
   decor_elements?: DecorElement[] | null;
+  /** Écran de l'appli affiché par le template screenshot_showcase (nom de
+   *  fichier, ex: comparateur_devis.png). null/absent = pas d'écran. */
+  product_screen?: string | null;
+  /** Surtitre court (eyebrow) — utilisé par screenshot_showcase. */
+  caption?: string;
   stat_value?: string;
   step_number?: number;
   author?: string;

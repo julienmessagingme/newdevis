@@ -32,6 +32,12 @@ interface DecorAsset {
   url: string;
 }
 
+interface ScreenAsset {
+  file: string;
+  label: string;
+  url: string;
+}
+
 /** URL du PNG réel d'une slide (preview_urls B2), 1er ratio dispo. */
 function slidePngUrl(
   previewUrls: TemplateDetail["preview_urls"] | undefined,
@@ -178,6 +184,7 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
   // (B2 ne renvoie pas de CORS, un fetch direct depuis le navigateur échoue).
   const [bgPhotos, setBgPhotos] = useState<BgPhoto[]>([]);
   const [decorAssets, setDecorAssets] = useState<DecorAsset[]>([]);
+  const [screenAssets, setScreenAssets] = useState<ScreenAsset[]>([]);
   useEffect(() => {
     if (!authToken) return;
     let cancelled = false;
@@ -189,10 +196,24 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
         if (cancelled || !d) return;
         setBgPhotos((d.photos ?? []) as BgPhoto[]);
         setDecorAssets((d.decor ?? []) as DecorAsset[]);
+        setScreenAssets((d.screens ?? []) as ScreenAsset[]);
       })
       .catch(() => { /* galeries indisponibles — non bloquant */ });
     return () => { cancelled = true; };
   }, [authToken]);
+
+  // Choix d'un écran de l'appli pour une slide. Sélectionner un écran bascule
+  // la slide sur le template screenshot_showcase ; le retirer la repasse en
+  // texte_creme (slide texte classique).
+  const updateSlideScreen = (key: string, file: string | undefined) => {
+    if (!draft) return;
+    const base = draft.slides[key];
+    const updated: SlideData = file
+      ? { ...base, product_screen: file, template: "screenshot_showcase" }
+      : { ...base, product_screen: null, template: "texte_creme" };
+    setDraft({ ...draft, slides: { ...draft.slides, [key]: updated } });
+    schedulePreview(key, updated);
+  };
 
   // Slide dont l'éditeur de décor est ouvert.
   const [decorEditFor, setDecorEditFor] = useState<string | null>(null);
@@ -447,6 +468,11 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
                               updateSlide(key, { ...slide, bg_photo: file ?? null })
                             }
                           />
+                          <SlideScreenPicker
+                            current={slide.product_screen}
+                            screens={screenAssets}
+                            onPick={(file) => updateSlideScreen(key, file)}
+                          />
                           {/* Décor — éditeur canvas */}
                           <div className="space-y-2 border-t pt-3">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -682,6 +708,71 @@ function SlidePhotoPicker({
               {/* hero = plein cadre / bg = fond flouté en layout split */}
               <span className="absolute bottom-0 inset-x-0 bg-black/55 text-white text-[8px] text-center leading-tight">
                 {p.kind}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Galerie d'écrans de l'appli — choisir un écran bascule la slide sur le
+ *  template screenshot_showcase ; « aucun » la repasse en slide texte. */
+function SlideScreenPicker({
+  current,
+  screens,
+  onPick,
+}: {
+  current: string | null | undefined;
+  screens: ScreenAsset[];
+  onPick: (file: string | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (screens.length === 0) return null;
+  const currentLabel = current
+    ? (screens.find((s) => s.file === current)?.label ?? current)
+    : "aucun";
+
+  return (
+    <div className="space-y-2 border-t pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-sm font-medium flex items-center gap-1.5 text-primary hover:underline"
+      >
+        <ImageIcon className="h-3.5 w-3.5" />
+        Écran de l'appli — <span className="font-mono text-xs">{currentLabel}</span>
+      </button>
+      {open && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-72 overflow-y-auto p-1.5 border rounded-md bg-background">
+          <button
+            type="button"
+            onClick={() => { onPick(undefined); setOpen(false); }}
+            className={`aspect-video rounded border text-[10px] text-muted-foreground flex items-center justify-center ${
+              !current ? "ring-2 ring-primary" : ""
+            }`}
+          >
+            aucun écran
+          </button>
+          {screens.map((s) => (
+            <button
+              key={s.file}
+              type="button"
+              title={s.label}
+              onClick={() => { onPick(s.file); setOpen(false); }}
+              className={`relative aspect-video rounded border overflow-hidden ${
+                current === s.file ? "ring-2 ring-primary" : ""
+              }`}
+            >
+              <img
+                src={proxyImg(s.url)}
+                alt={s.label}
+                className="w-full h-full object-cover object-top"
+                loading="lazy"
+              />
+              <span className="absolute bottom-0 inset-x-0 bg-black/55 text-white text-[8px] text-center leading-tight py-0.5">
+                {s.label}
               </span>
             </button>
           ))}

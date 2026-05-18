@@ -22,17 +22,19 @@ async function fetchManifest(path: string, key: string): Promise<unknown[]> {
 
 /**
  * GET /api/admin/marketing/assets
- * Renvoie { photos: [...], decor: [...] } pour les galeries de l'éditeur.
+ * Renvoie { photos: [...], decor: [...], screens: [...] } pour les galeries de
+ * l'éditeur (photos de fond, décor, écrans de l'appli).
  */
 export const GET: APIRoute = async ({ request }) => {
   const ctx = await requireAdmin(request);
   if (ctx instanceof Response) return ctx;
 
-  const [photos, decor] = await Promise.all([
+  const [photos, decor, screens] = await Promise.all([
     fetchManifest('photos/manifest.json', 'photos'),
     fetchManifest('decor/manifest.json', 'decor'),
+    fetchManifest('screens/manifest.json', 'screens'),
   ]);
-  return jsonOk({ photos, decor });
+  return jsonOk({ photos, decor, screens });
 };
 
 export const OPTIONS: APIRoute = () => optionsResponse('GET,OPTIONS');
