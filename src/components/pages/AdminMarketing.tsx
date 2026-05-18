@@ -10,7 +10,6 @@ import PostFilters, {
 } from "@/components/admin/marketing/PostFilters";
 import PostList from "@/components/admin/marketing/PostList";
 import PostDetailDialog from "@/components/admin/marketing/PostDetailDialog";
-import GenerateButton from "@/components/admin/marketing/GenerateButton";
 import type {
   MarketingPostListItem,
   MarketingStatus,
@@ -164,7 +163,6 @@ export default function AdminMarketing() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <GenerateButton authToken={authToken} onGenerated={handleRefreshAll} />
             <a href="/admin/marketing/templates">
               <Button variant="outline" size="sm">
                 <LayoutList className="h-4 w-4 mr-2" />

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Loader2, Download, Check } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
+import JSZip from "jszip";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,91 +10,84 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { proxyImg } from "@/lib/marketing/proxyImg";
-import type { GenerateResponse } from "@/types/marketing";
+import type { TemplateListItem } from "@/types/marketing";
+
+/**
+ * Dialogue de TÉLÉCHARGEMENT d'un carrousel pour publication.
+ *
+ * Les 101 carrousels sont déjà rendus (2637 PNG sur B2, indexés dans
+ * `preview_urls`). Publier = télécharger les PNG du format voulu. Ce dialogue
+ * zippe les PNG côté navigateur (via le proxy CDN, sans taper B2 en direct) et
+ * déclenche le download. Julien dézippe et poste manuellement.
+ *
+ * (L'ancien flux "Générer" appelait l'API CrewAI FastAPI — non déployée en
+ * prod, Phase E — d'où l'erreur 5xx. On ne dépend plus de ce service.)
+ */
 
 interface GenerateDialogProps {
   open: boolean;
-  scriptId?: string | null;
-  scriptTitle?: string;
-  cooldownUntil?: Record<string, string | null>;
-  authToken: string | null;
+  template: TemplateListItem | null;
   onClose: () => void;
-  onGenerated: () => void;
 }
 
-type Stage = "platform" | "generating" | "preview";
+const PLATFORM_LABELS: Record<string, string> = {
+  instagram: "Instagram (4:5)",
+  facebook: "Facebook (1:1)",
+  tiktok: "TikTok (9:16)",
+};
 
-export default function GenerateDialog({
-  open,
-  scriptId,
-  scriptTitle,
-  cooldownUntil,
-  authToken,
-  onClose,
-  onGenerated,
-}: GenerateDialogProps) {
-  const [stage, setStage] = useState<Stage>("platform");
+/** Tri naturel des clés slide_N. */
+const slideNum = (k: string) => parseInt(k.replace(/\D/g, ""), 10) || 0;
+
+export default function GenerateDialog({ open, template, onClose }: GenerateDialogProps) {
   const [platform, setPlatform] = useState<string | null>(null);
-  const [result, setResult] = useState<GenerateResponse | null>(null);
   const [downloading, setDownloading] = useState(false);
 
-  const platforms = [
-    { key: "instagram", label: "Instagram (1080×1350)" },
-    { key: "facebook", label: "Facebook (1080×1080)" },
-    { key: "tiktok", label: "TikTok (1080×1920)" },
-  ];
+  // Plateformes réellement disponibles = celles qui ont des PNG rendus.
+  const previewUrls = template?.preview_urls ?? null;
+  const availablePlatforms = previewUrls
+    ? (["instagram", "facebook", "tiktok"] as const).filter(
+        (p) => previewUrls[p] && Object.keys(previewUrls[p]!).length > 0,
+      )
+    : [];
 
-  const availablePlatforms = platforms.filter((p) => {
-    if (!cooldownUntil) return true;
-    const cd = cooldownUntil[p.key];
-    return !cd || new Date(cd) < new Date();
-  });
-
-  const handleGenerate = async () => {
-    if (!platform || !authToken) return;
-    setStage("generating");
-    try {
-      const res = await fetch("/api/admin/marketing/generate", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          platform,
-          ...(scriptId ? { script_id: scriptId } : {}),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? data?.detail ?? `HTTP ${res.status}`);
-      setResult(data as GenerateResponse);
-      setStage("preview");
-      toast.success("Carousel généré !");
-      onGenerated();
-    } catch (err) {
-      toast.error("Échec de la génération", {
-        description: err instanceof Error ? err.message : "Erreur inconnue",
-      });
-      setStage("platform");
-    }
+  const handleClose = () => {
+    setPlatform(null);
+    setDownloading(false);
+    onClose();
   };
 
   const handleDownload = async () => {
-    if (!result || !authToken) return;
+    if (!template || !platform || !previewUrls) return;
+    const slides = previewUrls[platform as "instagram" | "facebook" | "tiktok"];
+    if (!slides || Object.keys(slides).length === 0) {
+      toast.error("Aucune image pour cette plateforme");
+      return;
+    }
     setDownloading(true);
     try {
-      const res = await fetch(`/api/admin/marketing/posts/${result.post_id}/zip`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const zip = new JSZip();
+      // Tri par numéro de slide → noms de fichier zero-paddés pour garder
+      // l'ordre dans l'explorateur de fichiers.
+      const ordered = Object.entries(slides).sort(
+        ([a], [b]) => slideNum(a) - slideNum(b),
+      );
+      let idx = 0;
+      for (const [, url] of ordered) {
+        idx++;
+        // Via le proxy CDN : pas d'appel B2 direct (quota préservé).
+        const res = await fetch(proxyImg(url));
+        if (!res.ok) throw new Error(`Image ${idx} indisponible (HTTP ${res.status})`);
+        zip.file(`${String(idx).padStart(2, "0")}.png`, await res.blob());
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `carousel_${result.script_id}_${platform}.zip`;
+      a.href = href;
+      a.download = `carrousel_${template.id}_${platform}.zip`;
       a.click();
-      URL.revokeObjectURL(url);
-      toast.success("ZIP téléchargé");
+      URL.revokeObjectURL(href);
+      toast.success(`ZIP téléchargé — ${ordered.length} slides`);
     } catch (err) {
       toast.error("Échec du téléchargement", {
         description: err instanceof Error ? err.message : "Erreur",
@@ -103,101 +97,66 @@ export default function GenerateDialog({
     }
   };
 
-  const handleClose = () => {
-    setStage("platform");
-    setPlatform(null);
-    setResult(null);
-    onClose();
-  };
-
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {scriptId
-              ? `Générer — ${scriptTitle ?? scriptId}`
-              : "Générer le prochain carousel"}
+            Télécharger pour publier — {template?.title ?? template?.id}
           </DialogTitle>
         </DialogHeader>
 
-        {stage === "platform" && (
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              {scriptId
-                ? "Choisis la plateforme pour ce script :"
-                : "Le système va piocher le meilleur script disponible. Choisis la plateforme :"}
+        <div className="space-y-4 py-2">
+          {availablePlatforms.length === 0 ? (
+            <p className="text-sm text-amber-600">
+              Ce carrousel n'a pas encore d'aperçu rendu. Ouvre-le (œil),
+              sauvegarde-le, et attends la régénération avant de le télécharger.
             </p>
-            <div className="flex gap-3">
-              {availablePlatforms.map((p) => (
-                <Button
-                  key={p.key}
-                  variant={platform === p.key ? "default" : "outline"}
-                  onClick={() => setPlatform(p.key)}
-                  className="flex-1"
-                >
-                  {p.label}
-                </Button>
-              ))}
-            </div>
-            {availablePlatforms.length === 0 && (
-              <p className="text-sm text-amber-600">
-                Toutes les plateformes sont en cooldown pour ce script.
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Choisis le format, télécharge le ZIP des slides (PNG), dézippe-le
+                et poste les images manuellement sur le réseau.
               </p>
-            )}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={handleClose}>
-                Annuler
-              </Button>
-              <Button onClick={handleGenerate} disabled={!platform}>
-                <Check className="h-4 w-4 mr-2" />
-                Générer
-              </Button>
-            </div>
-          </div>
-        )}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Format</label>
+                <div className="flex flex-wrap gap-2">
+                  {availablePlatforms.map((p) => {
+                    const count = Object.keys(previewUrls![p]!).length;
+                    return (
+                      <Button
+                        key={p}
+                        variant={platform === p ? "default" : "outline"}
+                        onClick={() => setPlatform(p)}
+                        className="flex-1 min-w-[140px] flex-col h-auto py-2"
+                      >
+                        <span>{PLATFORM_LABELS[p]}</span>
+                        <span className="text-[10px] opacity-70">{count} slides</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
 
-        {stage === "generating" && (
-          <div className="flex flex-col items-center gap-4 py-12">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">
-              Génération en cours (render Playwright + upload B2)…
-            </p>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button variant="ghost" onClick={handleClose}>
+              Fermer
+            </Button>
+            <Button
+              onClick={handleDownload}
+              disabled={!platform || downloading || availablePlatforms.length === 0}
+            >
+              {downloading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Télécharger le ZIP
+            </Button>
           </div>
-        )}
-
-        {stage === "preview" && result && (
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              Script <span className="font-mono font-medium">{result.script_id}</span> ·{" "}
-              {result.slides.length} slides
-            </p>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {result.slides.map((s) => (
-                <img
-                  key={s.index}
-                  src={proxyImg(s.url)}
-                  alt={`Slide ${s.index}`}
-                  referrerPolicy="no-referrer"
-                  className="h-48 rounded-lg border shadow-sm shrink-0"
-                />
-              ))}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={handleClose}>
-                Fermer
-              </Button>
-              <Button onClick={handleDownload} disabled={downloading}>
-                {downloading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4 mr-2" />
-                )}
-                Télécharger ZIP
-              </Button>
-            </div>
-          </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   );

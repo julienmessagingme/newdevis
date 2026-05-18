@@ -1,4 +1,4 @@
-import { Loader2, Play, Ban, Eye } from "lucide-react";
+import { Loader2, Download, Ban, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   NARRATIVE_LABELS,
@@ -163,10 +163,9 @@ export default function TemplateTable({
                       variant="ghost"
                       size="sm"
                       onClick={() => onGenerate(t)}
-                      disabled={inCooldown || !t.is_active}
-                      title={inCooldown ? "En cooldown" : "Générer ce script"}
+                      title="Télécharger pour publier (ZIP des PNG)"
                     >
-                      <Play className="h-3.5 w-3.5" />
+                      <Download className="h-3.5 w-3.5 text-emerald-600" />
                     </Button>
                     <Button
                       variant="ghost"

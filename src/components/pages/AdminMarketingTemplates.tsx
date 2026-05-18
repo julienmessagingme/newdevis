@@ -168,12 +168,8 @@ export default function AdminMarketingTemplates() {
 
       <GenerateDialog
         open={!!generateTarget}
-        scriptId={generateTarget?.id}
-        scriptTitle={generateTarget?.title}
-        cooldownUntil={generateTarget?.cooldown_until}
-        authToken={authToken}
+        template={generateTarget}
         onClose={() => setGenerateTarget(null)}
-        onGenerated={fetchTemplates}
       />
     </div>
   );
