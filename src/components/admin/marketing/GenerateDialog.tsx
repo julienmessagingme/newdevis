@@ -40,6 +40,7 @@ export default function GenerateDialog({
   const platforms = [
     { key: "instagram", label: "Instagram (1080×1350)" },
     { key: "facebook", label: "Facebook (1080×1080)" },
+    { key: "tiktok", label: "TikTok (1080×1920)" },
   ];
 
   const availablePlatforms = platforms.filter((p) => {
