@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/api/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent, logChantierActivity } from '@/lib/api/apiHelpers';
 import { estimateMissingPlanningData, computePlanningDates, type DependencyMap } from '@/lib/chantier/planningUtils';
 
 type LotRow = {
@@ -376,6 +376,39 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       .eq('chantier_id', chantierId);
   } catch (e) {
     console.warn('[planning PATCH] cache invalidation failed:', e instanceof Error ? e.message : String(e));
+  }
+
+  // 7. Journal — trace les VRAIS changements de planning dans la timeline.
+  //    But : un décalage MANUEL dans le Gantt (drag/resize/dépendances) était
+  //    invisible dans le Journal (les actions agent y sont déjà via tool_calls).
+  //    On NE loggue PAS le recompact pur (PATCH vide) — uniquement un vrai diff.
+  {
+    const dateDebutChanged = typeof body.dateDebutChantier === 'string';
+    const dateFinChanged = typeof body.dateFinSouhaitee === 'string';
+    if (structuralLotChange || anyDepsChanged || dateDebutChanged || dateFinChanged) {
+      const touchedIds = new Set<string>([
+        ...lotUpdates.filter(l => typeof l.id === 'string').map(l => l.id as string),
+        ...(depsInput ? Object.keys(depsInput) : []),
+      ]);
+      const names = (finalLots ?? [])
+        .filter((l: LotRow) => touchedIds.has(l.id))
+        .map((l: LotRow) => l.nom)
+        .filter((n): n is string => typeof n === 'string' && n.length > 0);
+      const parts: string[] = [];
+      if (structuralLotChange || anyDepsChanged) {
+        if (names.length === 0) parts.push('recalcul des dates');
+        else if (names.length <= 4) parts.push(`lot(s) : ${names.join(', ')}`);
+        else parts.push(`${names.length} lots ajustés`);
+      }
+      if (dateDebutChanged) parts.push('date de début');
+      if (dateFinChanged) parts.push('objectif de livraison');
+      await logChantierActivity(chantierId, {
+        category: 'status_change',
+        actor: ctx.isAgent ? 'agent' : 'user',
+        summary: `Planning modifié — ${parts.join(' · ')}`,
+        metadata: { source: 'planning_patch' },
+      });
+    }
   }
 
   const finSouhaitee = typeof body.dateFinSouhaitee === 'string'
