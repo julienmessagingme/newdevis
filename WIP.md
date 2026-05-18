@@ -11,6 +11,56 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🟢 Session 2026-05-18 — Crédibilité verdict + cohérence financière + UX planning
+
+**Livré dans cette session (8 commits, push direct main)**. À tester E2E par Julien.
+
+### V3.4.15 — 3 bugs structurels crédibilité verdict d'analyse (commit `6080d7d`)
+
+Bug user devis-2026-05-DEV16 : verdict VERT alors que 4 postes marqués "🔴 Anomalie marché" + phrase "Si < 8 m² / > 12 m²" arbitraire + Note Google 3.3/5 listée comme "🟢 point conforme".
+
+- **Bug 1** : nouveau type `ItemClassification = "surface_mismatch"` partagé front+back via `src/lib/analyse/surfaceUtils.ts`. Front affiche badge jaune "🟡 Surface à vérifier" au lieu de rouge "🔴 Anomalie marché" quand l'unité est forfait/u sur prestation surfacique sans surface précisée. Back : escalade auto verdict `signer → a_negocier` si ≥2 postes "suspects" (surface mismatch + ratio prix > 3× marché max). Compteur `nbSurfaceMismatch` exposé par `analyzeQuoteGlobal`.
+- **Bug 2** : retrait de la phrase "Si < 8 m² le prix est élevé ; si > 12 m² le prix est cohérent" dans `conclusion.ts:1278`. Wording action conservé sans seuils hardcodés.
+- **Bug 3** : Note Google < 4.0 push dans `alertes` (orange) au lieu de `points_ok` (vert) dans `render.ts:150`.
+- `ENGINE_VERSION 3.4.14 → 3.4.15` — cache `conclusion_ia` invalidé pour régénération auto.
+
+### Feedback triggers refonte (commit `f1ffcfc`)
+
+- **Trigger auto scroll bottom** (seuil 90%) ajouté dans `useFeedback` — le user a parcouru toute l'analyse → moment légitime.
+- **2 sources Trustpilot supprimées** dans `AnalysisResult.tsx` (modal 5s auto + bandeau in-body "Votre analyse est prête 🎉"). Trustpilot uniquement dans `FeedbackModal` step "done" conditionné `choice === "positive"`.
+- Tracking Amplitude : `feedback_open` enrichi avec attribut `trigger="scroll_bottom" | "manual_copy"`.
+
+### Bulle Planning — 3 états cohérence date (commit `f5f45ba`)
+
+Bug user : "Livraison estimée 27 avril" affichée le 18 mai (date dépassée = mensonge), mais on ne veut PAS d'alerte "en retard de X jours" anxiogène.
+
+- État `completed` (tous lots terminés ou facturés payés) → "Livré le [date]" + chip vert + CTA confirmer réception
+- État `overdue` (≥1 lot non terminé + endDate < today) → "Date initialement prévue" + chip ambre + CTA mettre à jour
+- État `nominal` → comportement actuel inchangé
+- **AUCUNE alerte récurrente** créée. Détection automatique via `useMemo` sur `lots + docs + planning`.
+
+### Fix planning : updateEndDate + refresh accueil (commit `4c6d19a`)
+
+Bug user : modification date de fin → écrasement de la date de début (`04/06/2026` au lieu de `31/03/2026` actuelle) + accueil ne refresh pas.
+
+- `usePlanning.updateEndDate` : si chantier déjà démarré (`startDate < today`) → garde la date de début réelle, persiste UNIQUEMENT `dateFinSouhaitee` comme objectif.
+- Event custom `chantierPlanningChanged` dispatché par `usePlanning.patchPlanning()` + écouté par `DashboardHome` → refresh automatique de la bulle Planning.
+
+### V3.4.16 — 4 bugs cohérence KPIs Budget (commit `51d84e4`)
+
+Bug user chantier "Portail/Clôture/Terrasse" :
+
+1. Versement solde devis Malet (sans facture) affichait "Acompte" au lieu de "Soldé/Payée" → ajout branche `payStatut='paid'` quand `facture===0 && totalPaye >= devis_valides`
+2. Décaissé 61075€ vs budget 55k€ (+11%) sans alerte → flag `overBudget = decaisse > effectiveReel × 1.05` → donut rouge + sub-label "⚠️ Dépassement de +X € (Y%)"
+3. Wording "X paiements en retard — 0 € à régulariser" contradictoire → split en 2 cas selon `lateTotal === 0` (alerte info ambre "à confirmer") vs `> 0` (alerte rouge "à régulariser")
+4. **(le plus grave)** MURO 2352€ restant invisible → ajout `totaux.a_venir` calculé PAR ARTISAN au niveau backend dans `budget.ts:584` (somme `bucket.artisans[].totaux.a_payer` pour les artisans sans facture). Front `BudgetTab.tsx:435` lit `totaux.a_venir` avec fallback compat caches.
+
+### SEO meta — 3 pages à fort impressions / 0 clic (commit `43528f4` du 17/05)
+
+Rewrite titles/descriptions pour `/verifier-devis-travaux` (10440 imp / 0 clic), `/choisir-artisan-travaux` (2494 imp / 0 clic), `/analyser-devis-travaux` (CTR 1.3%). Pattern : verbe d'action en tête, chiffres concrets, gratuité explicite. À surveiller GSC J+7 et J+14.
+
+---
+
 ## 🟢 Refonte accueil cockpit chantier — design GMC navy/crème (2026-05-16/17)
 
 Implémentation du design `11_cockpit_chantier_refonte.html` (bundle Claude Design) sur la page d'accueil du cockpit (`/mon-chantier/[id]` → `ChantierCockpit` + `DashboardHome`). **Livré en prod et itéré en live avec Julien.**
