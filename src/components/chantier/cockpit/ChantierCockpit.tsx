@@ -640,8 +640,6 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
     );
   }
 
-  const isHome = activeSection === 'budget' && !showBudgetDetail;
-
   return (
     <div className="gmc-cockpit flex h-screen overflow-hidden">
 
@@ -660,30 +658,21 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
       {/* ── Contenu principal ──────────────────────────────────────────────── */}
       <div className="cr-main flex-1 flex flex-col overflow-hidden">
-        {/* ── Header minimal : nom chantier + menu mobile ───────────────────
-            Sur desktop (lg+), l'accueil affiche son propre header projet
-            (refonte cockpit) → on masque ce header. Les autres sections le
-            gardent pour le contexte. Sur mobile il reste toujours visible. */}
-        <header className={`bg-white border-b border-gray-100 px-5 py-3 shrink-0 ${isHome ? 'lg:hidden' : ''}`}>
-          <div className="flex items-center gap-3">
-            {/* Hamburger conservé uniquement sur tablette (lg- ≤ width < lg) au cas où
-                le user a un viewport entre 768 et 1024px où le BottomNav est encore
-                visible mais où une sidebar latérale aurait du sens. Sur mobile pur
-                (< 768) on retire complètement. */}
+        {/* ── Header chantier — commun à TOUS les onglets (titre du chantier) ── */}
+        <div className="cr-project-header shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Hamburger — tablette uniquement (768-1024px), ouvre la sidebar */}
             <button onClick={() => setMobileOpen(v => !v)}
               aria-label="Ouvrir le menu"
-              className="hidden md:flex lg:hidden w-11 h-11 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 shrink-0 touch-manipulation">
+              className="hidden md:flex lg:hidden w-10 h-10 items-center justify-center rounded-lg text-gray-500 hover:bg-black/5 shrink-0 touch-manipulation">
               <Menu className="h-5 w-5" />
             </button>
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center text-lg shrink-0">
-              {result.emoji ?? '🏗️'}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Mon chantier</p>
-              <h1 className="font-bold text-gray-900 text-sm leading-tight truncate">{result.nom}</h1>
-            </div>
+            <h1 className="cr-ph-title">
+              <span className="emoji">{result.emoji ?? '🏠'}</span>
+              {result.nom}
+            </h1>
           </div>
-        </header>
+        </div>
 
         {/* pb-32 : zone tampon en bas pour que le FAB Assistant (fixed bottom-24)
             n'intercepte plus les clics sur les éléments en bas de page (accordéons,

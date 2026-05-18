@@ -303,7 +303,7 @@ function PlanningBubble({
 function DashboardHome({
   lots, documents, docsByLot, displayMin, displayMax, budgetReel, refinedBreakdown, onAffineBudget,
   onGoToLot, onAddDoc, onGoToAssistant, onGoToTresorerie, onGoToDocuments, onGoToPlanning,
-  onAddIntervenant, chantierId, token, urgentActions, chantierNom, chantierEmoji, budget,
+  onAddIntervenant, chantierId, token, urgentActions, budget,
 }: {
   chantierNom: string;
   chantierEmoji?: string | null;
@@ -567,15 +567,7 @@ function DashboardHome({
 
   return (
     <>
-      {/* ── Header projet ─────────────────────────────────────────────────── */}
-      <div className="cr-project-header">
-        <div className="cr-ph-left">
-          <h1 className="cr-ph-title">
-            <span className="emoji">{chantierEmoji ?? lots[0]?.emoji ?? '🏠'}</span>
-            {chantierNom || 'Mon chantier'}
-          </h1>
-        </div>
-      </div>
+      {/* Header chantier rendu par ChantierCockpit (commun à tous les onglets). */}
 
       {/* ── Stepper de démarrage ──────────────────────────────────────────── */}
       {!setupDone && (
