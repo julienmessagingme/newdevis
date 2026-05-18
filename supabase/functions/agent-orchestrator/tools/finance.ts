@@ -254,6 +254,32 @@ export const handlers: Record<string, Handler> = {
 
     // 4. Match unique : applique la règle selon le montant.
     const facture = candidates[0];
+
+    // Anti-race read-modify-write : on re-lit les valeurs FRAÎCHES juste avant
+    // le calcul + write. Le matching ci-dessus fait plusieurs allers-retours DB ;
+    // un autre run a pu créditer un paiement entre-temps. Ce re-fetch ramène la
+    // fenêtre de course à ~quelques µs (re-lecture → PATCH). Ce n'est pas une
+    // garantie atomique stricte (il en faudrait une RPC), mais ça couvre le cas
+    // réel : 2 déclarations quasi simultanées sur la même facture.
+    const { data: fresh } = await sb
+      .from("documents_chantier")
+      .select("montant, montant_paye, facture_statut")
+      .eq("id", facture.id)
+      .single();
+    if (fresh) {
+      facture.montant = fresh.montant;
+      facture.montant_paye = fresh.montant_paye;
+      facture.facture_statut = fresh.facture_statut;
+      // Soldée entre-temps → on s'arrête proprement plutôt que de re-créditer.
+      if (fresh.facture_statut === "payee") {
+        return JSON.stringify({
+          ok: false, reason: "already_paid",
+          message: `La facture "${facture.nom}" a été soldée entre-temps (peut-être un autre enregistrement). Vérifie son statut avant de réenregistrer un paiement.`,
+          facture: compactFacture(facture),
+        });
+      }
+    }
+
     const restant = montantRestant(facture);
 
     // Cas E — trop-perçu : on rejette seulement si vrai dépassement (>10€ OU >1% du restant,
