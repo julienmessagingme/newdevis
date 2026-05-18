@@ -63,9 +63,14 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   try {
     const sb = createServiceClient();
+    // p_updates DOIT être passé en OBJET, pas en chaîne JSON.stringify : le
+    // paramètre RPC est typé `json`. PostgREST, recevant une string, la passe
+    // comme scalaire json string → `p_updates->'slides'` renvoie NULL →
+    // COALESCE garde l'ancienne valeur → la sauvegarde renvoie 200 mais ne
+    // persiste RIEN (bug "mes modifs ne sont pas prises en compte").
     const { data, error } = await sb.rpc('update_marketing_template', {
       p_id: id,
-      p_updates: JSON.stringify(updates),
+      p_updates: updates,
     });
 
     if (error) {
