@@ -75,7 +75,7 @@ export const ACTION_SCHEMAS: Tool[] = [
     type: "function",
     function: {
       name: "send_whatsapp_message",
-      description: "Envoie un message dans un GROUPE WhatsApp dont tu connais déjà le JID (xxx@g.us) — typiquement le canal owner. NE PAS utiliser pour écrire à un contact/artisan : utilise send_whatsapp_to_contact. L'envoi à un numéro individuel est impossible (whapi le refuse). REQUIERT confirmation explicite de l'utilisateur.",
+      description: "Envoie un message dans un GROUPE WhatsApp dont tu connais le JID (xxx@g.us) — le canal owner OU n'importe quel groupe du chantier (ex: « Groupe principal », « Groupe Plomberie »). C'est LE tool à utiliser dès que l'utilisateur désigne un groupe précis : l'artisan destinataire est membre du groupe, inutile qu'il soit dans contacts_chantier. Récupère le JID via list_chantier_groups. L'envoi à un numéro individuel est impossible (whapi le refuse). REQUIERT confirmation explicite de l'utilisateur.",
       parameters: {
         type: "object",
         properties: {
