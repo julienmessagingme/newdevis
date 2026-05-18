@@ -187,21 +187,15 @@ serve(async (req) => {
       // plus de pied-de-page "Décisions/Alertes" dans le body.
       const journalBody = baseBody;
 
-      // Envoi WA / email uniquement si vrai contenu IA
+      // Envoi WA uniquement si vrai contenu IA.
+      // Le digest n'est PLUS inséré dans chantier_assistant_messages : il polluait
+      // le fil de conversation de l'onglet Assistant. Sa place est le Journal de
+      // chantier (chantier_journal, écrit juste après) + le canal WhatsApp.
       if (hasRealContent) {
         await sendDigestMessage(
           supabase, chantierId, ctx.chantier.nom,
           ctx.chantier.emoji, digestContent,
         );
-
-        // Insert as agent-initiated assistant message (proactive, for chat UI)
-        await supabase.from("chantier_assistant_messages").insert({
-          chantier_id:    chantierId,
-          role:           "assistant",
-          content:        digestContent,
-          agent_initiated: true,
-          is_read:        false,
-        }).then(() => {}).catch(() => {}); // non-blocking
       }
 
       // GARANTIE : journal ALWAYS written — upsert par (chantier_id, journal_date)
