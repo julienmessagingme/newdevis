@@ -2227,9 +2227,17 @@ export default function BudgetTab({
                       // (risque d'arrondi flottant 0.99 → état "non soldé" alors que
                       // tout est versé). Devis Malet 15917€ acompte = 15917€ → a_payer
                       // = 0 → isSolde = true.
+                      //
+                      // 2e itération (commit suivant) — filet de sécurité OR-logique :
+                      // si `a_payer === 0` ne déclenche pas (cache backend stale, edge
+                      // case sur les types numériques), on vérifie aussi que le total
+                      // payé (acompte+paye) couvre 99%+ du budget. Tolérance 1% pour
+                      // les arrondis floats. Couvre les cas où data API est en transit.
+                      const isSoldeViaBackend = artisan.totaux.devis_valides > 0 && artisan.totaux.a_payer === 0;
+                      const isSoldeViaTotalPaye = budget > 0 && totalPaye >= budget * 0.99;
                       const isSolde    = artisan.factures.length > 0
                         ? artisan.factures.some(f => (statutOverrides[f.id] ?? f.facture_statut) === 'payee') && artisan.totaux.a_payer === 0
-                        : artisan.totaux.devis_valides > 0 && artisan.totaux.a_payer === 0;
+                        : (isSoldeViaBackend || isSoldeViaTotalPaye);
                       const hasAlert   = artisan.factures.some(f => factureCoherence(f.nom, artisan.devis) === false);
                       const docsCount  = artisan.devis.filter(d => d.signed_url).length
                                        + artisan.factures.filter(f => f.signed_url).length;
