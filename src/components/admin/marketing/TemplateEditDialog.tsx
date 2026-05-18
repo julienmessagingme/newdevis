@@ -449,41 +449,72 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
                           />
                           {/* Décor — éditeur canvas */}
                           <div className="space-y-2 border-t pt-3">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setDecorEditFor(decorEditFor === key ? null : key)
-                                }
-                                className="text-sm font-medium flex items-center gap-1.5 text-primary hover:underline"
-                              >
-                                <Sparkles className="h-3.5 w-3.5" />
-                                Décor —{" "}
-                                {slide.decor_elements
-                                  ? `${slide.decor_elements.length} élément(s)`
-                                  : "auto"}
-                              </button>
-                              {slide.decor_elements && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-medium flex items-center gap-1.5">
+                                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                Décor
+                              </span>
+                              {slide.decor_elements == null ? (
+                                <span className="text-xs px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">
+                                  🤖 automatique
+                                </span>
+                              ) : (
+                                <span className="text-xs px-2 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-200">
+                                  ✏️ personnalisé · {slide.decor_elements.length} élément(s)
+                                </span>
+                              )}
+                            </div>
+                            {slide.decor_elements == null ? (
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                Un décor (sceau de marque, flèches…) est ajouté
+                                automatiquement selon le contenu.{" "}
+                                <button
+                                  type="button"
+                                  onClick={() => { updateSlideDecor(key, []); setDecorEditFor(key); }}
+                                  className="text-primary font-medium hover:underline"
+                                >
+                                  Personnaliser le décor →
+                                </button>
+                                <br />
+                                (pour retirer le sceau / les flèches auto et
+                                placer tes propres éléments)
+                              </p>
+                            ) : (
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setDecorEditFor(decorEditFor === key ? null : key)
+                                  }
+                                  className="text-xs font-medium text-primary hover:underline"
+                                >
+                                  {decorEditFor === key
+                                    ? "Fermer l'éditeur de décor"
+                                    : "Ouvrir l'éditeur de décor"}
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => resetSlideDecorAuto(key)}
                                   className="text-xs text-muted-foreground hover:underline"
                                 >
-                                  revenir au décor auto
+                                  ↩ revenir au décor automatique
                                 </button>
-                              )}
-                            </div>
-                            {decorEditFor === key && templateId && authToken && (
-                              <DecorCanvas
-                                templateId={templateId}
-                                authToken={authToken}
-                                slideKey={key}
-                                slide={slide}
-                                product={template.product}
-                                decorAssets={decorAssets}
-                                onChange={(els) => updateSlideDecor(key, els)}
-                              />
+                              </div>
                             )}
+                            {decorEditFor === key &&
+                              slide.decor_elements != null &&
+                              templateId &&
+                              authToken && (
+                                <DecorCanvas
+                                  templateId={templateId}
+                                  authToken={authToken}
+                                  slideKey={key}
+                                  slide={slide}
+                                  product={template.product}
+                                  decorAssets={decorAssets}
+                                  onChange={(els) => updateSlideDecor(key, els)}
+                                />
+                              )}
                           </div>
                         </div>
                       </div>

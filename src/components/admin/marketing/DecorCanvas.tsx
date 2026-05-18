@@ -313,6 +313,12 @@ export default function DecorCanvas({
             <Loader2 className="h-5 w-5 animate-spin text-white" />
           </div>
         )}
+        {!bgLoading && elements.length === 0 && (
+          <div className="absolute inset-x-2 bottom-2 text-center text-[11px] text-white bg-black/50 rounded py-1.5 px-2">
+            Aucun décor sur cette slide. Ajoute un élément avec la palette
+            ci-dessus (post-it, tampon, flèche, sceau).
+          </div>
+        )}
 
         {elements.map((el) => {
           const id = el.id ?? "";
