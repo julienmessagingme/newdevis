@@ -676,8 +676,10 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
         {/* pb-32 : zone tampon en bas pour que le FAB Assistant (fixed bottom-24)
             n'intercepte plus les clics sur les éléments en bas de page (accordéons,
-            filtres, dropdowns du Registre des paiements, etc.). */}
-        <main className={`flex-1 ${activeSection === 'tresorerie' ? 'overflow-hidden' : 'overflow-y-auto pb-32'}`}>
+            filtres, dropdowns du Registre des paiements, etc.).
+            Trésorerie + Assistant : layout pleine hauteur qui gère son propre
+            scroll interne → overflow-hidden, pas de pb-32 (sinon bande vide en bas). */}
+        <main className={`flex-1 ${activeSection === 'tresorerie' || activeSection === 'assistant' ? 'overflow-hidden' : 'overflow-y-auto pb-32'}`}>
           {renderContent()}
         </main>
 
