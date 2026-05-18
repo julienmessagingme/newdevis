@@ -335,7 +335,12 @@ const AnalysisResult = () => {
     analysisId: id ?? null,
     verdict: verdictForFeedback,
   });
-  const [showTrustpilotModal, setShowTrustpilotModal] = useState(false);
+  // V3.4.15+ (2026-05-18) — Modal Trustpilot legacy supprimée.
+  // Avant : popup automatique 5s après chargement de l'analyse.
+  // Problème : apparaissait avant que le user ait eu le temps de lire le verdict.
+  // Désormais : Trustpilot UNIQUEMENT via le step "done" de FeedbackModal
+  // (et UNIQUEMENT si choice === "positive"). Trigger FeedbackModal = scroll
+  // jusqu'en bas de l'analyse OU clic "Copier le message".
   const { user: authUser, isAnonymous: rawIsAnonymous, isPermanent: rawIsPermanent, loading: authLoading, convertToPermanent } = useAnonymousAuth();
   const { isPremium, lifetimeAnalysisCount } = usePremium();
 
@@ -462,14 +467,6 @@ const AnalysisResult = () => {
       domain: (analysis as any).domain ?? 'travaux',
     });
   }, [analysis, id]);
-
-  // Show Trustpilot modal 5s after analysis is loaded (skip if already dismissed)
-  useEffect(() => {
-    if (!analysis || analysis.status !== "completed") return;
-    if (localStorage.getItem("trustpilot-dismissed")) return;
-    const timer = setTimeout(() => setShowTrustpilotModal(true), 5000);
-    return () => clearTimeout(timer);
-  }, [analysis]);
 
   useEffect(() => {
     fetchAnalysis();
@@ -1319,20 +1316,10 @@ const AnalysisResult = () => {
           </div>
         </div>
 
-        {/* Trustpilot Review Collector */}
-        <div className="mb-8 text-center">
-          <p className="text-sm text-muted-foreground mb-3">
-            Votre analyse est prête 🎉 — votre avis nous aide à améliorer le service
-          </p>
-          <a
-            href="https://fr.trustpilot.com/review/verifiermondevis.fr"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#00b67a] hover:bg-[#00a06a] text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
-          >
-            ⭐ Laisser un avis sur Trustpilot
-          </a>
-        </div>
+        {/* V3.4.15+ — Trustpilot Review Collector in-body supprimé.
+            Trustpilot apparaît désormais UNIQUEMENT dans le step "done" de
+            FeedbackModal après un feedback positif (👍 "Oui, vraiment"). Évite
+            de demander un avis avant que le user ait pu juger l'analyse. */}
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -1342,51 +1329,8 @@ const AnalysisResult = () => {
       </main>
     </div>
 
-    {/* Feedback + reward + Trustpilot modal */}
+    {/* Feedback + reward + Trustpilot (uniquement si choice positive) */}
     {FeedbackModal}
-
-    {/* Trustpilot Review Modal (legacy — remplacé par FeedbackModal) — appears 5s after analysis loads */}
-    {showTrustpilotModal && (
-      <div
-        className="fixed inset-0 z-[9997] flex items-end sm:items-center justify-center p-4 bg-black/40"
-        onClick={() => { localStorage.setItem("trustpilot-dismissed", "1"); setShowTrustpilotModal(false); }}
-      >
-        <div
-          className="bg-card border border-border rounded-2xl shadow-2xl max-w-sm w-full p-6 relative"
-          onClick={e => e.stopPropagation()}
-        >
-          <button
-            onClick={() => { localStorage.setItem("trustpilot-dismissed", "1"); setShowTrustpilotModal(false); }}
-            className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors p-1"
-            aria-label="Fermer"
-          >
-            <XCircle className="h-5 w-5" />
-          </button>
-          <div className="text-center mb-4">
-            <div className="text-2xl mb-2">⭐</div>
-            <h3 className="text-lg font-bold text-foreground mb-1">Votre avis compte !</h3>
-            <p className="text-sm text-muted-foreground">
-              Notre service vous a été utile ? Laissez-nous un avis sur Trustpilot — ça prend 30 secondes.
-            </p>
-          </div>
-          <a
-            href="https://fr.trustpilot.com/review/verifiermondevis.fr"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => { localStorage.setItem("trustpilot-dismissed", "1"); setShowTrustpilotModal(false); }}
-            className="flex items-center justify-center gap-2 w-full px-5 py-3 bg-[#00b67a] hover:bg-[#00a06a] text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
-          >
-            ⭐ Laisser un avis sur Trustpilot
-          </a>
-          <button
-            onClick={() => { localStorage.setItem("trustpilot-dismissed", "1"); setShowTrustpilotModal(false); }}
-            className="w-full text-center text-xs text-muted-foreground hover:text-foreground mt-3 transition-colors"
-          >
-            Non merci
-          </button>
-        </div>
-      </div>
-    )}
     </>
     )}
     </ExtractionBlocker>

@@ -29,6 +29,12 @@ const TTL_DAYS         = 7;
 const TRUSTPILOT_URL   = "https://fr.trustpilot.com/evaluate/verifiermondevis.fr";
 const TEXT_MAX         = 200;
 
+// V3.4.15+ — Trigger auto sur scroll bottom de l'analyse.
+// Seuil 90% (au lieu de 60% en V3.4.14-) : le user a effectivement parcouru
+// toute l'analyse avant qu'on lui demande son avis. Évite l'effet "modal qui
+// interrompt la lecture" tout en gardant un trigger non-manuel.
+const SCROLL_BOTTOM_THRESHOLD = 0.90;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Choice  = "positive" | "neutral" | "negative";
@@ -384,12 +390,40 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
 
   const triggeredRef = useRef(false);
 
-  // V3.4.14+ — SUPPRESSION de l'auto-scroll/timer. Trigger UNIQUEMENT externe
-  // (via openFeedback) → déclenché sur un "moment de valeur" : clic "Copier le
-  // message" pour négocier (cf. AnalysisResult onCopy={openFeedback}).
-  // Raison : l'auto-trigger au scroll 60% intervenait pendant la lecture
-  // (= dérangeant) → taux de réponse proche de zéro. On préfère ne montrer
-  // la modal que quand l'utilisateur a tiré une valeur concrète de l'outil.
+  // ── Trigger interne (avant openFeedback exposé) ─────────────────────────
+  const tryOpen = useCallback((trigger: string) => {
+    if (triggeredRef.current) return;
+    if (hasBeenShown()) return;
+    triggeredRef.current = true;
+    setOpen(true);
+    track("feedback_open", { trigger });
+  }, []);
+
+  // ── Trigger auto sur scroll bottom de l'analyse (V3.4.15+) ──────────────
+  //
+  // Le user a parcouru toute l'analyse → moment de valeur, on demande son avis.
+  // Seuil 90% (vs 60% en V3.4.14-) : on veut être SÛR qu'il a lu, pas l'interrompre.
+  //
+  // En V3.4.14, on avait retiré ce trigger pour éviter "modal qui interrompt
+  // la lecture" — mais on perdait le canal principal de collecte de feedback
+  // (clic "Copier le message" pas suffisant). Solution V3.4.15+ : on remet
+  // l'auto-trigger, mais SEULEMENT en bas de page.
+  //
+  // Coexiste avec openFeedback() manuel (clic "Copier le message") — premier
+  // déclencheur gagne, `triggeredRef` empêche le double-trigger.
+  useEffect(() => {
+    if (hasBeenShown()) return;
+
+    const onScroll = () => {
+      const docHeight = document.body.scrollHeight - window.innerHeight;
+      if (docHeight <= 0) return; // page très courte, ne pas trigger
+      const scrolled = window.scrollY / docHeight;
+      if (scrolled >= SCROLL_BOTTOM_THRESHOLD) tryOpen("scroll_bottom");
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [tryOpen]);
 
   // ── ESC pour fermer ───────────────────────────────────────────────────────
   const close = useCallback(() => setOpen(false), []);
@@ -401,14 +435,11 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
 
-  // ── Trigger externe — UNIQUE entry point ──────────────────────────────────
+  // ── Trigger externe (clic "Copier le message" via onCopy de ConclusionIA) ─
+  // Coexiste avec le trigger auto scroll bottom. Premier déclencheur gagne.
   const openFeedback = useCallback(() => {
-    if (hasBeenShown()) return;
-    if (triggeredRef.current) return;
-    triggeredRef.current = true;
-    setOpen(true);
-    track("feedback_open", { trigger: "manual" });
-  }, []);
+    tryOpen("manual_copy");
+  }, [tryOpen]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleChoice = useCallback((c: Choice) => {
