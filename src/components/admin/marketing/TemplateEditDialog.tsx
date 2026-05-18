@@ -52,6 +52,12 @@ interface Props {
 export default function TemplateEditDialog({ templateId, authToken, onClose, onSaved }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Snapshot JSON du draft tel que sauvegardé (au chargement + après chaque
+  // save) → permet de détecter les modifications non sauvegardées.
+  const [savedSnapshot, setSavedSnapshot] = useState<string>("");
+  // Passe à true après une sauvegarde réussie → affiche le bandeau de
+  // confirmation "régénération en cours".
+  const [justSaved, setJustSaved] = useState(false);
   const [template, setTemplate] = useState<TemplateDetail | null>(null);
   const [usageHistory, setUsageHistory] = useState<UsageEntry[]>([]);
   const [draft, setDraft] = useState<{
@@ -78,14 +84,17 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
         const t = data.template as TemplateDetail;
         setTemplate(t);
         setUsageHistory((data.usage_history ?? []) as UsageEntry[]);
-        setDraft({
+        const initialDraft = {
           title: t.title ?? "",
           mood: t.mood ?? "",
           caption: t.caption ?? "",
           hashtags: t.hashtags ?? [],
           is_active: t.is_active,
           slides: t.slides ?? {},
-        });
+        };
+        setDraft(initialDraft);
+        setSavedSnapshot(JSON.stringify(initialDraft));
+        setJustSaved(false);
       } catch (err) {
         toast.error("Erreur de chargement", {
           description: err instanceof Error ? err.message : "Erreur",
@@ -99,7 +108,12 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
   }, [templateId, authToken]);
 
   const handleSave = async () => {
-    if (!draft || !templateId || !authToken) return;
+    if (!draft || !templateId) return;
+    // Échec silencieux interdit : si le token manque, on le DIT.
+    if (!authToken) {
+      toast.error("Session expirée", { description: "Recharge la page puis réessaie." });
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/admin/marketing/templates/${encodeURIComponent(templateId)}`, {
@@ -118,9 +132,14 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
           : data?.error ?? `HTTP ${res.status}`;
         throw new Error(msg);
       }
-      toast.success("Script sauvegardé");
+      // Le draft sauvegardé devient la nouvelle référence "propre".
+      setSavedSnapshot(JSON.stringify(draft));
+      setJustSaved(true);
+      toast.success("Sauvegardé — régénération de l'aperçu en cours (~1-2 min)");
       onSaved();
-      onClose();
+      // On NE ferme PAS la modale : le bandeau de confirmation explique que
+      // l'aperçu complet se régénère côté serveur. L'utilisateur ferme
+      // lui-même quand il a lu.
     } catch (err) {
       toast.error("Erreur de sauvegarde", {
         description: err instanceof Error ? err.message : "Erreur",
@@ -128,6 +147,19 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
     } finally {
       setSaving(false);
     }
+  };
+
+  // Modifications non sauvegardées ? (compare le draft courant au snapshot)
+  const isDirty = !!draft && JSON.stringify(draft) !== savedSnapshot;
+
+  // Fermeture protégée : confirme si des modifs ne sont pas sauvegardées.
+  const requestClose = () => {
+    if (isDirty && !window.confirm(
+      "Tu as des modifications NON sauvegardées.\n\n" +
+      "Si tu fermes maintenant, elles seront perdues et l'aperçu ne sera PAS régénéré.\n\n" +
+      "Fermer quand même ?",
+    )) return;
+    onClose();
   };
 
   // ── Aperçu live ───────────────────────────────────────────────────────────
@@ -255,11 +287,27 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
   };
 
   return (
-    <Dialog open={!!templateId} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={!!templateId} onOpenChange={(o) => !o && requestClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Éditer — {templateId}</DialogTitle>
         </DialogHeader>
+
+        {justSaved && !isDirty && (
+          <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            ✅ <strong>Sauvegardé.</strong> L'aperçu complet (toutes les slides ×
+            3 formats) se régénère sur le serveur — compte <strong>1 à 2 min</strong>.
+            Ferme cette fenêtre, attends, puis clique « Actualiser » dans la liste
+            pour voir le résultat.
+          </div>
+        )}
+        {isDirty && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            ✏️ Modifications <strong>non sauvegardées</strong>. L'aperçu live
+            ci-dessous n'est qu'une prévisualisation — clique
+            « <strong>Sauvegarder</strong> » en bas pour les appliquer pour de bon.
+          </div>
+        )}
 
         {loading && (
           <div className="flex justify-center py-12">
@@ -462,11 +510,18 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
             )}
 
             {/* Footer */}
-            <div className="flex justify-end gap-2 pt-2 border-t">
-              <Button variant="ghost" onClick={onClose}>Annuler</Button>
-              <Button onClick={handleSave} disabled={saving}>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              {isDirty && (
+                <span className="mr-auto text-xs text-amber-600 font-medium">
+                  Modifications non sauvegardées
+                </span>
+              )}
+              <Button variant="ghost" onClick={requestClose}>
+                {justSaved && !isDirty ? "Fermer" : "Annuler"}
+              </Button>
+              <Button onClick={handleSave} disabled={saving || !isDirty}>
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Sauvegarder
+                {justSaved && !isDirty ? "Sauvegardé ✓" : "Sauvegarder"}
               </Button>
             </div>
           </div>
