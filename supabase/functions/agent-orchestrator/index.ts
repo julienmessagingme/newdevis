@@ -356,20 +356,28 @@ async function handleInteractive(
   const ctx = await buildContext(supabase, chantierId, null, agentSecretKey, apiBase, conversationHistory);
 
   // Build messages: system prompt + conversation history + current user message
-  // Détection heuristique : l'utilisateur confirme-t-il une action irréversible proposée ?
-  // Bug gemini-2.5-flash : sur un message user court ("oui") après une longue proposition assistant,
-  // le modèle retourne content vide et completion_tokens:0. On compense en injectant un prompt
-  // système explicite "l'utilisateur CONFIRME, appelle le tool maintenant".
-  const CONFIRMATION_REGEX = /^(oui|ok|go|vas[\s-]?y|confirme|valide|envoie|fais[\s-]?le|parfait|allons[\s-]?y|yes|yep|ouais|ça marche|c'est bon|carrément|\u{1F197}|\u{1F44D}|\u{2705})\b/iu;
-  const ACTION_PROPOSAL_REGEX = /tu confirmes|confirmes[\s-]tu|je (vais|m'appr[êe]te à) (décaler|envoyer|clôturer|terminer|marquer)|nouvelle date de début/i;
+  // Détection heuristique : l'utilisateur confirme-t-il une action/question proposée ?
+  // Bug gemini-2.5-flash : sur un message user court ("oui") après une longue proposition
+  // assistant, le modèle retourne content vide et completion_tokens:0. On compense de 2 façons :
+  //  (1) on ENVOIE à Gemini une version étoffée du message ("oui" reste persisté en DB tel quel) ;
+  //  (2) on injecte un ordre système explicite "l'utilisateur CONFIRME, appelle le tool".
+  const CONFIRMATION_REGEX = /^(oui|ouais|ouaip|ok|okay|d'accord|dac|go|vas[\s-]?y|confirme|confirmé|valide|validé|envoie|envoies|fais[\s-]?le|fait|parfait|nickel|super|allons[\s-]?y|yes|yep|ça marche|c'est bon|cest bon|carrément|exact|tout à fait|bien sûr|évidemment|je confirme|s'il te plait|stp)\b/iu;
+  // L'assistant a-t-il posé une QUESTION ou proposé une ACTION au tour précédent ?
+  // Signal le plus fiable et le plus large : son message se TERMINE par "?".
+  // On complète avec des formulations propositionnelles. Volontairement TRÈS large :
+  // rater le cas = Gemini reçoit "oui" sans contexte → content vide → "je n'ai pas saisi".
+  const ACTION_PROPOSAL_REGEX = /tu confirmes|confirmes[\s-]?tu|veux[\s-]?tu|tu veux que|souhaites[\s-]?tu|dois[\s-]?je|puis[\s-]?je|je (vais|peux|pourrais|propose|propose de|m'appr[êe]te|te propose|t'envoie|l'envoie|le fais|la fais)|on (envoie|décale|programme|fait|valide)|veux[\s-]?tu que|je m'en occupe|je le fais|je m'occupe/i;
 
   const userConfirms = CONFIRMATION_REGEX.test(userMessage.trim());
   const lastAssistantInHistory = [...conversationHistory].reverse().find(m => m.role === "assistant" && typeof m.content === "string");
-  const assistantProposedAction = lastAssistantInHistory && typeof lastAssistantInHistory.content === "string" && ACTION_PROPOSAL_REGEX.test(lastAssistantInHistory.content);
+  const lastAssistantText = typeof lastAssistantInHistory?.content === "string" ? lastAssistantInHistory.content.trim() : "";
+  const assistantProposedAction = lastAssistantText.length > 0
+    && (lastAssistantText.endsWith("?") || ACTION_PROPOSAL_REGEX.test(lastAssistantText));
+  const isConfirmationTurn = userConfirms && assistantProposedAction;
 
   let systemPrompt = buildSystemPrompt(ctx, "interactive");
-  if (userConfirms && assistantProposedAction) {
-    systemPrompt += `\n\n🔴 ORDRE IMMÉDIAT (priorité absolue) : l'utilisateur vient d'écrire "${userMessage.trim()}" en réponse à ta proposition précédente d'action irréversible. C'EST UNE CONFIRMATION. Tu DOIS appeler IMMÉDIATEMENT le tool correspondant (update_lot_dates / mark_lot_completed / send_whatsapp_message) avec les arguments que tu as déjà proposés. NE redemande PAS de confirmation. NE réponds PAS en texte seul. APPELLE LE TOOL MAINTENANT.`;
+  if (isConfirmationTurn) {
+    systemPrompt += `\n\n🔴 ORDRE IMMÉDIAT (priorité absolue) : le dernier message de l'utilisateur ("${userMessage.trim()}") CONFIRME la question ou la proposition que TU as faite dans ton message précédent. Relis ton dernier message dans l'historique, identifie précisément ce que tu proposais (envoi WhatsApp, décalage de lot, clôture, rappel programmé…), et APPELLE IMMÉDIATEMENT le tool correspondant avec les arguments que tu as déjà évoqués. NE redemande PAS de confirmation. NE réponds JAMAIS "je n'ai pas compris" / "je n'ai pas saisi" — le contexte est dans ton propre message précédent. APPELLE LE TOOL MAINTENANT.`;
   }
 
   const messages: Array<Record<string, unknown>> = [
@@ -393,8 +401,15 @@ async function handleInteractive(
     // Les messages role=tool sont ignorés (pas de tool_call_id cohérent sans les tool_calls d'origine)
   }
 
-  // Add current user message
-  messages.push({ role: "user", content: userMessage });
+  // Add current user message.
+  // Si c'est une confirmation courte ("oui") d'une proposition assistant, on envoie
+  // à Gemini une version ÉTOFFÉE : le message court déclenche le bug content-vide
+  // de gemini-2.5-flash, alors qu'un message long le contourne ET porte l'instruction
+  // inline (plus fiable qu'un system prompt distant). Le "oui" original reste en DB.
+  const userMessageForLLM = isConfirmationTurn
+    ? `${userMessage.trim()} — je confirme. Exécute maintenant, sans me redemander, l'action que tu viens de me proposer dans ton message précédent, en appelant le tool approprié.`
+    : userMessage;
+  messages.push({ role: "user", content: userMessageForLLM });
 
   let rounds = 0;
   let tokensUsed = 0;
@@ -459,9 +474,12 @@ async function handleInteractive(
       // relance une dernière tentative en précisant d'agir (ne pas renvoyer du vide à l'utilisateur).
       if (responseText.trim().length === 0) {
         console.warn(`[interactive] Empty response from Gemini, retrying with nudge`);
+        const nudgeContent = isConfirmationTurn
+          ? `L'utilisateur a répondu "${userMessage.trim()}" pour CONFIRMER la proposition de ton message précédent. Relis ton dernier message dans l'historique, identifie l'action proposée (envoi WhatsApp, décalage de lot, clôture, rappel…) et APPELLE le tool correspondant MAINTENANT avec les arguments déjà évoqués. Ne renvoie jamais une réponse vide ni "je n'ai pas compris".`
+          : "Réponds directement. Si tu dois appeler un tool (ex: update_lot_dates après confirmation, schedule_reminder après une demande de rappel), appelle-le maintenant. Si tu réponds en texte, écris une phrase complète en français — jamais une réponse vide.";
         const retryMessages = [
           ...messages,
-          { role: "user", content: "Réponds directement. Si tu dois appeler un tool (ex: update_lot_dates après confirmation, schedule_reminder après une demande de rappel), appelle-le maintenant. Si tu réponds en texte, écris une phrase complète en français — jamais une réponse vide." },
+          { role: "user", content: nudgeContent },
         ];
         const retryRes = await fetch(GEMINI_URL, {
           method: "POST",
@@ -503,6 +521,9 @@ async function handleInteractive(
             : "C'est fait.";
         } else if (retryChoice?.content && retryChoice.content.trim().length > 0) {
           responseText = retryChoice.content;
+        } else if (isConfirmationTurn) {
+          // C'ÉTAIT une confirmation comprise — ne jamais répondre "je n'ai pas saisi".
+          responseText = "Je n'ai pas réussi à exécuter l'action automatiquement. Peux-tu me préciser en une phrase ce que tu veux que je fasse (ex : « envoie le message au groupe principal ») ?";
         } else {
           responseText = "Je n'ai pas saisi ta demande. Peux-tu reformuler ?";
         }
