@@ -154,27 +154,46 @@ serve(async (req) => {
     });
   }
 
-  // ── INSERT insights (deduplicate by title within 24h, handle unique index conflict) ──
-  const yesterday = new Date(Date.now() - 86400000).toISOString();
-  let inserted = 0;
+  // ── INSERT / UPDATE insights ────────────────────────────────────────────
+  // Dédup sur l'IDENTITÉ stable de la condition (source_event.check + entité
+  // concernée), SANS fenêtre de temps. Une condition qui persiste jour après
+  // jour = UNE seule alerte, rafraîchie à chaque run — jamais re-créée. Les
+  // flags read_by_user / dismiss de l'alerte existante restent intacts → pas
+  // de re-notification quotidienne d'une alerte déjà vue/traitée.
+  const dedupKey = (se: Record<string, unknown> | null | undefined): string => {
+    const s = se ?? {};
+    return [s.check, s.lot_id, s.payment_event_id, s.document_id]
+      .filter((v) => v != null && v !== "")
+      .join(":");
+  };
 
+  const { data: existingInsights } = await supabase
+    .from("agent_insights")
+    .select("id, source_event")
+    .eq("chantier_id", chantier_id);
+
+  const existingByKey = new Map<string, string>();
+  for (const e of existingInsights ?? []) {
+    const k = dedupKey(e.source_event as Record<string, unknown>);
+    if (k && !existingByKey.has(k)) existingByKey.set(k, e.id as string);
+  }
+
+  let inserted = 0, refreshed = 0;
   for (const ins of insights) {
-    const { data: existing } = await supabase
-      .from("agent_insights")
-      .select("id")
-      .eq("chantier_id", chantier_id)
-      .eq("title", ins.title)
-      .gte("created_at", yesterday)
-      .limit(1);
-
-    if (!existing || existing.length === 0) {
+    const k = dedupKey(ins.source_event);
+    const existingId = k ? existingByKey.get(k) : undefined;
+    if (existingId) {
+      await supabase.from("agent_insights")
+        .update({ title: ins.title, body: ins.body, severity: ins.severity })
+        .eq("id", existingId);
+      refreshed++;
+    } else {
       const { error } = await supabase.from("agent_insights").insert(ins);
       if (!error) inserted++;
-      // Unique index conflict (23505) is silently ignored — dedup working as expected
     }
   }
 
-  console.log(`[agent-checks] ${chantier_id}: ${insights.length} checks, ${inserted} new insights`);
+  console.log(`[agent-checks] ${chantier_id}: ${insights.length} checks, ${inserted} new, ${refreshed} refreshed`);
 
   return new Response(
     JSON.stringify({ checks: insights.length, inserted }),

@@ -105,19 +105,42 @@ export const POST: APIRoute = async ({ params, request }) => {
   const validSeverities = ['info', 'warning', 'critical'];
   if (severity && !validSeverities.includes(severity)) return jsonError(`severity invalide: ${severity}`, 400);
 
-  // Deduplicate: skip if same title exists within 24h
-  const yesterday = new Date(Date.now() - 86400000).toISOString();
+  // Déduplication :
+  // - Types "info-only" (digest, résumés, changements de statut) : fenêtre 24h —
+  //   on tolère une nouvelle occurrence par jour (un digest par jour, etc.).
+  // - Types "alerte" (risque, budget, paiement, clarification) : PAS de fenêtre.
+  //   Une condition qui persiste = UNE seule alerte, RAFRAÎCHIE à chaque fois
+  //   (body + severity mis à jour) — jamais re-créée jour après jour.
+  const INFO_TYPES = ['digest', 'conversation_summary', 'lot_status_change'];
+  const isInfoType = INFO_TYPES.includes(type);
 
-  const { data: existing } = await auth.supabase
+  let dedupQuery = auth.supabase
     .from('agent_insights')
     .select('id')
     .eq('chantier_id', chantierId)
-    .eq('title', title)
-    .gte('created_at', yesterday)
+    .eq('title', title);
+  if (isInfoType) {
+    const yesterday = new Date(Date.now() - 86400000).toISOString();
+    dedupQuery = dedupQuery.gte('created_at', yesterday);
+  }
+  const { data: existing } = await dedupQuery
+    .order('created_at', { ascending: false })
     .limit(1);
 
   if (existing && existing.length > 0) {
-    return jsonOk({ insight: existing[0], deduplicated: true });
+    if (isInfoType) {
+      // Info-only : on ne recrée pas dans la fenêtre, on ne touche pas l'existant.
+      return jsonOk({ insight: existing[0], deduplicated: true });
+    }
+    // Alerte : on rafraîchit l'alerte existante (body + severity) sans la recréer.
+    // Les flags read_by_user / dismiss restent intacts → pas de re-notification.
+    const { data: refreshed } = await auth.supabase
+      .from('agent_insights')
+      .update({ body: insightBody, severity: severity || 'info' })
+      .eq('id', existing[0].id)
+      .select()
+      .single();
+    return jsonOk({ insight: refreshed ?? existing[0], deduplicated: true, refreshed: true });
   }
 
   const { data, error } = await auth.supabase
