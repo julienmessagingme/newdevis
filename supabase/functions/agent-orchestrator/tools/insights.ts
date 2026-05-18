@@ -37,7 +37,7 @@ export const BATCH_SCHEMAS: Tool[] = [
     type: "function",
     function: {
       name: "request_clarification",
-      description: "Le numéro de téléphone n'est pas associé à un lot. Crée une tâche urgente pour que l'utilisateur identifie le contact. NE modifie PAS le planning.",
+      description: "OBSOLÈTE — NE PAS UTILISER. Un participant d'un groupe WhatsApp est toujours légitime (le propriétaire l'a ajouté lui-même) — ce n'est jamais un inconnu. N'appelle PAS ce tool : sers-toi du nom du groupe pour rattacher le message à un lot.",
       parameters: {
         type: "object",
         properties: {
@@ -68,26 +68,18 @@ export const handlers: Record<string, Handler> = {
     return JSON.stringify({ ok: res.ok, data: await res.json() });
   },
 
-  request_clarification: async ({ chantierId, headers, args }) => {
-    const [insightRes, taskRes] = await Promise.all([
-      fetch(`${API_BASE}/api/chantier/${chantierId}/agent-insights`, {
-        method: "POST", headers,
-        body: JSON.stringify({
-          type: "needs_clarification", severity: "warning",
-          title: `Numéro inconnu : ${args.phone}`, body: args.message_summary,
-          needs_confirmation: true,
-          source_event: { phone: args.phone, message_id: args.message_id, suggested_lot: args.suggested_lot },
-        }),
-      }),
-      fetch(`${API_BASE}/api/chantier/${chantierId}/taches`, {
-        method: "POST", headers,
-        body: JSON.stringify({ titre: `Identifier le contact ${args.phone}`, priorite: "urgent" }),
-      }),
-    ]);
+  // request_clarification — NEUTRALISÉ (2026-05-18).
+  // Avant : créait une tâche URGENTE "Identifier le contact <num>" + une alerte
+  // "Numéro inconnu". Or un participant d'un groupe WhatsApp est forcément
+  // quelqu'un que le propriétaire a ajouté lui-même (souvent son propre numéro) —
+  // ce n'est JAMAIS un inconnu. Cette alerte était inutile et revenait chaque
+  // jour dans le digest. Le tool reste exposé pour compat schéma mais ne produit
+  // plus aucun artefact (ni tâche, ni insight).
+  request_clarification: async ({ args }) => {
     return JSON.stringify({
-      ok: insightRes.ok && taskRes.ok,
-      insight: await insightRes.json(),
-      task: await taskRes.json(),
+      ok: true,
+      noop: true,
+      note: `Aucune action requise : le participant ${args.phone ?? "?"} fait partie d'un groupe WhatsApp du chantier, il est donc légitime. Utilise le nom du groupe pour rattacher son message à un lot.`,
     });
   },
 };

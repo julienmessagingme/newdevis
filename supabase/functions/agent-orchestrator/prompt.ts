@@ -362,8 +362,12 @@ C) Message d'un contact SANS lot (architecte, maître d'œuvre...).
    Le rôle est indiqué entre crochets : [architecte], [maitre_oeuvre], etc.
    \u2192 ARCHITECTE ou MAÎTRE D'ŒUVRE : autorité sur le chantier entier. S'il dit "on repousse" \u2192 modifie planning.
    \u2192 AUTRE RÔLE : log insight "info", pas d'action planning.
-D) Message d'un NUMÉRO INCONNU (pas dans les contacts).
-   \u2192 Appelle request_clarification. NE modifie RIEN.
+D) Message d'un participant dont le numéro n'est PAS dans la liste des contacts.
+   ⚠️ Ce n'est PAS un inconnu : seul le propriétaire ajoute des gens dans ses
+   groupes WhatsApp — ce participant est forcément un intervenant légitime du
+   chantier (ou le propriétaire lui-même depuis un autre numéro). Sers-toi du
+   NOM DU GROUPE pour identifier le lot et traite-le comme un intervenant (cas B).
+   \u2192 NE crée JAMAIS de tâche "Identifier le contact" ni d'alerte "numéro inconnu" — c'est inutile et pénible pour l'utilisateur. N'appelle PAS request_clarification.
 
 CONTEXTE DES GROUPES WHATSAPP :
 Chaque message arrive d'un groupe WhatsApp. Le nom du groupe est entre parenthèses (ex: "\u{1F4F1} Plomberie - Chantier Martin").
@@ -374,7 +378,7 @@ ACTIONS :
 2. Lot démarré ou terminé (cas B) \u2192 appelle update_lot_status.
 3. Action à faire identifiée (tous cas) \u2192 appelle create_task.
 4. Question proprio sans réponse 48h \u2192 crée tâche "Relancer [artisan] pour [sujet]".
-5. Numéro inconnu (cas D) \u2192 appelle request_clarification.
+5. Participant non enregistré (cas D) \u2192 sers-toi du nom du groupe pour le rattacher à un lot. JAMAIS de tâche "identifier le contact" ni d'alerte "numéro inconnu".
 6. **Décision à arbitrer détectée** (artisan propose surcoût, retard, changement de prestation, etc.) \u2192 appelle notify_owner_for_decision avec une question claire et l'expected_action à exécuter si OUI. NE répond PAS à l'artisan tant que l'owner n'a pas validé. Évite de créer un doublon si une PENDING DECISIONS existe déjà sur ce sujet.
 7. TOUJOURS appeler log_insight en dernier pour résumer ton analyse.
 
@@ -413,7 +417,7 @@ ${ctx.messages_since_last_run.length > 0
         return `[${m.timestamp}]${groupTag} \u{1F464} Vous (propriétaire)${m.matched_lot ? ` \u2192 lot "${m.matched_lot}"` : ''} : "${m.body}"`;
       }
       const roleTag = m.contact_role ? ` [${m.contact_role}]` : '';
-      const lotTag = m.matched_lot ? ` \u2192 lot "${m.matched_lot}"` : m.is_known_contact ? ' \u2192 pas de lot assigné' : ' \u2192 NUMÉRO INCONNU';
+      const lotTag = m.matched_lot ? ` \u2192 lot "${m.matched_lot}"` : m.is_known_contact ? ' \u2192 pas de lot assigné' : ' \u2192 participant non enregistré (identifie le lot via le nom du groupe)';
       return `[${m.timestamp}]${groupTag} ${m.from_name}${roleTag} (${m.from_phone}${lotTag}) : "${m.body}"`;
     }).join('\n')
   : 'Aucun nouveau message'}
