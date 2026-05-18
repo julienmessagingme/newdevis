@@ -126,6 +126,14 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       const tw = getTotalWeeks(lots);
 
       setState({ lots, deps, startDate: sd, dateFinSouhaitee: data.dateFinSouhaitee ?? null, totalWeeks: tw, loading: false, saving: false, error: null });
+
+      // V3.4.16+ (2026-05-18) — Notifie les autres écrans (DashboardHome, etc.)
+      // qui ont cached le planning. Sans ce dispatch, la bulle Planning de
+      // l'accueil reste figée sur les anciennes dates après modification depuis
+      // l'onglet Planning. Mirroir du pattern `chantierBudgetChanged`.
+      window.dispatchEvent(new CustomEvent('chantierPlanningChanged', {
+        detail: { chantierId },
+      }));
     } catch (e: any) {
       pendingRef.current -= 1;
       if (mySeq !== reqSeqRef.current) return;
@@ -232,18 +240,49 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     patchPlanning({ dateDebutChantier: date.toISOString().split('T')[0] });
   }, [patchPlanning]);
 
-  /** Date de fin → calcule startDate en remontant via le chemin critique du DAG.
-   *  Persiste aussi date_fin_souhaitee (objectif) → permet l'alerte de dépassement. */
+  /**
+   * Date de fin → 2 comportements selon que le chantier a démarré ou non.
+   *
+   * V3.4.16+ (2026-05-18) — Bug fix : avant ce changement, `updateEndDate`
+   * recalculait SYSTÉMATIQUEMENT la `dateDebutChantier` en remontant via le
+   * CPM (forward pass inverse). Conséquence absurde sur un chantier DÉJÀ
+   * démarré (ex: démarré 31/03, user veut décaler la fin du 27/04 au 01/07)
+   * → la date de début était écrasée à 04/06 (= 01/07 - 27j ouvrés), comme
+   * si le chantier n'avait pas encore commencé. Aberrant.
+   *
+   * Désormais :
+   *   - Chantier PAS encore démarré (startDate dans le futur ou null) :
+   *     comportement historique → recalcule startDate en remontant depuis
+   *     endDate. C'est légitime, l'user organise son chantier en amont.
+   *   - Chantier DÉJÀ démarré (startDate < aujourd'hui) : on garde la date
+   *     de début actuelle et on persiste UNIQUEMENT `dateFinSouhaitee` comme
+   *     OBJECTIF. Les dates des lots restent calculées depuis le start réel,
+   *     et `estimatedEnd` (= max(lot.date_fin)) peut différer de l'objectif
+   *     → ça permet à la bulle Planning d'afficher "Livraison visée 1 juil."
+   *     même si le CPM estime un autre delivery. C'est cohérent : l'user
+   *     a saisi un objectif, pas une obligation mécanique.
+   */
   const updateEndDate = useCallback((endDate: Date) => {
-    let computedStartStr = '';
     const endStr = endDate.toISOString().split('T')[0];
     setState(s => {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const currentStart = s.startDate;
+      const isChantierStarted = currentStart && currentStart.getTime() < today.getTime();
+
+      if (isChantierStarted) {
+        // Garde la date de début réelle, persiste uniquement l'objectif fin.
+        // Les lots ne sont PAS recalculés (déjà aux bonnes dates depuis le vrai start).
+        patchPlanning({ dateFinSouhaitee: endStr });
+        return { ...s, dateFinSouhaitee: endStr };
+      }
+
+      // Chantier pas démarré : recalcule startDate en remontant depuis endDate.
       const computedStart = computeStartDateFromEnd(s.lots, endDate, s.deps);
-      computedStartStr = computedStart.toISOString().split('T')[0];
+      const computedStartStr = computedStart.toISOString().split('T')[0];
       const recomputed = computePlanningDates(s.lots, computedStart, s.deps);
+      patchPlanning({ dateDebutChantier: computedStartStr, dateFinSouhaitee: endStr });
       return { ...s, startDate: computedStart, dateFinSouhaitee: endStr, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
-    if (computedStartStr) patchPlanning({ dateDebutChantier: computedStartStr, dateFinSouhaitee: endStr });
   }, [patchPlanning]);
 
   /** Remplace la liste complète des prédécesseurs d'un lot. */

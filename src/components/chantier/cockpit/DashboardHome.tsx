@@ -344,7 +344,12 @@ function DashboardHome({
   const budgetTotaux = budget?.totaux ?? null;
 
   // ── Planning — instantané pour la bulle d'accueil ─────────────────────────
+  // V3.4.16+ (2026-05-18) — Refresh sur event `chantierPlanningChanged` :
+  // sans ça, la bulle reste figée sur les anciennes dates après modification
+  // depuis l'onglet Planning. Un compteur `refreshKey` force le re-run du
+  // useEffect quand l'event est reçu.
   const [planning, setPlanning] = useState<PlanningSnapshot | null>(null);
+  const [planningRefreshKey, setPlanningRefreshKey] = useState(0);
   useEffect(() => {
     if (!chantierId || !token) return;
     let cancelled = false;
@@ -370,7 +375,20 @@ function DashboardHome({
       }
     })();
     return () => { cancelled = true; };
-  }, [chantierId, token]);
+  }, [chantierId, token, planningRefreshKey]);
+
+  // V3.4.16+ — Écoute l'event dispatché par usePlanning après chaque PATCH.
+  // Force le refresh du snapshot planning de la bulle accueil.
+  useEffect(() => {
+    function onPlanningChanged(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.chantierId === chantierId) {
+        setPlanningRefreshKey(k => k + 1);
+      }
+    }
+    window.addEventListener('chantierPlanningChanged', onPlanningChanged);
+    return () => window.removeEventListener('chantierPlanningChanged', onPlanningChanged);
+  }, [chantierId]);
 
   // V3.4.15+ (2026-05-18) — Détection cohérence date livraison vs avancement réel.
   //
