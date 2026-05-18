@@ -581,7 +581,28 @@ export const GET: APIRoute = async ({ params, request }) => {
     }
 
     // ── 8. Totaux globaux ───────────────────────────────────────────────────
+    //
+    // V3.4.16 (2026-05-18) — Bug 4 fix : `a_venir` calculé PAR ARTISAN.
+    //
+    // Avant : `aVenir = max(0, devisValides - facture - acompte)` au niveau
+    // GLOBAL. Problème : les acomptes versés sur un artisan A "compensaient"
+    // l'écart devis-facture d'un artisan B, ce qui masquait les soldes restant.
+    // Cas observé : MURO 3852€ - 1500€ acompte = 2352€ restant à payer DEVRAIT
+    // apparaître en "À venir", mais 0€ affiché parce que les acomptes Malet
+    // (15917€) saturaient le total.
+    //
+    // Fix : on somme PAR ARTISAN sans-facture le `max(0, devis_valides - acompte)`.
+    // Pour les artisans avec facture, le restant est déjà dans `a_payer`.
     const allBuckets = [...lotMap.values(), sanslot];
+    const aVenirParArtisanSansFacture = allBuckets.reduce((sum, bucket) => {
+      return sum + bucket.artisans.reduce((s, a) => {
+        // Un artisan "sans facture" = aucune facture émise pour cet artisan
+        if (a.factures.length > 0) return s;
+        // a.totaux.a_payer est déjà calculé correctement (devis_valides - acompte)
+        // dans buildArtisanGroups ligne ~127 (cas factures.length === 0).
+        return s + (a.totaux.a_payer ?? 0);
+      }, 0);
+    }, 0);
     const totaux = {
       devis_recus:     allBuckets.reduce((s, b) => s + b.totaux.devis_recus,     0),
       devis_valides:   allBuckets.reduce((s, b) => s + b.totaux.devis_valides,   0),
@@ -591,6 +612,8 @@ export const GET: APIRoute = async ({ params, request }) => {
       acompte_pending: allBuckets.reduce((s, b) => s + b.totaux.acompte_pending, 0),
       litige:          allBuckets.reduce((s, b) => s + b.totaux.litige,          0),
       a_payer:         allBuckets.reduce((s, b) => s + b.totaux.a_payer,         0),
+      // V3.4.16 — nouveau champ "à venir" fiable, somme par artisan
+      a_venir:         aVenirParArtisanSansFacture,
     };
 
     // ── 8. Preuves de paiement (proofCount déjà fetché en Phase A) ─────────

@@ -1690,7 +1690,22 @@ function EcheancierDesktop({
     const list: { type: 'danger' | 'warning' | 'info'; msg: string }[] = [];
 
     if (kpis.lateCount > 0) {
-      list.push({ type: 'danger', msg: `${kpis.lateCount} paiement${kpis.lateCount > 1 ? 's' : ''} en retard — ${fmtEur(kpis.lateTotal)} à régulariser` });
+      // V3.4.16 (2026-05-18) — Bug 3 fix : wording cohérent quand lateTotal === 0.
+      // Cas typique : "solde à réception facture" dont l'échéance est passée
+      // mais qui est déjà couvert par un acompte versé (amount=0 sur l'event).
+      // Avant : "2 paiements en retard — 0 € à régulariser" (contradictoire).
+      // Après : on distingue les 2 cas et on adapte le wording + la sévérité.
+      if (kpis.lateTotal === 0) {
+        list.push({
+          type: 'info',
+          msg: `${kpis.lateCount} paiement${kpis.lateCount > 1 ? 's' : ''} à confirmer (échéance dépassée, déjà couvert${kpis.lateCount > 1 ? 's' : ''} par acompte) — marquez comme payé${kpis.lateCount > 1 ? 's' : ''} pour clore`,
+        });
+      } else {
+        list.push({
+          type: 'danger',
+          msg: `${kpis.lateCount} paiement${kpis.lateCount > 1 ? 's' : ''} en retard — ${fmtEur(kpis.lateTotal)} à régulariser`,
+        });
+      }
     }
 
     const soon = events.filter(e => e.status === 'pending' && e.due_date && e.due_date <= in7s && e.due_date >= today);
@@ -1767,8 +1782,8 @@ function EcheancierDesktop({
         <KpiCard
           title="Retards"
           value={kpis.lateCount > 0 ? `${kpis.lateCount} éch.` : '—'}
-          sub={kpis.lateCount > 0 ? `${fmtEur(kpis.lateTotal)} à régler` : 'Aucun retard'}
-          color={kpis.lateCount > 0 ? 'red' : 'emerald'}
+          sub={kpis.lateCount === 0 ? 'Aucun retard' : kpis.lateTotal === 0 ? 'À confirmer (déjà couvert)' : `${fmtEur(kpis.lateTotal)} à régler`}
+          color={kpis.lateCount === 0 ? 'emerald' : kpis.lateTotal === 0 ? 'amber' : 'red'}
           icon={<BellRing className="h-3.5 w-3.5" />}
         />
       </div>

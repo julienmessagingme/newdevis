@@ -86,6 +86,13 @@ interface BudgetLotTotaux {
   acompte_pending?: number;
   litige:          number;
   a_payer:         number;
+  /**
+   * V3.4.16 (2026-05-18) — somme des soldes restants par artisan sans facture.
+   * Présent uniquement sur les totaux globaux (pas sur les lots/artisans).
+   * Calculé côté backend pour éviter le bug de "compensation entre artisans".
+   * Optionnel pour la compat avec les anciens caches d'API.
+   */
+  a_venir?:        number;
 }
 
 interface BudgetArtisanGroup {
@@ -172,10 +179,16 @@ function buildRow(lot: BudgetLot): BudgetRow {
   else if (statuses.some(s => s === 'en_cours')) devisStatut = 'received';
 
   // Statut paiement agrégé
+  // V3.4.16 (2026-05-18) — Fix Bug 1 : un devis 100% soldé par acompte SANS
+  // facture émise doit afficher "Payée"/"Soldé" (pas "Acompte"). Avant le fix,
+  // `payStatut = 'paid'` exigeait `facture > 0`, ce qui laissait les devis sans
+  // facture coincés en `'partial'` même quand l'acompte couvrait 100%.
   let payStatut: PayStatut = 'none';
   if (lot.factures.length > 0 || acompte > 0) {
     if (lot.totaux.litige > 0)             payStatut = 'litige';
     else if (facture > 0 && totalPaye >= facture) payStatut = 'paid';
+    // V3.4.16 — devis 100% couvert par acompte sans facture émise → soldé
+    else if (facture === 0 && devis_valides > 0 && totalPaye >= devis_valides) payStatut = 'paid';
     else if (acompte > 0 || paye > 0)      payStatut = 'partial';
     else if (facture > 0)                  payStatut = 'unpaid';
   }
@@ -428,14 +441,17 @@ function BudgetKpiDashboard({
   const aRegler        = totaux?.a_payer  ?? 0;                         // factures reçues non soldées
   const litige         = totaux?.litige   ?? 0;
   const devisValides   = totaux?.devis_valides ?? 0;
-  // Reste à venir (net des acomptes) : ce que l'utilisateur va encore décaisser.
-  // = devis signés − déjà facturé − acomptes versés (sur devis sans facture).
-  // L'ancien calcul (devis − facture) masquait les acomptes → l'user voyait un
-  // chiffre identique avant/après avoir versé un acompte, ce qui était trompeur.
-  const aVenir         = Math.max(
-    0,
-    devisValides - (totaux?.facture ?? 0) - (totaux?.acompte ?? 0),
-  );
+  // Reste à venir (net des acomptes) : ce que l'utilisateur va encore décaisser
+  // sur les artisans qui n'ont pas encore émis de facture (futur engagement).
+  //
+  // V3.4.16 (2026-05-18) — Bug 4 fix : on lit `totaux.a_venir` (calculé par
+  // artisan côté backend) au lieu du calcul global `devisValides - facture -
+  // acompte` qui mélangait les acomptes de TOUS les artisans et masquait des
+  // soldes restants (cas MURO 2352€ resté invisible).
+  // Fallback sur l'ancien calcul si l'API n'a pas encore le champ (caches).
+  const aVenir         = totaux?.a_venir !== undefined
+    ? totaux.a_venir
+    : Math.max(0, devisValides - (totaux?.facture ?? 0) - (totaux?.acompte ?? 0));
   // Budget cible : saisi manuellement OU estimation IA (jamais "engagé")
   const effectiveReel  = budgetReel ?? ((data?.budget_ia ?? 0) > 0 ? data!.budget_ia : null);
   const budgetRestant  = effectiveReel ? Math.max(0, effectiveReel - decaisse - aRegler) : 0;
@@ -444,8 +460,14 @@ function BudgetKpiDashboard({
   const pctARegler    = effectiveReel && effectiveReel > 0 ? Math.round((aRegler / effectiveReel) * 100) : 0;
   const pctAVenir     = effectiveReel && effectiveReel > 0 ? Math.round((aVenir  / effectiveReel) * 100) : 0;
 
-  // Couleurs dynamiques
-  const colorDecaisse   = pctDecaisse  >= 100 ? '#10b981' : pctDecaisse  > 0   ? '#3b82f6' : '#d1d5db';
+  // V3.4.16 (2026-05-18) — Bug 2 fix : détection dépassement budget cible.
+  // Tolérance 5% (taux de variation classique en BTP, on n'alerte pas pour 100€
+  // de plus). Au-delà → KPI Décaissé en rouge avec sub-label "+X € dépassement".
+  const overBudget    = effectiveReel && decaisse > effectiveReel * 1.05;
+  const overBudgetAmt = overBudget && effectiveReel ? Math.round(decaisse - effectiveReel) : 0;
+
+  // Couleurs dynamiques (V3.4.16 — Décaissé passe en rouge si dépassement)
+  const colorDecaisse   = overBudget ? '#ef4444' : pctDecaisse >= 100 ? '#10b981' : pctDecaisse > 0 ? '#3b82f6' : '#d1d5db';
   const colorARegler    = aRegler > 0 ? '#f59e0b' : '#d1d5db';
   const colorAVenir     = aVenir  > 0 ? '#8b5cf6' : '#d1d5db';
 
@@ -606,9 +628,15 @@ function BudgetKpiDashboard({
             {effectiveReel && !budgetReel && (
               <p className="text-[10px] text-indigo-400 mt-1">Estimation IA — cliquez Modifier pour ajuster</p>
             )}
-            {budgetRestant > 0 && (
+            {budgetRestant > 0 && !overBudget && (
               <p className="text-[11px] text-emerald-600 font-semibold mt-1.5">
                 Reste : {fmtEur(budgetRestant)}
+              </p>
+            )}
+            {/* V3.4.16 — alerte dépassement budget cible visible aussi sous l'enveloppe */}
+            {overBudget && (
+              <p className="text-[11px] text-red-600 font-semibold mt-1.5 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />+{fmtEur(overBudgetAmt)} au-delà du budget
               </p>
             )}
           </div>
@@ -654,10 +682,17 @@ function BudgetKpiDashboard({
                       <span className="font-semibold text-emerald-600 ml-auto">{fmtEur(totaux!.paye)}</span>
                     </p>
                   )}
-                  {pctDecaisse >= 100 && devisValides > 0 && (
-                    <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
-                      <Check className="h-3 w-3" />Tout soldé
+                  {overBudget ? (
+                    /* V3.4.16 — alerte dépassement budget (priorité sur "Tout soldé") */
+                    <p className="text-[10px] text-red-600 font-semibold flex items-center gap-1 mt-0.5">
+                      <AlertTriangle className="h-3 w-3" />Dépassement de +{fmtEur(overBudgetAmt)} ({Math.round((overBudgetAmt / (effectiveReel ?? 1)) * 100)}%)
                     </p>
+                  ) : (
+                    pctDecaisse >= 100 && devisValides > 0 && (
+                      <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                        <Check className="h-3 w-3" />Tout soldé
+                      </p>
+                    )
                   )}
                 </div>
               ) : (
