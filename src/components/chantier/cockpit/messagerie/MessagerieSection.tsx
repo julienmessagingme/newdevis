@@ -313,9 +313,9 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-full flex">
+    <div className="h-full w-full flex min-h-0 overflow-hidden bg-white">
       {/* ── Left: unified contact/conversation list ──────────────────────── */}
-      <div className={`w-full lg:w-80 lg:flex-shrink-0 border-r border-gray-200 h-full flex flex-col ${mobileShowThread ? "hidden lg:flex" : "flex"}`}>
+      <div className={`w-full lg:w-80 lg:flex-shrink-0 border-r border-gray-200 h-full min-h-0 flex flex-col ${mobileShowThread ? "hidden lg:flex" : "flex"}`}>
 
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-100">
@@ -450,7 +450,7 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
       </div>
 
       {/* ── Right: thread or empty state ──────────────────────────────────── */}
-      <div className={`flex-1 min-w-0 h-full ${mobileShowThread ? "block" : "hidden lg:block"}`}>
+      <div className={`flex-1 min-w-0 min-h-0 h-full overflow-hidden ${mobileShowThread ? "block" : "hidden lg:block"}`}>
         {showWaThread && activeWaGroupJid ? (
           <WhatsAppThread
             chantierId={chantierId}

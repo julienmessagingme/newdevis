@@ -677,9 +677,12 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
         {/* pb-32 : zone tampon en bas pour que le FAB Assistant (fixed bottom-24)
             n'intercepte plus les clics sur les éléments en bas de page (accordéons,
             filtres, dropdowns du Registre des paiements, etc.).
-            Trésorerie + Assistant : layout pleine hauteur qui gère son propre
-            scroll interne → overflow-hidden, pas de pb-32 (sinon bande vide en bas). */}
-        <main className={`flex-1 ${activeSection === 'tresorerie' || activeSection === 'assistant' ? 'overflow-hidden' : 'overflow-y-auto pb-32'}`}>
+            Trésorerie + Assistant + Messagerie : layouts pleine hauteur, type appli,
+            qui gèrent leur propre scroll interne → overflow-hidden, pas de pb-32.
+            (overflow-y-auto sur <main> force aussi overflow-x en auto → si un
+            sous-composant déborde, la page entière scrolle et la sidebar sort
+            de l'écran. C'est ce qui cassait la Messagerie.) */}
+        <main className={`flex-1 ${activeSection === 'tresorerie' || activeSection === 'assistant' || activeSection === 'messagerie' ? 'overflow-hidden' : 'overflow-y-auto pb-32'}`}>
           {renderContent()}
         </main>
 
