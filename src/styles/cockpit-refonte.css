@@ -487,7 +487,7 @@
 }
 .cr-plan-head{display:flex; align-items:center; justify-content:space-between; gap:12px}
 .cr-plan-title{
-  font-family:"DM Sans",sans-serif; font-size:20px; font-weight:700;
+  font-family:"DM Sans",sans-serif; font-size:24px; font-weight:700;
   color:var(--cr-navy); letter-spacing:-0.015em;
   display:flex; align-items:center; gap:9px;
 }

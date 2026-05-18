@@ -194,7 +194,7 @@ function PlanningBubble({
     return (
       <button type="button" className="cr-panel cr-plan" onClick={onOpen}>
         <div className="cr-plan-head">
-          <div className="cr-plan-title">📅 Planning</div>
+          <div className="cr-plan-title">Planning</div>
           <span className="cr-plan-chip ar"><ArrowRight /></span>
         </div>
         <div className="cr-plan-empty">
@@ -248,7 +248,7 @@ function PlanningBubble({
   return (
     <button type="button" className={`cr-panel cr-plan cr-plan-${state}`} onClick={onOpen}>
       <div className="cr-plan-head">
-        <div className="cr-plan-title">📅 Planning</div>
+        <div className="cr-plan-title">Planning</div>
         <div className="cr-plan-chips">
           {headChipLabel && <span className={headChipClass}>{headChipLabel}</span>}
           {state === 'nominal' && weeks && <span className="cr-plan-chip">≈ {weeks} sem.</span>}
