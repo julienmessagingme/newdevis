@@ -33,23 +33,11 @@ export const BATCH_SCHEMAS: Tool[] = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "request_clarification",
-      description: "OBSOLÈTE — NE PAS UTILISER. Un participant d'un groupe WhatsApp est toujours légitime (le propriétaire l'a ajouté lui-même) — ce n'est jamais un inconnu. N'appelle PAS ce tool : sers-toi du nom du groupe pour rattacher le message à un lot.",
-      parameters: {
-        type: "object",
-        properties: {
-          phone:           { type: "string", description: "Numéro de téléphone inconnu" },
-          message_summary: { type: "string", description: "Résumé du message reçu" },
-          message_id:      { type: "string", description: "ID du message WhatsApp original" },
-          suggested_lot:   { type: "string", description: "Lot le plus probable (optionnel)" },
-        },
-        required: ["phone", "message_summary"],
-      },
-    },
-  },
+  // request_clarification : RETIRÉ du schéma (2026-05-18). Le tool était devenu
+  // obsolète (un participant de groupe WhatsApp n'est jamais un "inconnu"). Le
+  // retirer du schéma garantit que Gemini ne peut plus l'appeler — plus fiable
+  // que de compter sur une consigne de prompt. Le handler reste défini plus bas
+  // comme no-op défensif (au cas où un ancien pending_decision le référencerait).
 ];
 
 export const ACTION_SCHEMAS: Tool[] = [];

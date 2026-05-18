@@ -22,14 +22,14 @@ export const BATCH_SCHEMAS: Tool[] = [
     type: "function",
     function: {
       name: "get_chantier_data",
-      description: "Requête ad-hoc sur les données du chantier.",
+      description: "Requête ad-hoc sur les données du chantier : documents, intervenants, tâches, échéancier, totaux. À appeler AVANT d'écrire (ex: list_tasks avant complete_task, list_payment_events avant add_payment_event pour éviter les doublons).",
       parameters: {
         type: "object",
         properties: {
           query_type: {
             type: "string",
-            enum: ["count_devis", "sum_travaux_en_cours", "sum_travaux_totaux", "list_documents", "list_intervenants"],
-            description: "Type de requête à exécuter",
+            enum: ["count_devis", "sum_travaux_en_cours", "sum_travaux_totaux", "list_documents", "list_intervenants", "list_tasks", "list_payment_events"],
+            description: "Type de requête : count_devis | sum_travaux_en_cours | sum_travaux_totaux | list_documents (devis/factures avec montants et statuts) | list_intervenants | list_tasks (tâches checklist avec leur id) | list_payment_events (échéancier — entrées/sorties planifiées)",
           },
         },
         required: ["query_type"],
@@ -133,15 +133,34 @@ export const handlers: Record<string, Handler> = {
         return JSON.stringify({ ok: true, sum_ht: sum });
       }
       case "list_documents": {
+        // Champs enrichis : montants + statuts + parent_devis_id permettent à
+        // l'agent d'identifier le bon devis avant update_devis_statut /
+        // register_avenant, et de voir les avenants existants (parent_devis_id).
         const { data } = await sb.from("documents_chantier")
-          .select("id, nom, document_type, source, created_at, lot_id")
-          .eq("chantier_id", chantierId).order("created_at", { ascending: false }).limit(20);
+          .select("id, nom, document_type, source, created_at, lot_id, montant, montant_paye, devis_statut, facture_statut, depense_type, parent_devis_id, avenant_motif")
+          .eq("chantier_id", chantierId).order("created_at", { ascending: false }).limit(30);
         return JSON.stringify({ ok: true, documents: data ?? [] });
       }
       case "list_intervenants": {
         const { data } = await sb.from("contacts_chantier")
           .select("nom, telephone, role, contact_category, lot_id").eq("chantier_id", chantierId);
         return JSON.stringify({ ok: true, contacts: data ?? [] });
+      }
+      case "list_tasks": {
+        // Tâches checklist avec leur id — l'agent passe ensuite l'id à complete_task
+        // (matching fiable, fini le matching par titre exact qui échouait).
+        const { data } = await sb.from("todo_chantier")
+          .select("id, titre, priorite, done, ordre")
+          .eq("chantier_id", chantierId).order("ordre", { ascending: true });
+        return JSON.stringify({ ok: true, tasks: data ?? [] });
+      }
+      case "list_payment_events": {
+        // Échéancier — entrées/sorties planifiées. À consulter avant add_payment_event
+        // pour ne pas créer un doublon (ex: 2× le même déblocage de crédit).
+        const { data } = await sb.from("payment_events_v")
+          .select("id, label, amount, due_date, status, source_type")
+          .eq("project_id", chantierId).order("due_date", { ascending: true });
+        return JSON.stringify({ ok: true, payment_events: data ?? [] });
       }
       default:
         return JSON.stringify({ ok: false, error: `Unknown query_type: ${queryType}` });
