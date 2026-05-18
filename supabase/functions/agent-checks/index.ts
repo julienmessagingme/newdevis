@@ -169,31 +169,49 @@ serve(async (req) => {
 
   const { data: existingInsights } = await supabase
     .from("agent_insights")
-    .select("id, source_event")
+    .select("id, source_event, body, severity")
     .eq("chantier_id", chantier_id);
 
-  const existingByKey = new Map<string, string>();
+  const existingByKey = new Map<string, { id: string; body: string; severity: string }>();
   for (const e of existingInsights ?? []) {
     const k = dedupKey(e.source_event as Record<string, unknown>);
-    if (k && !existingByKey.has(k)) existingByKey.set(k, e.id as string);
+    if (k && !existingByKey.has(k)) {
+      existingByKey.set(k, {
+        id: e.id as string,
+        body: (e.body as string) ?? "",
+        severity: (e.severity as string) ?? "",
+      });
+    }
   }
 
-  let inserted = 0, refreshed = 0;
+  let inserted = 0, refreshed = 0, resurfaced = 0;
   for (const ins of insights) {
     const k = dedupKey(ins.source_event);
-    const existingId = k ? existingByKey.get(k) : undefined;
-    if (existingId) {
-      await supabase.from("agent_insights")
-        .update({ title: ins.title, body: ins.body, severity: ins.severity })
-        .eq("id", existingId);
+    const existing = k ? existingByKey.get(k) : undefined;
+    if (existing) {
+      // La condition a-t-elle CHANGÉ depuis le dernier run ?
+      // Ex : "2 factures sans preuve" → "3 factures" = le body change.
+      //  - changé   → on rafraîchit ET on remet read_by_user=false + created_at=now
+      //               pour RE-NOTIFIER (l'alerte remonte en haut, badge incrémenté).
+      //  - inchangé → refresh silencieux, read_by_user intact (pas de re-notif).
+      const changed = existing.body !== ins.body || existing.severity !== ins.severity;
+      const patch: Record<string, unknown> = {
+        title: ins.title, body: ins.body, severity: ins.severity,
+      };
+      if (changed) {
+        patch.read_by_user = false;
+        patch.created_at = new Date().toISOString();
+      }
+      await supabase.from("agent_insights").update(patch).eq("id", existing.id);
       refreshed++;
+      if (changed) resurfaced++;
     } else {
       const { error } = await supabase.from("agent_insights").insert(ins);
       if (!error) inserted++;
     }
   }
 
-  console.log(`[agent-checks] ${chantier_id}: ${insights.length} checks, ${inserted} new, ${refreshed} refreshed`);
+  console.log(`[agent-checks] ${chantier_id}: ${insights.length} checks, ${inserted} new, ${refreshed} refreshed (${resurfaced} re-notified)`);
 
   return new Response(
     JSON.stringify({ checks: insights.length, inserted }),

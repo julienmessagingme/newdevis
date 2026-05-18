@@ -116,7 +116,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   let dedupQuery = auth.supabase
     .from('agent_insights')
-    .select('id')
+    .select('id, body, severity')
     .eq('chantier_id', chantierId)
     .eq('title', title);
   if (isInfoType) {
@@ -132,15 +132,25 @@ export const POST: APIRoute = async ({ params, request }) => {
       // Info-only : on ne recrée pas dans la fenêtre, on ne touche pas l'existant.
       return jsonOk({ insight: existing[0], deduplicated: true });
     }
-    // Alerte : on rafraîchit l'alerte existante (body + severity) sans la recréer.
-    // Les flags read_by_user / dismiss restent intacts → pas de re-notification.
+    // Alerte : dédup par titre. La condition a-t-elle CHANGÉ ?
+    //  - body/severity changé → refresh + read_by_user=false + created_at=now
+    //    pour RE-NOTIFIER (situation évoluée, ex: 2 → 3 factures).
+    //  - inchangé → refresh silencieux, read_by_user intact (pas de re-notif).
+    const prev = existing[0] as { id: string; body: string; severity: string };
+    const changed = (prev.body ?? '') !== insightBody
+      || (prev.severity ?? '') !== (severity || 'info');
+    const patch: Record<string, unknown> = { body: insightBody, severity: severity || 'info' };
+    if (changed) {
+      patch.read_by_user = false;
+      patch.created_at = new Date().toISOString();
+    }
     const { data: refreshed } = await auth.supabase
       .from('agent_insights')
-      .update({ body: insightBody, severity: severity || 'info' })
-      .eq('id', existing[0].id)
+      .update(patch)
+      .eq('id', prev.id)
       .select()
       .single();
-    return jsonOk({ insight: refreshed ?? existing[0], deduplicated: true, refreshed: true });
+    return jsonOk({ insight: refreshed ?? prev, deduplicated: true, refreshed: true, resurfaced: changed });
   }
 
   const { data, error } = await auth.supabase
