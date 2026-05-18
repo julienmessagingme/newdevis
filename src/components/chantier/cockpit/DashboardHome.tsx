@@ -158,12 +158,31 @@ interface PlanningSnapshot {
   estimatedEnd: string | null;
 }
 
+/**
+ * V3.4.15+ (2026-05-18) — 3 états distincts pour cohérence post-deadline :
+ *   - `completed` : tous les lots terminés (facture payée OU statut termine).
+ *     Affiche "Livré le [date auto]" + CTA "Confirmer la réception".
+ *   - `overdue`   : ≥ 1 lot non terminé ET date prévue dépassée.
+ *     Affiche "Date initialement prévue" (label factuel) + chip ambre +
+ *     invitation discrète à mettre à jour.
+ *   - `nominal`   : cas standard, date dans le futur.
+ *
+ * AUCUNE alerte journalière "X jours de retard" — c'est anxiogène et faux dans
+ * 80% des cas (chantier déjà terminé non clôturé). Le user reste maître de la
+ * date prévue, on ne la recalcule pas dans son dos.
+ */
+type PlanningState = 'completed' | 'overdue' | 'nominal';
+
 function PlanningBubble({
-  planning, rdvs, onOpen,
+  planning, rdvs, onOpen, state = 'nominal', completedDate = null,
 }: {
   planning: PlanningSnapshot;
   rdvs: { titre: string; date: string }[];
   onOpen: () => void;
+  /** État détecté par DashboardHome depuis lots + docs (3 valeurs possibles). */
+  state?: PlanningState;
+  /** ISO date — date du dernier événement (facture payée la plus récente) si state=completed. */
+  completedDate?: string | null;
 }) {
   const { debut, finSouhaitee, estimatedEnd } = planning;
   // Mode : si une date de fin souhaitée existe, on a piloté par la fin.
@@ -202,13 +221,40 @@ function PlanningBubble({
         .filter((m): m is { titre: string; date: string; pct: number } => m !== null)
     : [];
 
+  // V3.4.15+ — Wording adaptatif selon l'état.
+  // PAS d'alerte journalière "en retard de X jours" — c'est anxiogène et faux
+  // dans 80% des cas (chantier déjà terminé non clôturé). Le user reste maître.
+  const rightLabel =
+    state === 'completed' ? 'Livré le'
+    : state === 'overdue' ? 'Date initialement prévue'
+    : endMode             ? 'Livraison visée'
+    :                       'Livraison estimée';
+  const rightDateValue =
+    state === 'completed' && completedDate ? completedDate
+    : endDate;
+  const headChipClass =
+    state === 'completed' ? 'cr-plan-chip ok'
+    : state === 'overdue' ? 'cr-plan-chip warn'
+    : '';
+  const headChipLabel =
+    state === 'completed' ? '✓ Terminé'
+    : state === 'overdue' ? '🟡 À ajuster'
+    : null;
+  const footerInvite =
+    state === 'completed' ? 'Cliquez pour confirmer la réception et clôturer le chantier'
+    : state === 'overdue' ? 'Cliquez pour mettre à jour la date prévue avec votre artisan'
+    : null;
+
   return (
-    <button type="button" className="cr-panel cr-plan" onClick={onOpen}>
+    <button type="button" className={`cr-panel cr-plan cr-plan-${state}`} onClick={onOpen}>
       <div className="cr-plan-head">
         <div className="cr-plan-title">📅 Planning</div>
         <div className="cr-plan-chips">
-          {weeks && <span className="cr-plan-chip">≈ {weeks} sem.</span>}
-          {rdvMarkers.length > 0 && <span className="cr-plan-chip">📌 {rdvMarkers.length} RDV</span>}
+          {headChipLabel && <span className={headChipClass}>{headChipLabel}</span>}
+          {state === 'nominal' && weeks && <span className="cr-plan-chip">≈ {weeks} sem.</span>}
+          {state !== 'completed' && rdvMarkers.length > 0 && (
+            <span className="cr-plan-chip">📌 {rdvMarkers.length} RDV</span>
+          )}
           <span className="cr-plan-chip ar"><ArrowRight /></span>
         </div>
       </div>
@@ -220,7 +266,7 @@ function PlanningBubble({
         <div className="cr-plan-bar">
           <div className="line" />
           <div className="cap" />
-          {rdvMarkers.map((m, i) => (
+          {state === 'nominal' && rdvMarkers.map((m, i) => (
             <div
               key={i}
               className="cr-plan-rdv"
@@ -237,10 +283,17 @@ function PlanningBubble({
           <div className="arrow" />
         </div>
         <div className="cr-plan-side right">
-          <div className="lbl">{endMode ? 'Livraison visée' : 'Livraison estimée'}</div>
-          <div className="dt">{endDate ? fmtBubbleDate(endDate) : '—'}</div>
+          <div className="lbl">{rightLabel}</div>
+          <div className="dt">{rightDateValue ? fmtBubbleDate(rightDateValue) : '—'}</div>
         </div>
       </div>
+      {/* V3.4.15+ — invitation discrète selon l'état (pas d'alerte intrusive) */}
+      {footerInvite && (
+        <div className="cr-plan-footer-invite">
+          {state === 'completed' ? '✅ ' : '💡 '}
+          {footerInvite}
+        </div>
+      )}
     </button>
   );
 }
@@ -318,6 +371,62 @@ function DashboardHome({
     })();
     return () => { cancelled = true; };
   }, [chantierId, token]);
+
+  // V3.4.15+ (2026-05-18) — Détection cohérence date livraison vs avancement réel.
+  //
+  // Problème observé : un chantier dont la date prévue est dépassée (ex: prévu
+  // 27/04 mais on est le 18/05) continue d'afficher "Livraison estimée 27/04"
+  // → mensonge. Mais on ne veut PAS afficher une alerte "en retard de X jours"
+  // qui serait anxiogène et faux dans 80% des cas (chantier déjà terminé non
+  // clôturé).
+  //
+  // Solution : 3 états selon avancement réel + date courante.
+  //   - `completed` : tous les lots ont au moins une facture payée OU statut
+  //     "termine"/"contrat_signe" → on affiche "Livré le [max(facture.created_at)]"
+  //   - `overdue`   : ≥ 1 lot non terminé ET endDate < aujourd'hui → on remplace
+  //     "Livraison estimée" par "Date initialement prévue" + chip "À ajuster"
+  //   - `nominal`   : cas standard
+  const planningState = useMemo<{ state: PlanningState; completedDate: string | null }>(() => {
+    if (!planning || !lots || lots.length === 0) {
+      return { state: 'nominal', completedDate: null };
+    }
+    // Un lot est "complété" si statut termine/contrat_signe OU ≥ 1 facture payée
+    // (logique alignée sur computeLotCard / "Engagé" du dashboard).
+    const isLotCompleted = (lot: LotChantier): boolean => {
+      const s = String(lot.statut ?? '');
+      if (s === 'termine' || s === 'contrat_signe') return true;
+      const lotDocs = docsByLot[lot.id] ?? [];
+      return lotDocs.some(d =>
+        d.document_type === 'facture'
+        && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement')
+      );
+    };
+    const allCompleted = lots.every(isLotCompleted);
+    if (allCompleted) {
+      // Date livraison auto = date du dernier événement (facture payée la plus récente).
+      const paidFactures = documents.filter(d =>
+        d.document_type === 'facture'
+        && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement')
+      );
+      const lastFactureDate = paidFactures
+        .map(d => d.created_at)
+        .filter((x): x is string => !!x)
+        .sort()
+        .pop() ?? null;
+      return { state: 'completed', completedDate: lastFactureDate };
+    }
+    // Chantier en cours : check si date prévue dépassée.
+    const endDateIso = planning.finSouhaitee ?? planning.estimatedEnd;
+    if (endDateIso) {
+      const endT = new Date(endDateIso).getTime();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (Number.isFinite(endT) && endT < today.getTime()) {
+        return { state: 'overdue', completedDate: null };
+      }
+    }
+    return { state: 'nominal', completedDate: null };
+  }, [planning, lots, documents, docsByLot]);
 
   // RDV (localStorage) — jalons affichés sur la flèche temporelle.
   const [rdvs, setRdvs] = useState<{ titre: string; date: string }[]>([]);
@@ -496,9 +605,15 @@ function DashboardHome({
         {/* Colonne gauche : Planning + Intervenants */}
         <div className="cr-left-col">
 
-          {/* Bulle Planning */}
+          {/* Bulle Planning — V3.4.15+ : 3 états distincts (completed/overdue/nominal) */}
           {planning && (
-            <PlanningBubble planning={planning} rdvs={rdvs} onOpen={onGoToPlanning} />
+            <PlanningBubble
+              planning={planning}
+              rdvs={rdvs}
+              onOpen={onGoToPlanning}
+              state={planningState.state}
+              completedDate={planningState.completedDate}
+            />
           )}
 
           {/* Intervenants */}
