@@ -4,7 +4,7 @@
  * Split layout: left column (lot names) is sticky, right area (Gantt bars) scrolls horizontally.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Calendar, Loader2, AlertCircle, Users, AlignLeft, Plus } from 'lucide-react';
+import { Calendar, Loader2, AlertCircle, Users, AlignLeft, Plus, AlertTriangle } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
 import { formatDuration, getWeekLabels, businessDaysBetween, isoWeekNumber } from '@/lib/chantier/planningUtils';
@@ -366,6 +366,11 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
   const { lots, deps, startDate, dateFinSouhaitee, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, applyDragChange, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
+  // V3.4.16+ (2026-05-18) — Pick avec validation explicite (bouton Valider).
+  // Avant : input type="date" auto-submit on blur → 2 bugs : (a) erreur de
+  // saisie 2025 au lieu de 2026 enregistrée sans alerte ; (b) pas de feedback
+  // de validation au user.
+  const [pickedDate, setPickedDate] = useState<string>('');
   // Zoom courant — non persisté volontairement (préférence d'écran, pas de projet).
   const [zoom, setZoom] = useState<ZoomLevel>('week');
 
@@ -670,6 +675,42 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
   }
 
   // -- Date picker (partagé entre empty state et header) ----------------------
+  // V3.4.16+ — refonte avec validation explicite + bouton Valider + message
+  // clair pour les cas spéciaux (chantier déjà démarré, date dans le passé).
+
+  // Validation : retourne un message d'erreur si la date saisie est invalide.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().split('T')[0];
+  const startStr = startDate ? startDate.toISOString().split('T')[0] : null;
+  const chantierStarted = !!(startDate && startDate.getTime() < today.getTime());
+
+  const pickedError = (() => {
+    if (!pickedDate) return null;
+    const d = new Date(pickedDate);
+    if (isNaN(d.getTime())) return 'Date invalide';
+    const dStr = d.toISOString().split('T')[0];
+    if (dateMode === 'end') {
+      if (dStr < todayStr) return `Cette date est dans le passé. Saisissez une date à partir d'aujourd'hui (${today.toLocaleDateString('fr-FR')}).`;
+      if (startStr && dStr <= startStr) return `La date de fin doit être après la date de début (${startDate!.toLocaleDateString('fr-FR')}).`;
+    } else if (dateMode === 'start') {
+      // On autorise une date de début dans le passé uniquement si chantier non encore configuré.
+      // Si on a déjà un startDate dans le passé, le user le change rarement.
+    }
+    return null;
+  })();
+
+  const handleValidate = () => {
+    if (!pickedDate || pickedError) return;
+    const d = new Date(pickedDate);
+    if (dateMode === 'start') {
+      updateStartDate(d);
+    } else {
+      updateEndDate(d);
+    }
+    setDateMode(null);
+    setPickedDate('');
+  };
 
   const datePicker = dateMode && (
     <div className="bg-white rounded-2xl border border-blue-200 shadow-lg p-6 space-y-4">
@@ -677,39 +718,77 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         <h3 className="font-bold text-gray-900">
           {dateMode === 'start' ? '📅 Date de début du chantier' : '🏁 Date de fin souhaitée'}
         </h3>
-        <button onClick={() => setDateMode(null)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+        <button
+          onClick={() => { setDateMode(null); setPickedDate(''); }}
+          aria-label="Fermer"
+          className="text-gray-400 hover:text-gray-600 text-sm"
+        >✕</button>
       </div>
       <p className="text-sm text-gray-500">
         {dateMode === 'start'
           ? 'Le planning des intervenants sera calculé à partir de cette date.'
-          : 'Le planning sera calculé en remontant depuis cette date. La date de début sera déduite automatiquement.'}
+          : chantierStarted
+            ? `Le chantier a démarré le ${startDate!.toLocaleDateString('fr-FR')}. Cette date sera enregistrée comme objectif de livraison — les durées de vos lots ne seront PAS modifiées automatiquement.`
+            : 'Le planning sera calculé en remontant depuis cette date. La date de début sera déduite automatiquement.'}
       </p>
       <input
         type="date"
         autoFocus
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        value={pickedDate}
+        min={dateMode === 'end' ? todayStr : undefined}
+        onChange={(e) => setPickedDate(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          if (e.key === 'Escape') setDateMode(null);
+          if (e.key === 'Enter' && !pickedError) handleValidate();
+          if (e.key === 'Escape') { setDateMode(null); setPickedDate(''); }
         }}
-        onBlur={(e) => {
-          if (!e.target.value) { setDateMode(null); return; }
-          const d = new Date(e.target.value);
-          if (dateMode === 'start') {
-            updateStartDate(d);
-          } else {
-            updateEndDate(d);
-          }
-          setDateMode(null);
-        }}
+        className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 ${
+          pickedError
+            ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+            : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
+        }`}
       />
+      {pickedError && (
+        <p className="text-xs text-red-600 flex items-start gap-1.5">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          {pickedError}
+        </p>
+      )}
+      {/* V3.4.16+ — Message info chantier déjà démarré (sujet à clarification) */}
+      {dateMode === 'end' && chantierStarted && !pickedError && pickedDate && (
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+          💡 Pour rallonger ou raccourcir le chantier en conséquence, vous pouvez
+          modifier la durée de chaque lot individuellement depuis le Gantt
+          (tirez les bords des barres pour ajuster).
+        </div>
+      )}
+      <div className="flex items-center gap-2 pt-2">
+        <button
+          onClick={handleValidate}
+          disabled={!pickedDate || !!pickedError}
+          className="flex-1 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors"
+        >
+          ✓ Valider
+        </button>
+        <button
+          onClick={() => { setDateMode(null); setPickedDate(''); }}
+          className="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          Annuler
+        </button>
+      </div>
       {dateMode === 'start' && (
-        <button onClick={() => setDateMode('end')} className="text-xs text-blue-600 hover:underline">
+        <button
+          onClick={() => { setDateMode('end'); setPickedDate(''); }}
+          className="text-xs text-blue-600 hover:underline"
+        >
           Je connais plutôt ma date de fin souhaitée →
         </button>
       )}
       {dateMode === 'end' && (
-        <button onClick={() => setDateMode('start')} className="text-xs text-blue-600 hover:underline">
+        <button
+          onClick={() => { setDateMode('start'); setPickedDate(''); }}
+          className="text-xs text-blue-600 hover:underline"
+        >
           ← Je connais plutôt ma date de début
         </button>
       )}
