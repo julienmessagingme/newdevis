@@ -2220,10 +2220,16 @@ export default function BudgetTab({
                       const totalPaye  = artisan.totaux.paye + artisan.totaux.acompte;
                       const budget     = artisan.totaux.devis_valides || artisan.totaux.facture;
                       const pct        = budget > 0 ? Math.min(100, Math.round(totalPaye / budget * 100)) : 0;
-                      // isSolde : facture payee OU acompte devis couvre 100% du budget (sans facture)
+                      // V3.4.16+ (2026-05-18) — Fix : pour la branche "sans facture",
+                      // on utilise `a_payer` (backend) au lieu de comparer `totalPaye`
+                      // à `budget`. La formule backend (`max(0, devis_valides -
+                      // acompte_devis)`) est plus fiable que la soustraction front
+                      // (risque d'arrondi flottant 0.99 → état "non soldé" alors que
+                      // tout est versé). Devis Malet 15917€ acompte = 15917€ → a_payer
+                      // = 0 → isSolde = true.
                       const isSolde    = artisan.factures.length > 0
                         ? artisan.factures.some(f => (statutOverrides[f.id] ?? f.facture_statut) === 'payee') && artisan.totaux.a_payer === 0
-                        : budget > 0 && totalPaye >= budget;
+                        : artisan.totaux.devis_valides > 0 && artisan.totaux.a_payer === 0;
                       const hasAlert   = artisan.factures.some(f => factureCoherence(f.nom, artisan.devis) === false);
                       const docsCount  = artisan.devis.filter(d => d.signed_url).length
                                        + artisan.factures.filter(f => f.signed_url).length;
