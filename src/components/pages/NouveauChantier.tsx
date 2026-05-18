@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@supabase/supabase-js';
 import { Loader2 } from 'lucide-react';
+import ScreenOnboarding, { type OnboardingAnswers } from '@/components/chantier/nouveau/ScreenOnboarding';
 import ScreenPrompt from '@/components/chantier/nouveau/ScreenPrompt';
 import ScreenGenerating from '@/components/chantier/nouveau/ScreenGenerating';
 import type { ChantierIAResult, ChantierGuideForm } from '@/types/chantier-ia';
@@ -11,10 +12,11 @@ const supabase = createClient(
   import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );
 
-type Ecran = 'prompt' | 'generating' | 'saving';
+type Ecran = 'onboarding' | 'prompt' | 'generating' | 'saving';
 
 export default function NouveauChantier() {
-  const [ecran, setEcran]             = useState<Ecran>('prompt');
+  const [ecran, setEcran]             = useState<Ecran>('onboarding');
+  const [onboarding, setOnboarding]   = useState<OnboardingAnswers | null>(null);
   const [requestBody, setRequestBody] = useState('');
   const [isLoading, setIsLoading]     = useState(false);
   const startTimeRef = useRef<number>(0);
@@ -26,7 +28,13 @@ export default function NouveauChantier() {
 
   const [budgetCible, setBudgetCible] = useState<number | null>(null);
 
-  // ── Étape 1 : saisie de la description → génération directe ───────────────
+  // ── Étape 1 : questions d'onboarding → écran de description ───────────────
+  const handleOnboarding = useCallback((answers: OnboardingAnswers) => {
+    setOnboarding(answers);
+    setEcran('prompt');
+  }, []);
+
+  // ── Étape 2 : saisie de la description → génération directe ───────────────
   const handleGenerate = useCallback(
     async (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm, userBudget?: number | null) => {
       const token = await getToken();
@@ -39,15 +47,22 @@ export default function NouveauChantier() {
       setIsLoading(true);
       startTimeRef.current = Date.now();
       setBudgetCible(userBudget ?? null);
+
+      // Dates issues de l'onboarding → qualificationAnswers consommé par chantier-generer
+      const qa: Record<string, string> = {};
+      if (onboarding?.dateMode === 'debut' && onboarding.dateValue) qa.date_debut = onboarding.dateValue;
+      if (onboarding?.dateMode === 'fin'   && onboarding.dateValue) qa.date_fin   = onboarding.dateValue;
+
       setRequestBody(JSON.stringify({
         description, mode,
         ...(guidedForm ? { guidedForm } : {}),
         ...(userBudget && userBudget > 0 ? { budgetCible: userBudget } : {}),
+        ...(Object.keys(qa).length > 0 ? { qualificationAnswers: qa } : {}),
       }));
       setEcran('generating');
       setIsLoading(false);
     },
-    [getToken],
+    [getToken, onboarding],
   );
 
   // ── Étape 3 : génération terminée → sauvegarder → rediriger ───────────────
@@ -79,7 +94,9 @@ export default function NouveauChantier() {
         const data = await res.json();
         const id = data.chantierId;
         if (id) {
-          window.location.href = `/mon-chantier/${id}`;
+          // "Déjà des devis" → on ouvre directement l'upload de documents sur le cockpit.
+          const suffix = onboarding?.hasDevis ? '?upload=1' : '';
+          window.location.href = `/mon-chantier/${id}${suffix}`;
           return;
         }
       }
@@ -90,7 +107,7 @@ export default function NouveauChantier() {
       toast.error('Erreur réseau');
       setEcran('prompt');
     }
-  }, [budgetCible]);
+  }, [budgetCible, onboarding]);
 
   const handleError = useCallback((msg: string) => {
     toast.error(msg);
@@ -98,6 +115,15 @@ export default function NouveauChantier() {
   }, []);
 
   // ── Rendu ──────────────────────────────────────────────────────────────────
+  if (ecran === 'onboarding') {
+    return (
+      <ScreenOnboarding
+        onComplete={handleOnboarding}
+        onBack={() => { window.location.href = '/mon-chantier'; }}
+      />
+    );
+  }
+
   if (ecran === 'prompt') {
     return <ScreenPrompt onGenerate={handleGenerate} isLoading={isLoading} />;
   }

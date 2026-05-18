@@ -76,10 +76,12 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get('edit') === '1') {
-      setShowAmelioration(true);
-      window.history.replaceState({}, '', window.location.pathname);
-    }
+    let consumed = false;
+    // ?edit=1 — éditeur de projet (lien "Modifier avec l'IA" du hub)
+    if (params.get('edit') === '1') { setShowAmelioration(true); consumed = true; }
+    // ?upload=1 — ouvre l'upload de documents (onboarding "j'ai déjà des devis")
+    if (params.get('upload') === '1') { setUploadModal({ open: true }); consumed = true; }
+    if (consumed) window.history.replaceState({}, '', window.location.pathname);
   }, []);
 
   // Messagerie: unread count for sidebar badge

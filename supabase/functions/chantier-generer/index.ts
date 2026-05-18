@@ -291,8 +291,18 @@ serve(async (req: Request) => {
   let dateDebutChantier: string | undefined;
   let dateFinSouhaitee: string | undefined;
   {
+    // Cas prioritaire : dates ISO explicites issues de l'écran d'onboarding
+    // (date_debut / date_fin au format yyyy-mm-dd). Pas d'heuristique.
+    const isoDebut = qualificationAnswers?.date_debut;
+    const isoFin   = qualificationAnswers?.date_fin;
+    const isISO = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+
     const dateAnswer = qualificationAnswers?.date_chantier ?? qualificationAnswers?.date_debut_chantier ?? qualificationAnswers?.date_debut;
-    if (dateAnswer && dateAnswer !== "Je ne sais pas encore") {
+    if (isISO(isoDebut)) {
+      dateDebutChantier = isoDebut;
+    } else if (isISO(isoFin)) {
+      dateFinSouhaitee = isoFin;
+    } else if (dateAnswer && dateAnswer !== "Je ne sais pas encore") {
       if (dateAnswer === "Je connais ma date de début" || dateAnswer === "Je connais ma date de fin souhaitée") {
         // L'utilisateur a choisi une option mais doit ensuite saisir la date concrète
         // La date réelle sera renseignée plus tard dans l'interface Planning
