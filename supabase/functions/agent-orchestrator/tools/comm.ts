@@ -306,26 +306,29 @@ export const handlers: Record<string, Handler> = {
     const sb = supabaseAdmin();
     const { data: contact } = await sb.from("contacts_chantier")
       .select("id, nom, telephone, has_whatsapp, chantier_id").eq("id", contactId).single();
-    if (!contact || contact.chantier_id !== chantierId) {
-      return JSON.stringify({ ok: false, error: "Contact introuvable sur ce chantier" });
-    }
-    if (contact.has_whatsapp === false) {
-      return JSON.stringify({
-        ok: false, error: "no_whatsapp",
-        message: `${contact.nom} est marqué comme n'ayant pas WhatsApp. Propose d'envoyer un email à la place (send_email).`,
-      });
-    }
+    const contactValid = !!contact && contact.chantier_id === chantierId;
 
     let targetJid = groupJid;
     let createdGroup = false;
 
     if (createDedicated) {
-      if (!contact.telephone) {
-        return JSON.stringify({ ok: false, error: "no_phone", message: `${contact.nom} n'a pas de téléphone enregistré.` });
+      // Créer un groupe dédié AUTOUR du contact → on a besoin d'un contact
+      // valide, joignable sur WhatsApp, avec un téléphone enregistré.
+      if (!contactValid) {
+        return JSON.stringify({ ok: false, error: "Contact introuvable sur ce chantier" });
+      }
+      if (contact!.has_whatsapp === false) {
+        return JSON.stringify({
+          ok: false, error: "no_whatsapp",
+          message: `${contact!.nom} est marqué comme n'ayant pas WhatsApp. Propose d'envoyer un email à la place (send_email).`,
+        });
+      }
+      if (!contact!.telephone) {
+        return JSON.stringify({ ok: false, error: "no_phone", message: `${contact!.nom} n'a pas de téléphone enregistré.` });
       }
       const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/whatsapp`, {
         method: "POST", headers,
-        body: JSON.stringify({ selectedPhones: [contact.telephone], name: `💬 ${contact.nom}`.slice(0, 60) }),
+        body: JSON.stringify({ selectedPhones: [contact!.telephone], name: `💬 ${contact!.nom}`.slice(0, 60) }),
       });
       if (!res.ok) {
         const t = await res.text();
@@ -338,17 +341,22 @@ export const handlers: Record<string, Handler> = {
         return JSON.stringify({ ok: false, error: "Groupe dédié créé mais JID introuvable" });
       }
     } else {
+      // Mode group_jid : on envoie dans un groupe EXISTANT du chantier.
+      // FILET ANTI-RÉGRESSION (bug "contact introuvable" 2026-05-18) : le contact
+      // est forcément membre du groupe (l'owner l'y a ajouté) — inutile qu'il
+      // figure dans contacts_chantier. On NE bloque PAS si le contact est absent ;
+      // on valide uniquement que le groupe appartient bien au chantier.
       const { data: g } = await sb.from("chantier_whatsapp_groups")
         .select("group_jid").eq("group_jid", groupJid).eq("chantier_id", chantierId).maybeSingle();
       if (!g) {
-        return JSON.stringify({ ok: false, error: "Groupe introuvable sur ce chantier — vérifie le group_jid via list_artisan_whatsapp_targets" });
+        return JSON.stringify({ ok: false, error: "Groupe introuvable sur ce chantier — vérifie le group_jid via list_chantier_groups" });
       }
     }
 
     const result = await sendWhatsApp(chantierId, targetJid, body);
     return JSON.stringify({
       ...result,
-      contact_nom: contact.nom,
+      contact_nom: contactValid ? contact!.nom : null,
       group_jid: targetJid,
       created_dedicated_group: createdGroup,
     });
