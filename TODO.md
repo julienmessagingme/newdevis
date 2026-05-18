@@ -331,6 +331,18 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 
 ---
 
+## GMC — Monétisation : essai gratuit 15 j + gate paywall
+
+> À coder **en même temps que la facturation Stripe** — pas avant. Un mur à J+15 sans formule payante derrière = cul-de-sac (l'utilisateur n'a nulle part où upgrader).
+
+- [ ] **Compteur d'essai 15 jours sans CB** : tout nouveau compte GMC démarre un essai gratuit de 15 jours. Ancre du compteur = `auth.users.created_at` (pas besoin de nouveau champ ; éventuellement `trial_started_at` distinct si on veut découpler "compte créé" et "1er accès GMC"). Pas de carte bancaire demandée à l'inscription.
+- [ ] **Gate à J+15** : passé 15 jours, bloquer l'accès au cockpit GMC et afficher un écran d'upgrade vers une formule payante. Point d'entrée naturel = `src/lib/auth/gmcAccess.ts` (`hasGmcAccess` — aujourd'hui allowlist hardcodée, déjà identifié comme "à remplacer par lecture DB"). Le gate y branche : accès si (essai actif `now < created_at + 15j`) OU (abonnement payant actif).
+- [ ] **Écran d'upgrade** : page/modale "Votre essai est terminé" → formules (Essentiel 12€/mois, Multi-chantiers 25€/mois — cf. landing GMC) → checkout Stripe. Réutiliser le flux `create-checkout-session` existant (VMD Pass Sérénité) en l'étendant aux plans GMC.
+- [ ] **Pré-câblage déjà en place** : la question "un seul / plusieurs chantiers" de l'écran d'onboarding (`ScreenOnboarding`) est posée — la réponse pourra pré-sélectionner la formule (mono → Essentiel, multi → Multi-chantiers) au moment du gate. Penser à persister cette réponse quand on attaquera le sujet.
+- [ ] **Bandeau "essai — J restants"** : pendant l'essai, afficher discrètement le nombre de jours restants dans le cockpit (sidebar ou header) pour préparer l'utilisateur à la conversion.
+
+---
+
 ## Comment ce fichier fonctionne
 
 - **Quand on ajoute un item** : description courte + fichier:ligne quand pertinent + effort estimé si on l'a.
