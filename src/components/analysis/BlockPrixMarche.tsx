@@ -199,8 +199,13 @@ const AssignmentCard = ({ row, onDrop, onQuantityChange }: AssignmentCardProps) 
 
 interface AnalysisCardProps {
   row: JobTypeDisplayRow;
-  /** Badge de synthèse globale (bonus) — null = aucun badge additionnel */
-  globalBadge?: "anomalie" | "survalue" | null;
+  /**
+   * Badge de synthèse globale (bonus) — null = aucun badge additionnel.
+   * V3.4.15 (2026-05-18) — ajout de `surface_mismatch` : poste facturé en
+   * u/forfait sur prestation surfacique sans surface précisée → badge JAUNE
+   * "Surface à vérifier" au lieu d'accuser "Anomalie marché" sans fondement.
+   */
+  globalBadge?: "anomalie" | "survalue" | "surface_mismatch" | null;
 }
 
 const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
@@ -237,6 +242,15 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
             {globalBadge === "survalue" && (
               <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap text-orange-700 bg-orange-100 border border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-800">
                 🟠 Surévalué
+              </span>
+            )}
+            {/* V3.4.15 — surface mismatch : badge jaune factuel, pas accusateur */}
+            {globalBadge === "surface_mismatch" && (
+              <span
+                className="inline-block px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap text-amber-800 bg-amber-100 border border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-800"
+                title="Facturé en unité/forfait sans surface précisée — la comparaison au prix marché n'est pas fiable. Demandez la surface en m² à l'artisan pour valider."
+              >
+                🟡 Surface à vérifier
               </span>
             )}
           </div>
@@ -642,10 +656,14 @@ const BlockPrixMarche = ({
 
           {analysisRows.length > 0 ? (
             analysisRows.map((row, idx) => {
-              // Badge bonus : classification individuelle pour "anomalie" et "survalue"
+              // Badge bonus : classification individuelle.
+              // V3.4.15 — surface_mismatch (jaune "Surface à vérifier") prioritaire
+              // sur anomalie/survalue : si le poste n'est pas comparable au €/m²,
+              // on n'a pas le droit de l'afficher en rouge.
               const cls = classifyRow(row);
               const globalBadge =
-                cls === "anomalie" ? "anomalie"
+                cls === "surface_mismatch" ? "surface_mismatch"
+                : cls === "anomalie" ? "anomalie"
                 : cls === "survalue" ? "survalue"
                 : null;
 

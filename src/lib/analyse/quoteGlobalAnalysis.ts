@@ -1,5 +1,6 @@
 import type { JobTypeDisplayRow } from "@/hooks/useMarketPriceAPI";
 import { isLikelyHeterogeneousGroup, type HomogeneityGroupInput } from "@/lib/analyse/groupHomogeneity";
+import { hasSurfaceUnitMismatch, surfaceMismatchConfidence, SURFACE_MISMATCH_THRESHOLD, type SurfaceGroup } from "@/lib/analyse/surfaceUtils";
 
 /**
  * Adapte un `JobTypeDisplayRow` (format client) vers `HomogeneityGroupInput`
@@ -28,8 +29,19 @@ function rowToHomogeneityInput(row: JobTypeDisplayRow): HomogeneityGroupInput {
 // TYPES
 // ============================================================
 
-/** Classification d'un poste individuel par rapport au max marché */
-export type ItemClassification = "normal" | "legerement_eleve" | "survalue" | "anomalie";
+/**
+ * Classification d'un poste individuel par rapport au max marché.
+ *
+ * V3.4.15 — ajout de `surface_mismatch` : poste facturé en u/forfait sur une
+ * prestation surfacique (carrelage, peinture, doublage…) SANS surface précisée
+ * dans les lignes. La comparaison au marché (en €/m²) n'est PAS fiable — on
+ * affiche un badge jaune "Surface à vérifier" au lieu de "Anomalie marché"
+ * (qui serait accusateur sans fondement).
+ *
+ * Cette classification a priorité sur "anomalie"/"survalue" : un poste avec
+ * surface_mismatch ne peut PAS être classé en anomalie (on n'est pas comparable).
+ */
+export type ItemClassification = "normal" | "legerement_eleve" | "survalue" | "anomalie" | "surface_mismatch";
 
 /** Verdict global sur l'ensemble du devis */
 export type GlobalStatus = "correct" | "a_negocier" | "risque_eleve";
@@ -58,6 +70,8 @@ export interface GlobalAnalysis {
   nbLegerementEleve: number;
   nbSurvalue: number;
   nbAnomalie: number;
+  /** V3.4.15 — Postes avec surface mismatch confirmé (badge jaune "Surface à vérifier"). */
+  nbSurfaceMismatch: number;
   /** Postes facturés au forfait global — exclus de l'analyse comparative */
   nbForfait: number;
   /** Surcoût brut (Σ price - marketMax pour les postes au-dessus) */
@@ -132,6 +146,7 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
   let nbLegerementEleve = 0;
   let nbSurvalue = 0;
   let nbAnomalie = 0;
+  let nbSurfaceMismatch = 0;
   let surcoutEstime = 0;
 
   const anomalieItems: ClassifiedItem[] = [];
@@ -140,8 +155,25 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
   for (const row of analyzable) {
     const price = row.devisTotalHT!;
     const marketMax = row.theoreticalMaxHT;
-    let classification = classifyItem(price, marketMax);
+    let classification: ItemClassification = classifyItem(price, marketMax);
     const surcout = price > marketMax ? price - marketMax : 0;
+
+    // V3.4.15 (2026-05-18) — Surface mismatch a priorité sur anomalie/survalue.
+    // Si le poste est facturé en u/forfait sur prestation surfacique sans surface,
+    // on ne peut PAS affirmer qu'il y a anomalie au €/m². Classification spéciale.
+    const surfaceInput: SurfaceGroup = {
+      label: row.jobTypeLabel,
+      unit: row.mainUnit ?? "",
+      lines: row.devisLines.map(l => ({
+        description: l.description,
+        unit: l.unit,
+        quantity: typeof l.quantity === "number" ? l.quantity : null,
+      })),
+      mainQuantity: row.mainQuantity,
+    };
+    if (surfaceMismatchConfidence(surfaceInput) >= SURFACE_MISMATCH_THRESHOLD) {
+      classification = "surface_mismatch";
+    }
 
     // ──────────────────────────────────────────────────────────────────────
     // V3.4 Niveaux 1+2 — Garde-fou groupes hétérogènes via module partagé.
@@ -156,7 +188,10 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     //   - Niveau 1 : critère ratio prix unitaire > 2× max marché (fallback)
     // Voir `src/lib/analyse/groupHomogeneity.ts` pour le détail de l'algorithme.
     // ──────────────────────────────────────────────────────────────────────
-    const isHeterogeneous = isLikelyHeterogeneousGroup(rowToHomogeneityInput(row));
+    // V3.4.15 — surface_mismatch n'est jamais downgrade en hétérogène
+    // (c'est déjà un signal "à vérifier" non comparable).
+    const isHeterogeneous = classification !== "surface_mismatch"
+      && isLikelyHeterogeneousGroup(rowToHomogeneityInput(row));
     if (isHeterogeneous && (classification === "anomalie" || classification === "survalue")) {
       // Downgrade à "legerement_eleve" — le wording UI passe en "Comparaison
       // indicative" plutôt qu'"Anomalie marché".
@@ -180,6 +215,8 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     //   - line.unit doit matcher mainUnit (ou les deux doivent être en m²)
     //   - line.quantity > 0
     //   - line.amountHT > 0
+    // V3.4.15 — pas de détection d'anomalie ligne si surface_mismatch (on n'est
+    // pas comparable à l'unité non plus, le user doit d'abord donner la surface).
     if ((classification === "normal" || classification === "legerement_eleve") && !wasDowngradedHeterogeneous) {
       const mainUnit = row.mainUnit?.toLowerCase().trim() || "";
       const mainQty  = row.mainQuantity > 0 ? row.mainQuantity : 0;
@@ -231,16 +268,23 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
         nbAnomalie++;
         anomalieItems.push(item);
         break;
+      case "surface_mismatch":
+        // V3.4.15 — compté à part. Pas dans anomalieItems (la comparaison
+        // n'est pas fiable au €/m²) mais visible dans la répartition.
+        nbSurfaceMismatch++;
+        break;
     }
   }
 
   // Statut global — anomalies en premier (priorité maximale)
   // RÈGLE 2 : tout poste "survalue" (+30 % au-dessus du max marché) déclenche a_negocier.
   // Un seul poste anomalie suffit. Plusieurs anomalies → risque_eleve.
+  // V3.4.15 — ajout règle surface_mismatch : ≥3 postes "Surface à vérifier"
+  // déclenche a_negocier (sans surface, on ne peut pas valider, donc à clarifier).
   let status: GlobalStatus;
   if (nbAnomalie >= 2) {
     status = "risque_eleve";
-  } else if (nbAnomalie >= 1 || nbSurvalue >= 1) {
+  } else if (nbAnomalie >= 1 || nbSurvalue >= 1 || nbSurfaceMismatch >= 3) {
     status = "a_negocier";
   } else {
     status = "correct";
@@ -252,6 +296,7 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     nbLegerementEleve,
     nbSurvalue,
     nbAnomalie,
+    nbSurfaceMismatch,
     nbForfait: forfaitRows.length,
     surcoutEstime: Math.round(surcoutEstime),
     surcoutMin: Math.round(surcoutEstime * 0.7),
@@ -281,5 +326,30 @@ export function classifyRow(
   ) {
     return null;
   }
+
+  // V3.4.15 (2026-05-18) — Surface mismatch a priorité sur anomalie/survalue.
+  //
+  // Si le poste est facturé en u/forfait sur une prestation surfacique sans
+  // surface précisée, la comparaison au marché (€/m²) n'est PAS fiable.
+  // On retourne `surface_mismatch` au lieu d'`anomalie` pour que le badge UI
+  // soit honnête ("Surface à vérifier" jaune au lieu de "Anomalie marché" rouge).
+  //
+  // Cas typique observé (devis-2026-05-DEV16) : Ragréage 530€ / 1u marché 12-35€/m²
+  // → classification ratio = 15x = "anomalie" → MAIS surface manquante → on ne
+  // peut PAS affirmer qu'il y a anomalie. Le bon wording est "Surface à vérifier".
+  const surfaceInput: SurfaceGroup = {
+    label: row.jobTypeLabel,
+    unit: row.mainUnit ?? "",
+    lines: row.devisLines.map(l => ({
+      description: l.description,
+      unit: l.unit,
+      quantity: typeof l.quantity === "number" ? l.quantity : null,
+    })),
+    mainQuantity: row.mainQuantity,
+  };
+  if (surfaceMismatchConfidence(surfaceInput) >= SURFACE_MISMATCH_THRESHOLD) {
+    return "surface_mismatch";
+  }
+
   return classifyItem(row.devisTotalHT, row.theoreticalMaxHT);
 }

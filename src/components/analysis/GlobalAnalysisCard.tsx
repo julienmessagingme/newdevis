@@ -45,6 +45,8 @@ export function GlobalAnalysisCard({ analysis }: GlobalAnalysisCardProps) {
     nbForfait,
     totalItemsAnalyzed,
   } = analysis;
+  // V3.4.15 — fallback à 0 si l'analyse provient d'un cache pré-V3.4.15 sans ce champ
+  const nbSurfaceMismatch = (analysis as { nbSurfaceMismatch?: number }).nbSurfaceMismatch ?? 0;
 
   // N'affiche rien s'il n'y a aucun poste comparable ET aucun forfait
   if (totalItemsAnalyzed === 0 && nbForfait === 0) return null;
@@ -77,6 +79,19 @@ export function GlobalAnalysisCard({ analysis }: GlobalAnalysisCardProps) {
         <StatChip value={nbSurvalue}         label="Surévalué"        color="orange" />
         <StatChip value={nbAnomalie}         label="Prix anormal"     color="red"    />
       </div>
+      {/* V3.4.15 — note "Surface à vérifier" en complément (postes facturés en u/forfait
+          sur prestation surfacique sans surface précisée → non comparables au €/m²) */}
+      {nbSurfaceMismatch > 0 && (
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-amber-800 dark:text-amber-300">
+          <span aria-hidden="true">🟡</span>
+          <span>
+            <strong>{nbSurfaceMismatch} poste{nbSurfaceMismatch > 1 ? "s" : ""} à clarifier</strong>
+            {" "}— facturé{nbSurfaceMismatch > 1 ? "s" : ""} en unité/forfait sans surface précisée,
+            la comparaison marché (en €/m²) n'est pas fiable.
+            Demandez la surface exacte à l'artisan.
+          </span>
+        </div>
+      )}
     </div>
   );
 }

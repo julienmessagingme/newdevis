@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.14";
+const ENGINE_VERSION = "3.4.15";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -897,6 +897,47 @@ export const POST: APIRoute = async ({ params, request }) => {
       company_status:        preCompanyStatus ?? undefined,
       weighted_anomalies:    weightedAnomalies,
     });
+
+    // ────────────────────────────────────────────────────────────────────────
+    // V3.4.15 (2026-05-18) — Escalade verdict sur "postes suspects" (surface
+    // mismatch + ratio prix élevé). Empêche le bug observé devis-2026-05-DEV16
+    // où le user voyait 4 "Anomalies marché" en rouge mais verdict VERT.
+    //
+    // Logique : si ≥ 2 postes sont (a) en surface mismatch ET (b) facturés
+    // > 3× la fourchette marché max (signal très fort qu'il y a un problème
+    // même si on ne peut pas l'affirmer avec certitude au €/m²), on escalade
+    // le verdict en `a_negocier` (orange minimum). Ces postes apparaissent en
+    // front avec le badge jaune "Surface à vérifier" — l'escalade verdict
+    // garantit que le bandeau global reste cohérent.
+    //
+    // Hard block company_status (refuser) NON affecté — il reste prioritaire.
+    // ────────────────────────────────────────────────────────────────────────
+    // On réutilise la fonction `surfaceMismatchConfidence` locale (définie plus haut
+    // dans ce fichier) — pas de dynamic import, signatures équivalentes au helper
+    // partagé src/lib/analyse/surfaceUtils.ts.
+    let suspectGroupsCount = 0;
+    for (const g of priceData as Array<Record<string, any>>) {
+      if (!g || typeof g !== "object") continue;
+      if (surfaceMismatchConfidence(g) < SURFACE_MISMATCH_ACTION_THRESHOLD) continue;
+      const devisTotal = typeof g.devis_total_ht === "number" ? g.devis_total_ht : 0;
+      const marketMax  = typeof g.theoretical_max_ht === "number" ? g.theoretical_max_ht
+                       : typeof g.fourchette_max_ht === "number" ? g.fourchette_max_ht
+                       : 0;
+      // Ratio > 3× → signal très fort (4× pour rester sous le bruit catalogue)
+      if (marketMax > 0 && devisTotal > marketMax * 3) {
+        suspectGroupsCount++;
+      }
+    }
+    if (suspectGroupsCount >= 2 && preEngine.verdict === "signer" && !preEngine.is_hard_block) {
+      console.log(`[conclusion] V3.4.15 escalade verdict signer → a_negocier — ${suspectGroupsCount} postes suspects (surface mismatch + ratio > 3x)`);
+      preEngine = {
+        ...preEngine,
+        verdict:      "a_negocier",
+        color:        "orange",
+        score_legacy: "ORANGE",
+        price_label:  "⚠️ À négocier",
+      };
+    }
   }
 
   // Mapping engine verdict → labels lisibles dans le prompt LLM
@@ -1274,8 +1315,14 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       seenLabels.add(normalizedLabel);
       const unitUsed = (g.main_unit as string) || "U";
       console.log(`[conclusion] surface mismatch confirmé pour "${posteName}" — confidence=${confidence.toFixed(2)}`);
+      // V3.4.15 (2026-05-18) — Bug fix : retrait du seuil arbitraire "8/12 m²".
+      // Avant : "Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent."
+      // Problème : ces seuils étaient hardcodés pour TOUS les postes (peinture,
+      // doublage, ragréage, carrelage...) alors qu'ils ont des seuils m² très
+      // différents. Faux/paternaliste. On garde uniquement la demande factuelle
+      // de surface — c'est le user (et son artisan) qui jugent ensuite.
       surfaceActions.push(
-        `Demandez la surface exacte en m² pour "${posteName}" — facturé en ${unitUsed} sans surface précisée, impossible de comparer au marché. Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent.`
+        `Demandez la surface exacte en m² pour "${posteName}" — facturé en ${unitUsed} sans précision de surface, impossible de comparer au marché.`
       );
       if (surfaceActions.length >= 2) break; // max 2 actions surface différentes
     }

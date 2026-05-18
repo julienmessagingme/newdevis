@@ -142,13 +142,26 @@ export function renderOutput(
   }
 
   // Google reputation
+  // V3.4.15 (2026-05-18) — Bug fix : une note < 4.0/5 ne doit JAMAIS être classée
+  // en "point conforme" (points_ok est rendu en vert côté UI). On la pousse dans
+  // alertes (orange) en cohérence avec score.ts:148 qui l'a déjà dans `oranges`.
+  // Avant le fix : 3.3/5 sur 69 avis était listée comme "🟢 Note Google : 3.3/5"
+  // dans "Autres points conformes" → contradiction avec le bandeau orange
+  // "Réputation en ligne 3,3/5" affiché juste au-dessus.
   if (verified.google_trouve && verified.google_note !== null) {
     if (verified.google_note >= 4.2) {
       points_ok.push(`🟢 Bonne réputation en ligne : ${verified.google_note}/5 (${verified.google_nb_avis} avis Google)`);
     } else if (verified.google_note >= 4.0) {
       points_ok.push(`✓ Réputation en ligne correcte : ${verified.google_note}/5 (${verified.google_nb_avis} avis Google)`);
     } else {
-      points_ok.push(`ℹ️ Note Google : ${verified.google_note}/5 (${verified.google_nb_avis} avis)`);
+      // < 4.0/5 = signal d'alerte dans le BTP (seuil de confort 4.0+).
+      // On affiche en alerte au lieu de point conforme.
+      const nbAvis = verified.google_nb_avis ?? 0;
+      alertes.push(
+        `⚠️ Note Google moyenne : ${verified.google_note}/5 (${nbAvis} avis). ` +
+        `En dessous du seuil de confort de 4,0/5. Lisez les avis récents pour identifier ` +
+        `les motifs de mécontentement (qualité, délais, communication) avant de signer.`
+      );
     }
   } else if (!verified.google_trouve && extracted.entreprise.nom) {
     points_ok.push("ℹ️ Aucun avis Google trouvé - cela ne préjuge pas de la qualité de l'entreprise");
