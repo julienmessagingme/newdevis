@@ -232,7 +232,7 @@ export default function ChantierAssistantChat({ chantierId, token, size, onOpenF
 
   // ── FULL mode ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full max-h-[calc(100vh-8rem)] max-w-3xl mx-auto">
+    <div className="flex flex-col h-full min-h-0 w-full max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 shrink-0">
         <ExpertAvatar size={40} showBadge />

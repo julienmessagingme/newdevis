@@ -10,6 +10,7 @@
  * Export PDF + Excel (CSV), pour le jour affiché OU une plage de dates.
  */
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import {
   ChevronLeft, ChevronRight, BookOpen, Loader2, Bot, FileText, FileSpreadsheet,
   AlertTriangle, RefreshCw, X, CalendarRange,
@@ -46,6 +47,66 @@ function dayBoundsISO(dateStr: string): { from: string; to: string } {
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
   return { from: start.toISOString(), to: end.toISOString() };
+}
+
+// ── Rendu du digest IA ────────────────────────────────────────────────────────
+// Le digest est un markdown léger rédigé par l'IA. Sur WhatsApp il s'affiche bien,
+// mais brut sur le site (les `*` et `**` restaient littéraux). On parse ici :
+// gras `**…**`, puces `- / * / •` rendues en chevron propre, titres, citations.
+// Aucune ligne vide n'est matérialisée par un <br> — l'espacement vient des marges,
+// pour une mise en page compacte.
+function renderInline(text: string, keyBase: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  const re = /\*\*([^*]+)\*\*/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let k = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(<strong key={`${keyBase}-b${k++}`} className="font-semibold text-gray-900">{m[1]}</strong>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+function renderDigestBody(body: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  body.split('\n').forEach((raw, i) => {
+    const t = raw.trim();
+    if (!t) return; // pas de <br> : on ne saute pas de ligne
+    const key = `dl-${i}`;
+    if (t.startsWith('### ')) {
+      out.push(<p key={key} className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mt-3 mb-0.5">{renderInline(t.slice(4), key)}</p>);
+    } else if (t.startsWith('## ')) {
+      out.push(<p key={key} className="text-[13px] font-bold text-gray-900 mt-3 mb-0.5">{renderInline(t.slice(3), key)}</p>);
+    } else if (t.startsWith('# ')) {
+      out.push(<p key={key} className="text-sm font-bold text-gray-900 mt-3 mb-0.5">{renderInline(t.slice(2), key)}</p>);
+    } else if (t.startsWith('> ')) {
+      out.push(<p key={key} className="border-l-2 border-primary/30 pl-2.5 italic text-gray-500">{renderInline(t.slice(2), key)}</p>);
+    } else {
+      const bullet = t.match(/^[-*•]\s+(.*)$/);
+      const num = t.match(/^(\d+[.)])\s+(.*)$/);
+      if (bullet) {
+        out.push(
+          <div key={key} className="flex gap-1.5 items-start">
+            <span className="text-primary/60 shrink-0 leading-snug">›</span>
+            <span className="flex-1">{renderInline(bullet[1], key)}</span>
+          </div>,
+        );
+      } else if (num) {
+        out.push(
+          <div key={key} className="flex gap-1.5 items-start">
+            <span className="text-primary/70 font-semibold tabular-nums shrink-0 leading-snug">{num[1]}</span>
+            <span className="flex-1">{renderInline(num[2], key)}</span>
+          </div>,
+        );
+      } else {
+        out.push(<p key={key}>{renderInline(t, key)}</p>);
+      }
+    }
+  });
+  return out;
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -223,16 +284,8 @@ export default function JournalChantierSection({ chantierId, token, onGoToAssist
                   </span>
                 </div>
               )}
-              <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
-                {entry.body.split('\n').map((line, i) => {
-                  if (!line.trim()) return <br key={i} />;
-                  if (line.startsWith('# ')) return <h3 key={i} className="text-base font-semibold text-gray-900 mt-4 mb-2">{line.slice(2)}</h3>;
-                  if (line.startsWith('## ')) return <h4 key={i} className="text-sm font-semibold text-gray-800 mt-3 mb-1">{line.slice(3)}</h4>;
-                  if (line.startsWith('### ')) return <h5 key={i} className="text-[13px] font-semibold text-gray-700 mt-2 mb-1">{line.slice(4)}</h5>;
-                  if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc">{line.slice(2)}</li>;
-                  if (line.startsWith('> ')) return <blockquote key={i} className="border-l-2 border-primary/30 pl-3 italic text-gray-500">{line.slice(2)}</blockquote>;
-                  return <p key={i} className="mb-1">{line}</p>;
-                })}
+              <div className="max-w-none text-[13px] text-gray-700 leading-snug space-y-0.5">
+                {renderDigestBody(entry.body)}
               </div>
               <div className="mt-4 pt-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-400">
                 <Bot className="h-3.5 w-3.5" />

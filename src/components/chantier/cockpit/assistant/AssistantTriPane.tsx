@@ -169,21 +169,25 @@ function AlertsPane({
     setRefreshing(true);
     try { await onRefresh(); } finally { setRefreshing(false); }
   };
+  // Le panneau n'affiche QUE les alertes non lues : cliquer sur une alerte la
+  // marque lue → elle disparaît aussitôt de la liste (comportement attendu :
+  // un clic « efface » l'alerte). L'historique complet reste dans le Journal.
+  const visibleInsights = insights.filter(i => !i.read_by_user);
   return (
     <div className="w-full h-full flex flex-col bg-gradient-to-b from-white to-amber-50/20">
-      <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-white">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <div>
             <p className="text-[13px] font-bold text-gray-800 leading-tight">
               Alertes
-              {unreadCount > 0 && (
+              {visibleInsights.length > 0 && (
                 <span className="ml-1.5 text-[10px] font-semibold text-amber-600">
-                  ({unreadCount} non lue{unreadCount > 1 ? 's' : ''})
+                  ({visibleInsights.length})
                 </span>
               )}
             </p>
-            <p className="text-[10px] text-gray-400">{insights.length} sur 30 jours</p>
+            <p className="text-[10px] text-gray-400">Cliquez pour traiter une alerte</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -208,7 +212,7 @@ function AlertsPane({
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="px-4 py-6 text-center text-[12px] text-gray-400">Chargement…</div>
-        ) : insights.length === 0 ? (
+        ) : visibleInsights.length === 0 ? (
           <div className="px-4 py-10 flex flex-col items-center text-center">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-xl mb-3">
               ✓
@@ -220,7 +224,7 @@ function AlertsPane({
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {insights.map(item => {
+            {visibleInsights.map(item => {
               const p = formatInsight(item);
               return (
                 <button
