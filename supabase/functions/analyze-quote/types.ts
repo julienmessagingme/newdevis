@@ -260,7 +260,20 @@ export interface VerificationResult {
   nom_officiel: string | null;
   adresse_officielle: string | null;
   ville_officielle: string | null;
-  lookup_status: "ok" | "not_found" | "error" | "skipped" | "no_siret";
+  /**
+   * V3.4.19 (2026-05-19) — `ambiguous` ajouté pour les fallback nom où plusieurs
+   * candidats homonymes existent SANS désambiguïsation possible par code postal.
+   * Quand ce statut est retourné, `entreprise_radiee` reste null (on ne SAIT pas),
+   * et le scoring + UI doivent traiter le cas comme "non vérifiable" plutôt que
+   * de présenter une mauvaise entreprise comme certaine.
+   */
+  lookup_status: "ok" | "not_found" | "error" | "skipped" | "no_siret" | "ambiguous";
+  /**
+   * V3.4.19 — Liste courte des candidats homonymes quand lookup_status="ambiguous".
+   * Utile pour afficher un message "X homonymes trouvés, vérification manuelle nécessaire".
+   * Format : "NOM (CP VILLE)" — max 5 entries.
+   */
+  ambiguous_candidates?: string[];
   finances: FinancialRatios[];
   finances_status: "ok" | "not_found" | "error" | "skipped";
 

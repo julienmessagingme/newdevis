@@ -16,6 +16,72 @@ import {
 // PHASE 2: VERIFICATION (all the API calls)
 // ============================================================
 
+// V3.4.19 (2026-05-19) — désambiguïsation des fallback nom.
+// Cas observé : devis AEB Rénovation (Brest, SIRET 39023425000061 non extrait par
+// Gemini car SANS label "SIRET:"). Fallback nom déclenché → 6 homonymes en France
+// dont 2 RADIÉS (Pusignan + Salleles-d'Aude). Le code prenait results[0] aveuglément
+// → affichage probable d'une radiée → verdict ROUGE faux + client furieux.
+// Cette helper extrait le CP de l'adresse contractor et filtre les résultats.
+// Si on ne peut pas trancher (0 ou >1 candidats après filtre), on retourne ambiguous.
+function pickBestNameMatch(
+  results: any[],
+  contractorAddress: string | null,
+): {
+  match: any | null;
+  ambiguous: boolean;
+  candidates: string[];
+  matchReason: string;
+} {
+  if (!results || results.length === 0) {
+    return { match: null, ambiguous: false, candidates: [], matchReason: "no_results" };
+  }
+
+  // Format courte représentation pour les logs et l'UI
+  const formatCandidate = (r: any): string => {
+    const nom = r.nom_complet || r.nom_raison_sociale || "(sans nom)";
+    const cp = r.siege?.code_postal || "?????";
+    const ville = r.siege?.libelle_commune || r.siege?.commune || "?";
+    return `${nom} (${cp} ${ville})`;
+  };
+  const allCandidates = results.map(formatCandidate);
+
+  // 1 seul résultat : retour direct, pas d'ambiguïté possible
+  if (results.length === 1) {
+    return { match: results[0], ambiguous: false, candidates: allCandidates, matchReason: "single_result" };
+  }
+
+  // Plusieurs candidats : tenter de désambiguïser par code postal du contractor
+  const cpMatch = contractorAddress?.match(/\b(\d{5})\b/);
+  const contractorCp = cpMatch?.[1] ?? null;
+
+  if (contractorCp) {
+    // Filter 1 : CP exact
+    const exactCp = results.filter((r) => r.siege?.code_postal === contractorCp);
+    if (exactCp.length === 1) {
+      return { match: exactCp[0], ambiguous: false, candidates: allCandidates, matchReason: `cp_exact_${contractorCp}` };
+    }
+    if (exactCp.length > 1) {
+      // Plusieurs entreprises au même CP avec le même nom → vraiment ambigu
+      console.log(`[Verify] AMBIGUOUS: ${exactCp.length} homonymes au CP ${contractorCp}`);
+      return { match: null, ambiguous: true, candidates: exactCp.map(formatCandidate), matchReason: "multiple_same_cp" };
+    }
+    // Filter 2 : même département (2 premiers chiffres)
+    const dept = contractorCp.substring(0, 2);
+    const sameDept = results.filter((r) => r.siege?.code_postal?.startsWith(dept));
+    if (sameDept.length === 1) {
+      return { match: sameDept[0], ambiguous: false, candidates: allCandidates, matchReason: `cp_dept_${dept}` };
+    }
+    // Aucun match département → fallback aveugle SUR LE 1er n'est PAS sécurisé
+    // car il pointe potentiellement vers une entreprise radiée d'une autre région
+    console.log(`[Verify] AMBIGUOUS: ${results.length} homonymes, aucun au CP ${contractorCp} ni dept ${dept}`);
+    return { match: null, ambiguous: true, candidates: allCandidates, matchReason: "no_geo_match" };
+  }
+
+  // Pas de CP extraitble dans l'adresse contractor → on ne peut pas désambiguïser
+  console.log(`[Verify] AMBIGUOUS: ${results.length} homonymes, pas de CP contractor pour départager`);
+  return { match: null, ambiguous: true, candidates: allCandidates, matchReason: "no_contractor_cp" };
+}
+
 export async function verifyData(
   extracted: ExtractedData,
   supabase: any
@@ -234,17 +300,21 @@ export async function verifyData(
     }
 
     // 1b. NAME FALLBACK — si le SIRET/SIREN n'a pas permis de retrouver l'entreprise,
-    // on tente une recherche textuelle par nom (recherche-entreprises supporte le texte libre)
+    // on tente une recherche textuelle par nom (recherche-entreprises supporte le texte libre).
+    // V3.4.19 : on récupère désormais 5 candidats au lieu de 3 et on les passe à
+    // pickBestNameMatch qui désambiguïse par code postal. Plus de "results[0]" aveugle.
     if (result.lookup_status !== "ok") {
       const nomEntreprise = extracted.entreprise?.nom?.trim() ?? "";
       if (nomEntreprise.length >= 3) {
         console.log("[Verify] Trying name fallback for:", nomEntreprise);
         try {
-          const nameUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(nomEntreprise)}&page=1&per_page=3`;
+          const nameUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(nomEntreprise)}&page=1&per_page=5`;
           const nameResp = await fetch(nameUrl, { signal: AbortSignal.timeout(6_000) });
           if (nameResp.ok) {
             const nameData = await nameResp.json();
-            const match = nameData.results?.[0];
+            const picked = pickBestNameMatch(nameData.results || [], extracted.entreprise?.adresse ?? null);
+            const match = picked.match;
+
             if (match) {
               const siege = match.siege || {};
               const uniteLegaleActive = match.etat_administratif === "A";
@@ -270,7 +340,15 @@ export async function verifyData(
               result.ville_officielle = siege.libelle_commune || siege.commune || null;
               result.lookup_status = "ok";
 
-              console.log("[Verify] Name fallback found:", result.nom_officiel, "| active:", isActive, "| age:", ageYears, "years");
+              console.log(`[Verify] Name fallback found via ${picked.matchReason}:`, result.nom_officiel, "| active:", isActive, "| age:", ageYears, "years");
+            } else if (picked.ambiguous) {
+              // V3.4.19 — STOP : on a plusieurs homonymes sans pouvoir départager.
+              // On ne marque PAS entreprise_radiee=true même si l'un d'entre eux l'est :
+              // ce serait probablement le mauvais (cf. cas AEB Rénovation où 2 sur 6
+              // étaient radiés mais le VRAI artisan était actif depuis 1993).
+              result.lookup_status = "ambiguous";
+              result.ambiguous_candidates = picked.candidates.slice(0, 5);
+              console.log(`[Verify] Name fallback AMBIGUOUS (${picked.matchReason}): ${picked.candidates.length} homonymes pour "${nomEntreprise}". NE PAS afficher "radiée" — vérification manuelle requise.`);
             } else {
               console.log("[Verify] Name fallback: no result for:", nomEntreprise);
             }
@@ -340,7 +418,10 @@ export async function verifyData(
         const nameResp = await fetch(nameUrl);
         if (nameResp.ok) {
           const nameData = await nameResp.json();
-          const match = nameData.results?.[0];
+          // V3.4.19 — désambiguïsation par CP (cf. helper pickBestNameMatch)
+          const picked = pickBestNameMatch(nameData.results || [], extracted.entreprise?.adresse ?? null);
+          const match = picked.match;
+
           if (match) {
             const siege = match.siege || {};
             const uniteLegaleActive = match.etat_administratif === "A";
@@ -365,7 +446,12 @@ export async function verifyData(
               : null);
             result.ville_officielle = siege.libelle_commune || siege.commune || null;
             result.lookup_status = "ok";
-            console.log("[Verify] Direct name lookup found:", result.nom_officiel, "| active:", isActive);
+            console.log(`[Verify] Direct name lookup found via ${picked.matchReason}:`, result.nom_officiel, "| active:", isActive);
+          } else if (picked.ambiguous) {
+            // V3.4.19 — pareil que branche 1b : on n'affiche jamais "radiée" en cas d'ambiguïté
+            result.lookup_status = "ambiguous";
+            result.ambiguous_candidates = picked.candidates.slice(0, 5);
+            console.log(`[Verify] Direct name lookup AMBIGUOUS (${picked.matchReason}): ${picked.candidates.length} homonymes pour "${nomEntrepriseDirect}". NE PAS afficher "radiée".`);
           }
         }
       } catch (nameErr) {

@@ -209,6 +209,16 @@ export function calculateScore(
     informatifs.push("ℹ️ Vérification entreprise non effectuée");
   }
 
+  // V3.4.19 — lookup_status="ambiguous" : on a plusieurs homonymes sans pouvoir
+  // départager (cf. helper pickBestNameMatch dans verify.ts). Pas de ROUGE, pas
+  // de VERT — on signale honnêtement que le SIRET n'a pas été extrait et qu'on
+  // ne peut pas valider l'identité sans une vérification manuelle. ORANGE.
+  if (verified.lookup_status === "ambiguous") {
+    const candidatesPreview = (verified.ambiguous_candidates ?? []).slice(0, 3).join(" · ");
+    const suffix = candidatesPreview ? ` (candidats trouvés : ${candidatesPreview})` : "";
+    oranges.push(`Identification entreprise incertaine — SIRET non extrait du devis, plusieurs entreprises homonymes existent en France. Demandez le SIRET à l'artisan et vérifiez sur societe.com${suffix}`);
+  }
+
   if (config.insuranceChecks.primary === "assurance_decennale") {
     if (extracted.entreprise.assurance_decennale_mentionnee === false) {
       informatifs.push(`ℹ️ ${config.insuranceLabels.primary} non détectée sur le devis - demandez l'attestation à l'artisan`);

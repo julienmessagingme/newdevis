@@ -120,6 +120,17 @@ export function renderOutput(
     points_ok.push(`ℹ️ SIRET présent : ${extracted.entreprise.siret}`);
     points_ok.push("ℹ️ Vérification registre non concluante. Cela n'indique pas un problème en soi — vous pouvez vérifier sur societe.com ou infogreffe.fr.");
 
+  } else if (verified.lookup_status === "ambiguous") {
+    // V3.4.19 — fallback nom a trouvé plusieurs homonymes sans pouvoir départager.
+    // ⚠️ Volontairement PAS rouge : on ne sait pas si l'artisan du devis est l'un
+    // des radiés ou l'un des actifs. Wording ORANGE qui demande au user de vérifier.
+    const nbCandidats = verified.ambiguous_candidates?.length ?? 0;
+    const candidatesList = (verified.ambiguous_candidates ?? []).slice(0, 3).map(c => `  • ${c}`).join("\n");
+    alertes.push(
+      `🟠 Identification entreprise à confirmer — le devis n'a pas de SIRET clairement identifiable, et la recherche par nom "${extracted.entreprise.nom ?? "—"}" a trouvé ${nbCandidats} entreprises homonymes en France. Demandez le SIRET à l'artisan et vérifiez sur societe.com avant de signer.` +
+      (candidatesList ? `\n\nCandidats trouvés :\n${candidatesList}` : "")
+    );
+
   } else if (verified.lookup_status === "no_siret") {
     if (extracted.entreprise.nom) {
       points_ok.push(`ℹ️ Entreprise : ${extracted.entreprise.nom}`);
