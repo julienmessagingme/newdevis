@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.15";
+const ENGINE_VERSION = "3.4.17";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -1261,6 +1261,72 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           }))
       : [];
 
+    // ──────────────────────────────────────────────────────────────────────
+    // V3.4.17 (2026-05-19) — Gardes globales préalables au scoring.
+    //
+    // Avant V3.4.17, le moteur tentait de scorer même quand :
+    //   (a) les Qté du devis n'avaient pas d'unité explicite (m², ml, U…),
+    //       rendant la comparaison aux prix marché (en €/m²) non fiable.
+    //   (b) les groupes Gemini avaient des totaux mathématiquement incohérents
+    //       avec leurs lignes (devis_total_ht ≠ Σ devis_lines.amount_ht).
+    //
+    // Désormais on détecte ces 2 conditions EN AMONT et on bascule le verdict
+    // en `comparison_indicative` + on ajoute une action explicite. Le user
+    // voit "comparaison globale indicative" au lieu d'un faux verdict VERT
+    // basé sur des données pourries.
+    // ──────────────────────────────────────────────────────────────────────
+    let unitMissingRatio = 0;
+    let totalLinesCount = 0;
+    let linesWithoutUnitCount = 0;
+    if (Array.isArray(priceData)) {
+      for (const g of priceData as Array<Record<string, any>>) {
+        const lines = Array.isArray(g.devis_lines) ? g.devis_lines : [];
+        for (const l of lines) {
+          totalLinesCount++;
+          const unit = String(l?.unit ?? "").trim().toLowerCase();
+          // "" / null / qty as unit (regex digits) = unité manquante
+          if (unit.length === 0 || /^\d+([.,]\d+)?$/.test(unit)) {
+            linesWithoutUnitCount++;
+          }
+        }
+      }
+      if (totalLinesCount > 0) {
+        unitMissingRatio = linesWithoutUnitCount / totalLinesCount;
+      }
+    }
+    const hasUnitsMissing = unitMissingRatio > 0.50;
+
+    let invalidGroupingsCount = 0;
+    if (Array.isArray(priceData)) {
+      for (const g of priceData as Array<Record<string, any>>) {
+        const groupTotal = typeof g.devis_total_ht === "number" ? g.devis_total_ht : 0;
+        const lines = Array.isArray(g.devis_lines) ? g.devis_lines : [];
+        if (groupTotal <= 0 || lines.length === 0) continue;
+        const sumLines = lines.reduce((acc: number, l: any) => {
+          const a = typeof l?.amount_ht === "number" ? l.amount_ht : 0;
+          return acc + a;
+        }, 0);
+        if (sumLines <= 0) continue;
+        const delta = Math.abs(groupTotal - sumLines);
+        const deltaRatio = delta / groupTotal;
+        if (delta > 50 && deltaRatio > 0.10) {
+          invalidGroupingsCount++;
+          console.warn(
+            `[conclusion] V3.4.17 groupement invalide — "${g.job_type_label ?? "?"}" : ` +
+            `total=${groupTotal} € vs Σ lignes=${sumLines.toFixed(0)} € (delta ${delta.toFixed(0)} €, ${(deltaRatio * 100).toFixed(0)}%)`
+          );
+        }
+      }
+    }
+    const hasInvalidGroupings = invalidGroupingsCount >= 1;
+
+    if (hasUnitsMissing) {
+      console.log(`[conclusion] V3.4.17 unités manquantes ${(unitMissingRatio * 100).toFixed(0)}% (${linesWithoutUnitCount}/${totalLinesCount}) → comparaison globale indicative`);
+    }
+    if (hasInvalidGroupings) {
+      console.log(`[conclusion] V3.4.17 ${invalidGroupingsCount} groupement(s) invalide(s) → comparaison globale indicative`);
+    }
+
     // Surcoût global — source de vérité : calcul serveur (miroir de quoteGlobalAnalysis.ts)
     // Le calcul serveur est plus fiable que Gemini qui confond prix unitaires et totaux.
     const serverSurcout = computeServerSurcout(priceData);
@@ -1327,8 +1393,24 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       if (surfaceActions.length >= 2) break; // max 2 actions surface différentes
     }
 
-    // Merge : actions surface en tête, puis Gemini, puis défauts
-    const mergedActions: string[] = [...surfaceActions, ...geminiActions];
+    // V3.4.17 — Action prioritaire si unités manquantes globales OU groupements
+    // invalides. Cette action remonte EN TÊTE, avant les actions Gemini et surface.
+    const v3417Actions: string[] = [];
+    if (hasUnitsMissing) {
+      v3417Actions.push(
+        `Demandez à l'artisan un devis détaillé avec UNITÉS PRÉCISÉES (m², ml, U ou forfait) pour CHAQUE ligne — ${linesWithoutUnitCount} ligne${linesWithoutUnitCount > 1 ? "s" : ""} sur ${totalLinesCount} n'${linesWithoutUnitCount > 1 ? "ont" : "a"} pas d'unité explicite, la comparaison aux prix du marché n'est pas fiable sans cette précision.`
+      );
+    }
+    if (hasInvalidGroupings && !hasUnitsMissing) {
+      // Si on a déjà mentionné les unités, on évite la redondance (groupement
+      // invalide est souvent une conséquence des unités manquantes).
+      v3417Actions.push(
+        `Demandez à l'artisan de regrouper les prestations par lot de travaux (plomberie, menuiserie, peinture…) avec un sous-total par lot — certaines lignes ont été mal regroupées et faussent la comparaison.`
+      );
+    }
+
+    // Merge : actions V3.4.17 en tête (priorité), puis surface, puis Gemini, puis défauts
+    const mergedActions: string[] = [...v3417Actions, ...surfaceActions, ...geminiActions];
     const DEFAULT_ACTIONS = [
       "Vérifiez les assurances décennale et RC Pro de l'entreprise avant de signer.",
       "Demandez un échéancier de paiement détaillé et ne versez pas plus de 30 % à la commande.",
@@ -1406,6 +1488,17 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // Sans ces deux conditions, on créerait un faux orange "à négocier pour 0.4% du devis"
     // qui briserait à nouveau la crédibilité — exactement le piège inverse de Kern.
     // ──────────────────────────────────────────────────────────────────────────
+    // V3.4.17 — Escalade verdict si gardes "unités manquantes" ou "groupement
+    // invalide" actives et qu'on était en "signer". Les variables `hasUnitsMissing`
+    // et `hasInvalidGroupings` sont calculées plus haut (avant la section actions).
+    let v3417Escalated = false;
+    if ((hasUnitsMissing || hasInvalidGroupings) && preEngine.verdict === "signer" && !preEngine.is_hard_block) {
+      verdictGlobal = "a_negocier";
+      verdictDecision = "signer_avec_negociation";
+      v3417Escalated = true;
+      console.warn(`[conclusion] V3.4.17 escalade signer → a_negocier (unités=${hasUnitsMissing}, groupements=${hasInvalidGroupings})`);
+    }
+
     let coherenceEscalated = false;
     if (preEngine.verdict === "signer" && isMaterialServerSurcout(surcoutMax, totalHT, marketPosition.totalDevis)) {
       const ratioPct = typeof totalHT === "number" && totalHT > 0
@@ -1526,9 +1619,15 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // SANS anomalie poste par poste identifiée). Quand ce flag est set, le hero
     // accusatoire "+X €" est masqué côté UI au profit d'un encadré "Comparaison
     // indicative". Cf. ConclusionIA.tsx pour le rendu.
-    const comparisonIndicative = (preEngine.overprice_pct ?? 0) > 0.50
+    // V3.4.17 (2026-05-19) — `hasUnitsMissing` OU `hasInvalidGroupings` activent
+    // aussi le flag : on ne peut PAS donner un verdict prix fiable si > 50% des
+    // lignes n'ont pas d'unité explicite OU si des groupes Gemini sont
+    // mathématiquement incohérents avec leurs lignes.
+    const comparisonIndicative = (
+      (preEngine.overprice_pct ?? 0) > 0.50
       && sanitizedAnomalies.length === 0
-      && (wa?.anomalies_count ?? 0) === 0;
+      && (wa?.anomalies_count ?? 0) === 0
+    ) || hasUnitsMissing || hasInvalidGroupings;
 
     conclusionData = {
       verdict_global:          verdictGlobal,

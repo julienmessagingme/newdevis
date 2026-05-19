@@ -8,6 +8,8 @@ export { default as BlockPrixMarche } from './BlockPrixMarche';
 export type { MarketPriceTableRow, JobTypeDisplayRow } from '@/hooks/useMarketPriceAPI';
 export { default as BlockSecurite } from './BlockSecurite';
 export { filterOutSecuriteItems } from '@/lib/analyse/securiteUtils';
+export { default as BlockClausesLitigieuses } from './BlockClausesLitigieuses';
+export type { ClauseLitigieuse } from './BlockClausesLitigieuses';
 export { default as BlockContexte } from './BlockContexte';
 export { filterOutContexteItems } from '@/lib/analyse/contexteUtils';
 export { default as BlockArchitecte } from './BlockArchitecte';

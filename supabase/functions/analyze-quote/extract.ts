@@ -174,6 +174,21 @@ RÈGLES STRICTES POUR "conditions_paiement" :
 - "due_date" : format YYYY-MM-DD uniquement si une date calendaire est explicitement mentionnée. Sinon null.
 - "delay_days" : nombre de jours uniquement si explicitement indiqué (ex: "30 jours après réception"). Sinon null.
 
+RÈGLES POUR "clauses_litigieuses" (V3.4.17, 2026-05-19) :
+Examine ATTENTIVEMENT les mentions contractuelles du devis (CGV, bas de page, conditions de paiement, mentions en MAJUSCULES). Repère les clauses suivantes — pour CHACUNE, ajoute une entrée à "clauses_litigieuses" avec citation EXACTE :
+
+  1. **devis_facture_si_non_signe** (gravité ROUGE) : toute mention qui dit que le devis sera FACTURÉ si non signé / non accepté. Patterns : "devis non signé sera facturé X €", "tout devis non signé vous sera facturé X €", "frais d'établissement de devis : X €", "devis payant si non retenu". Cette clause est généralement ILLÉGALE en France pour les particuliers sans information ÉCRITE PRÉALABLE (Code conso L113-3 + arrêté 2 mars 1990).
+
+  2. **pas_de_retractation** (gravité ROUGE) : mentions excluant le droit de rétractation. Patterns : "aucun retour possible", "pas de remboursement", "signature = engagement définitif", "annulation impossible", "devis ferme et définitif". Atteinte possible à la loi Hamon 2014 (rétractation 14 jours).
+
+  3. **penalite_annulation_excessive** (gravité ORANGE) : pénalité d'annulation > 15 %. Patterns : "annulation : 30 % du montant", "pénalité d'annulation 50 %", "frais de désistement X €" si X > 15 % du total.
+
+  4. **soustraitance_libre** (gravité ORANGE) : sous-traitance possible sans accord. Patterns : "se réserve le droit de sous-traiter", "peut faire appel à toute entreprise tierce", "sous-traitance non soumise à accord".
+
+  5. **modification_unilaterale** (gravité ORANGE) : modification du devis ou du prix sans accord du client. Patterns : "le prix peut être révisé sans préavis", "modification possible en cas de fluctuation", "supplément facturable directement".
+
+Si AUCUNE clause litigieuse trouvée → "clauses_litigieuses": []. NE FABRIQUE PAS de fausses citations — la citation DOIT être présente mot pour mot dans le devis. Si le texte exact ne contient pas l'un de ces patterns, n'inclus pas la clause.
+
 RÈGLES MULTI-PAGES :
 - Toutes les données peuvent se trouver sur N'IMPORTE QUELLE PAGE. Ne t'arrête pas à la page 1.
 - Les TOTAUX (Total HT, Total TTC, Net à payer) figurent souvent sur une page de récapitulatif séparée (ex: page 2/3), dans un tableau en bas à droite. Si une telle page existe, utilise ses valeurs pour "totaux".
@@ -272,6 +287,13 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
   },
   "anomalies_detectees": [],
   "resume_factuel": "description factuelle courte",
+  "clauses_litigieuses": [
+    {
+      "type": "devis_facture_si_non_signe | pas_de_retractation | penalite_annulation_excessive | soustraitance_libre | modification_unilaterale",
+      "citation": "TEXTE EXACT copié mot pour mot de la clause depuis le devis",
+      "gravite": "rouge | orange"
+    }
+  ],
   "multiple_quotes": false,
   "devis_list": [
     {
@@ -623,6 +645,32 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
       country_code: countryDetection.country_code,
       country_label: countryDetection.country_label,
       is_foreign_quote: countryDetection.is_foreign,
+      // V3.4.17 — Validation post-extraction des clauses litigieuses.
+      // On accepte uniquement les types prédéfinis + une citation non-vide.
+      // Si Gemini hallucine un type inconnu ou une citation vide → on skip.
+      clauses_litigieuses: Array.isArray(parsed.clauses_litigieuses)
+        ? parsed.clauses_litigieuses
+            .filter((c: any) => {
+              if (!c || typeof c !== "object") return false;
+              const ALLOWED_TYPES = [
+                "devis_facture_si_non_signe",
+                "pas_de_retractation",
+                "penalite_annulation_excessive",
+                "soustraitance_libre",
+                "modification_unilaterale",
+              ];
+              if (!ALLOWED_TYPES.includes(c.type)) return false;
+              if (typeof c.citation !== "string" || c.citation.trim().length < 10) return false;
+              if (!["rouge", "orange"].includes(c.gravite)) return false;
+              return true;
+            })
+            .map((c: any) => ({
+              type: c.type,
+              citation: String(c.citation).trim().slice(0, 300),
+              gravite: c.gravite,
+            }))
+            .slice(0, 5) // cap à 5 clauses max
+        : [],
     };
 
   } catch (error) {

@@ -29,6 +29,8 @@ import { toast } from "sonner";
 // generatePdfReport chargé dynamiquement (jsPDF ~250 Ko évité au chargement initial)
 import {
   BlockEntreprise,
+  BlockClausesLitigieuses,
+  type ClauseLitigieuse,
   BlockDevis,
   BlockDevisMultiple,
   BlockPrixMarche,
@@ -517,6 +519,30 @@ const AnalysisResult = () => {
   const companyData = useMemo(() => analysis ? extractCompanyData(analysis) : null, [analysis]);
   const totalHT = useMemo(() => calculateTotalHT(analysis?.types_travaux), [analysis?.types_travaux]);
   const visibleBlocks = useMemo(() => getVisibleBlocks(analysis?.domain || "travaux"), [analysis?.domain]);
+
+  // V3.4.17 (2026-05-19) — Extraction des clauses litigieuses depuis raw_text.
+  // Détection assurée côté serveur (extract.ts) par Gemini sur le texte libre
+  // du devis (CGV, mentions bas de page). Si présentes, on affiche le bloc
+  // BlockClausesLitigieuses entre BlockEntreprise et BlockPrixMarche.
+  const clausesLitigieuses = useMemo<ClauseLitigieuse[]>(() => {
+    if (!analysis?.raw_text) return [];
+    try {
+      const raw = typeof analysis.raw_text === "string" ? JSON.parse(analysis.raw_text) : analysis.raw_text;
+      const fromExtracted = (raw?.extracted as any)?.clauses_litigieuses;
+      const fromExtractedData = (raw?.extracted_data as any)?.clauses_litigieuses;
+      const list = Array.isArray(fromExtracted) ? fromExtracted
+                  : Array.isArray(fromExtractedData) ? fromExtractedData
+                  : [];
+      return list.filter((c: any) =>
+        c && typeof c === "object"
+        && typeof c.type === "string"
+        && typeof c.citation === "string" && c.citation.length > 0
+        && (c.gravite === "rouge" || c.gravite === "orange")
+      ) as ClauseLitigieuse[];
+    } catch {
+      return [];
+    }
+  }, [analysis?.raw_text]);
 
   // Effective score — takes the worst of analysis.score (entreprise) and ConclusionIA verdict (prix marché).
   // effectiveScore — source de vérité unique via verdictEngine (déterministe).
@@ -1180,6 +1206,16 @@ const AnalysisResult = () => {
             })()}
             defaultOpen={false}
           />
+        )}
+
+        {/* ══════════════════════════════════════════════════════
+            BLOC 2bis — CLAUSES LITIGIEUSES (V3.4.17, 2026-05-19)
+            Affiché UNIQUEMENT s'il y a au moins une clause détectée par
+            Gemini (extract.ts) sur le texte libre du devis. Ne crée pas de
+            bruit visuel sur les devis propres (return null si vide).
+        ══════════════════════════════════════════════════════ */}
+        {clausesLitigieuses.length > 0 && (
+          <BlockClausesLitigieuses clauses={clausesLitigieuses} />
         )}
 
         {/* ══════════════════════════════════════════════════════

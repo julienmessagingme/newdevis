@@ -141,6 +141,37 @@ export interface ExtractedData {
   country_code?: string;
   country_label?: string;
   is_foreign_quote?: boolean;
+  /**
+   * V3.4.17 (2026-05-19) — Détection de clauses contractuelles
+   * potentiellement litigieuses ou illégales dans le texte libre du devis.
+   * Patterns ciblés :
+   *   - "Devis non signé sera facturé X€" → illégal sans information préalable
+   *     écrite et accord du client (Code conso L113-3 + arrêté 2 mars 1990)
+   *   - "Aucun remboursement", "Pas de retour possible" → atteinte au droit
+   *     de rétractation (lois Hamon 2014)
+   *   - "Annulation = X%" avec X > 15% → pénalité possiblement excessive
+   *   - "Acompte > 30%" → déjà géré dans paiement.acompte_pct, on duplique pas
+   *   - "Sous-traitance libre / sans accord" → opacité contractuelle
+   */
+  clauses_litigieuses?: ClauseLitigieuse[];
+}
+
+/**
+ * V3.4.17 — Clause potentiellement litigieuse extraite du texte libre du devis
+ * (CGV, mentions bas de page, conditions de paiement).
+ */
+export interface ClauseLitigieuse {
+  /** Catégorie de la clause détectée. */
+  type:
+    | "devis_facture_si_non_signe"
+    | "pas_de_retractation"
+    | "penalite_annulation_excessive"
+    | "soustraitance_libre"
+    | "modification_unilaterale";
+  /** Citation EXACTE du texte du devis (mot pour mot, pour traçabilité). */
+  citation: string;
+  /** Gravité : 'rouge' = illégal probable, 'orange' = à clarifier. */
+  gravite: "rouge" | "orange";
 }
 
 // ============================================================
