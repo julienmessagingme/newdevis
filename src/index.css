@@ -6,9 +6,11 @@
 @import '@fontsource/syne/600.css';
 @import '@fontsource/syne/700.css';
 @import '@fontsource/syne/800.css';
-@import '@fontsource/jetbrains-mono/400.css';
-@import '@fontsource/jetbrains-mono/500.css';
-@import '@fontsource/jetbrains-mono/700.css';
+/* JetBrains Mono retirée 2026-05-19 — uniformisation typo GMC ↔ VMD.
+   Le cockpit GMC utilisait JetBrains Mono pour ses labels uppercase (look
+   "éditorial") alors que VMD utilise DM Sans + uppercase + tracking. On
+   harmonise sur DM Sans pour une expérience cohérente entre les 2 produits.
+   Économise ~30 KB de webfont. */
 
 @keyframes tools-scroll {
   0%   { transform: translateX(0); }
