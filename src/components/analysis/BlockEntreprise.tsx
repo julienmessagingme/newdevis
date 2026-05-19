@@ -83,9 +83,30 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
     : 0;
   const isFinanciallyStaleRouge = retardAns >= 6 && finances.length > 0;
 
+  // V3.4.16+ (2026-05-19) — Garde "entreprise jeune avec sources vides" → ORANGE.
+  //
+  // Bug observé : une entreprise NON-DIFFUSIBLE (auto-entrepreneur INSEE non
+  // diffusé) de moins d'1 an, sans finances déposées, sans avis Google, était
+  // classée VERT avec wording "✓ Aucun indicateur à risque détecté". Aberrant :
+  // on n'a AUCUNE source vérifiable, on ne peut donc PAS affirmer "aucun risque".
+  //
+  // Règle : si entreprise < 3 ans ET (pas de finances OU pas d'avis Google
+  // exploitable), on descend à ORANGE. C'est honnête : on ne dit pas "danger",
+  // on dit "vigilance, on n'a pas pu vérifier".
+  const ancienneteAnneesEarly = companyData?.anciennete_annees ?? null;
+  const hasNoFinances = finances.length === 0;
+  const reputationNotFound = !info.reputation || info.reputation.status !== "found";
+  const isJeuneAvecPeuDeSources = ancienneteAnneesEarly !== null
+    && ancienneteAnneesEarly < 3
+    && hasNoFinances
+    && reputationNotFound;
+
   // Score effectif du bloc : ORANGE si comptes non accessibles >= 6 ans (manque d'info, pas infraction),
+  // OU si entreprise jeune sans sources vérifiables (V3.4.16+),
   // sinon score calculé à partir des alertes (info.score).
-  const effectiveScore = isFinanciallyStaleRouge ? "ORANGE" as const : info.score;
+  const effectiveScore = (isFinanciallyStaleRouge || isJeuneAvecPeuDeSources)
+    ? "ORANGE" as const
+    : info.score;
 
   // Statut affiché dans la sous-section "Santé financière"
   const financialDisplayStatus = isFinanciallyStaleRouge ? "ORANGE" as const : financialHealth.status;
@@ -113,9 +134,23 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
 
   // Build structured company info — prefer companyData (from raw_text JSON) over parsed strings
   const siret = companyData?.siret || info.siren_siret || null;
-  const nomEntreprise = companyData?.nom_officiel || companyData?.nom_devis || null;
-  const adresse = companyData?.adresse_officielle || null;
+  const nomEntrepriseRaw = companyData?.nom_officiel || companyData?.nom_devis || null;
+  const adresseRaw = companyData?.adresse_officielle || null;
   const ville = companyData?.ville_officielle || null;
+
+  // V3.4.16+ (2026-05-19) — Gestion des entreprises individuelles INSEE non
+  // diffusées. L'API recherche-entreprises retourne "[NON-DIFFUSIBLE]" comme
+  // nom officiel pour les auto-entrepreneurs/EI qui n'ont pas opt-in à la
+  // diffusion publique de leurs données. Afficher tel quel est mauvais UX
+  // (le user voit "[NON-DIFFUSIBLE]" comme un nom, c'est obscur).
+  // On remplace par un label explicite + on affiche le SIRET pour que le user
+  // puisse vérifier lui-même sur annuaire-entreprises.data.gouv.fr.
+  const isNonDiffusible = (s: string | null) =>
+    !!s && (s.toUpperCase().includes("NON-DIFFUSIBLE") || s.toUpperCase().includes("NON DIFFUSIBLE"));
+  const nomEntreprise = isNonDiffusible(nomEntrepriseRaw)
+    ? "Entreprise individuelle (statut INSEE non diffusé)"
+    : nomEntrepriseRaw;
+  const adresse = isNonDiffusible(adresseRaw) ? null : adresseRaw;
   const dateCreation = companyData?.date_creation || null;
   const ancienneteAnnees = companyData?.anciennete_annees ?? null;
   const isImmatriculee = companyData?.entreprise_immatriculee ?? null;
@@ -663,7 +698,15 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
             <p className={`text-sm font-medium ${getScoreTextClass(effectiveScoreWithLegal)}`}>
               {effectiveScoreWithLegal === "VERT" && !isLegalRisk && "✓ Aucun indicateur à risque détecté sur cette entreprise."}
               {isFinanciallyStaleRouge && !isLegalRisk && `ℹ️ Comptes non accessibles publiquement (dernier exercice connu : ${financialHealth.dernier_exercice_year}, il y a ${retardAns} ans) — cela peut s'expliquer par une déclaration de confidentialité, procédure légale fréquente. Nous ne pouvons pas analyser la santé financière avec précision. Demandez des références ou assurances complémentaires à l'artisan.`}
-              {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && !isFinanciallyStaleRouge && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
+              {/* V3.4.16+ — wording dédié "jeune entreprise + sources vides" (différent du wording générique ORANGE) */}
+              {isJeuneAvecPeuDeSources && !isLegalRisk && !isFinanciallyStaleRouge && (
+                <>
+                  ℹ️ <strong>Sources de vérification limitées</strong> — entreprise jeune ({ancienneteAnneesEarly !== null && ancienneteAnneesEarly < 1 ? "moins d'un an" : `${ancienneteAnneesEarly} an${(ancienneteAnneesEarly ?? 0) > 1 ? "s" : ""}`}), pas de bilan déposé, pas d'avis Google exploitable.
+                  Nous ne pouvons PAS affirmer "aucun risque" — nous n'avons simplement pas pu vérifier.
+                  Demandez à l'artisan : références de chantiers similaires récents, attestations d'assurance décennale + RC Pro à jour, et confirmation de son immatriculation au répertoire des métiers.
+                </>
+              )}
+              {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && !isFinanciallyStaleRouge && !isJeuneAvecPeuDeSources && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
               {isLegalRisk && "⛔ Situation juridique critique — ne signez pas ce devis avant une vérification approfondie (tribunal de commerce, infogreffe.fr)."}
               {effectiveScoreWithLegal === "ROUGE" && !isLegalRisk && (
                   financialHealth.rougeSignals.includes("endettement_critique")
@@ -673,11 +716,13 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                   : "⚠️ Des éléments critiques ont été détectés — vérifiez les alertes ci-dessus avant de signer."
               )}
             </p>
-            {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && (
+            {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && !isJeuneAvecPeuDeSources && (
               <p className="text-xs text-muted-foreground mt-2">
                 Aucun élément critique n'a été détecté. Les points signalés sont des invitations à vérifier, non des alertes.
               </p>
             )}
+            {/* V3.4.16+ — pas de "aucun élément critique" sur le cas jeune+vide,
+                le message principal explique déjà la nuance "on n'a pas pu vérifier". */}
           </div>
 
           {/* Disclaimer - harmonized */}
