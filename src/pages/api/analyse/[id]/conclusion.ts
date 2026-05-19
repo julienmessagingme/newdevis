@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.17";
+const ENGINE_VERSION = "3.4.18";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -798,21 +798,59 @@ export const POST: APIRoute = async ({ params, request }) => {
   // Si les 3 niveaux échouent, totalHT reste null et on log un warning.
   // ──────────────────────────────────────────────────────────────────────────
   const totalHT: number | null = (() => {
-    if (typeof totaux.ht === "number" && totaux.ht > 0) return totaux.ht;
-    // Fallback 1 : format legacy
+    // V3.4.18 (2026-05-19) — Priorité absolue à `totaux.ht` MAIS avec garde
+    // de cohérence vs `totaux.ttc`. Avant, on prenait `totaux.ht` aveuglément
+    // même quand Gemini l'avait mal extrait → ratio surcoût faussé (cas user :
+    // "17% du devis" affiché alors que le vrai ratio est 13.3% sur un devis
+    // 11 292€ HT extrait à 8 800€).
+    //
+    // Garde de cohérence : si HT < (TTC × 0.7) → on suspecte Gemini de l'avoir
+    // mal extrait (HT est censé être 80-95% du TTC selon le taux TVA). On
+    // reconstitue alors via `TTC / (1 + tauxTVA/100)` si on a les 2.
+    const rawHt = typeof totaux.ht === "number" && totaux.ht > 0 ? totaux.ht : null;
+    const rawTtc = typeof totaux.ttc === "number" && totaux.ttc > 0 ? totaux.ttc : null;
+    const rawTaux = typeof totaux.taux_tva === "number" && totaux.taux_tva > 0 ? totaux.taux_tva : null;
+
+    // (1) HT et TTC tous les deux présents → on vérifie cohérence
+    if (rawHt && rawTtc) {
+      if (rawHt < rawTtc * 0.7) {
+        // HT clairement faux → reconstituer depuis TTC
+        const reconstructed = rawTaux ? rawTtc / (1 + rawTaux / 100) : rawTtc / 1.10;
+        console.warn(`[conclusion] V3.4.18 totalHT (${rawHt}€) incohérent vs TTC (${rawTtc}€) — reconstitué via TTC/TVA = ${reconstructed.toFixed(0)}€`);
+        return Math.round(reconstructed);
+      }
+      return rawHt;
+    }
+
+    // (2) Seul HT présent (cas FR standard, TVA appliquée mais TTC manquant)
+    if (rawHt) return rawHt;
+
+    // (3) Seul TTC présent → reconstituer HT
+    if (rawTtc) {
+      const tva = rawTaux ?? 10; // défaut 10% (rénovation FR la plus fréquente)
+      const reconstructed = rawTtc / (1 + tva / 100);
+      console.warn(`[conclusion] V3.4.18 totalHT absent — reconstitué depuis TTC (${rawTtc}€) avec TVA ${tva}% = ${reconstructed.toFixed(0)}€`);
+      return Math.round(reconstructed);
+    }
+
+    // (4) Fallback 1 : format legacy
     const legacyTotaux = (extractedLegacy.totaux as Record<string, unknown> | undefined);
     if (legacyTotaux && typeof legacyTotaux.ht === "number" && legacyTotaux.ht > 0) {
       console.warn("[conclusion] totalHT issu du format legacy extracted.totaux.ht");
       return legacyTotaux.ht;
     }
-    // Fallback 2 : somme des postes du priceData
+
+    // (5) Fallback ultime : somme des postes du priceData
+    // ⚠️ Souvent imprécis (Gemini ne groupe pas TOUT le devis dans priceData)
+    // → utilisé seulement si rien d'autre. Les wordings basés dessus
+    // mentionnent "estimé sur les postes analysés".
     if (Array.isArray(priceData) && priceData.length > 0) {
       const sumPostes = (priceData as Array<Record<string, unknown>>).reduce((acc, g) => {
         const t = typeof g?.devis_total_ht === "number" ? g.devis_total_ht : 0;
         return acc + t;
       }, 0);
       if (sumPostes > 0) {
-        console.warn(`[conclusion] totalHT déduit de la somme priceData : ${sumPostes} €`);
+        console.warn(`[conclusion] totalHT déduit de la somme priceData : ${sumPostes} € (peut être imprécis si certaines lignes ne sont pas groupées)`);
         return sumPostes;
       }
     }
@@ -1379,8 +1417,24 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       const normalizedLabel = posteName.toLowerCase().trim();
       if (seenLabels.has(normalizedLabel)) continue;
       seenLabels.add(normalizedLabel);
-      const unitUsed = (g.main_unit as string) || "U";
-      console.log(`[conclusion] surface mismatch confirmé pour "${posteName}" — confidence=${confidence.toFixed(2)}`);
+      const unitUsedRaw = (g.main_unit as string) || "";
+      // V3.4.18 (2026-05-19) — Wording "facturé en X" retiré quand X est un
+      // label non-significatif côté user. Avant : "facturé en Article sans
+      // précision de surface" — "Article" n'est pas une vraie unité, c'est
+      // le header de la colonne du tableau Gemini → wording confus.
+      // Désormais : on ne mentionne l'unité QUE si c'est une vraie unité de
+      // mesure (m², ml, U, forfait, ens, lot, h, jour). Sinon on omet.
+      const REAL_UNITS = new Set([
+        "u", "unité", "unite", "forfait", "ens", "ensemble",
+        "prestation", "pce", "pièce", "piece", "lot", "global",
+        "m2", "m²", "ml", "h", "heure", "jour", "j",
+      ]);
+      const unitNorm = unitUsedRaw.toLowerCase().trim();
+      const showUnit = REAL_UNITS.has(unitNorm);
+      const unitPhrase = showUnit
+        ? `facturé en ${unitUsedRaw} sans précision de surface`
+        : "facturé sans précision de surface";
+      console.log(`[conclusion] surface mismatch confirmé pour "${posteName}" — confidence=${confidence.toFixed(2)} unitRaw="${unitUsedRaw}" showUnit=${showUnit}`);
       // V3.4.15 (2026-05-18) — Bug fix : retrait du seuil arbitraire "8/12 m²".
       // Avant : "Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent."
       // Problème : ces seuils étaient hardcodés pour TOUS les postes (peinture,
@@ -1388,7 +1442,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       // différents. Faux/paternaliste. On garde uniquement la demande factuelle
       // de surface — c'est le user (et son artisan) qui jugent ensuite.
       surfaceActions.push(
-        `Demandez la surface exacte en m² pour "${posteName}" — facturé en ${unitUsed} sans précision de surface, impossible de comparer au marché.`
+        `Demandez la surface exacte en m² pour "${posteName}" — ${unitPhrase}, impossible de comparer au marché.`
       );
       if (surfaceActions.length >= 2) break; // max 2 actions surface différentes
     }

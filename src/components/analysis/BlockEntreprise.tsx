@@ -101,10 +101,34 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
     && hasNoFinances
     && reputationNotFound;
 
+  // V3.4.18 (2026-05-19) — Garde "sources insuffisantes vs ancienneté" → ORANGE.
+  //
+  // Cas observé : entreprise SERGE DUPORT (AEB Rénovation), SIRET 390 234 250
+  // 00061, 33 ans d'existence MAIS uniquement 2 avis Google et 0 bilan déposé.
+  // Le bloc affichait juste au-dessus "⚠️ 2 avis pour 33 ans — note
+  // statistiquement peu fiable" mais concluait quand même par "✓ Aucun
+  // indicateur à risque détecté". Incohérence.
+  //
+  // Règle : entreprise établie (≥ 5 ans) ET sources insuffisantes :
+  //   - nb_avis_google < max(3, anciennete / 5) [ex: 33 ans → 6 avis attendus]
+  //   - OU pas de bilan déposé alors qu'elle devrait l'avoir (SARL/SAS > 5 ans)
+  // → ORANGE avec wording dédié "Sources de vérification insuffisantes".
+  //
+  // Note : on ne sait pas toujours si c'est une AE (qui n'a pas d'obligation
+  // de dépôt) ou une société. On reste prudent : on demande des refs au lieu
+  // d'affirmer un manquement.
+  const reputationReviewsCount = info.reputation?.reviews_count ?? 0;
+  const reputationFound = info.reputation?.status === "found";
+  const isEtablieAvecPeuAvis = ancienneteAnneesEarly !== null
+    && ancienneteAnneesEarly >= 5
+    && reputationFound
+    && reputationReviewsCount < Math.max(3, Math.floor(ancienneteAnneesEarly / 5));
+
   // Score effectif du bloc : ORANGE si comptes non accessibles >= 6 ans (manque d'info, pas infraction),
   // OU si entreprise jeune sans sources vérifiables (V3.4.16+),
+  // OU si entreprise établie mais avec sources Google insuffisantes (V3.4.18),
   // sinon score calculé à partir des alertes (info.score).
-  const effectiveScore = (isFinanciallyStaleRouge || isJeuneAvecPeuDeSources)
+  const effectiveScore = (isFinanciallyStaleRouge || isJeuneAvecPeuDeSources || isEtablieAvecPeuAvis)
     ? "ORANGE" as const
     : info.score;
 
@@ -706,7 +730,14 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                   Demandez à l'artisan : références de chantiers similaires récents, attestations d'assurance décennale + RC Pro à jour, et confirmation de son immatriculation au répertoire des métiers.
                 </>
               )}
-              {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && !isFinanciallyStaleRouge && !isJeuneAvecPeuDeSources && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
+              {/* V3.4.18 — wording dédié "entreprise établie + sources insuffisantes" */}
+              {isEtablieAvecPeuAvis && !isLegalRisk && !isFinanciallyStaleRouge && !isJeuneAvecPeuDeSources && (
+                <>
+                  ℹ️ <strong>Sources de vérification insuffisantes vs ancienneté</strong> — entreprise de {ancienneteAnneesEarly} ans avec seulement {reputationReviewsCount} avis Google{hasNoFinances ? " et aucun bilan déposé" : ""}.
+                  C'est statistiquement peu fiable pour évaluer la solidité réelle. Demandez à l'artisan {reputationReviewsCount < 3 ? "des références concrètes de chantiers similaires (nom + adresse + contact si possible) et " : ""}les attestations d'assurance décennale + RC Pro à jour.
+                </>
+              )}
+              {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && !isFinanciallyStaleRouge && !isJeuneAvecPeuDeSources && !isEtablieAvecPeuAvis && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
               {isLegalRisk && "⛔ Situation juridique critique — ne signez pas ce devis avant une vérification approfondie (tribunal de commerce, infogreffe.fr)."}
               {effectiveScoreWithLegal === "ROUGE" && !isLegalRisk && (
                   financialHealth.rougeSignals.includes("endettement_critique")
@@ -716,13 +747,14 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                   : "⚠️ Des éléments critiques ont été détectés — vérifiez les alertes ci-dessus avant de signer."
               )}
             </p>
-            {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && !isJeuneAvecPeuDeSources && (
+            {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && !isJeuneAvecPeuDeSources && !isEtablieAvecPeuAvis && (
               <p className="text-xs text-muted-foreground mt-2">
                 Aucun élément critique n'a été détecté. Les points signalés sont des invitations à vérifier, non des alertes.
               </p>
             )}
-            {/* V3.4.16+ — pas de "aucun élément critique" sur le cas jeune+vide,
-                le message principal explique déjà la nuance "on n'a pas pu vérifier". */}
+            {/* V3.4.16+/V3.4.18 — pas de "aucun élément critique" sur les cas
+                jeune+vide ou établie+peu d'avis : le message principal explique
+                déjà la nuance "sources insuffisantes". */}
           </div>
 
           {/* Disclaimer - harmonized */}
