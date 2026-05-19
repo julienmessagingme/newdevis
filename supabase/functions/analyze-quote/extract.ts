@@ -227,7 +227,8 @@ RÈGLE ABSOLUE - "travaux" CONTIENT UNIQUEMENT DES PRESTATIONS, JAMAIS DES TOTAU
 EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes de travaux) :
 
 {
-  "type_document": "devis_travaux | facture | diagnostic_immobilier | autre",
+  "type_document": "devis_travaux | facture | diagnostic_immobilier | estimation_courtier | autre. RÈGLE V3.4.20 — DÉTECTION COURTIER TRAVAUX : si le document est une ESTIMATION émise par un courtier/intermédiaire travaux (pas un artisan), retourne 'estimation_courtier'. Signaux à reconnaître (combinaison de plusieurs) : (1) Nom de marque connu dans l'en-tête, le logo ou en pied de page : 'Renovation Man', 'Ootravaux', 'Hellio', 'Travaux.com', 'Bricoleur du Coin', 'Mes Travaux Solidaires', 'IZI by EDF', 'Tucoenergie', 'Effy', 'La Maison Saint-Gobain', 'HomeServe', 'Quelle Energie', 'Heero'. (2) Mention explicite 'estimation' (et non 'devis') dans le titre ou le corps du doc. (3) Phrases types : 'estimation faite à partir des prix du marché', 'sera vérifiée sur place par un professionnel partenaire', 'nous identifions le meilleur artisan', 'mise en relation', 'nous vous trouvons un artisan'. (4) Présence d'une ligne 'Frais de service [NomCourtier]' ou 'Commission' distincte du total travaux. (5) Méthodologie en étapes affichée (genre 5 étapes) où l'artisan est désigné PLUS TARD. Si AU MOINS 2 signaux convergents → 'estimation_courtier'. Ne PAS confondre avec un devis d'artisan classique qui peut mentionner 'Renovation' dans son nom (ex: 'AEB Rénovation' est une vraie entreprise individuelle, pas un courtier).",
+  "courtier_nom": "Si type_document='estimation_courtier', le nom commercial du courtier détecté (ex: 'Renovation Man', 'Ootravaux'). null sinon.",
   "entreprise": {
     "nom": "nom exact ou null",
     "siret": "numéro d'identification de l'entreprise, SANS ESPACES. CHERCHE PARTOUT (en-tête, pied de page, tampons, mentions légales bas de page). PRIORITÉ D'EXTRACTION : 1) Si tu trouves un SIRET 14 chiffres (label 'SIRET', 'N° SIRET', ou 14 chiffres groupés en 9+5) → restitue les 14 chiffres. Si tu vois 13 chiffres il manque un zéro dans le NIC (ex: '8312285800021' → '83122858000021'). 1bis) ⚠️ CAS COURANT — SIRET SANS LABEL : si tu trouves une séquence de 14 chiffres consécutifs (ou groupés type '390 234 250 00061') dans le BLOC D'EN-TÊTE de l'entreprise (juste sous le nom commercial, sous le logo, ou dans la signature/pied de page) SANS aucun label 'SIRET' explicite devant, c'est presque toujours le SIRET — restitue les 14 chiffres. Distinguer d'un numéro de téléphone : un téléphone français a 10 chiffres (commence par 0), pas 14. 2) Si pas de SIRET mais qu'une ligne 'RCS [Ville] N° XXX XXX XXX', 'RCS de [Ville] XXX XXX XXX', ou 'Immatriculée RCS XXX XXX XXX' contient 9 chiffres → ce sont les 9 chiffres du SIREN, restitue-les. 3) Si une ligne 'SIREN N° XXX XXX XXX' contient 9 chiffres (distinctement groupés en 3×3) → restitue ces 9 chiffres. ⚠️ Attention au LABEL TROMPEUR : certains devis affichent 'SIREN : 85217085100012' (14 chiffres) dans leur pied de page — c'est en réalité un SIRET, restitue les 14 chiffres. 4) Sinon null.",
@@ -645,6 +646,11 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
       country_code: countryDetection.country_code,
       country_label: countryDetection.country_label,
       is_foreign_quote: countryDetection.is_foreign,
+      // V3.4.20 — propagation du nom courtier (si type_document="estimation_courtier").
+      // Trim + cap à 60 chars pour éviter qu'un Gemini bavard remplisse avec du blabla.
+      courtier_nom: typeof parsed.courtier_nom === "string"
+        ? parsed.courtier_nom.trim().slice(0, 60) || null
+        : null,
       // V3.4.17 — Validation post-extraction des clauses litigieuses.
       // On accepte uniquement les types prédéfinis + une citation non-vide.
       // Si Gemini hallucine un type inconnu ou une citation vide → on skip.

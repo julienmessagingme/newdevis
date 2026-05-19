@@ -71,6 +71,21 @@ export interface ConclusionData {
     country_label: string;
   };
 
+  /**
+   * V3.4.20 (2026-05-19) — Estimation courtier travaux (pas un vrai devis d'artisan).
+   * Couvre Renovation Man, Ootravaux, Hellio, Travaux.com, Bricoleur du Coin, etc.
+   * Quand le doc est détecté comme estimation courtier :
+   * - Bypass complet de l'appel Gemini conclusion
+   * - Bypass du bloc Entreprise (pas d'artisan à vérifier — il sera désigné plus tard)
+   * - Bypass du matching catalogue (pas pertinent — l'estimation est déjà au prix marché)
+   * - Bannière UI dédiée invitant à re-uploader le VRAI devis quand l'artisan sera désigné
+   * Bug d'origine : VMD cherchait "Renovation Man" sur INSEE → 6 homonymes dont 3 RADIÉS
+   * → bloc ROUGE faux + verdict REFUSER mensonger.
+   */
+  estimation_courtier?: {
+    courtier_nom: string | null;
+  };
+
   // ── Métadonnée ─────────────────────────────────────────────────────────────
   generated_at: string;
 }

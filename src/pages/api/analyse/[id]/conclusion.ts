@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.19";
+const ENGINE_VERSION = "3.4.20";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -754,6 +754,79 @@ export const POST: APIRoute = async ({ params, request }) => {
         .eq("id", analysisId);
 
       return jsonOk({ conclusion: foreignConclusion, cached: false });
+    }
+  } catch {
+    // raw_text invalide — continue avec le flow normal (qui re-tentera lui aussi le parse)
+  }
+
+  // ── V3.4.20 (2026-05-19) — BYPASS ESTIMATION COURTIER ────────────────────────
+  // Quand le doc est une estimation courtier (Renovation Man, Ootravaux, Hellio,
+  // etc.), il n'y a PAS d'artisan dans le doc — le courtier proposera un artisan
+  // PLUS TARD. Toutes les vérifications artisan (SIRET, RGE, finances, IBAN…)
+  // sont donc inapplicables. Cas d'origine : devis Renovation Man pour Jules
+  // Duval → VMD cherchait "Renovation Man" sur INSEE → 6 homonymes dont 3
+  // RADIÉS → bloc ROUGE faux + verdict REFUSER mensonger.
+  //
+  // Idem au foreign bypass : on bypass Gemini + verdictEngine + matching marché,
+  // on génère un wording dédié + le champ estimation_courtier pour la bannière UI.
+  try {
+    const parsed = JSON.parse(analysis.raw_text || "{}");
+    const extractedActuel = parsed.extracted as Record<string, unknown> | undefined;
+    const extractedLegacy2 = parsed.extracted_data as Record<string, unknown> | undefined;
+    const typeDoc =
+      (extractedActuel?.type_document as string | undefined) ||
+      (extractedLegacy2?.type_document as string | undefined);
+    const isCourtier = typeDoc === "estimation_courtier";
+
+    if (isCourtier) {
+      const courtierNom =
+        (extractedActuel?.courtier_nom as string | null | undefined) ||
+        (extractedLegacy2?.courtier_nom as string | null | undefined) ||
+        null;
+      const courtierLabel = courtierNom || "un courtier travaux";
+
+      console.log(`[conclusion] COURTIER BYPASS — courtier="${courtierLabel}" — pas d'appel Gemini, pas de matching catalogue, pas de bloc Entreprise`);
+
+      const courtierConclusion: ConclusionData & { engine_version: string } = {
+        verdict_global:      "eleve_justifie",
+        phrase_intro:        `Ce document est une ESTIMATION émise par ${courtierLabel} (courtier/intermédiaire travaux), pas un devis d'artisan signé. Le vrai artisan sera désigné plus tard dans le process — il n'y a donc personne à vérifier ici (pas de SIRET artisan, pas d'assurance décennale à contrôler, pas d'IBAN). Cette estimation vous donne une fourchette de prix marché utile pour cadrer votre projet, mais ce n'est PAS encore le devis sur lequel vous vous engagez.`,
+        anomalies:           [],
+        justifications:      `Une fois que ${courtierLabel} vous proposera le VRAI devis signé par l'artisan partenaire désigné, re-uploadez-le sur VerifierMonDevis pour qu'on vérifie l'identité, l'ancienneté, la santé financière et la conformité réglementaire de cet artisan. Vous bénéficierez alors de l'analyse complète.`,
+        has_anomalies:       false,
+        verdict_decisionnel: "signer_avec_negociation",
+        surcout_global:      { min: 0, max: 0 },
+        niveau_risque:       "modéré",
+        actions_avant_signature: [
+          `Demander à ${courtierLabel} le nom et le SIRET de l'artisan partenaire qui réalisera les travaux.`,
+          `Demander une copie de l'assurance décennale et de la RC pro de cet artisan, ainsi qu'un exemple de chantier récent.`,
+          `Re-uploader le devis signé de l'artisan (pas l'estimation) sur VerifierMonDevis pour bénéficier de la vérification SIRET + analyse de fiabilité.`,
+          `Comparer cette estimation à 1-2 devis directs d'artisans indépendants (sans courtier) pour mesurer les frais de service du courtier vs un devis direct.`,
+        ],
+        verdict_reasons: {
+          summary: `Estimation ${courtierLabel} — pas d'artisan à vérifier, attendez le vrai devis`,
+          reasons: [
+            `Le document est une estimation marché émise par un courtier travaux, pas un devis d'artisan engageant.`,
+            `Aucune vérification d'identité d'artisan (SIRET, RGE, finances, assurance) n'est applicable à ce stade — l'artisan sera désigné après acceptation de l'estimation.`,
+          ],
+          context: [
+            `${courtierLabel} ajoute généralement des "frais de service" (5-15% du total travaux) en contrepartie de la mise en relation, du suivi et de la sécurisation des paiements. Vérifiez le détail de ces frais dans le document.`,
+            `Une fois l'artisan désigné, re-uploadez son devis sur VerifierMonDevis pour une analyse complète.`,
+          ],
+        },
+        comparison_indicative: true,
+        estimation_courtier: {
+          courtier_nom: courtierNom,
+        },
+        generated_at: new Date().toISOString(),
+        engine_version: ENGINE_VERSION,
+      };
+
+      await (supabase as any)
+        .from("analyses")
+        .update({ conclusion_ia: JSON.stringify(courtierConclusion) })
+        .eq("id", analysisId);
+
+      return jsonOk({ conclusion: courtierConclusion, cached: false });
     }
   } catch {
     // raw_text invalide — continue avec le flow normal (qui re-tentera lui aussi le parse)

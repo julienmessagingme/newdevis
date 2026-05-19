@@ -1,7 +1,25 @@
 // ============ TYPE DEFINITIONS ============
 
 export type ScoringColor = "VERT" | "ORANGE" | "ROUGE";
-export type DocumentType = "devis_travaux" | "facture" | "diagnostic_immobilier" | "autre";
+/**
+ * V3.4.20 (2026-05-19) — `estimation_courtier` ajouté pour les documents émis
+ * par des courtiers/intermédiaires travaux (Renovation Man, Ootravaux, Hellio,
+ * Travaux.com, Bricoleur du Coin, Mes Travaux Solidaires, IZI by EDF, etc.).
+ * Ces documents ne sont PAS des devis d'artisan signés mais des estimations
+ * basées sur des prix marché avec un artisan désigné PLUS TARD dans le process.
+ * Cas typique : "Renovation Man" génère une estimation 11-12k€ pour une SDB,
+ * puis mettra le client en relation avec un artisan partenaire qui fournira
+ * le vrai devis signé. Sans cette détection, VMD tentait de chercher
+ * "Renovation Man" sur INSEE → 6 résultats dont 3 RADIÉS → bloc Entreprise
+ * ROUGE faux → verdict REFUSER mensonger sur le courtier (qui n'est même pas
+ * l'artisan futur).
+ *
+ * Quand type_document="estimation_courtier", conclusion.ts bypasse le bloc
+ * Entreprise (pas d'artisan à vérifier) et renvoie un verdict "comparaison
+ * marché uniquement" avec un message UI dédié invitant à re-uploader le VRAI
+ * devis artisan une fois reçu.
+ */
+export type DocumentType = "devis_travaux" | "facture" | "diagnostic_immobilier" | "estimation_courtier" | "autre";
 export type DomainType = "travaux" | "auto" | "dentaire";
 
 // ============================================================
@@ -141,6 +159,15 @@ export interface ExtractedData {
   country_code?: string;
   country_label?: string;
   is_foreign_quote?: boolean;
+  /**
+   * V3.4.20 (2026-05-19) — Détection courtier travaux.
+   * Si type_document="estimation_courtier", ce champ identifie quel courtier
+   * a émis le document. Permet à conclusion.ts d'afficher un message dédié
+   * "Renovation Man / Ootravaux / etc." plutôt qu'un générique.
+   * Couvre : Renovation Man, Ootravaux, Hellio, Travaux.com, Bricoleur du
+   * Coin, Mes Travaux Solidaires, IZI by EDF, Tucoenergie, Effy, La Maison Saint-Gobain.
+   */
+  courtier_nom?: string | null;
   /**
    * V3.4.17 (2026-05-19) — Détection de clauses contractuelles
    * potentiellement litigieuses ou illégales dans le texte libre du devis.

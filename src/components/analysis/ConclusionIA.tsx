@@ -227,7 +227,11 @@ function ConclusionDisplay({
   // car aucun chiffre n'est fiable (catalogue FR vs prix BE/LU/CH/DE).
   const isForeignQuote = Boolean(conclusion.foreign_quote);
   const foreignCountryLabel = conclusion.foreign_quote?.country_label ?? null;
-  const showAccusatoryHero    = hasSurcout && !isVerdictSigner && !isComparisonIndicative && !isForeignQuote;  // RÈGLE 2 + 3 + V3.4.13 + V3.4.14
+  // V3.4.20 — Estimation courtier (Renovation Man, Ootravaux, etc.) : on masque
+  // aussi le hero surcout car il n'y a pas d'artisan à vérifier.
+  const isCourtierEstimation = Boolean(conclusion.estimation_courtier);
+  const courtierNom = conclusion.estimation_courtier?.courtier_nom ?? null;
+  const showAccusatoryHero    = hasSurcout && !isVerdictSigner && !isComparisonIndicative && !isForeignQuote && !isCourtierEstimation;  // RÈGLE 2 + 3 + V3.4.13 + V3.4.14 + V3.4.20
   const surcoutWithoutAnomaly = hasSurcout && anomCount === 0;         // RÈGLE 4
 
   // Wording neutre quand on a un surcoût détecté mais qu'on ne peut pas l'afficher accusatoire
@@ -294,6 +298,35 @@ function ConclusionDisplay({
         </div>
       )}
 
+      {/* V3.4.20 (2026-05-19) — Bannière dédiée estimation courtier travaux
+          Affichée AVANT le verdict, masque hero surcout + chiffres alarmistes.
+          Cas couverts : Renovation Man, Ootravaux, Hellio, Travaux.com, etc.
+          Le doc n'est PAS un devis d'artisan signé — l'artisan sera désigné
+          plus tard par le courtier. Donc aucune vérification SIRET/RGE/finances
+          n'est applicable à ce stade. */}
+      {isCourtierEstimation && (
+        <div className="rounded-xl border-2 border-sky-300 bg-gradient-to-br from-sky-50 to-sky-100/60 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl leading-none flex-shrink-0 mt-0.5" aria-hidden="true">📋</span>
+            <div className="min-w-0">
+              <p className="text-base font-bold text-sky-900 leading-snug">
+                Estimation {courtierNom ?? "courtier travaux"} — pas un devis d'artisan
+              </p>
+              <p className="text-sm text-sky-800/90 mt-1.5 leading-relaxed">
+                Ce document est une <strong>estimation</strong> émise par {courtierNom ? <>un courtier travaux (<strong>{courtierNom}</strong>)</> : "un courtier travaux"},
+                pas un devis d'artisan signé. Le vrai artisan sera <strong>désigné plus tard</strong> par le courtier — il n'y a donc personne
+                à vérifier ici (pas de SIRET artisan, pas d'assurance décennale à contrôler, pas d'IBAN).
+              </p>
+              <p className="text-xs text-sky-800/80 mt-2 leading-relaxed">
+                ✓ <strong>Cette estimation reste utile</strong> pour cadrer votre projet (fourchette de prix marché).
+                Une fois le devis signé de l'artisan reçu, <strong>re-uploadez-le sur VerifierMonDevis</strong> pour
+                bénéficier de la vérification complète (identité, ancienneté, santé financière, conformité).
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ═══════════════════════════════════════════════════════════
           SECTION 1 — SURCOÛT (chiffre principal)
           V3.3.1 — Affiché UNIQUEMENT si action requise (RÈGLE 2 + 3).
@@ -323,7 +356,7 @@ function ConclusionDisplay({
           quand le catalogue marché sous-couvre la prestation (overprice > +50%
           SANS anomalie identifiée poste par poste). Cas typique : assainissement
           réhabilitation, prestations très techniques, lots regroupés. */}
-      {isComparisonIndicative && !isVerdictSigner && !isForeignQuote && (
+      {isComparisonIndicative && !isVerdictSigner && !isForeignQuote && !isCourtierEstimation && (
         <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 px-4 py-3.5">
           <p className="text-sm font-semibold text-amber-900 leading-snug">
             <span aria-hidden="true">ℹ️ </span>
