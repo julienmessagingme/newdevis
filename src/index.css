@@ -239,6 +239,21 @@ input[type='range']:focus::-webkit-slider-thumb {
     animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
+  /* Fade-in subtle pour overlays SaaS (hero VMD — 2026-05-20).
+     Slide-up léger + fade. Run-once, pas d'animation continue. */
+  .animate-fade-in-overlay {
+    animation: fadeInOverlay 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    opacity: 0;
+  }
+  @keyframes fadeInOverlay {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
+  }
+  /* Respect prefers-reduced-motion : pas d'animation pour les users sensibles */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in-overlay { animation: none; opacity: 1; }
+  }
+
   /* ── Skeleton loader (token-based) ── */
   .skeleton {
     @apply relative overflow-hidden bg-muted rounded-md;
