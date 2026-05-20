@@ -42,6 +42,27 @@ type Step    = "feedback" | "reward" | "done";
 type Activating = "idle" | "activating" | "activated";
 type VerdictColor = "VERT" | "ORANGE" | "ROUGE";
 
+// V3.4.20+ — Causes du feedback négatif (chips multi-select). Whitelist alignée
+// avec ALLOWED_TAGS dans src/pages/api/feedback.ts.
+type NegativeTag =
+  | "mauvaise_entreprise"
+  | "faux_radiee"
+  | "siret_non_extrait"
+  | "prix_marche_incorrect"
+  | "verdict_incoherent"
+  | "mauvais_type_doc"
+  | "autre";
+
+const NEGATIVE_TAGS: { id: NegativeTag; label: string }[] = [
+  { id: "mauvaise_entreprise",   label: "Mauvaise entreprise affichée" },
+  { id: "faux_radiee",           label: "Entreprise dite radiée à tort" },
+  { id: "siret_non_extrait",     label: "SIRET pas lu sur le PDF" },
+  { id: "prix_marche_incorrect", label: "Prix marché incohérent" },
+  { id: "verdict_incoherent",    label: "Verdict ne reflète pas la réalité" },
+  { id: "mauvais_type_doc",      label: "Pas un devis classique (estimation, MOE…)" },
+  { id: "autre",                 label: "Autre" },
+];
+
 export interface UseFeedbackOptions {
   /** Analyse en cours (pour persister la soumission côté serveur). */
   analysisId?: string | null;
@@ -82,6 +103,7 @@ async function persistFeedback(opts: {
   choice: Choice;
   text: string;
   verdict: VerdictColor | null;
+  tags: NegativeTag[];
 }): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
@@ -101,6 +123,7 @@ async function persistFeedback(opts: {
       choice: opts.choice,
       text: opts.text.trim() || undefined,
       verdict_at_submission: opts.verdict ?? undefined,
+      tags: opts.choice === "negative" ? opts.tags : undefined,
     }),
   });
   if (!res.ok) {
@@ -137,15 +160,22 @@ const CHOICES: { id: Choice; emoji: string; label: string }[] = [
 ];
 
 function StepFeedback({
-  choice, text, submitting, onChoice, onText, onNext,
+  choice, text, tags, submitting, onChoice, onText, onToggleTag, onNext,
 }: {
-  choice:     Choice | null;
-  text:       string;
-  submitting: boolean;
-  onChoice:   (c: Choice) => void;
-  onText:     (t: string) => void;
-  onNext:     () => void;
+  choice:       Choice | null;
+  text:         string;
+  tags:         NegativeTag[];
+  submitting:   boolean;
+  onChoice:     (c: Choice) => void;
+  onText:       (t: string) => void;
+  onToggleTag:  (t: NegativeTag) => void;
+  onNext:       () => void;
 }) {
+  const showTags = choice === "negative";
+  // Si "autre" est seul sélectionné (sans autre tag), exiger une raison textuelle
+  const requireText = showTags && tags.length === 1 && tags[0] === "autre";
+  const textTooShort = requireText && text.trim().length < 5;
+
   return (
     <div className="flex flex-col gap-5">
       <div className="text-center">
@@ -174,27 +204,71 @@ function StepFeedback({
         ))}
       </div>
 
+      {/* V3.4.20+ — Chips causes du feedback négatif (multi-select).
+          Aide à identifier rapidement les bugs structurels en prod (mauvaise
+          entreprise, faux radiée, mauvais type de doc, etc.) plutôt que de
+          devoir lire chaque commentaire libre. */}
+      {showTags && (
+        <div className="flex flex-col gap-2.5 -mt-1">
+          <p className="text-xs font-medium text-slate-600">
+            Qu'est-ce qui n'allait pas ? (vous pouvez en cocher plusieurs)
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {NEGATIVE_TAGS.map((t) => {
+              const selected = tags.includes(t.id);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => onToggleTag(t.id)}
+                  className={`
+                    px-3 py-1.5 rounded-full border text-xs font-medium transition-all
+                    touch-manipulation select-none
+                    ${selected
+                      ? "border-primary bg-primary text-white"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"}
+                  `}
+                  aria-pressed={selected}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="relative">
         <textarea
           value={text}
           onChange={(e) => onText(e.target.value.slice(0, TEXT_MAX))}
-          placeholder="Ex : le verdict n'était pas clair / prix incohérent / très utile"
+          placeholder={
+            requireText
+              ? "Merci de préciser ce qui n'a pas marché"
+              : "Ex : le verdict n'était pas clair / prix incohérent / très utile"
+          }
           rows={2}
           maxLength={TEXT_MAX}
-          className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2
+          className={`w-full resize-none rounded-xl border bg-slate-50 px-3 py-2
                      text-sm text-slate-700 placeholder:text-slate-400
-                     focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
+                     focus:outline-none focus:ring-2 focus:ring-primary/30
+                     ${textTooShort ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-primary/40"}`}
         />
         {text.length > 0 && (
           <span className="absolute bottom-2 right-3 text-[10px] text-slate-400">
             {text.length}/{TEXT_MAX}
           </span>
         )}
+        {textTooShort && (
+          <p className="text-[11px] text-red-600 mt-1">
+            Précise un peu, ça nous aide à corriger.
+          </p>
+        )}
       </div>
 
       <Button
         onClick={onNext}
-        disabled={!choice || submitting}
+        disabled={!choice || submitting || textTooShort}
         className="w-full h-11 rounded-xl font-semibold"
       >
         {submitting ? (
@@ -378,6 +452,7 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
   const [step,       setStep]       = useState<Step>("feedback");
   const [choice,     setChoice]     = useState<Choice | null>(null);
   const [text,       setText]       = useState("");
+  const [tags,       setTags]       = useState<NegativeTag[]>([]);  // V3.4.20+ — causes feedback négatif
   const [submitting, setSubmitting] = useState(false);
   const [activating, setActivating] = useState<Activating>("idle");
 
@@ -444,7 +519,15 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleChoice = useCallback((c: Choice) => {
     setChoice(c);
+    // Si on quitte "negative", on reset les tags pour éviter qu'ils restent
+    // attachés à un choix positif/neutral (l'API les ignorerait mais c'est
+    // plus propre côté state local).
+    if (c !== "negative") setTags([]);
     track("feedback_choice", { choice: c });
+  }, []);
+
+  const handleToggleTag = useCallback((t: NegativeTag) => {
+    setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   }, []);
 
   const handleNext = useCallback(async () => {
@@ -453,6 +536,10 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
 
     // Tracking Amplitude (existant)
     if (text.trim()) track("feedback_text", { length: text.trim().length });
+    // V3.4.20+ — Tracking des tags pour Amplitude (gros funnel d'analyse côté admin)
+    if (choice === "negative" && tags.length > 0) {
+      track("feedback_negative_tags", { tags, count: tags.length });
+    }
 
     // Persistance DB (nouveau — non bloquant si échec)
     const aid = analysisIdRef.current;
@@ -463,6 +550,7 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
           choice,
           text,
           verdict: verdictRef.current,
+          tags,  // V3.4.20+ — l'API ignore les tags si choice ≠ "negative"
         });
       } catch (err) {
         console.error("[feedback] persist failed:", err);
@@ -482,7 +570,7 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
     } else {
       setStep("done");
     }
-  }, [choice, text]);
+  }, [choice, text, tags]);
 
   const handleActivate = useCallback(async () => {
     setActivating("activating");
@@ -551,9 +639,11 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
             <StepFeedback
               choice={choice}
               text={text}
+              tags={tags}
               submitting={submitting}
               onChoice={handleChoice}
               onText={setText}
+              onToggleTag={handleToggleTag}
               onNext={handleNext}
             />
           )}
@@ -573,7 +663,7 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
       </>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, step, choice, text, submitting, activating]);
+  }, [open, step, choice, text, tags, submitting, activating]);
 
   return { openFeedback, FeedbackModal: Modal };
 }

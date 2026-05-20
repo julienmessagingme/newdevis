@@ -14,6 +14,7 @@ import SubscribersTable from "@/components/admin/sections/SubscribersTable";
 import RecentDevisTable from "@/components/admin/sections/RecentDevisTable";
 import ReturningUsersSection from "@/components/admin/sections/ReturningUsersSection";
 import FeedbackSection from "@/components/admin/sections/FeedbackSection";
+import AnomaliesSection from "@/components/admin/sections/AnomaliesSection";
 
 const Admin = () => {
   const [loading, setLoading] = useState(true);
@@ -179,6 +180,8 @@ const Admin = () => {
           downloadingId={downloadingId}
           onDownload={downloadFile}
         />
+
+        <AnomaliesSection />
 
         <FeedbackSection />
 

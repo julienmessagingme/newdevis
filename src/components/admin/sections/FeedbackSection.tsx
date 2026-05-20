@@ -20,10 +20,22 @@ interface FeedbackItem {
   choice: "positive" | "neutral" | "negative";
   text: string | null;
   verdict_at_submission: "VERT" | "ORANGE" | "ROUGE" | null;
+  tags: string[] | null;  // V3.4.20+ — chips causes du feedback négatif
   created_at: string;
   user_email: string | null;
   file_name: string | null;
 }
+
+// Mapping des tags techniques → libellés humains (aligné avec NEGATIVE_TAGS de FeedbackModal)
+const TAG_LABELS: Record<string, string> = {
+  mauvaise_entreprise:    "Mauvaise entreprise",
+  faux_radiee:            "Faux radiée",
+  siret_non_extrait:      "SIRET non lu",
+  prix_marche_incorrect:  "Prix marché KO",
+  verdict_incoherent:     "Verdict incohérent",
+  mauvais_type_doc:       "Pas un devis",
+  autre:                  "Autre",
+};
 
 interface FeedbackCounts {
   total: number;
@@ -199,11 +211,27 @@ export default function FeedbackSection() {
                         )}
                       </td>
                       <td className="py-2.5 px-4 text-sm text-foreground max-w-md">
+                        {/* V3.4.20+ — Chips tags (causes) au-dessus du commentaire libre.
+                            Affichés uniquement sur les feedbacks négatifs (les autres choices
+                            n'ont jamais de tags par contrat API). */}
+                        {f.tags && f.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            {f.tags.map((t) => (
+                              <span
+                                key={t}
+                                className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200"
+                                title={t}
+                              >
+                                {TAG_LABELS[t] ?? t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         {f.text ? (
                           <span className="italic text-slate-700">"{f.text}"</span>
-                        ) : (
+                        ) : !f.tags || f.tags.length === 0 ? (
                           <span className="text-muted-foreground text-xs">—</span>
-                        )}
+                        ) : null}
                       </td>
                     </tr>
                   ))}

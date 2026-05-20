@@ -68,7 +68,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   // ── Liste paginée
   let query = (supabase as any)
     .from('analysis_feedback')
-    .select('id, analysis_id, user_id, choice, text, verdict_at_submission, created_at')
+    .select('id, analysis_id, user_id, choice, text, verdict_at_submission, tags, created_at')
     .order('created_at', { ascending: false })
     .limit(limit);
 
