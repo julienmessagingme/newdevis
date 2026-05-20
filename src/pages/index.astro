@@ -138,65 +138,115 @@ const jsonLd = {
 
             </div>
 
-            <!-- Colonne visuelle (desktop uniquement) -->
+            <!--
+              Colonne visuelle (desktop uniquement) — photo investigation devis
+              (2026-05-20). Photo réelle 1289×1600 WebP 181 Ko + 3 overlays SaaS.
+              Remplace l'ancienne carte score mockée. Keyframe animate-fade-in-overlay
+              définie dans src/index.css (avec respect prefers-reduced-motion).
+              ⚠️ Le composant React HeroSection.tsx existe encore mais est ORPHELIN
+              (utilisé uniquement par Index.tsx lui-même orphelin) — c'est ICI
+              qu'on édite le hero visible sur la homepage VMD prod.
+            -->
             <div class="hidden lg:block relative">
-              <div class="relative animate-float">
+              <div class="relative max-w-md mx-auto">
 
-                <!-- Carte principale -->
-                <div class="bg-card rounded-2xl shadow-2xl p-6 max-w-md mx-auto">
-                  <div class="flex items-center gap-3 mb-4">
-                    <div class="p-3 bg-primary/10 rounded-xl">
-                      <!-- FileSearch -->
-                      <svg class="h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v3"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <circle cx="4.5" cy="16.5" r="2.5"/>
-                        <path d="m7.2 18.8 1.8-1.8"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 class="font-semibold text-foreground">Devis Plomberie</h3>
-                      <p class="text-sm text-muted-foreground">Analysé le 06/01/2026</p>
-                    </div>
-                  </div>
+                <!-- Photo centrale + animation float existante -->
+                <div class="relative animate-float">
+                  <img
+                    src="/images/hero-devis-investigation.webp"
+                    alt="Analyse d'un devis travaux : loupe sur un acompte de 50% pointé comme drapeau rouge"
+                    width="1289"
+                    height="1600"
+                    loading="eager"
+                    decoding="async"
+                    fetchpriority="high"
+                    class="w-full h-auto rounded-2xl shadow-2xl object-cover ring-1 ring-black/5"
+                  />
+                </div>
 
-                  <!-- Score -->
-                  <div class="bg-score-green-bg border border-score-green/20 rounded-xl p-4 mb-4">
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm font-medium text-score-green-foreground">Score de fiabilité</span>
-                      <span class="text-2xl font-bold text-score-green">FEU VERT</span>
-                    </div>
-                    <div class="mt-2 h-2 bg-score-green/20 rounded-full overflow-hidden">
-                      <div class="h-full bg-score-green rounded-full" style="width:85%"></div>
-                    </div>
-                  </div>
-
-                  <!-- Critères -->
-                  <div class="space-y-2">
-                    <div class="flex items-center justify-between py-2 border-b border-border">
-                      <span class="text-sm text-muted-foreground">Entreprise vérifiée</span>
-                      <svg class="h-5 w-5 text-score-green" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
-                      </svg>
-                    </div>
-                    <div class="flex items-center justify-between py-2 border-b border-border">
-                      <span class="text-sm text-muted-foreground">Mentions légales</span>
-                      <svg class="h-5 w-5 text-score-green" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
-                      </svg>
-                    </div>
-                    <div class="flex items-center justify-between py-2">
-                      <span class="text-sm text-muted-foreground">Prix cohérent</span>
-                      <svg class="h-5 w-5 text-score-green" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
-                      </svg>
+                <!-- Overlay 1 — Badge ROUGE : acompte 50% (top-right) -->
+                <div
+                  class="absolute -top-3 -right-3 sm:-top-4 sm:-right-4 max-w-[200px]
+                         bg-white/95 backdrop-blur-md
+                         border border-red-200 border-l-4 border-l-red-500
+                         rounded-xl shadow-xl shadow-red-500/10
+                         px-3.5 py-2.5
+                         animate-fade-in-overlay"
+                  style="animation-delay: 0.2s; animation-fill-mode: both;"
+                >
+                  <div class="flex items-center gap-2">
+                    <!-- AlertTriangle Lucide -->
+                    <svg class="h-4 w-4 text-red-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                      <path d="M12 9v4"/>
+                      <path d="M12 17h.01"/>
+                    </svg>
+                    <div class="min-w-0">
+                      <p class="text-[10px] uppercase tracking-wider text-red-600 font-semibold leading-none">
+                        Drapeau rouge
+                      </p>
+                      <p class="text-sm font-bold text-foreground leading-tight mt-0.5">
+                        Acompte&nbsp;50%
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                <!-- Badge flottant -->
-                <div class="absolute -top-4 -right-4 bg-score-green text-primary-foreground px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
-                  ✓ Conforme
+                <!-- Overlay 2 — Badge ORANGE : prix marché +18% (middle-left)
+                     Wrapper externe = positionnement vertical centré.
+                     Badge interne anime sans casser le transform du wrapper. -->
+                <div class="absolute top-1/2 -left-3 sm:-left-6 -translate-y-1/2 max-w-[200px]">
+                  <div
+                    class="bg-white/95 backdrop-blur-md
+                           border border-amber-200 border-l-4 border-l-amber-500
+                           rounded-xl shadow-xl shadow-amber-500/10
+                           px-3.5 py-2.5
+                           animate-fade-in-overlay"
+                    style="animation-delay: 0.4s; animation-fill-mode: both;"
+                  >
+                    <div class="flex items-center gap-2">
+                      <!-- TrendingUp Lucide -->
+                      <svg class="h-4 w-4 text-amber-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+                        <polyline points="16 7 22 7 22 13"/>
+                      </svg>
+                      <div class="min-w-0">
+                        <p class="text-[10px] uppercase tracking-wider text-amber-700 font-semibold leading-none">
+                          Prix marché
+                        </p>
+                        <p class="text-sm font-bold text-foreground leading-tight mt-0.5">
+                          +18% vs moyenne
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Overlay 3 — Badge VERT : entreprise vérifiée (bottom-right) -->
+                <div
+                  class="absolute -bottom-3 -right-2 sm:-bottom-4 sm:-right-4 max-w-[220px]
+                         bg-white/95 backdrop-blur-md
+                         border border-emerald-200 border-l-4 border-l-emerald-500
+                         rounded-xl shadow-xl shadow-emerald-500/10
+                         px-3.5 py-2.5
+                         animate-fade-in-overlay"
+                  style="animation-delay: 0.6s; animation-fill-mode: both;"
+                >
+                  <div class="flex items-center gap-2">
+                    <!-- ShieldCheck Lucide -->
+                    <svg class="h-4 w-4 text-emerald-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+                      <path d="m9 12 2 2 4-4"/>
+                    </svg>
+                    <div class="min-w-0">
+                      <p class="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold leading-none">
+                        Vérifié SIRENE
+                      </p>
+                      <p class="text-sm font-bold text-foreground leading-tight mt-0.5">
+                        Entreprise active
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
               </div>
