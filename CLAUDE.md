@@ -728,6 +728,55 @@ const inputClass = isMobile
 
 ---
 
+## GMC trial + paywall — plan figé Phase 2 (2026-05-20)
+
+> Plan de monétisation GMC validé conjointement (audit + décisions Johan, à confirmer par Julien avant attaque code Phase 3). Cf. `TODO.md` section "GMC — Monétisation" pour le détail granulaire et `wip.md` pour l'état d'avancement.
+
+**Modèle commercial** :
+- Trial 15 jours sans CB, ancré sur `auth.users.created_at` (PAS de colonne `trial_started_at` ajoutée).
+- 4 SKU Stripe alignés avec `src/components/gmc-landing/Pricing.astro` : `gmc_essentiel_{monthly,annual}` 12€/120€ (1 chantier), `gmc_multi_{monthly,annual}` 25€/210€ (illimité).
+- Post-trial : **read-only complet** + paywall 403 sur écritures (PAS blocage total — choix RGPD-friendly + conversion).
+- Grace period past_due = 7 jours.
+- Limite chantier Essentiel (1 chantier max) = **hors scope V1 paywall**, à coder dans une phase ultérieure.
+
+**Helper central** :
+- `src/lib/auth/accessControl.ts` (à créer) — `getAccessState(userId)` retourne `'trial_active' | 'trial_expired' | 'subscribed' | 'subscribed_past_due' | 'beta' | 'admin' | 'blocked'`.
+- `src/lib/api/apiHelpers.ts` — ajout `requirePremium(request, opts)` qui combine `requireAuth` + `getAccessState` + 403 si bloqué sur opérations d'écriture.
+- `src/lib/api/aiQuota.ts` (à créer) — `requireAIQuota(supabase, userId, product)` qui incrémente atomiquement `ai_usage_monthly` via RPC SQL.
+
+**Quota IA pendant trial** :
+- 30 appels/mois (UTC) sur actions coûteuses uniquement : `generer`, `ameliorer`, `regenerer`, `analyser`, `assistant/message` (agent-orchestrator).
+- Gratuites pendant trial : `conseils`, `qualifier`, `describe`, `extract-invoice` (légères Gemini).
+- Subscribed = 500/mois. Beta + admin = illimité.
+
+**Allowlist Johan + Julien** :
+- INSERT explicite par email dans la migration A : `is_beta_tester=true`, `beta_expires_at=NULL`.
+- `hasGmcAccess()` (actuellement allowlist hardcodée `["julien@messagingme.fr","bridey.johan@gmail.com"]` dans `src/lib/auth/gmcAccess.ts`) lira la DB après migration douce 30j (OR entre les 2 sources, puis suppression de l'allowlist).
+
+**Analytics segmentation** :
+- Tous les events Amplitude/tracking incluent `userTier: 'trial' | 'beta' | 'active' | 'expired' | 'admin'`. Séparation stricte. Permet de mesurer la conversion trial→active par segment indépendamment.
+
+**Stratégie zéro downtime — 6 phases** (chaque commit revertable indépendamment) :
+- Phase A : migration SQL (4 colonnes ajoutées avec DEFAULT, table `ai_usage_monthly` nouvelle, INSERT idempotent Johan+Julien). Non-breaking.
+- Phase B : helpers `accessControl.ts` + `aiQuota.ts` créés, pas encore appelés.
+- Phase C : endpoint `/api/gmc/access-state` + hook `useAccessState`. Pas encore consommé par l'UI.
+- Phase D : composants UI (`TrialBanner`, `PaywallScreen`, `AdminOverrideBadge`, `AIQuotaIndicator`) — read-only de l'état, jamais bloquant.
+- Phase E : gating progressif des 19 endpoints GMC (12 IA + 7 destructifs). Tests anti-régression `accessControl.test.ts` avant chaque endpoint.
+- Phase F : Stripe checkout GMC (`/api/gmc/checkout`) + webhook adapté pour `product='gmc'` via metadata. Tester en Stripe test mode d'abord.
+
+**Endpoints concernés** :
+- **Premium uniquement (12)** : `chantier/generer`, `chantier/ameliorer`, `chantier/conseils`, `chantier/qualifier`, `chantier/[id]/regenerer`, `chantier/[id]/assistant/message`, `chantier/[id]/insights`, `chantier/[id]/documents/[docId]/analyser`, `chantier/[id]/documents/[docId]/describe`, `chantier/[id]/documents/[docId]/extract-invoice`, `chantier/[id]/documents/extract-invoice`, `chantier/[id]/whatsapp` (POST + PATCH).
+- **Trial expired = 403 sur DELETE (7)** : `chantier/[id]`, `chantier/[id]/lots/[lotId]`, `chantier/[id]/devis/[devisId]`, `chantier/[id]/contacts`, `chantier/[id]/taches`, `chantier/[id]/entrees`, `chantier/[id]/payment-events`.
+- **Trial OK (toutes les autres)** : GET, POST/PATCH non-IA, lecture.
+
+**Sécurité anti-bypass** :
+- `getAccessState()` lit toujours la DB (jamais le JWT claim).
+- Table `ai_usage_monthly` : RLS empêche INSERT/UPDATE — seul `service_role` écrit via RPC `increment_ai_usage`.
+- `requireAuth` extrait `user_id` du JWT décodé, jamais du body.
+- Edge functions cron utilisent `X-Agent-Key` → bypass trial volontairement (système, jamais user-initiated). Documenté.
+
+---
+
 ## Sécurité
 
 ### Principes appliqués

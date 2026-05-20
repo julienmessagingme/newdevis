@@ -333,13 +333,39 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 
 ## GMC — Monétisation : essai gratuit 15 j + gate paywall
 
-> À coder **en même temps que la facturation Stripe** — pas avant. Un mur à J+15 sans formule payante derrière = cul-de-sac (l'utilisateur n'a nulle part où upgrader).
+> Plan d'implémentation **figé Phase 2 (2026-05-20)** — décisions ci-dessous validées par Johan, à confirmer par Julien avant attaque code (cf. message en bas du document).
 
-- [ ] **Compteur d'essai 15 jours sans CB** : tout nouveau compte GMC démarre un essai gratuit de 15 jours. Ancre du compteur = `auth.users.created_at` (pas besoin de nouveau champ ; éventuellement `trial_started_at` distinct si on veut découpler "compte créé" et "1er accès GMC"). Pas de carte bancaire demandée à l'inscription.
-- [ ] **Gate à J+15** : passé 15 jours, bloquer l'accès au cockpit GMC et afficher un écran d'upgrade vers une formule payante. Point d'entrée naturel = `src/lib/auth/gmcAccess.ts` (`hasGmcAccess` — aujourd'hui allowlist hardcodée, déjà identifié comme "à remplacer par lecture DB"). Le gate y branche : accès si (essai actif `now < created_at + 15j`) OU (abonnement payant actif).
-- [ ] **Écran d'upgrade** : page/modale "Votre essai est terminé" → formules (Essentiel 12€/mois, Multi-chantiers 25€/mois — cf. landing GMC) → checkout Stripe. Réutiliser le flux `create-checkout-session` existant (VMD Pass Sérénité) en l'étendant aux plans GMC.
-- [ ] **Pré-câblage déjà en place** : la question "un seul / plusieurs chantiers" de l'écran d'onboarding (`ScreenOnboarding`) est posée — la réponse pourra pré-sélectionner la formule (mono → Essentiel, multi → Multi-chantiers) au moment du gate. Penser à persister cette réponse quand on attaquera le sujet.
-- [ ] **Bandeau "essai — J restants"** : pendant l'essai, afficher discrètement le nombre de jours restants dans le cockpit (sidebar ou header) pour préparer l'utilisateur à la conversion.
+### Décisions Phase 2 — non-négociables sans validation explicite
+
+- [ ] **Trial 15 jours sans CB** — ancre = `auth.users.created_at` (pas de colonne dédiée `trial_started_at`). Trial actif si `(NOW() - users.created_at) < 15 days`. Aucun field à ajouter sur `subscriptions` pour ça. ⚠️ Conséquence assumée : un user qui s'inscrit VMD et arrive sur GMC > 15j après n'a plus de trial GMC. Acceptable car flux VMD→GMC marginal en V1.
+- [ ] **Trial row** = `status='trial'`, `plan='trial'` (générique). Le vrai plan (Essentiel/Multi) est choisi au checkout Stripe.
+- [ ] **4 SKU Stripe** alignés avec la landing GMC (`Pricing.astro`) :
+  - `gmc_essentiel_monthly` 12 €/mois (1 chantier)
+  - `gmc_essentiel_annual` 120 €/an
+  - `gmc_multi_monthly` 25 €/mois (chantiers illimités)
+  - `gmc_multi_annual` 210 €/an
+  - 4 nouvelles env vars : `GMC_STRIPE_PRICE_ESSENTIEL_{MONTHLY,ANNUAL}_ID`, `GMC_STRIPE_PRICE_MULTI_{MONTHLY,ANNUAL}_ID`
+- [ ] **Post-trial = read-only + paywall sur écritures** (PAS blocage total). Endpoints GET = 200 OK. Endpoints POST/PATCH/DELETE premium = 403 + payload `{ accessState: 'trial_expired', upgrade_url }`. Justification : conformité RGPD (data hostage = mauvaise pratique B2C) + meilleure conversion (l'user voit ce qu'il rate).
+- [ ] **Grace period past_due** = 7 jours (Stripe `past_due` après échec de paiement → l'user garde l'accès 7j le temps de mettre sa carte à jour, puis bascule en `trial_expired`).
+- [ ] **Quota IA pendant trial** = appels coûteux uniquement, 30/mois calendaire (UTC) :
+  - **Comptabilisé** : `chantier/generer`, `chantier/ameliorer`, `chantier/[id]/regenerer`, `documents/[docId]/analyser`, `assistant/message` (agent-orchestrator)
+  - **Gratuit pendant trial** : `chantier/conseils`, `chantier/qualifier`, `documents/[docId]/describe`, `documents/[docId]/extract-invoice`
+  - Subscribed = 500/mois (anti-abus). Beta = illimité. Admin = illimité.
+  - Indicateur quota visible dans le header cockpit ("12/30 analyses IA ce mois", devient orange < 5 restantes).
+- [ ] **Analytics segmentation stricte** : tous les events Amplitude/tracking incluent `userTier: 'trial' | 'beta' | 'active' | 'expired' | 'admin'`. Aucun mélange. Permet de mesurer conversion trial→active séparément par segment.
+- [ ] **Grandfathering** : INSERT explicite Johan + Julien par email dans la migration Phase A (`is_beta_tester=true`, `beta_expires_at=NULL`). Pas de trigger auto.
+- [ ] **Réponse HTTP paywall** = 403 Forbidden (pas 402). Payload JSON explicite `{ error: 'trial_expired', upgrade_url, accessState }`.
+
+### Hors scope Phase 3 (à coder plus tard)
+
+- [ ] **Limite chantier Essentiel** : pendant V1 paywall, tous les plans = chantiers illimités. La limite "1 chantier" du tier Essentiel sera codée dans une phase ultérieure (upsell modal "Passer en Multi" à la création du 2e chantier).
+- [ ] **Pré-câblage onboarding** : la question "un seul / plusieurs chantiers" de `ScreenOnboarding` est posée mais n'est PAS encore persistée. À ajouter quand on codera la limite chantier (point précédent).
+- [ ] **Notification email "trial expire dans 3j"** : pas en V1, à ajouter Phase 5+ si besoin retention.
+- [ ] **Coupons/promos** : pas en V1.
+
+### Bandeau J restants pendant trial
+
+- [ ] **Composant `TrialBanner`** dans le header cockpit : affiche "Il vous reste X jours d'essai" + CTA "Choisir une formule". Discret, sticky top. Caché pour beta/admin/active.
 
 ---
 
