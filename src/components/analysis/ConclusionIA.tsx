@@ -187,11 +187,17 @@ function ConclusionDisplay({
   onRegenerate,
   isGenerating,
   onCopy,
+  deterministicAnomalyCount,
+  deterministicSurvalueCount,
 }: {
   conclusion: ConclusionData;
   onRegenerate: () => void;
   isGenerating: boolean;
   onCopy?: () => void;
+  /** V3.4.22 — count d'anomalies déterministe (cartes rouges Bloc 2). */
+  deterministicAnomalyCount?: number | null;
+  /** V3.4.22 — count de survalues déterministe (cartes orange Bloc 2). */
+  deterministicSurvalueCount?: number | null;
 }) {
   const [copied,       setCopied]       = useState(false);
   const [showAllAnom,  setShowAllAnom]  = useState(false);
@@ -202,6 +208,16 @@ function ConclusionDisplay({
   const mid          = hasSurcout ? midpoint(conclusion.surcout_global.min, conclusion.surcout_global.max) : 0;
   const anomalies    = conclusion.anomalies ?? [];
   const anomCount    = anomalies.length;
+
+  // V3.4.22 — Détection divergence verdict expert vs cartes visibles.
+  // Si Gemini identifie X anomalies "à négocier" mais les cartes Bloc 2 montrent
+  // Y anomalies rouges (Y > X), on a une divergence visible côté user qu'il
+  // faut expliquer dans le wording (sinon il pense que c'est incohérent).
+  // Cas typique : 4 cartes rouges visibles mais Gemini n'en garde qu'1 vraie
+  // (3 sont des groupements imparfaits expliqués par l'IA).
+  const detAnomCount = typeof deterministicAnomalyCount === "number" ? deterministicAnomalyCount : null;
+  const hasDivergence = detAnomCount !== null && detAnomCount > anomCount;
+  const filteredCount = hasDivergence ? detAnomCount - anomCount : 0; // nb anomalies écartées par expert
 
   // ── Cohérence UI V3.3.1 — Règles 2, 3, 4 ───────────────────────────────────
   //
@@ -388,18 +404,39 @@ function ConclusionDisplay({
                 quand l'écart est minime (Kern : 3 postes / 267€ total → 90€/poste).
                 Sous pastille Vert, on ne dit JAMAIS "largement". */}
             {anomCount > 0 ? (
-              <p className={`text-sm mt-1 font-medium opacity-90 ${decisionCfg.text}`}>
-                → {anomCount} poste{anomCount > 1 ? "s" : ""}{" "}
-                {isVerdictRefuser
-                  ? `dépass${anomCount > 1 ? "ent" : "e"} largement les prix du marché`
-                  : isVerdictSigner
-                    ? `présent${anomCount > 1 ? "ent" : "e"} un léger écart vs marché`
-                    : `au-dessus du marché à renégocier`}
-              </p>
+              // V3.4.22 — Wording adapté pour expliciter la divergence verdict
+              // expert vs cartes visibles. Si Gemini garde X anomalies mais le
+              // user voit Y cartes rouges (Y > X), on affiche "X sur Y" et un
+              // sous-texte qui explique que les autres sont des regroupements.
+              hasDivergence ? (
+                <>
+                  <p className={`text-sm mt-1 font-medium opacity-90 ${decisionCfg.text}`}>
+                    → {anomCount} poste{anomCount > 1 ? "s" : ""} sur {detAnomCount} {anomCount > 1 ? "vraiment à" : "vraiment à"} renégocier
+                  </p>
+                  <p className={`text-xs mt-0.5 opacity-75 ${decisionCfg.text}`}>
+                    ({filteredCount} {filteredCount > 1 ? "autres anomalies marché" : "autre anomalie marché"} {filteredCount > 1 ? "sont expliquées" : "est expliquée"} par un regroupement imparfait — voir détail)
+                  </p>
+                </>
+              ) : (
+                <p className={`text-sm mt-1 font-medium opacity-90 ${decisionCfg.text}`}>
+                  → {anomCount} poste{anomCount > 1 ? "s" : ""}{" "}
+                  {isVerdictRefuser
+                    ? `dépass${anomCount > 1 ? "ent" : "e"} largement les prix du marché`
+                    : isVerdictSigner
+                      ? `présent${anomCount > 1 ? "ent" : "e"} un léger écart vs marché`
+                      : `au-dessus du marché à renégocier`}
+                </p>
+              )
             ) : isVerdictSigner && hasSurcout ? (
               // RÈGLE 5 — verdict signer avec léger écart : wording neutre, jamais "0 poste à vérifier"
               <p className={`text-sm mt-1 font-medium opacity-90 ${decisionCfg.text}`}>
                 → Quelques écarts estimatifs sans anomalie majeure identifiée
+              </p>
+            ) : detAnomCount !== null && detAnomCount > 0 ? (
+              // V3.4.22 — Cas où Gemini n'a aucune anomalie mais les cartes en montrent.
+              // Explique au user que ce qu'il voit n'est pas inquiétant.
+              <p className={`text-sm mt-1 font-medium opacity-90 ${decisionCfg.text}`}>
+                → {detAnomCount} {detAnomCount > 1 ? "postes apparaissent" : "poste apparaît"} au-dessus du marché mais {detAnomCount > 1 ? "sont expliqués" : "est expliqué"} par un regroupement imparfait
               </p>
             ) : (
               <p className={`text-sm mt-0.5 opacity-85 ${decisionCfg.text}`}>
@@ -598,9 +635,24 @@ interface ConclusionIAProps {
   onVerdictReady?:     (rawJson: string) => void;
   /** Called when user clicks "Copier le message" — used to trigger FeedbackModal */
   onCopy?:             () => void;
+  /**
+   * V3.4.22 — Count d'anomalies "Anomalie marché" rouges visibles dans le
+   * BlockPrixMarche (calculé déterministiquement par classifyRowEnriched).
+   * Permet à ConclusionIA d'expliquer la divergence avec son propre count
+   * d'anomalies (issu de Gemini, généralement plus filtré).
+   */
+  deterministicAnomalyCount?:  number | null;
+  deterministicSurvalueCount?: number | null;
 }
 
-export function ConclusionIA({ analysisId, conclusionIaRaw, onVerdictReady, onCopy }: ConclusionIAProps) {
+export function ConclusionIA({
+  analysisId,
+  conclusionIaRaw,
+  onVerdictReady,
+  onCopy,
+  deterministicAnomalyCount,
+  deterministicSurvalueCount,
+}: ConclusionIAProps) {
   const { conclusion, isGenerating, error, generate, regenerate } = useConclusionIA({
     analysisId,
     initialRaw: conclusionIaRaw,
@@ -643,6 +695,8 @@ export function ConclusionIA({ analysisId, conclusionIaRaw, onVerdictReady, onCo
         onRegenerate={regenerate}
         isGenerating={isGenerating}
         onCopy={onCopy}
+        deterministicAnomalyCount={deterministicAnomalyCount}
+        deterministicSurvalueCount={deterministicSurvalueCount}
       />
 
       {error && (

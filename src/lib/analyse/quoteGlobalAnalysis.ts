@@ -155,92 +155,18 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
   for (const row of analyzable) {
     const price = row.devisTotalHT!;
     const marketMax = row.theoreticalMaxHT;
-    let classification: ItemClassification = classifyItem(price, marketMax);
     const surcout = price > marketMax ? price - marketMax : 0;
 
-    // V3.4.15 (2026-05-18) — Surface mismatch a priorité sur anomalie/survalue.
-    // Si le poste est facturé en u/forfait sur prestation surfacique sans surface,
-    // on ne peut PAS affirmer qu'il y a anomalie au €/m². Classification spéciale.
-    const surfaceInput: SurfaceGroup = {
-      label: row.jobTypeLabel,
-      unit: row.mainUnit ?? "",
-      lines: row.devisLines.map(l => ({
-        description: l.description,
-        unit: l.unit,
-        quantity: typeof l.quantity === "number" ? l.quantity : null,
-      })),
-      mainQuantity: row.mainQuantity,
-    };
-    if (surfaceMismatchConfidence(surfaceInput) >= SURFACE_MISMATCH_THRESHOLD) {
-      classification = "surface_mismatch";
-    }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // V3.4 Niveaux 1+2 — Garde-fou groupes hétérogènes via module partagé.
-    //
-    // Si un groupe est probablement mal regroupé par Gemini (chape + primaire +
-    // dalle + acier dans un seul "Carrelage"), le prix unitaire calculé est
-    // aberrant. Dans ce cas, on REFUSE de classer en anomalie ou survalue —
-    // le KPI doit être prudent (faux positif > faux négatif côté crédibilité).
-    //
-    // La détection combine :
-    //   - Niveau 2 : scoring sémantique sur les descriptions des lignes (prioritaire)
-    //   - Niveau 1 : critère ratio prix unitaire > 2× max marché (fallback)
-    // Voir `src/lib/analyse/groupHomogeneity.ts` pour le détail de l'algorithme.
-    // ──────────────────────────────────────────────────────────────────────
-    // V3.4.15 — surface_mismatch n'est jamais downgrade en hétérogène
-    // (c'est déjà un signal "à vérifier" non comparable).
-    const isHeterogeneous = classification !== "surface_mismatch"
-      && isLikelyHeterogeneousGroup(rowToHomogeneityInput(row));
-    if (isHeterogeneous && (classification === "anomalie" || classification === "survalue")) {
-      // Downgrade à "legerement_eleve" — le wording UI passe en "Comparaison
-      // indicative" plutôt qu'"Anomalie marché".
-      classification = "legerement_eleve";
-    }
-
-    // Si groupe hétérogène, la détection d'anomalies par LIGNE (V3.3.2) ne doit
-    // pas non plus s'appliquer — la comparaison serait fausse pour la même raison.
-    const wasDowngradedHeterogeneous = isHeterogeneous;
-
-    // V3.3.2 (2026-05-11) — Détection d'anomalies au niveau LIGNE individuelle.
-    //
-    // Avant : seul le total du groupe était comparé au marché. Un groupe avec 37 m²
-    // de carrelage à 2 822€ pouvait être classé "normal" (vs 1702-3478€ marché)
-    // alors qu'une LIGNE individuelle dans le groupe facturait 209€/m² (vs 46-94 attendu).
-    // → contradiction avec le verdict expert qui remonte bien ces anomalies de ligne.
-    //
-    // Désormais : on scanne aussi les devis_lines individuelles. Si une ligne dépasse
-    // >50% son prix unitaire max marché, le groupe est upgradé en "anomalie" (à moins
-    // qu'il ne le soit déjà). Garde stricte pour éviter les faux positifs :
-    //   - line.unit doit matcher mainUnit (ou les deux doivent être en m²)
-    //   - line.quantity > 0
-    //   - line.amountHT > 0
-    // V3.4.15 — pas de détection d'anomalie ligne si surface_mismatch (on n'est
-    // pas comparable à l'unité non plus, le user doit d'abord donner la surface).
-    if ((classification === "normal" || classification === "legerement_eleve") && !wasDowngradedHeterogeneous) {
-      const mainUnit = row.mainUnit?.toLowerCase().trim() || "";
-      const mainQty  = row.mainQuantity > 0 ? row.mainQuantity : 0;
-      const unitMaxMarket = mainQty > 0 ? marketMax / mainQty : 0;
-
-      if (unitMaxMarket > 0) {
-        const lineAnomalyDetected = row.devisLines.some(line => {
-          const lineUnit = (line.unit || "").toLowerCase().trim();
-          const lineQty  = typeof line.quantity === "number" ? line.quantity : 0;
-          const lineAmt  = typeof line.amountHT === "number" ? line.amountHT : 0;
-          // Unité ligne doit matcher unité groupe (sinon comparaison invalide)
-          const sameUnit = lineUnit === mainUnit
-            || (lineUnit.includes("m²") && mainUnit.includes("m²"))
-            || (lineUnit.includes("m2") && mainUnit.includes("m2"));
-          if (!sameUnit || lineQty <= 0 || lineAmt <= 0) return false;
-          const lineUnitPrice = lineAmt / lineQty;
-          // Seuil : ligne anormale si > 1.5× le prix unitaire max marché
-          return lineUnitPrice > unitMaxMarket * 1.5;
-        });
-        if (lineAnomalyDetected) {
-          classification = "anomalie";
-        }
-      }
-    }
+    // V3.4.22 (2026-05-21) — Source de vérité UNIQUE via classifyRowEnriched().
+    // Avant : la classification était dupliquée (logique inline ici + fonction
+    // classifyRow plus légère) → divergence systématique (pastille = 2, cartes = 4).
+    // Désormais : les 2 consommateurs (pastille de répartition + badges de cartes)
+    // partagent EXACTEMENT cette même fonction. Garantie de cohérence.
+    // Filtres appliqués (dans l'ordre) :
+    //   1. surface_mismatch (V3.4.15) — prestation surfacique sans surface
+    //   2. downgrade hétérogène (V3.4) — groupe Gemini mélangé → "legerement_eleve"
+    //   3. upgrade ligne (V3.3.2) — ligne individuelle > 1.5× → "anomalie"
+    const classification: ItemClassification = classifyRowEnriched(row) ?? "normal";
 
     surcoutEstime += surcout;
 
@@ -308,14 +234,27 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
 }
 
 // ============================================================
-// HELPER — classification rapide d'une row pour les badges
+// HELPER UNIFIÉ — classification enrichie d'une row
 // ============================================================
 
 /**
- * Retourne la classification d'une JobTypeDisplayRow ou null
- * si le poste n'est pas comparable (hors catalogue, pas de montant…).
+ * V3.4.22 (2026-05-21) — Source de vérité UNIQUE pour la classification
+ * d'un poste, partagée entre :
+ *   - les badges des cartes (BlockPrixMarche.tsx via classifyRow)
+ *   - la pastille de répartition (GlobalAnalysisCard via analyzeQuoteGlobal)
+ *
+ * Avant V3.4.22, ces 2 consommateurs appliquaient des règles différentes :
+ *   - classifyRow : ratio brut + surface_mismatch SEUL
+ *   - analyzeQuoteGlobal : ratio + surface_mismatch + downgrade hétérogène
+ *                          + upgrade ligne (V3.3.2)
+ * → Conséquence : 4 cartes rouges "Anomalie marché" mais pastille "2 Prix anormal".
+ *
+ * Désormais, les 2 partagent EXACTEMENT cette fonction. Garantie de cohérence.
+ *
+ * Retourne null si le poste n'est pas comparable (forfait, hors catalogue, etc.)
+ * — auquel cas le BlockPrixMarche n'affiche aucun badge.
  */
-export function classifyRow(
+export function classifyRowEnriched(
   row: JobTypeDisplayRow,
 ): ItemClassification | null {
   if (
@@ -327,16 +266,13 @@ export function classifyRow(
     return null;
   }
 
-  // V3.4.15 (2026-05-18) — Surface mismatch a priorité sur anomalie/survalue.
-  //
-  // Si le poste est facturé en u/forfait sur une prestation surfacique sans
-  // surface précisée, la comparaison au marché (€/m²) n'est PAS fiable.
-  // On retourne `surface_mismatch` au lieu d'`anomalie` pour que le badge UI
-  // soit honnête ("Surface à vérifier" jaune au lieu de "Anomalie marché" rouge).
-  //
-  // Cas typique observé (devis-2026-05-DEV16) : Ragréage 530€ / 1u marché 12-35€/m²
-  // → classification ratio = 15x = "anomalie" → MAIS surface manquante → on ne
-  // peut PAS affirmer qu'il y a anomalie. Le bon wording est "Surface à vérifier".
+  const price = row.devisTotalHT;
+  const marketMax = row.theoreticalMaxHT;
+  let classification: ItemClassification = classifyItem(price, marketMax);
+
+  // ── Garde 1 — Surface mismatch (V3.4.15) ──────────────────────────────────
+  // Prestations surfaciques sans surface précisée → "Surface à vérifier"
+  // au lieu d'anomalie (comparaison au €/m² non fiable).
   const surfaceInput: SurfaceGroup = {
     label: row.jobTypeLabel,
     unit: row.mainUnit ?? "",
@@ -351,5 +287,59 @@ export function classifyRow(
     return "surface_mismatch";
   }
 
-  return classifyItem(row.devisTotalHT, row.theoreticalMaxHT);
+  // ── Garde 2 — Downgrade groupes hétérogènes (V3.4) ────────────────────────
+  // Si Gemini a mélangé plusieurs lots dans un seul groupe (chape + carrelage
+  // + sanitaires), la comparaison au catalogue est fausse. On downgrade
+  // anomalie/survalue à "legerement_eleve" pour ne pas crier "Anomalie marché"
+  // sur ce qui est en réalité un groupement imparfait.
+  const isHeterogeneous = isLikelyHeterogeneousGroup(rowToHomogeneityInput(row));
+  if (isHeterogeneous && (classification === "anomalie" || classification === "survalue")) {
+    classification = "legerement_eleve";
+  }
+  const wasDowngradedHeterogeneous = isHeterogeneous;
+
+  // ── Garde 3 — Upgrade ligne (V3.3.2) ──────────────────────────────────────
+  // Si une ligne individuelle du groupe dépasse > 1.5× le prix unitaire max
+  // marché, on upgrade le groupe en "anomalie" même si le total semble normal.
+  // (Pas appliqué si downgrade hétérogène — la comparaison serait fausse pour
+  // la même raison.)
+  if ((classification === "normal" || classification === "legerement_eleve") && !wasDowngradedHeterogeneous) {
+    const mainUnit = row.mainUnit?.toLowerCase().trim() || "";
+    const mainQty  = row.mainQuantity > 0 ? row.mainQuantity : 0;
+    const unitMaxMarket = mainQty > 0 ? marketMax / mainQty : 0;
+
+    if (unitMaxMarket > 0) {
+      const lineAnomalyDetected = row.devisLines.some(line => {
+        const lineUnit = (line.unit || "").toLowerCase().trim();
+        const lineQty  = typeof line.quantity === "number" ? line.quantity : 0;
+        const lineAmt  = typeof line.amountHT === "number" ? line.amountHT : 0;
+        const sameUnit = lineUnit === mainUnit
+          || (lineUnit.includes("m²") && mainUnit.includes("m²"))
+          || (lineUnit.includes("m2") && mainUnit.includes("m2"));
+        if (!sameUnit || lineQty <= 0 || lineAmt <= 0) return false;
+        const lineUnitPrice = lineAmt / lineQty;
+        return lineUnitPrice > unitMaxMarket * 1.5;
+      });
+      if (lineAnomalyDetected) {
+        classification = "anomalie";
+      }
+    }
+  }
+
+  return classification;
+}
+
+/**
+ * Alias compatibilité — utilisé par BlockPrixMarche.tsx pour décider du badge
+ * affiché sur chaque carte. Délègue à classifyRowEnriched() pour garantir que
+ * pastille de répartition et badges de cartes sont 100% cohérents.
+ *
+ * Compat rétro : tout consommateur qui appelle `classifyRow` voit désormais
+ * la classification enrichie (pas juste le ratio brut). Pas de breaking change
+ * sur l'API publique.
+ */
+export function classifyRow(
+  row: JobTypeDisplayRow,
+): ItemClassification | null {
+  return classifyRowEnriched(row);
 }

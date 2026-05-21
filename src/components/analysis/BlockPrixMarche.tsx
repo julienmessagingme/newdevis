@@ -27,6 +27,14 @@ interface BlockPrixMarcheProps {
   onAuthSuccess?: () => void;
   convertToPermanent?: (params: { email: string; password: string; firstName: string; lastName: string; phone: string; acceptCommercial?: boolean }) => Promise<unknown>;
   currentUserId?: string;
+  /**
+   * V3.4.22 (2026-05-21) — Callback pour remonter le count d'anomalies
+   * déterministe (= nombre de cartes "Anomalie marché" rouges visibles ici)
+   * vers AnalysisResult, qui le passe ensuite à ConclusionIA pour cohérence.
+   * Avant V3.4.22 : ConclusionIA affichait "1 poste" (count Gemini) alors que
+   * BlockPrixMarche montrait 4 cartes rouges → incohérence visible côté user.
+   */
+  onGlobalAnalysisReady?: (anomalyCount: number, survalueCount: number) => void;
 }
 
 // =======================
@@ -579,6 +587,7 @@ const BlockPrixMarche = ({
   onAuthSuccess,
   convertToPermanent,
   currentUserId,
+  onGlobalAnalysisReady,
 }: BlockPrixMarcheProps) => {
   const [isBlockOpen, setIsBlockOpen] = useState(defaultOpen);
   const { error, rows, isNewFormat } = useMarketPriceAPI({ cachedN8NData });
@@ -594,6 +603,15 @@ const BlockPrixMarche = ({
     () => analyzeQuoteGlobal(editor.rows),
     [editor.rows],
   );
+
+  // V3.4.22 — Remonter le count d'anomalies au parent (AnalysisResult) pour
+  // que ConclusionIA puisse afficher un wording cohérent ("1 sur 2 postes vraiment
+  // à renégocier" plutôt que "1 poste" alors que 2 cartes rouges sont visibles).
+  useEffect(() => {
+    if (onGlobalAnalysisReady) {
+      onGlobalAnalysisReady(globalAnalysis.nbAnomalie, globalAnalysis.nbSurvalue);
+    }
+  }, [globalAnalysis.nbAnomalie, globalAnalysis.nbSurvalue, onGlobalAnalysisReady]);
 
   const renderContent = () => {
     if (error) {

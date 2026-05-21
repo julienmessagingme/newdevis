@@ -328,6 +328,14 @@ const AnalysisResult = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   // Raw conclusion_ia JSON received from ConclusionIA once generated (may arrive after initial render)
   const [conclusionIaLive, setConclusionIaLive] = useState<string | null>(null);
+  // V3.4.22 — Count d'anomalies déterministe remonté par BlockPrixMarche.
+  // Sert à ConclusionIA pour afficher un wording cohérent ("X sur Y postes vraiment
+  // à renégocier" si X != Y) plutôt que "X poste" sans contexte sur le Y vu par
+  // l'utilisateur dans les cartes "Anomalie marché" rouges.
+  // null = pas encore initialisé (BlockPrixMarche pas monté). Recalculé à chaque
+  // changement de classification (édition rows, override quantités, etc.).
+  const [deterministicAnomalyCount, setDeterministicAnomalyCount] = useState<number | null>(null);
+  const [deterministicSurvalueCount, setDeterministicSurvalueCount] = useState<number | null>(null);
   // V3.4.14+ — analysisId + verdict passés à useFeedback pour la persistance DB
   // (table analysis_feedback). analysisId fiable dès le mount via URL ; verdict
   // est sync via useEffect plus bas car effectiveScore est calculé après.
@@ -1178,6 +1186,8 @@ const AnalysisResult = () => {
             conclusionIaRaw={analysis.conclusion_ia ?? null}
             onVerdictReady={(raw) => setConclusionIaLive(raw)}
             onCopy={openFeedback}
+            deterministicAnomalyCount={deterministicAnomalyCount}
+            deterministicSurvalueCount={deterministicSurvalueCount}
           />
         )}
 
@@ -1236,6 +1246,13 @@ const AnalysisResult = () => {
             onAuthSuccess={handleAuthConversion}
             convertToPermanent={convertToPermanent}
             currentUserId={authUser?.id}
+            onGlobalAnalysisReady={(anomalyCount, survalueCount) => {
+              // V3.4.22 — Hisse le count d'anomalies déterministe pour cohérence
+              // avec le verdict expert (ConclusionIA). Le useEffect dans BlockPrixMarche
+              // est stable (mêmes refs) donc pas de boucle.
+              setDeterministicAnomalyCount(anomalyCount);
+              setDeterministicSurvalueCount(survalueCount);
+            }}
           />
         )}
 
