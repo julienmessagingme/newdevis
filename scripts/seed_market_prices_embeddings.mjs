@@ -43,15 +43,19 @@ const SUPABASE_URL    = process.env.SUPABASE_URL || process.env.PUBLIC_SUPABASE_
 const SUPABASE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GEMINI_API_KEY  = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
 
-// 2026-05-21 — Switch embedding-001 → text-embedding-004
-// embedding-001 a été déprécié dans v1beta (404 "not found for API version v1beta").
-// text-embedding-004 conserve les 768 dim → 100% compatible avec migration Phase A
-// (colonne vector(768) + index HNSW vector_cosine_ops).
+// 2026-05-21 (v2) — Switch text-embedding-004 → gemini-embedding-001
+// embedding-001 ET text-embedding-004 retournent 404 sur la clé API actuelle :
+// "models/X is not found for API version v1beta, or is not supported for
+// embedContent". Google a migré vers gemini-embedding-001 (GA août 2025) qui
+// est le seul modèle d'embedding disponible aujourd'hui.
+//
+// gemini-embedding-001 produit nativement 3072 dim, mais accepte le paramètre
+// `outputDimensionality: 768` pour rester 100% compatible avec la colonne
+// vector(768) + index HNSW créés en Phase A. ZÉRO migration SQL nécessaire.
+//
 // Doc : https://ai.google.dev/gemini-api/docs/embeddings
-// Alternative future : gemini-embedding-001 (3072 dim, plus puissant) — demanderait
-// de migrer la colonne en vector(3072), pas pour maintenant.
-const EMBEDDING_MODEL = 'models/text-embedding-004';
-const EMBEDDING_DIM   = 768; // text-embedding-004 par défaut, compatible vector(768)
+const EMBEDDING_MODEL = 'models/gemini-embedding-001';
+const EMBEDDING_DIM   = 768; // gemini-embedding-001 avec outputDimensionality=768
 const THROTTLE_MS     = 50;  // Délai entre requêtes Gemini
 
 // CLI args
@@ -92,6 +96,9 @@ async function embedText(text) {
       model: EMBEDDING_MODEL,
       content: { parts: [{ text }] },
       taskType: 'RETRIEVAL_DOCUMENT',
+      // gemini-embedding-001 produit 3072 dim par défaut → on demande explicitement
+      // 768 pour rester compatible avec la colonne vector(768) créée en Phase A.
+      outputDimensionality: EMBEDDING_DIM,
     }),
   });
   if (!resp.ok) {
