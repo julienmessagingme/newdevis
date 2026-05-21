@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.21";
+const ENGINE_VERSION = "3.4.24";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -673,6 +673,65 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
   } catch {
     // raw_text invalide
+  }
+
+  // ── V3.4.24 (2026-05-21) — Filtre des groupes massivement hallucinés ────────
+  // Cf. `useMarketPriceAPI.ts:processJobTypes` (même garde côté front). On
+  // duplique côté serveur pour que le verdict + le surcoût + la pastille de
+  // répartition ne soient pas pollués par les groupes hallucinés. Sans cette
+  // garde serveur, le verdict resterait basé sur le mauvais comptage pour
+  // les analyses fraîchement générées (et le cache `conclusion_ia` figerait
+  // le bug).
+  //
+  // Cas d'origine "devis placo TCE" : Gemini avait inventé "Peinture salle de
+  // bain (pièce)" auquel il avait attribué tous les 13 totaux par pièce du
+  // devis (26 040 € au lieu des 9584 € de la VRAIE section peinture).
+  if (Array.isArray(priceData) && priceData.length > 0) {
+    const before = priceData.length;
+    priceData = priceData.filter((g) => {
+      if (!g || typeof g !== "object") return true;
+      const group = g as Record<string, unknown>;
+      const devisTotal = typeof group.devis_total_ht === "number" ? group.devis_total_ht : null;
+      const prices = Array.isArray(group.prices) ? group.prices as Array<Record<string, unknown>> : [];
+      const lines  = Array.isArray(group.devis_lines) ? group.devis_lines : [];
+      const mainQty = typeof group.main_quantity === "number" && group.main_quantity > 0 ? group.main_quantity : 1;
+
+      // Recompute theoreticalMaxHT (même formule que useMarketPriceAPI)
+      let theoreticalMaxHT = 0;
+      for (const p of prices) {
+        const max = typeof p.price_max_unit_ht === "number" ? p.price_max_unit_ht : 0;
+        const fxMax = typeof p.fixed_max_ht === "number" ? p.fixed_max_ht : 0;
+        theoreticalMaxHT += max * mainQty + fxMax;
+      }
+
+      // Détection forfait : si toutes prices ont unit "forfait" / "u" implicite,
+      // on n'applique pas la garde (les fourchettes forfaitaires ont leur logique propre).
+      const isForfait = prices.length > 0 && prices.every((p) => {
+        const u = String(p.unit ?? "").toLowerCase();
+        return u === "forfait" || u === "ff" || u === "fft";
+      });
+
+      if (
+        theoreticalMaxHT > 0 &&
+        devisTotal !== null &&
+        devisTotal > theoreticalMaxHT * 8 &&
+        lines.length >= 5 &&
+        mainQty <= lines.length &&
+        !isForfait
+      ) {
+        console.warn(
+          `[conclusion] V3.4.24 groupe halluciné filtré — "${group.job_type_label ?? "?"}" : ` +
+            `devis_total=${devisTotal} € vs marché_max=${theoreticalMaxHT.toFixed(0)} € ` +
+            `(ratio ${(devisTotal / theoreticalMaxHT).toFixed(1)}×, ${lines.length} lignes, ` +
+            `main_qty=${mainQty})`,
+        );
+        return false;
+      }
+      return true;
+    });
+    if (priceData.length !== before) {
+      console.log(`[conclusion] V3.4.24 — ${before - priceData.length} groupe(s) filtré(s) sur ${before}`);
+    }
   }
 
   // ── V3.4.14 (2026-05-16) — Bypass complet si devis étranger ─────────────────

@@ -271,6 +271,46 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
     const devisTotalHT = typeof item.devis_total_ht === "number" ? item.devis_total_ht : null;
     const isForfait = detectForfait(item);
 
+    // V3.4.24 (2026-05-21) — Filtre des groupes massivement hallucinés.
+    // Cas d'origine "devis placo TCE" : Gemini a inventé un groupe "Peinture
+    // salle de bain (pièce)" auquel il a attribué TOUTES les sections par pièce
+    // du devis (Couloir 720€ + SDB 900€ + Chambre 1350€ + Salon 3630€ + …) =
+    // 26 040 € pour 13 « unités », alors que le marché de la peinture SDB est
+    // 330-870 €/pièce. Le groupe halluciné fausse la pastille de répartition,
+    // peut faire basculer le verdict, et choque visuellement l'utilisateur.
+    //
+    // Heuristique conservative — on ne filtre QUE quand TOUS ces signaux sont
+    // présents simultanément (très peu de faux positifs) :
+    //   - `theoreticalMaxHT > 0` (on a un catalogue de comparaison)
+    //   - `devis_total_ht / theoreticalMaxHT > 8` (extrêmement au-dessus du
+    //     marché — un vrai surcoût atteint 1.5-3×, pas 8×)
+    //   - `devis_lines.length >= 5` (groupe avec plusieurs lignes — un poste
+    //     isolé légitimement cher ne déclenche pas)
+    //   - `mainQuantity <= devis_lines.length` (l'agrégation a probablement
+    //     pris le nb de pièces comme « unité » alors que c'est la cardinalité
+    //     du regroupement halluciné)
+    //
+    // Action : skip silencieux du groupe ET log warning pour audit.
+    // Le poste réel sera quand même visible dans les autres groupes (celui-ci
+    // double-comptait des lignes déjà classées correctement ailleurs).
+    const rawDevisLinesCount = Array.isArray(item.devis_lines) ? item.devis_lines.length : 0;
+    if (
+      theoreticalMaxHT > 0 &&
+      typeof devisTotalHT === "number" &&
+      devisTotalHT > theoreticalMaxHT * 8 &&
+      rawDevisLinesCount >= 5 &&
+      mainQuantity <= rawDevisLinesCount &&
+      !isForfait
+    ) {
+      console.warn(
+        `[V3.4.24] groupe halluciné filtré — "${item.job_type_label ?? "?"}" : ` +
+          `devis_total=${devisTotalHT} € vs marché_max=${theoreticalMaxHT.toFixed(0)} € ` +
+          `(ratio ${(devisTotalHT / theoreticalMaxHT).toFixed(1)}×, ${rawDevisLinesCount} lignes, ` +
+          `main_qty=${mainQuantity})`,
+      );
+      continue;
+    }
+
     // No verdict if no catalog prices matched
     // For forfait groups: keep vsAvgPct for the gauge but override the label
     let { verdict, vsAvgPct } = prices.length > 0
