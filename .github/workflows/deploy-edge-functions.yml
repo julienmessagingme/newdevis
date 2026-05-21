@@ -1,0 +1,89 @@
+name: Deploy Supabase Edge Functions
+
+# 🚨 INCIDENT 2026-05-21 : sans ce workflow, mes commits sur supabase/functions/**
+# (V3.4.19, V3.4.20, V3.4.21) sont restés dormants dans le repo. La prod tournait
+# avec une version cassée pendant des jours sans qu'on s'en rende compte. Ce
+# workflow déploie automatiquement TOUTE edge function modifiée à chaque push
+# sur main.
+#
+# Setup requis (1 fois) :
+# 1. Créer un access token Supabase : https://supabase.com/dashboard/account/tokens
+# 2. Ajouter en GitHub secret : Settings → Secrets → Actions → New :
+#    - SUPABASE_ACCESS_TOKEN  = le token créé
+#    - SUPABASE_PROJECT_REF   = vhrhgsqxwvouswjaiczn (projet VMD/GMC)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/deploy-edge-functions.yml'
+  workflow_dispatch: # Permet de redéployer manuellement depuis l'UI GitHub
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # On a besoin du commit précédent pour calculer le diff
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Identify changed edge functions
+        id: changed
+        run: |
+          # Liste les répertoires modifiés sous supabase/functions/ entre HEAD~1 et HEAD
+          # Sur push initial (pas de HEAD~1), déploie TOUT.
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'supabase/functions/' \
+              | awk -F'/' '{print $3}' \
+              | sort -u \
+              | grep -v '^_' \
+              | grep -v '^$' \
+              | tr '\n' ' ')
+          else
+            CHANGED=$(ls supabase/functions/ \
+              | grep -v '^_' \
+              | tr '\n' ' ')
+          fi
+          echo "Functions to deploy: $CHANGED"
+          echo "functions=$CHANGED" >> "$GITHUB_OUTPUT"
+          if [ -z "$CHANGED" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy changed functions
+        if: steps.changed.outputs.skip == 'false'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          for fn in ${{ steps.changed.outputs.functions }}; do
+            if [ -d "supabase/functions/$fn" ]; then
+              echo "::group::Deploying $fn"
+              supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+              echo "::endgroup::"
+            else
+              echo "Skipping $fn (not a directory)"
+            fi
+          done
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ steps.changed.outputs.skip }}" = "true" ]; then
+            echo "✅ No edge function changed, nothing to deploy."
+          else
+            echo "✅ Deployed: ${{ steps.changed.outputs.functions }}"
+          fi

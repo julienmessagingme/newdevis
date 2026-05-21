@@ -1264,9 +1264,9 @@ Génère 4-5 questions contextuelles via Gemini pour qualifier un projet avant g
 
 **Fichier** : `supabase/functions/system-alerts/index.ts`
 
-Surveillance santé du pipeline d'analyse de devis. Envoie un email Resend à `julien@messagingme.fr` quand des analyses se bloquent ou échouent en série.
+Surveillance santé du pipeline d'analyse de devis. Envoie un email Resend à **`julien@messagingme.fr` + `bridey.johan@gmail.com`** quand des analyses se bloquent ou échouent en série.
 
-**Trigger** : pg_cron job `system-health-alerts` toutes les 5 minutes (cf. `supabase/migrations/20260228.sql`) → `POST /functions/v1/system-alerts` avec Bearer service_role.
+**Trigger** : pg_cron job `system-health-alerts` toutes les 5 minutes (migration originale `supabase/migrations/20260228.sql`, restaurée explicitement par `supabase/migrations/20260521_001_restore_system_health_alerts_cron.sql` après suppression accidentelle entre 2026-03-14 et 2026-05-21) → `POST /functions/v1/system-alerts` avec Bearer service_role.
 
 **3 health checks lancés en parallèle** (`Promise.all`) :
 
@@ -1277,8 +1277,8 @@ Surveillance santé du pipeline d'analyse de devis. Envoie un email Resend à `j
 | `checkHighErrorRate` | **WARNING** | taux d'erreur > 50% (min 4 analyses pour éviter faux positifs sur faible volume) | sur 1h |
 
 **Email Resend** :
-- From : `VerifierMonDevis <onboarding@resend.dev>` (domaine `verifiermondevis.fr` pas encore vérifié — TODO en haut du fichier pour passer à `alerts@verifiermondevis.fr` et réintégrer `bridey.johan@gmail.com` dans `RECIPIENTS`).
-- To : `julien@messagingme.fr` uniquement.
+- From : `VerifierMonDevis <onboarding@resend.dev>` (domaine `verifiermondevis.fr` pas encore vérifié — TODO en haut du fichier pour passer à `alerts@verifiermondevis.fr`).
+- To : `julien@messagingme.fr` + `bridey.johan@gmail.com` (alignés depuis 2026-05-21 avec `analysis-maintenance` et `analyze-quote`).
 - HTML coloré par sévérité (rouge/orange/jaune) + tableau des analyses concernées (8 premiers chars de l'ID, statut, date Paris, error_message tronqué à 80 chars) + CTA vers `/admin`.
 - **Idempotency-Key** = `{category}_{ids_fingerprint}` où `ids_fingerprint` = jointure triée des 8 premiers chars des IDs concernés. Conséquence : mêmes analyses bloquées = même clé = Resend dédoublonne et ne renvoie pas. Une nouvelle analyse bloquée = clé différente = email envoyé. Pas de cap horaire dur — c'est l'idempotency Resend qui fait le dédoublonnage.
 
