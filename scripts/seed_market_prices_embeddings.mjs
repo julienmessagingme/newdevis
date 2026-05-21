@@ -43,8 +43,15 @@ const SUPABASE_URL    = process.env.SUPABASE_URL || process.env.PUBLIC_SUPABASE_
 const SUPABASE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GEMINI_API_KEY  = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
 
-const EMBEDDING_MODEL = 'models/embedding-001';
-const EMBEDDING_DIM   = 768; // Gemini embedding-001 retourne 768 dim
+// 2026-05-21 — Switch embedding-001 → text-embedding-004
+// embedding-001 a été déprécié dans v1beta (404 "not found for API version v1beta").
+// text-embedding-004 conserve les 768 dim → 100% compatible avec migration Phase A
+// (colonne vector(768) + index HNSW vector_cosine_ops).
+// Doc : https://ai.google.dev/gemini-api/docs/embeddings
+// Alternative future : gemini-embedding-001 (3072 dim, plus puissant) — demanderait
+// de migrer la colonne en vector(3072), pas pour maintenant.
+const EMBEDDING_MODEL = 'models/text-embedding-004';
+const EMBEDDING_DIM   = 768; // text-embedding-004 par défaut, compatible vector(768)
 const THROTTLE_MS     = 50;  // Délai entre requêtes Gemini
 
 // CLI args
