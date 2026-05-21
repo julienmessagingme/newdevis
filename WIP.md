@@ -16,7 +16,7 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 ### 🟡 V3.5 refonte vectorisation catalogue market_prices
 > Trigger : bug PH VISION ("Pose extracteur/WC = 3900€" regroupait à tort tout le bloc Sanitaires).
 > Plan validé : 6 phases A→F, embedding `gemini-embedding-001` (768 dim via `outputDimensionality`), affichage 1 ligne = 1 carte, feature flag.
-> **Phases A+B livrées en prod ET seed exécuté (911/911 ✓). Phase C prête à attaquer.**
+> **Phases A+B+C livrées en prod + seed exécuté (911/911 ✓) + shadow run ACTIVÉ (`MARKET_MATCHER_VECTORIAL=shadow` set côté Supabase secrets le 2026-05-21). Collecte de données en cours pour Phase E.**
 - ✅ Phase A — migration pgvector + colonne embedding + index HNSW + RPC `search_market_prices_v2`. Appliquée prod via SQL Editor.
 - ✅ Phase B — script `scripts/seed_market_prices_embeddings.mjs` (commits `72c6ff9` + `0d7c443` + `551208f`). **Seed exécuté par Julien le 2026-05-21 : 911 rows embedded / 0 missing / 911 total**. Index HNSW prêt à servir les similarity searches. Modèle final retenu : `gemini-embedding-001` + `outputDimensionality: 768` (embedding-001 ET text-embedding-004 étaient tous deux inaccessibles sur la clé API).
 - ✅ Phase C — refonte `market-prices.ts` (2026-05-21). 5 sous-phases livrées :
@@ -27,10 +27,18 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
   - C.5 : shadow run en background via `EdgeRuntime.waitUntil` → logs `[V35_VECTORIAL_SHADOW]` pour Phase E
   - Modèle : `gemini-embedding-001` + `outputDimensionality:768` + `taskType:RETRIEVAL_QUERY`
   - Prod en mode `off` par défaut → V3.6 inchangée tant qu'on flip pas la variable d'env
-- 🟡 Phase D — adaptation UI `BlockPrixMarche` 1 ligne = 1 carte (~2-3h)
-- 🟡 Phase E — tests shadow V3.6 vs vectoriel sur 10 devis canoniques (~2-3h)
-- 🟡 Phase F — rollout `MARKET_MATCHER_VECTORIAL=true` + bump ENGINE_VERSION (~30 min)
-- **Détail complet** : section "Refonte V3.5 vectorisation" dans `CLAUDE.md` (lignes ~732)
+- 🟡 Phase D — adaptation UI `BlockPrixMarche` 1 ligne = 1 carte + badge confiance (high/medium/low/no_match) selon décisions session 2026-05-21 (~2-3h)
+- 🟡 Phase E — analyse des logs `[V35_VECTORIAL_SHADOW]` (à faire après ~30 analyses naturelles, soit 24-48h après activation shadow). Script de parsing à écrire pour sortir rapport de divergence V3.6 vs vectoriel.
+- 🟡 Phase F — rollout `MARKET_MATCHER_VECTORIAL=on` + bump ENGINE_VERSION (~30 min). Conditionné à Phase D + Phase E validées.
+- **Détail complet** : section "Refonte V3.5 vectorisation" dans `CLAUDE.md`.
+
+### ✅ V3.4.24→27 — Quick fixes anti-régression du groupement Gemini (2026-05-21)
+> Trigger : 4 bugs visibles utilisateur sur devis "placo TCE" et "AS COUVERTURE" — la Phase F vectorisation va structurellement régler ça mais ces quick fixes stoppent l'hémorragie en attendant.
+- ✅ V3.4.24 (commit `465bb93`) — filtre des groupes massivement hallucinés. Bug devis placo TCE : Gemini a inventé "Peinture salle de bain (pièce)" 26 040 € (cumul des 13 sections par pièce). Garde 4 conditions ANDées dans `useMarketPriceAPI.ts:processJobTypes` ET `conclusion.ts`.
+- ✅ V3.4.25 (commit `80f163c`) — filtre lignes titre récap structurelles. Bug devis AS COUVERTURE 2000€ → 4000€ : Gemini extrait "Travaux à effectuer : Décapage" (2000€ titre) + 2 sous-lignes (1500€ + 500€) = 4000€. Patterns lexicaux étendus ("Travaux à effectuer", "Détail/Récapitulatif/Désignation des travaux") + garde structurelle "ligne ≈ somme des autres lignes".
+- ✅ V3.4.26 (commit `80f163c`) — filtre des actions absurdes pointant vers Infogreffe/Societe.com/Pappers. + reformulation wording "sous-couvrir la prestation" en "Comparaison limitée — notre référentiel prix n'a pas d'équivalent précis".
+- ✅ V3.4.27 (commit `bb43acf`) — Gemini a contourné V3.4.26 avec "vérifiez immatriculation / obligations légales / article 293B". Double défense : 4 nouvelles regex `EXTERNAL_VERIF_PATTERNS` + règle 8bis dans le prompt Gemini avec 3 alternatives suggérées (RC Pro + décennale, références chantiers, garantie écrite).
+- ENGINE_VERSION 3.4.21 → 3.4.27 (4 bumps cumulés)
 
 ### ✅ V3.4.23 simplification UI page d'analyse (2026-05-21, commit `d6b6ef5`)
 - Suppression du bloc Indice Stratégique Immobilier (IVP/IPI / `StrategicBadge`) — hors-scope particulier
