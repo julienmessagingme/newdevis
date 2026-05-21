@@ -11,6 +11,68 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🚧 Snapshot 2026-05-21 — chantiers actifs
+
+### 🟡 V3.5 refonte vectorisation catalogue market_prices
+> Trigger : bug PH VISION ("Pose extracteur/WC = 3900€" regroupait à tort tout le bloc Sanitaires).
+> Plan validé : 6 phases A→F, embedding `text-embedding-004` (768 dim), affichage 1 ligne = 1 carte, feature flag.
+> **Phases A+B livrées en prod (commits `72c6ff9` + `0d7c443`). Phase C-F en attente du seed validé (911/911 ✓) chez Johan.**
+- ✅ Phase A — migration pgvector + colonne embedding + index HNSW + RPC `search_market_prices_v2`. Appliquée prod via SQL Editor.
+- ✅ Phase B — script `scripts/seed_market_prices_embeddings.mjs` poussé avec fix `text-embedding-004` (embedding-001 était déprécié).
+- 🟡 Phase C — refonte `market-prices.ts` (en attente seed catalogue validé, ~4-6h boulot)
+- 🟡 Phase D — adaptation UI `BlockPrixMarche` 1 ligne = 1 carte (~2-3h)
+- 🟡 Phase E — tests shadow V3.6 vs vectoriel sur 10 devis canoniques (~2-3h)
+- 🟡 Phase F — rollout `MARKET_MATCHER_VECTORIAL=true` + bump ENGINE_VERSION (~30 min)
+- **Détail complet** : section "Refonte V3.5 vectorisation" dans `CLAUDE.md` (lignes ~732)
+
+### ✅ V3.4.23 simplification UI page d'analyse (2026-05-21, commit `d6b6ef5`)
+- Suppression du bloc Indice Stratégique Immobilier (IVP/IPI / `StrategicBadge`) — hors-scope particulier
+- Suppression du bloc Suivi post-signature (`PostSignatureTrackingSection`) — jamais demandé par les users
+- Cœur conservé : Verdict expert + Entreprise & Fiabilité + Clauses litigieuses + Postes (collapsé par défaut)
+- Composants + endpoints `/api/strategic-scores` + `/api/tracking` conservés en code, réactivables en réinserrant les blocs.
+- À archiver dans `FEATURES.md` (ou supprimer si on revient pas en arrière) après stabilisation 1-2 semaines.
+
+### ✅ V3.4.22 cohérence inter-blocs pastille = cartes = verdict expert (2026-05-21, commit `846354c`)
+- Nouvelle fonction `classifyRowEnriched()` dans `src/lib/analyse/quoteGlobalAnalysis.ts` (source de vérité unique)
+- Nouveau prop `onGlobalAnalysisReady` sur `BlockPrixMarche` qui remonte le count d'anomalies déterministe à `AnalysisResult` → passé à `ConclusionIA`
+- Wording ConclusionIA adapté : "X sur Y postes vraiment à renégocier (Y-X autres anomalies marché expliquées par un regroupement imparfait — voir détail)"
+- Audit V3.4.22 (2026-05-21) production-ready. Tests `verdictEngine.test.ts` 39/39 ✓.
+- **TODO optionnel** : ajouter tests unitaires dédiés `quoteGlobalAnalysis.test.ts` (15 cas couvrant seuils, surface_mismatch, hétérogène, upgrade ligne, forfaits, comptages globaux) — ~30 min, prévient les régressions silencieuses sur seuils.
+
+### ✅ V3.4.21 fix urgent régression V3.4.20 (whitelist `estimation_courtier`) (2026-05-21, commit `c11d47c`)
+- Whitelist `typeDocument` dans `extract.ts` ne contenait pas `estimation_courtier` → tous les devis courtier (Renovation Man, etc.) étaient dégradés en "autre" entre 2026-05-19 et 2026-05-21.
+- Bump ENGINE_VERSION 3.4.20 → 3.4.21 → cache `conclusion_ia` invalidé auto au prochain affichage.
+- **À retenir** : tout commit qui étend le prompt Gemini sur un enum (`type_document`, `domain`, etc.) DOIT vérifier que la whitelist `.includes([...])` correspondante est mise à jour AVANT le push. À automatiser via un test (TODO).
+
+### 🟢 Workflow GitHub Action auto-deploy edge functions (2026-05-21, commit `152db45`)
+- `.github/workflows/deploy-edge-functions.yml` : déploie auto toute edge function modifiée à chaque push sur main qui touche `supabase/functions/**`.
+- **Secrets GitHub à ajouter** (1 fois) : `SUPABASE_ACCESS_TOKEN` (depuis https://supabase.com/dashboard/account/tokens) + `SUPABASE_PROJECT_REF=vhrhgsqxwvouswjaiczn`.
+- Tant que les secrets ne sont pas ajoutés, le workflow se lance et échoue silencieusement (pas de casse). Une fois ajoutés, plus jamais de "fix dormant" comme V3.4.21.
+- 🟡 À faire : Johan ajoute les 2 secrets dans GitHub Settings → Actions.
+
+### 🟢 Cron `system-health-alerts` restauré (2026-05-21, commit `ef6cd0f` + migration `20260521_001`)
+- Restauration explicite via migration `20260521_001_restore_system_health_alerts_cron.sql` (cf. CLAUDE.md section "Monitoring & alertes prod").
+- Le cron `system-alerts` avait été supprimé par le commit `ff69caa` (2026-03-14) sans être restauré → 80 jours sans alertes.
+- Destinataires alignés : `julien@messagingme.fr` + `bridey.johan@gmail.com` sur les 2 systèmes (`system-alerts` + `analysis-maintenance`).
+- ⚠️ Angle mort connu : un **mauvais verdict** (cas V3.4.20) n'est PAS une erreur technique, n'est détecté par AUCUN des 2 crons. Seul signal aujourd'hui = feedbacks utilisateur `verdict_incoherent` / `faux_radiee` (visibles dans `/admin` section "Anomalies bloquantes"). Phase ultérieure : cron `feedback-spike-alerts` (~30 min de code).
+
+### 🔴 Carrousel marketing — quota Backblaze B2 dépassé (2026-05-21)
+- Tous les téléchargements de carrousels marketing retournent `502 "Image indisponible"` parce que le bucket B2 a explosé son cap mensuel.
+- **Fix court terme** : Julien augmente le cap dans la console Backblaze à 10 GB/jour (~$1.50/mois max). Effet immédiat.
+- **Fix long terme à envisager** si récidive : migration B2 → Cloudflare R2 (free tier 10 GB storage + bande passante illimitée).
+- Détail complet : section "Bug B2 quota dépassé" dans `CLAUDE.md`.
+
+### 🟠 Réponse Julien GMC trial+paywall — en attente
+- Plan figé Phase 2 (décisions Johan validées le 2026-05-20, cf. `TODO.md` section "GMC — Monétisation").
+- Message à Julien préparé (4 points à valider : read-only post-trial, quota IA 30/mois, limite chantier Essentiel hors scope, grace period 7j past_due).
+- 🟡 À faire : Johan envoie le message à Julien, attend OK, puis Phase 3 (~1 journée code 6 phases A→F).
+
+---
+
+## 🗂️ Archives plus anciennes
+
+---
+
 ## 🟢 Session 2026-05-18 — Crédibilité verdict + cohérence financière + UX planning
 
 **Livré dans cette session (8 commits, push direct main)**. À tester E2E par Julien.

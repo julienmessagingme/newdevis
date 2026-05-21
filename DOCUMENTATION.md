@@ -49,7 +49,7 @@ Deux produits sous le même domaine `verifiermondevis.fr`, partageant base utili
 Service web d'analyse de devis d'artisans. L'application :
 - Extrait le contenu du devis via OCR (PDF, images) — pipeline `analyze-quote` Gemini 2.5-flash
 - Vérifie l'entreprise auprès du registre national (recherche-entreprises.api.gouv.fr, INPI, Google Places, ADEME RGE)
-- Compare les prix au marché local via le catalogue interne `market_prices` (~270 lignes)
+- Compare les prix au marché local via le catalogue interne `market_prices` (911 entries, 2026-05-21)
 - Vérifie les assurances et certifications
 - Produit un **score de fiabilité** : VERT (confiance), ORANGE (vigilance), ROUGE (danger)
 - Fournit des recommandations personnalisées
@@ -1135,10 +1135,10 @@ La edge function `parse-quote` envoie le texte OCR à **Google Gemini** avec un 
 
 **Géolocalisation (verify.ts)** : la requête est construite depuis `adresse_chantier + code_postal + ville` (les 3 concaténés si disponibles). Le bloc s'active dès qu'AU MOINS un de ces champs est non-null — la présence du `code_postal` seul n'est plus requise. Sans géolocalisation réussie, `patrimoine_status = "inconnu"` et le bloc ABF/GPU est skippé.
 
-**Prix marché (market-prices.ts)** — architecture de résolution en 3 couches indépendantes (validée prod 2026-04-29) :
+**Prix marché (market-prices.ts)** — architecture de résolution en 3 couches indépendantes (validée prod 2026-04-29, en cours de refonte V3.5) :
 
 **Couche 1 — Pré-filtrage catalogue** (`filterRelevantPrices`) :
-Le catalogue `market_prices` compte 470+ entrées. Envoyer tout à Gemini-2.0-flash provoque des inventions d'identifiants. La fonction détecte les domaines de travaux présents dans les descriptions via ~180 triggers de mots-clés (carrelage, peinture, plomberie, menuiserie, chauffage, etc.) et réduit le catalogue à ~20-80 entrées avant l'appel Gemini. Fallback : catalogue complet si < 8 entrées filtrées.
+Le catalogue `market_prices` compte **911 entrées** (état 2026-05-21). Envoyer tout à Gemini-2.0-flash provoque des inventions d'identifiants. La fonction détecte les domaines de travaux présents dans les descriptions via ~180 triggers de mots-clés (carrelage, peinture, plomberie, menuiserie, chauffage, etc.) et réduit le catalogue à ~20-80 entrées avant l'appel Gemini. Fallback : catalogue complet si < 8 entrées filtrées.
 
 **Couche 2 — Matching 5 niveaux** sur les identifiants retournés par Gemini :
 - L1 : exact match (+ trim)
@@ -1152,6 +1152,20 @@ Le catalogue `market_prices` compte 470+ entrées. Envoyer tout à Gemini-2.0-fl
 Si Gemini API fail, timeout ou JSON invalide → 0 groupes. Matching direct par champ `categorie` des work items issus de l'extraction Phase 1, complètement sans Gemini. L'Indice Stratégique Immobilier™ dépend des mêmes `matched groups` — il tombe si cette pipeline échoue.
 
 **Diagnostic si régression** : logs Supabase → Functions → analyze-quote → chercher `[MarketPrices] Gemini raw response` (raw Gemini), `ALL 5 LEVELS FAILED` (couche 2 manquante), `Emergency fallback` (couche 3 déclenchée).
+
+**Roadmap V3.5 — Refonte vectorielle (en cours, 2026-05-21)** :
+La cause racine des regroupements aberrants (ex: PH VISION "Pose extracteur/WC = 3900€ tout-le-bloc-Sanitaires") est l'étape **groupement Gemini Phase 2** qui regroupe N lignes devis en M groupes avant matching catalogue. Solution : **1 ligne devis = 1 embedding** matché individuellement au catalogue via similarity search vectorielle (pgvector + HNSW + cosine).
+
+| Phase | Statut | Description |
+|---|---|---|
+| A — Migration pgvector | ✅ Livrée | `20260521_002_market_prices_vectorization.sql` ajoute colonne `embedding vector(768)` + index HNSW + RPC `search_market_prices_v2` |
+| B — Seed embeddings | ✅ Livrée | `scripts/seed_market_prices_embeddings.mjs` embed 911 entries via Gemini `text-embedding-004` (768 dim, ~24s, < 0.01 €) |
+| C — Refonte edge function | 🟡 À venir | `analyze-quote` appelle `supabase.rpc('search_market_prices_v2', ...)` ligne par ligne au lieu du groupement Gemini |
+| D — Feature flag | 🟡 À venir | `MARKET_MATCHER_VECTORIAL=true/false` env edge function pour rollout progressif |
+| E — Tests + validation | 🟡 À venir | Tests sur 3 devis canoniques (PH VISION, Thouret, Kern) + monitoring divergence vs V3.6 |
+| F — Bascule prod | 🟡 À venir | Flip flag à `true` après validation + retrait code legacy V3.6 après période de grâce |
+
+Tant que `MARKET_MATCHER_VECTORIAL=false` (défaut), le pipeline V3.6 (3 couches ci-dessus) reste actif. Le champ `embedding` est créé NULL puis populé par le seed sans impact run-time.
 
 ### Étape 5 : Scoring et résultat
 
