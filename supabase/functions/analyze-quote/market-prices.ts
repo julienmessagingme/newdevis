@@ -8,6 +8,10 @@ import {
   type MarketCatalogRow,
   type MatchResult,
 } from "./market-matcher.ts";
+import {
+  lookupMarketPricesVectorial,
+  type VectorialMatchMeta,
+} from "./market-matcher-vectorial.ts";
 
 /**
  * V3.6 — Feature flags pour le déploiement contrôlé.
@@ -144,6 +148,41 @@ function isShadowKilled(): boolean {
 
 console.log(`[MarketPrices] startup — kill_switch_threshold=${SHADOW_KILL_THRESHOLD} window_ms=${SHADOW_KILL_WINDOW_MS}`);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// V3.5.0 PHASE C — Feature flag VECTORIEL
+//
+// Si MARKET_MATCHER_VECTORIAL="true" (ou "1") → lookupMarketPrices délègue
+// entièrement à `lookupMarketPricesVectorial` (similarity search ligne-par-
+// ligne via Gemini gemini-embedding-001 + RPC search_market_prices_v2).
+//
+// Si absent / "false" / "0" / "shadow" → pipeline V3.6 actuel intact (le flag
+// "shadow" reste réservé pour Phase C.5 — logging en parallèle sans bascule).
+//
+// Différent de MARKET_MATCHER_V36 :
+//   - MARKET_MATCHER_V36 contrôle V3.5 vs V3.6 (groupement Gemini avant matching)
+//   - MARKET_MATCHER_VECTORIAL court-circuite les deux et part sur la
+//     similarity search vectorielle pure (1 ligne devis = 1 match catalogue).
+//
+// Par défaut DÉSACTIVÉ → prod 100% V3.6 inchangée tant qu'on ne flip pas.
+// ─────────────────────────────────────────────────────────────────────────────
+type VectorialMode = "off" | "shadow" | "on";
+
+const VECTORIAL_MODE: VectorialMode = (() => {
+  let raw: string | undefined;
+  try {
+    raw = typeof Deno !== "undefined" ? Deno.env.get("MARKET_MATCHER_VECTORIAL") : undefined;
+  } catch {
+    raw = undefined;
+  }
+  if (!raw) return "off";
+  const normalized = String(raw).toLowerCase().trim();
+  if (normalized === "true" || normalized === "1" || normalized === "on") return "on";
+  if (normalized === "shadow") return "shadow";
+  return "off";
+})();
+
+console.log(`[MarketPrices] startup — vectorial_mode=${VECTORIAL_MODE}`);
+
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;
 
@@ -197,6 +236,13 @@ export interface JobTypePriceResult {
   devis_total_ht: number | null;
   prices: MarketPriceRow[];
   workItemIndices: number[];
+  /**
+   * V3.5.0 Phase C — méta vectorielle attachée quand
+   * MARKET_MATCHER_VECTORIAL=on. Absent en mode V3.5/V3.6 (groupement Gemini).
+   * Le front (Phase D) détecte la présence pour basculer en affichage
+   * "1 ligne = 1 carte" + badge confidence.
+   */
+  vectorial?: VectorialMatchMeta;
 }
 
 /** Debug info stored in raw_text for diagnosis */
@@ -858,6 +904,33 @@ export async function lookupMarketPrices(
     return [];
   }
 
+  // ─── V3.5.0 Phase C — Bypass vectoriel (court-circuit groupement + matching) ─
+  // Si flag VECTORIAL=on → on délègue tout à la similarity search vectorielle.
+  // Aucun appel au catalogue par domaine, aucun groupement Gemini. Le résultat
+  // est déjà au shape JobTypePriceResult (étendu avec `vectorial`) → drop-in.
+  if (VECTORIAL_MODE === "on") {
+    console.log(`[MarketPrices] vectorial=on → lookupMarketPricesVectorial (${workItems.length} lines)`);
+    try {
+      const vectorialResults = await lookupMarketPricesVectorial(
+        supabase,
+        workItems,
+        googleApiKey,
+      );
+      // Le shape VectorialJobTypePriceResult étend JobTypePriceResult avec `vectorial`
+      // — cast safe puisqu'il ajoute uniquement un champ optionnel.
+      return vectorialResults as JobTypePriceResult[];
+    } catch (err) {
+      // Garde anti-régression : si le pipeline vectoriel crash, on log et
+      // on retombe sur V3.6 plutôt que de planter l'analyse entière.
+      console.warn(
+        `[MarketPrices] vectorial pipeline CRASHED, fallback to V3.6: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      // Continue vers le pipeline V3.6 ci-dessous (no early return)
+    }
+  }
+
   // 1. Fetch market prices filtered by domain
   const { data: allPrices, error } = await supabase
     .from("market_prices")
@@ -1319,10 +1392,88 @@ export async function lookupMarketPrices(
 
     if (fallbackResults.length > 0) {
       console.log(`[MarketPrices] Emergency fallback produced ${fallbackResults.length} groups`);
+      maybeRunVectorialShadow(supabase, workItems, googleApiKey, fallbackResults);
       return fallbackResults;
     }
     console.warn("[MarketPrices] Emergency fallback also produced 0 groups");
   }
 
+  maybeRunVectorialShadow(supabase, workItems, googleApiKey, results);
   return results;
+}
+
+/**
+ * V3.5.0 Phase C.5 — Shadow run du pipeline vectoriel en parallèle du V3.6.
+ *
+ * Quand MARKET_MATCHER_VECTORIAL=shadow, on lance `lookupMarketPricesVectorial`
+ * en background (via EdgeRuntime.waitUntil) ET on logge la comparaison avec ce
+ * que V3.6 a produit. Aucun impact sur la réponse HTTP — c'est du data
+ * collection pour préparer la bascule Phase F.
+ *
+ * Métriques loggées (cherchables via [V35_VECTORIAL_SHADOW] dans Supabase
+ * Functions logs) :
+ *   - nb lignes devis embeddées
+ *   - mix confidence (high/medium/low/no_match)
+ *   - nb groupes V3.6 vs nb lignes vectoriel (pour mesurer la « dispersion »)
+ *   - top-1 jobs catalogue vectoriel pour chaque ligne (pour audit manuel)
+ *   - top-1 jobs catalogue V3.6 par groupe (pour comparaison)
+ *
+ * Les erreurs sont silencieuses — un crash du shadow ne doit JAMAIS dégrader
+ * l'analyse user-visible.
+ */
+function maybeRunVectorialShadow(
+  supabase: SupabaseClient,
+  workItems: WorkItemFull[],
+  googleApiKey: string,
+  v36Results: JobTypePriceResult[],
+): void {
+  if (VECTORIAL_MODE !== "shadow") return;
+  if (!workItems || workItems.length === 0) return;
+  if (isShadowKilled()) {
+    console.log(`[V35_VECTORIAL_SHADOW] skipped — kill switch active (V36 shadow killed)`);
+    return;
+  }
+
+  const shadowPromise = (async () => {
+    const startTs = Date.now();
+    try {
+      const vectorialResults = await lookupMarketPricesVectorial(supabase, workItems, googleApiKey);
+
+      // Mix confidence
+      const tiers = { high: 0, medium: 0, low: 0, no_match: 0 };
+      const vectorialTopJobs: string[] = [];
+      for (const r of vectorialResults) {
+        const t = r.vectorial?.confidence ?? "no_match";
+        if (t in tiers) tiers[t as keyof typeof tiers]++;
+        vectorialTopJobs.push(r.catalog_job_types[0] ?? "—");
+      }
+
+      // V3.6 top jobs par groupe (pour comparaison)
+      const v36TopJobs = v36Results.map((g) => g.catalog_job_types[0] ?? "—");
+
+      const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
+      console.log(
+        `[V35_VECTORIAL_SHADOW] elapsed=${elapsed}s | lines=${workItems.length} ` +
+          `v36_groups=${v36Results.length} vec_results=${vectorialResults.length} | ` +
+          `high=${tiers.high} medium=${tiers.medium} low=${tiers.low} no_match=${tiers.no_match}`,
+      );
+      console.log(`[V35_VECTORIAL_SHADOW] v36_top_jobs=${JSON.stringify(v36TopJobs)}`);
+      console.log(`[V35_VECTORIAL_SHADOW] vec_top_jobs=${JSON.stringify(vectorialTopJobs)}`);
+    } catch (err) {
+      // Silencieux : on n'enregistre pas dans le kill switch V36, c'est un autre flux.
+      console.warn(
+        `[V35_VECTORIAL_SHADOW_ERROR] ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  })();
+
+  try {
+    const er = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+    if (er && typeof er.waitUntil === "function") {
+      er.waitUntil(shadowPromise);
+    }
+    // Sinon fire-and-forget (best effort, OK en dev local).
+  } catch {
+    // EdgeRuntime indispo — fire-and-forget silencieux.
+  }
 }

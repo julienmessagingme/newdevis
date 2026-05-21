@@ -951,6 +951,13 @@ export const POST: APIRoute = async ({ params, request }) => {
   const groupsSummary  = buildGroupSummary(priceData);
   const marketPosition = computeServerMarketPosition(priceData);
 
+  // V3.5.0 Phase C — Log mode vectoriel (utile pour traquer le shadow run + debug)
+  const vectorialDetected = Array.isArray(priceData) &&
+    priceData.some((g: any) => g && typeof g === "object" && g.vectorial);
+  if (vectorialDetected) {
+    console.log(`[conclusion] V3.5 vectorial mode detected (${priceData.length} lines from RPC search_market_prices_v2)`);
+  }
+
   // ── Verdict déterministe PRÉ-CALCULÉ (injecté dans le prompt) ───────────────
   // RÈGLE 5 — Le moteur tourne AVANT Gemini pour contraindre le LLM, pas après.
   // En mode multi-devis : utilise global_metrics pré-calculé (source de vérité unique).
@@ -1407,8 +1414,17 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     }
     const hasUnitsMissing = unitMissingRatio > 0.50;
 
+    // V3.5.0 Phase C — Détection mode vectoriel
+    // Si le matcher vectoriel a tourné, chaque "groupe" contient une seule ligne
+    // devis (1 ligne = 1 match catalogue). Du coup la garde "groupement invalide"
+    // V3.4.17 n'a aucun sens (sumLines == groupTotal par construction) et le
+    // mix confidence devient un meilleur signal d'incertitude que les anciennes
+    // gardes basées sur le groupement Gemini.
+    const isVectorialMode = Array.isArray(priceData) &&
+      priceData.some((g: any) => g && typeof g === "object" && g.vectorial);
+
     let invalidGroupingsCount = 0;
-    if (Array.isArray(priceData)) {
+    if (Array.isArray(priceData) && !isVectorialMode) {
       for (const g of priceData as Array<Record<string, any>>) {
         const groupTotal = typeof g.devis_total_ht === "number" ? g.devis_total_ht : 0;
         const lines = Array.isArray(g.devis_lines) ? g.devis_lines : [];
@@ -1430,6 +1446,31 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       }
     }
     const hasInvalidGroupings = invalidGroupingsCount >= 1;
+
+    // V3.5.0 Phase C — Mix confidence vectoriel
+    // En mode vectoriel, si le mix de matchs est trop incertain (>30% no_match
+    // OU >50% low/no_match), on bascule en `comparison_indicative=true` pour
+    // dire honnêtement "matching imprécis" plutôt que de fabriquer un verdict
+    // alarmiste depuis des correspondances faibles.
+    let vectorialUncertaintyTriggered = false;
+    if (isVectorialMode && Array.isArray(priceData)) {
+      const counts = { high: 0, medium: 0, low: 0, no_match: 0 };
+      for (const g of priceData as Array<Record<string, any>>) {
+        const tier = g?.vectorial?.confidence ?? "no_match";
+        if (tier in counts) counts[tier as keyof typeof counts]++;
+      }
+      const total = counts.high + counts.medium + counts.low + counts.no_match;
+      if (total > 0) {
+        const noMatchRatio = counts.no_match / total;
+        const weakRatio = (counts.low + counts.no_match) / total;
+        vectorialUncertaintyTriggered = noMatchRatio > 0.30 || weakRatio > 0.50;
+        console.log(
+          `[conclusion] V3.5 vectorial mix — high=${counts.high} medium=${counts.medium} low=${counts.low} no_match=${counts.no_match} ` +
+            `(noMatchRatio=${(noMatchRatio * 100).toFixed(0)}% weakRatio=${(weakRatio * 100).toFixed(0)}%) ` +
+            `${vectorialUncertaintyTriggered ? "→ comparaison indicative" : "→ OK"}`,
+        );
+      }
+    }
 
     if (hasUnitsMissing) {
       console.log(`[conclusion] V3.4.17 unités manquantes ${(unitMissingRatio * 100).toFixed(0)}% (${linesWithoutUnitCount}/${totalLinesCount}) → comparaison globale indicative`);
@@ -1750,11 +1791,14 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // aussi le flag : on ne peut PAS donner un verdict prix fiable si > 50% des
     // lignes n'ont pas d'unité explicite OU si des groupes Gemini sont
     // mathématiquement incohérents avec leurs lignes.
+    // V3.5.0 Phase C (2026-05-21) — `vectorialUncertaintyTriggered` active aussi
+    // le flag quand le mix confidence vectoriel est trop incertain (>30% no_match
+    // OU >50% low/no_match).
     const comparisonIndicative = (
       (preEngine.overprice_pct ?? 0) > 0.50
       && sanitizedAnomalies.length === 0
       && (wa?.anomalies_count ?? 0) === 0
-    ) || hasUnitsMissing || hasInvalidGroupings;
+    ) || hasUnitsMissing || hasInvalidGroupings || vectorialUncertaintyTriggered;
 
     conclusionData = {
       verdict_global:          verdictGlobal,
