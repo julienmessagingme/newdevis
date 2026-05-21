@@ -15,11 +15,11 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ### 🟡 V3.5 refonte vectorisation catalogue market_prices
 > Trigger : bug PH VISION ("Pose extracteur/WC = 3900€" regroupait à tort tout le bloc Sanitaires).
-> Plan validé : 6 phases A→F, embedding `text-embedding-004` (768 dim), affichage 1 ligne = 1 carte, feature flag.
-> **Phases A+B livrées en prod (commits `72c6ff9` + `0d7c443`). Phase C-F en attente du seed validé (911/911 ✓) chez Johan.**
+> Plan validé : 6 phases A→F, embedding `gemini-embedding-001` (768 dim via `outputDimensionality`), affichage 1 ligne = 1 carte, feature flag.
+> **Phases A+B livrées en prod ET seed exécuté (911/911 ✓). Phase C prête à attaquer.**
 - ✅ Phase A — migration pgvector + colonne embedding + index HNSW + RPC `search_market_prices_v2`. Appliquée prod via SQL Editor.
-- ✅ Phase B — script `scripts/seed_market_prices_embeddings.mjs` poussé avec fix `text-embedding-004` (embedding-001 était déprécié).
-- 🟡 Phase C — refonte `market-prices.ts` (en attente seed catalogue validé, ~4-6h boulot)
+- ✅ Phase B — script `scripts/seed_market_prices_embeddings.mjs` (commits `72c6ff9` + `0d7c443` + `551208f`). **Seed exécuté par Julien le 2026-05-21 : 911 rows embedded / 0 missing / 911 total**. Index HNSW prêt à servir les similarity searches. Modèle final retenu : `gemini-embedding-001` + `outputDimensionality: 768` (embedding-001 ET text-embedding-004 étaient tous deux inaccessibles sur la clé API).
+- 🟡 Phase C — refonte `market-prices.ts` (PRÊT À ATTAQUER, ~4-6h boulot)
 - 🟡 Phase D — adaptation UI `BlockPrixMarche` 1 ligne = 1 carte (~2-3h)
 - 🟡 Phase E — tests shadow V3.6 vs vectoriel sur 10 devis canoniques (~2-3h)
 - 🟡 Phase F — rollout `MARKET_MATCHER_VECTORIAL=true` + bump ENGINE_VERSION (~30 min)
