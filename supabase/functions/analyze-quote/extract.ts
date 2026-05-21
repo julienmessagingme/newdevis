@@ -440,7 +440,18 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
       }
     }
 
-    const typeDocument = ["devis_travaux", "facture", "diagnostic_immobilier", "autre"].includes(parsed.type_document)
+    // V3.4.20 FIX (2026-05-21) — Ajout de "estimation_courtier" à la whitelist.
+    // BUG D'ORIGINE : V3.4.20 a étendu le prompt Gemini pour qu'il retourne
+    // "estimation_courtier" sur les docs courtier (Renovation Man, Ootravaux,
+    // etc.), MAIS j'ai oublié de mettre à jour cette validation ligne 443.
+    // Conséquence : tous les docs courtier étaient silencieusement dégradés
+    // en "autre" → conclusion.ts ne déclenchait JAMAIS le bypass courtier →
+    // fallback nom INSEE sur "Renovation Man" → 6 homonymes dont 3 radiés →
+    // verdict ROUGE faux + verdict REFUSER mensonger.
+    // Tout doc courtier uploadé entre cda23cb (2026-05-19) et ce fix est
+    // affecté — leur cache conclusion_ia se régénérera grâce au bump
+    // ENGINE_VERSION 3.4.20 → 3.4.21.
+    const typeDocument = ["devis_travaux", "facture", "diagnostic_immobilier", "estimation_courtier", "autre"].includes(parsed.type_document)
       ? parsed.type_document
       : "autre";
 
