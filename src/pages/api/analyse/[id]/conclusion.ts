@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.26";
+const ENGINE_VERSION = "3.4.27";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -1161,7 +1161,20 @@ RÈGLES ABSOLUES (ne pas déroger):
    - "globalement cohérent", "globalement conforme", "dans la norme du marché"
    Ces wordings créent des contradictions avec le surcoût détecté poste par poste.
    Même si le total cumulé est sous la moyenne marché (compensation entre postes),
-   tu dois nommer les postes problématiques au lieu de présenter le devis comme attractif.${wa?.impact_anomalies === "faible" ? `
+   tu dois nommer les postes problématiques au lieu de présenter le devis comme attractif.
+
+8bis. INTERDIT ABSOLU dans actions_avant_signature : demander à l'utilisateur de
+   vérifier l'IMMATRICULATION, le SIRET, le statut juridique, l'ancienneté, les
+   obligations légales, le régime fiscal (article 293B), le code APE, ou
+   l'inscription au RCS de l'entreprise. CES VÉRIFICATIONS SONT DÉJÀ FAITES PAR
+   NOTRE SYSTÈME via Pappers/INSEE et affichées dans le bloc "Entreprise &
+   Fiabilité" juste en dessous du verdict. Demander à l'utilisateur de les
+   refaire (sur Infogreffe, Societe.com, Pappers, etc.) casse la promesse
+   produit et perd la crédibilité. Si tu veux proposer une action liée à
+   l'entreprise, propose plutôt :
+   - "Demandez à l'artisan une attestation d'assurance RC Pro et décennale en cours de validité"
+   - "Demandez à l'artisan des références de chantiers similaires (3 minimum) avec coordonnées"
+   - "Demandez à l'artisan une garantie écrite (durée, conditions, exclusions)"${wa?.impact_anomalies === "faible" ? `
 8. IMPACT ANOMALIES FAIBLE (${Math.round((wa?.poids_anomalies ?? 0) * 100)}% du total) — RÈGLES DE WORDING :
    - INTERDIT : "surcoût massif", "devis très au-dessus du marché"
    - OBLIGATOIRE : mentionner les postes élevés comme négociation locale, pas comme rejet global
@@ -1565,9 +1578,17 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // sur un site externe casse la promesse produit et perd la crédibilité.
     // Cas d'origine devis AS COUVERTURE 2026-05-21.
     const EXTERNAL_VERIF_PATTERNS: RegExp[] = [
+      // Pointage vers services externes (infogreffe, pappers, etc.)
       /v[ée]rifi(er|ez|cation)[^.]{0,80}(infogreffe|societe\.com|soci[eé]t[eé]\.com|pappers|insee|sirene)/i,
       /(consult|recherch|cherch)(er|ez|é|e)[^.]{0,80}(infogreffe|societe\.com|soci[eé]t[eé]\.com|pappers|insee|sirene)/i,
+      // Vérif d'existence / ancienneté / statut juridique
       /v[ée]rifi(er|ez)\s+l['']?(existence|anciennet[eé]|statut)\s+(l[eé]gal|juridique|d['' ]?l['' ]?entreprise)/i,
+      // V3.4.27 — Vérif d'immatriculation / obligations légales / SIRET
+      // (VMD fait déjà ces vérifs via Pappers/INSEE, cf. bloc Entreprise & Fiabilité)
+      /v[ée]rifi(er|ez|cation)[^.]{0,120}\b(immatricul|inscrit\s+au\s+rcs|en\s+r[eè]gle|obligations\s+l[eé]gales|\s+jour\s+de\s+ses)/i,
+      /(assurez[- ]vous|s['']?assurer)[^.]{0,120}\b(immatricul|en\s+r[eè]gle|obligations\s+l[eé]gales|\s+jour\s+de\s+ses)/i,
+      /v[ée]rifi(er|ez)[^.]{0,120}\b(article\s+293\s*b|r[eé]gime\s+micro[- ]entrepr|tva\s+non\s+applicable)/i,
+      /v[ée]rifi(er|ez)[^.]{0,120}\b(num[eé]ro\s+siret|num[eé]ro\s+siren|num[eé]ro\s+ape|code\s+ape)/i,
     ];
     const isAbsurdExternalVerifAction = (a: string): boolean =>
       EXTERNAL_VERIF_PATTERNS.some((p) => p.test(a));
