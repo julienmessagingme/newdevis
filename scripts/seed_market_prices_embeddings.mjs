@@ -141,15 +141,27 @@ async function main() {
   if (limit) console.log(`   Limit : ${limit} rows max`);
   console.log('');
 
-  // Vérifie d'abord que la colonne embedding existe
+  // Vérifie d'abord que la colonne embedding existe + que les credentials sont OK
   const { data: cols, error: colsErr } = await supabase
     .from('market_prices')
     .select('id, embedding')
     .limit(1);
   if (colsErr) {
     console.error(`❌ Impossible de query market_prices : ${colsErr.message}`);
-    console.error(`   → Vérifier que la migration Phase A est appliquée :`);
-    console.error(`     supabase/migrations/20260521_002_market_prices_vectorization.sql`);
+    // Distinction des causes d'erreur pour ne pas envoyer le user sur une fausse piste
+    const msg = (colsErr.message || '').toLowerCase();
+    if (msg.includes('api key') || msg.includes('jwt') || msg.includes('invalid')) {
+      console.error(`\n   🔑 Causes probables :`);
+      console.error(`      • SUPABASE_SERVICE_ROLE_KEY mal copiée (vérifier qu'elle commence par 'eyJ...')`);
+      console.error(`      • SUPABASE_URL incorrecte (attendu : https://vhrhgsqxwvouswjaiczn.supabase.co)`);
+      console.error(`      • Variable d'env vide (vérifier : echo \$SUPABASE_SERVICE_ROLE_KEY)`);
+      console.error(`      → Récupérer la key sur Dashboard Supabase → Settings → API → service_role`);
+    } else if (msg.includes('column') || msg.includes('relation') || msg.includes('embedding')) {
+      console.error(`\n   📦 La colonne 'embedding' n'existe pas. Appliquer la migration Phase A :`);
+      console.error(`      supabase/migrations/20260521_002_market_prices_vectorization.sql`);
+    } else {
+      console.error(`\n   ⚠️  Erreur inattendue. Vérifier la connexion Supabase + la migration Phase A.`);
+    }
     process.exit(1);
   }
 
