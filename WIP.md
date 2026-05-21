@@ -19,7 +19,14 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 > **Phases A+B livrées en prod ET seed exécuté (911/911 ✓). Phase C prête à attaquer.**
 - ✅ Phase A — migration pgvector + colonne embedding + index HNSW + RPC `search_market_prices_v2`. Appliquée prod via SQL Editor.
 - ✅ Phase B — script `scripts/seed_market_prices_embeddings.mjs` (commits `72c6ff9` + `0d7c443` + `551208f`). **Seed exécuté par Julien le 2026-05-21 : 911 rows embedded / 0 missing / 911 total**. Index HNSW prêt à servir les similarity searches. Modèle final retenu : `gemini-embedding-001` + `outputDimensionality: 768` (embedding-001 ET text-embedding-004 étaient tous deux inaccessibles sur la clé API).
-- 🟡 Phase C — refonte `market-prices.ts` (PRÊT À ATTAQUER, ~4-6h boulot)
+- ✅ Phase C — refonte `market-prices.ts` (2026-05-21). 5 sous-phases livrées :
+  - C.1 : nouveau fichier `market-matcher-vectorial.ts` (helper + classification confidence)
+  - C.2 : feature flag `MARKET_MATCHER_VECTORIAL=off|shadow|on` dans `market-prices.ts` + extension `JobTypePriceResult.vectorial`
+  - C.3 : `conclusion.ts` détecte mode vectoriel, skip garde "groupement invalide" (non pertinente), ajoute garde `vectorialUncertaintyTriggered` (>30% no_match OU >50% low/no_match → `comparison_indicative=true`)
+  - C.4 : tests unitaires `market-matcher-vectorial.test.ts` (23 cas, 100% pass)
+  - C.5 : shadow run en background via `EdgeRuntime.waitUntil` → logs `[V35_VECTORIAL_SHADOW]` pour Phase E
+  - Modèle : `gemini-embedding-001` + `outputDimensionality:768` + `taskType:RETRIEVAL_QUERY`
+  - Prod en mode `off` par défaut → V3.6 inchangée tant qu'on flip pas la variable d'env
 - 🟡 Phase D — adaptation UI `BlockPrixMarche` 1 ligne = 1 carte (~2-3h)
 - 🟡 Phase E — tests shadow V3.6 vs vectoriel sur 10 devis canoniques (~2-3h)
 - 🟡 Phase F — rollout `MARKET_MATCHER_VECTORIAL=true` + bump ENGINE_VERSION (~30 min)
