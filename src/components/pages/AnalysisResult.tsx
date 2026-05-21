@@ -51,10 +51,16 @@ import {
   MultiDevisBlock,
 } from "@/components/analysis";
 import type { DevisSegment } from "@/components/analysis/MultiDevisBlock";
-import { PostSignatureTrackingSection } from "@/components/tracking";
+// V3.4.23 (2026-05-21) — Simplification UI : 2 blocs retirés pour ne garder que
+// le cœur du verdict (ConclusionIA + Entreprise + Postes collapsé). Imports
+// retirés en même temps pour éviter du code mort.
+// - PostSignatureTrackingSection : promesse de suivi jamais demandée par les
+//   users (mesuré sur tous les devis téléchargés à date).
+// - StrategicBadge (IVP/IPI) : sujet investisseur locatif, hors-scope du
+//   particulier qui rénove. À ré-exposer dans un module séparé "Mode
+//   investisseur" si demande remonte.
 const OcrDebugPanel = lazy(() => import("@/components/analysis/OcrDebugPanel").then(m => ({ default: m.OcrDebugPanel })));
 import type { TravauxItem } from "@/components/analysis";
-import StrategicBadge from "@/components/analysis/StrategicBadge";
 import { useAnonymousAuth } from "@/hooks/useAnonymousAuth";
 import { usePremium } from "@/hooks/usePremium";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
@@ -1326,31 +1332,20 @@ const AnalysisResult = () => {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════
-            BLOC 6 — INDICE STRATÉGIQUE (secondaire — bas de page)
-        ══════════════════════════════════════════════════════ */}
-        <div id="strategic-index">
-          <StrategicBadge
-            rawText={analysis.raw_text ?? null}
-            isPremium={isPermanent || isAdmin}
-            onAuthSuccess={handleAuthConversion}
-            convertToPermanent={convertToPermanent}
-            currentUserId={authUser?.id}
-          />
-        </div>
-
-        {/* Suivi post-signature (permanent users) */}
-        {!isAdaptedAnalysis && isPermanent && (
-          <PostSignatureTrackingSection
-            analysisId={analysis.id}
-            companySiret={quoteInfo.siret}
-            companyName={quoteInfo.nom_entreprise}
-            workStartDate={workDates.workStartDate}
-            workEndDate={workDates.workEndDate}
-            maxExecutionDays={workDates.maxExecutionDays}
-            isRejectedDocument={isRejectedDocument}
-          />
-        )}
+        {/* V3.4.23 (2026-05-21) — Blocs retirés pour simplification UI :
+            - BLOC 6 "Indice Stratégique Immobilier" (IVP/IPI / StrategicBadge) :
+              sujet investisseur locatif, hors-scope du particulier qui rénove
+              sa SDB. Dilution du verdict principal pour 95% des users. À
+              ré-exposer dans un module séparé "Mode investisseur" si demande
+              business remonte (les composants StrategicBadge + endpoint
+              /api/strategic-scores restent en code, juste pas affichés ici).
+            - Suivi post-signature (PostSignatureTrackingSection) : promesse
+              jamais demandée par les users (mesuré sur tous les devis
+              téléchargés à date). Composant + endpoint conservés pour usage
+              futur éventuel ; ré-activable en réinsérant le bloc ici.
+            Cœur du produit conservé : Verdict expert (ConclusionIA) +
+            Entreprise & Fiabilité (BlockEntreprise) + Analyse des postes
+            (BlockPrixMarche, collapsé par défaut via defaultOpen=false). */}
 
         {/* OCR Debug Panel - Admin Only */}
         {!isAnonymous && (
