@@ -6,9 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// TODO: Once domain is verified on Resend, switch from to alerts@verifiermondevis.fr
-// and add "bridey.johan@gmail.com" back to RECIPIENTS
-const RECIPIENTS = ["julien@messagingme.fr"];
+// 2026-05-21 — Ajout johan en destinataire (alignement avec analysis-maintenance
+// qui envoie déjà aux 2). Le commentaire TODO Resend reste valide : à terme on
+// passera de from=onboarding@resend.dev à from=alerts@verifiermondevis.fr une
+// fois le domaine vérifié sur Resend.
+const RECIPIENTS = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
 const RESEND_API_URL = "https://api.resend.com/emails";
 const ADMIN_URL = "https://www.verifiermondevis.fr/admin";
 
