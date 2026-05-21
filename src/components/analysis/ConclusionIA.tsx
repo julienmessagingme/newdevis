@@ -376,13 +376,14 @@ function ConclusionDisplay({
         <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 px-4 py-3.5">
           <p className="text-sm font-semibold text-amber-900 leading-snug">
             <span aria-hidden="true">ℹ️ </span>
-            Comparaison globale indicative
+            Comparaison limitée sur ce devis
           </p>
           <p className="text-xs text-amber-800/85 mt-1 leading-relaxed">
-            Les fourchettes marché agrégées ({fmtPrice(conclusion.surcout_global.min)} – {fmtPrice(conclusion.surcout_global.max)})
-            semblent <strong>sous-couvrir la prestation</strong> proposée (catalogue partiel sur ce type de devis).
-            Aucune anomalie poste par poste n'a été identifiée — l'écart apparent doit être
-            <strong> examiné avec l'artisan</strong> ligne par ligne avant signature.
+            Notre référentiel prix n'a pas trouvé d'équivalent précis pour ce type de prestation
+            (le marché que nous avons indique {fmtPrice(conclusion.surcout_global.min)} – {fmtPrice(conclusion.surcout_global.max)},
+            mais ce n'est pas un comparable fiable ici).
+            Aucune anomalie poste par poste n'a été détectée. <strong>Demandez à l'artisan</strong> le détail
+            ligne par ligne pour valider chaque prix avant signature.
           </p>
         </div>
       )}

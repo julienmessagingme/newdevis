@@ -874,7 +874,7 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
         // Symétrie de V3.4.7 (underprice > 20%) : seuil 50% car les sous-
         // estimations catalogue sont plus dispersées que les sur-estimations
         // (un poste peut facilement valoir 1.5× le standard sans être anormal).
-        reasons.push("⚠️ Comparaison globale indicative — la fourchette marché agrégée semble sous-couvrir la prestation (catalogue partiel). À examiner poste par poste avec l'artisan.");
+        reasons.push("⚠️ Comparaison limitée — notre référentiel prix n'a pas d'équivalent précis pour ce type de prestation. À examiner poste par poste avec l'artisan.");
       } else if (surcoutForWording > 0 || overprice > 0) {
         // Escalade SANS anomalie identifiée → wording d'écart estimatif global.
         // Cohérent avec le hero "+X € écart estimatif vs fourchettes marché".

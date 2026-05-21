@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.24";
+const ENGINE_VERSION = "3.4.26";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -1559,10 +1559,30 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         })();
 
     // Actions : garde exactement 3, complète avec des valeurs par défaut si nécessaire
+    // V3.4.26 (2026-05-21) — Filtre des actions absurdes type "Vérifier l'existence
+    // légale sur Infogreffe/Societe.com/Pappers". Ces vérifications sont DÉJÀ
+    // faites par VMD (bloc Entreprise) — demander à l'utilisateur de les refaire
+    // sur un site externe casse la promesse produit et perd la crédibilité.
+    // Cas d'origine devis AS COUVERTURE 2026-05-21.
+    const EXTERNAL_VERIF_PATTERNS: RegExp[] = [
+      /v[ée]rifi(er|ez|cation)[^.]{0,80}(infogreffe|societe\.com|soci[eé]t[eé]\.com|pappers|insee|sirene)/i,
+      /(consult|recherch|cherch)(er|ez|é|e)[^.]{0,80}(infogreffe|societe\.com|soci[eé]t[eé]\.com|pappers|insee|sirene)/i,
+      /v[ée]rifi(er|ez)\s+l['']?(existence|anciennet[eé]|statut)\s+(l[eé]gal|juridique|d['' ]?l['' ]?entreprise)/i,
+    ];
+    const isAbsurdExternalVerifAction = (a: string): boolean =>
+      EXTERNAL_VERIF_PATTERNS.some((p) => p.test(a));
+
     const geminiActions: string[] = Array.isArray(parsed.actions_avant_signature)
       ? parsed.actions_avant_signature
           .filter((a: unknown) => typeof a === "string" && a.trim().length > 0)
           .map((a: string) => a.trim())
+          .filter((a: string) => {
+            if (isAbsurdExternalVerifAction(a)) {
+              console.warn(`[conclusion] V3.4.26 action absurde filtrée — "${a.slice(0, 120)}"`);
+              return false;
+            }
+            return true;
+          })
           .slice(0, 3)
       : [];
 

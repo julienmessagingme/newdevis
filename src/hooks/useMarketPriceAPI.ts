@@ -164,6 +164,9 @@ function isNewFormat(data: unknown): boolean {
 // V3.4.12 (2026-05-13) — Patterns de lignes récapitulatives à filtrer côté front.
 // Couvre les analyses existantes (avant le fix server V3.4.11) en DB qui
 // contenaient ces lignes dans `analysis_work_items`.
+// V3.4.25 (2026-05-21) — Ajout pattern "Travaux à effectuer :", "Détail",
+// "Récapitulatif", "Désignation" (titres de bloc utilisés par certains artisans
+// comme ligne d'en-tête au lieu de simple sous-titre). Cf. devis AS COUVERTURE.
 const RECAP_LINE_PATTERNS: RegExp[] = [
   /^montant\s+(total|sous[- ]?total|tva|ht|ttc|acompte|solde|net|brut)/i,
   /^(total|sous[- ]?total)\s*(ht|ttc|tva|général|general)?\s*:?$/i,
@@ -173,6 +176,8 @@ const RECAP_LINE_PATTERNS: RegExp[] = [
   /^(prime|aide)\s+(cee|effy|maprime|anah)/i,
   /^(reste|montant)\s+(a|à)\s+(facturer|r[ée]gler|payer)/i,
   /^(versement|paiement|acompte)\s+(à|a|au|de|du)/i,
+  /^travaux\s+(à|a)\s+effectuer\s*[:：]/i,
+  /^(détail|detail|récapitulatif|recapitulatif|désignation|designation)\s+(des|du|de)\s+(travaux|prestations|chantier)/i,
 ];
 
 function isRecapLineDescription(desc: string | undefined | null): boolean {
@@ -193,9 +198,52 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
     // Ces 3 lignes sommées = 2× le total réel → affichage absurde "11 294 €"
     // sur un devis à 5 647 €.
     if (Array.isArray(item.devis_lines)) {
-      const cleanedLines = item.devis_lines.filter(
+      let cleanedLines = item.devis_lines.filter(
         (l: { description?: string }) => !isRecapLineDescription(l?.description)
       );
+
+      // V3.4.25 (2026-05-21) — Garde STRUCTURELLE "ligne titre = somme des autres".
+      // Cas d'origine devis AS COUVERTURE : ligne 1 "Travaux à effectuer : Décapage
+      // toiture et hydrofuge" 2000€ + ligne 2 "Nettoyage décapage 50m²" 1500€ +
+      // ligne 3 "Application fongicide" 500€ = 4000€ extrait, alors que le devis
+      // fait 2000€ TTC (la ligne 1 est en réalité un TITRE qui résume les 2+3).
+      //
+      // Algo : si une ligne L a un amount égal (à 1% près) à la somme des autres
+      // lignes du groupe, L est un titre récapitulatif → on la drop.
+      // Conservative : on n'applique que si >= 3 lignes (sinon trop de faux positifs
+      // sur de petits groupes type "Pose volet + dépose volet" qui peuvent
+      // accidentellement matcher).
+      if (cleanedLines.length >= 3) {
+        const linesWithAmounts = cleanedLines
+          .map((l: { description?: string; amount_ht?: number | null }, idx: number) => ({
+            idx,
+            desc: l.description ?? "",
+            amt: typeof l.amount_ht === "number" ? l.amount_ht : 0,
+          }))
+          .filter((l) => l.amt > 0);
+
+        if (linesWithAmounts.length >= 3) {
+          const totalAll = linesWithAmounts.reduce((s, l) => s + l.amt, 0);
+          for (const candidate of linesWithAmounts) {
+            const sumOthers = totalAll - candidate.amt;
+            if (sumOthers <= 0) continue;
+            const delta = Math.abs(candidate.amt - sumOthers);
+            const deltaRatio = delta / candidate.amt;
+            // Match strict : à 1% près OU < 5€ d'écart
+            if (delta < 5 || deltaRatio < 0.01) {
+              console.warn(
+                `[V3.4.25] ligne titre récap structurelle filtrée — "${candidate.desc.slice(0, 60)}" : ` +
+                  `amt=${candidate.amt} € ≈ Σ(autres)=${sumOthers.toFixed(0)} € (delta ${delta.toFixed(0)} €)`,
+              );
+              cleanedLines = cleanedLines.filter(
+                (_l: unknown, i: number) => i !== candidate.idx,
+              );
+              break; // ne drop qu'une ligne par groupe (le titre)
+            }
+          }
+        }
+      }
+
       if (cleanedLines.length !== item.devis_lines.length) {
         // Recompute devis_total_ht as the sum of remaining lines' amount_ht
         const recomputedTotal = cleanedLines.reduce(
