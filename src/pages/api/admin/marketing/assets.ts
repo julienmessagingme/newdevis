@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError } from '@/lib/api/apiHelpers';
+import { CORS, optionsResponse, jsonError } from '@/lib/api/apiHelpers';
 import { requireAdmin } from '@/lib/auth/adminAuth';
 
 // Les manifestes B2 (photos de fond + assets décor) sont servis ici côté
@@ -34,7 +34,18 @@ export const GET: APIRoute = async ({ request }) => {
     fetchManifest('decor/manifest.json', 'decor'),
     fetchManifest('screens/manifest.json', 'screens'),
   ]);
-  return jsonOk({ photos, decor, screens });
+  // Cache CDN 5 min (les manifests bougent rarement) — évite de retaper B2 à
+  // chaque ouverture de l'éditeur. SWR de 1 h : si le cache est expiré, on
+  // sert la version stale pendant qu'on rafraîchit en arrière-plan.
+  return new Response(JSON.stringify({ photos, decor, screens }), {
+    status: 200,
+    headers: {
+      ...CORS,
+      'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+      'CDN-Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+      'Vercel-CDN-Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+    },
+  });
 };
 
 export const OPTIONS: APIRoute = () => optionsResponse('GET,OPTIONS');
