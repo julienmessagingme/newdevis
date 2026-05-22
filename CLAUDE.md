@@ -743,11 +743,11 @@ const inputClass = isMobile
 | Phase | État | Détail |
 |---|---|---|
 | **A — Migration SQL** | ✅ Pushée (commit `72c6ff9`) + appliquée prod | pgvector enabled + colonne `market_prices.embedding vector(768)` + index HNSW + RPC `search_market_prices_v2(query_embedding, threshold, count)` |
-| **B — Script seed** | ✅ Pushé (commit `0d7c443` avec fix `text-embedding-004`) | `scripts/seed_market_prices_embeddings.mjs` embed les 911 entrées via Gemini (~46s, ~0.02€). Idempotent. À exécuter avec `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` + `GOOGLE_API_KEY`. |
-| **C — Refonte market-prices.ts** | ⏸️ En attente seed validé | Nouvelle fonction `lookupMarketPricesVectorial(workItems)` qui embed chaque ligne devis (taskType=RETRIEVAL_QUERY) + RPC similarity search top-5. Feature flag pour coexister avec V3.6. |
-| **D — Adaptation UI** | ⏸️ Après C | `BlockPrixMarche` affiche 1 carte par ligne (pagination si > 15) au lieu de groupes |
-| **E — Tests shadow** | ⏸️ Après D | Comparaison V3.6 vs vectoriel sur 10 devis canoniques (PH VISION, Renovation Man, AEB Rénovation, Vitaliy Botyuk, etc.) |
-| **F — Rollout** | ⏸️ Après E validé | Bascule `MARKET_MATCHER_VECTORIAL=true` en prod + bump ENGINE_VERSION pour invalider cache |
+| **B — Script seed** | ✅ Livrée + exécutée prod (commits `72c6ff9` + `0d7c443` + `551208f`) | `scripts/seed_market_prices_embeddings.mjs` embed les 911 entrées via Gemini `gemini-embedding-001` + `outputDimensionality:768` (~46s, ~0.02€). Idempotent. 911/911 embedded. |
+| **C — Refonte market-prices.ts** | ✅ Livrée (commits `d49dc90` + `1537b38`) | 5 sous-phases : C.1 helper vectoriel + classification confidence, C.2 feature flag `MARKET_MATCHER_VECTORIAL=off\|shadow\|on` + extension `JobTypePriceResult.vectorial`, C.3 adapter `conclusion.ts`, C.4 tests unitaires (23 cas), C.5 shadow run via `EdgeRuntime.waitUntil`. Shadow activé en prod le 2026-05-21. |
+| **D — Adaptation UI** | ✅ Livrée (commit à venir, 2026-05-22) | Nouveau `VectorialPriceList.tsx` : 3 sections (Comparables fiables / incertains / Non comparables) + badge confidence high/medium/low/no_match avec tooltip + pagination 15/section + top-5 candidats catalogue alternatifs. `BlockPrixMarche` détecte `vectorial` dans rows → délègue. |
+| **E — Script analyse shadow logs** | ✅ Livré (commit à venir, 2026-05-22) | `scripts/analyze_vectorial_shadow_logs.mjs` parse les logs `[V35_VECTORIAL_SHADOW]` exportés depuis Supabase, produit rapport markdown avec volumétrie + distribution confidence + dispersion V3.6/vectoriel + top jobs + cas divergents + checklist Phase F automatisée. Mode `--demo` pour tester. **À lancer dans 24-48h** sur ~30+ analyses naturelles. |
+| **F — Rollout** | 🟡 En attente Phase E validée | `npx supabase secrets set MARKET_MATCHER_VECTORIAL=on --project-ref vhrhgsqxwvouswjaiczn` + bump ENGINE_VERSION (invalidation cache) + monitoring 24h. Rollback express : reset le secret à `off`. Procédure complète dans `WIP.md`. |
 
 **Anti-régression garanti** : Phases A+B sont 100% additives (colonne nullable + script externe). V3.6 actuel continue de fonctionner exactement comme avant tant que Phase F n'est pas déclenchée.
 

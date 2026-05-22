@@ -8,6 +8,7 @@ import MarketPositionAnalysis from "./MarketPositionAnalysis";
 import PremiumGate from "@/components/funnel/PremiumGate";
 import { GlobalAnalysisCard } from "./GlobalAnalysisCard";
 import { analyzeQuoteGlobal, classifyRow } from "@/lib/analyse/quoteGlobalAnalysis";
+import { VectorialPriceList } from "./VectorialPriceList";
 
 // =======================
 // TYPES
@@ -672,7 +673,16 @@ const BlockPrixMarche = ({
           {/* ── Carte de synthèse globale (au-dessus du détail) ── */}
           <GlobalAnalysisCard analysis={globalAnalysis} />
 
-          {analysisRows.length > 0 ? (
+          {/*
+            V3.5.0 Phase D (2026-05-22) — Détection mode vectoriel.
+            Si au moins une row a `vectorial` set, l'edge function a tourné en
+            MARKET_MATCHER_VECTORIAL=on → on bascule en affichage "1 ligne = 1
+            carte + badge confidence (high/medium/low/no_match)" via VectorialPriceList.
+            Sinon → affichage V3.6 classique (1 carte par groupe + badge verdict).
+          */}
+          {analysisRows.some(r => r.vectorial !== undefined) ? (
+            <VectorialPriceList rows={analysisRows} />
+          ) : analysisRows.length > 0 ? (
             analysisRows.map((row, idx) => {
               // Badge bonus : classification individuelle.
               // V3.4.15 — surface_mismatch (jaune "Surface à vérifier") prioritaire
@@ -699,9 +709,11 @@ const BlockPrixMarche = ({
             </p>
           )}
 
-          <p className="text-xs text-muted-foreground mt-3 italic">
-            Ces fourchettes sont basées sur des données de marché externes et ne constituent pas une évaluation de la qualité du prestataire.
-          </p>
+          {!analysisRows.some(r => r.vectorial !== undefined) && (
+            <p className="text-xs text-muted-foreground mt-3 italic">
+              Ces fourchettes sont basées sur des données de marché externes et ne constituent pas une évaluation de la qualité du prestataire.
+            </p>
+          )}
         </div>
       );
     }

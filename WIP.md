@@ -27,9 +27,33 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
   - C.5 : shadow run en background via `EdgeRuntime.waitUntil` → logs `[V35_VECTORIAL_SHADOW]` pour Phase E
   - Modèle : `gemini-embedding-001` + `outputDimensionality:768` + `taskType:RETRIEVAL_QUERY`
   - Prod en mode `off` par défaut → V3.6 inchangée tant qu'on flip pas la variable d'env
-- 🟡 Phase D — adaptation UI `BlockPrixMarche` 1 ligne = 1 carte + badge confiance (high/medium/low/no_match) selon décisions session 2026-05-21 (~2-3h)
-- 🟡 Phase E — analyse des logs `[V35_VECTORIAL_SHADOW]` (à faire après ~30 analyses naturelles, soit 24-48h après activation shadow). Script de parsing à écrire pour sortir rapport de divergence V3.6 vs vectoriel.
-- 🟡 Phase F — rollout `MARKET_MATCHER_VECTORIAL=on` + bump ENGINE_VERSION (~30 min). Conditionné à Phase D + Phase E validées.
+- ✅ Phase D — adaptation UI vectorielle (2026-05-22).
+  - Nouveau composant `src/components/analysis/VectorialPriceList.tsx` : 3 sections (Comparables fiables / Comparables incertains / Non comparables) + badge confidence (high/medium/low/no_match) + pagination 15 cartes par section + tooltip explicatif sur chaque badge + dépliable montrant top-5 candidats catalogue alternatifs.
+  - `BlockPrixMarche.tsx` : détection `analysisRows.some(r => r.vectorial !== undefined)` → bascule sur VectorialPriceList, sinon affichage V3.6 inchangé.
+  - `JobTypeDisplayRow` étendue avec `vectorial?: {top_similarity, confidence, all_candidates}` optionnel.
+  - `processJobTypes` propage `vectorial` depuis le shape edge function.
+- ✅ Phase E — script analyse logs shadow (2026-05-22). `scripts/analyze_vectorial_shadow_logs.mjs` : parse les logs `[V35_VECTORIAL_SHADOW]` exportés depuis Supabase Dashboard, produit un rapport markdown avec volumétrie, distribution confidence, dispersion V3.6 vs vectoriel, top jobs, cas divergents, cas faible couverture, checklist Phase F. Mode `--demo` pour tester le script avec données factices. Mode `--file <path>` ou stdin pour analyser des logs réels. **À lancer dans 24-48h** sur ~30+ analyses naturelles.
+- 🟡 Phase F — rollout en attente Phase E validée. **Procédure** :
+  ```bash
+  # 1. Vérifier critères go via le script Phase E
+  cat ~/Downloads/shadow_logs.txt | node scripts/analyze_vectorial_shadow_logs.mjs
+  # → si "✅ GO pour Phase F" en bas du rapport :
+
+  # 2. Flip feature flag
+  npx supabase secrets set MARKET_MATCHER_VECTORIAL=on --project-ref vhrhgsqxwvouswjaiczn
+
+  # 3. Bump ENGINE_VERSION dans src/pages/api/analyse/[id]/conclusion.ts
+  # (invalidation cache conclusion_ia obligatoire — sinon les analyses pré-flip
+  # restent figées sur le mode V3.6)
+
+  # 4. Push + déploiement Vercel auto
+  git add . && git commit -m "feat(analyse): V3.5.0 Phase F — bascule prod vectoriel" && git push
+
+  # 5. Monitoring 24h : grep [conclusion] V3.5 vectorial mode detected dans
+  # Supabase Functions logs + verifier que les analyses récentes affichent
+  # VectorialPriceList côté UI. Rollback express si régression :
+  npx supabase secrets set MARKET_MATCHER_VECTORIAL=off --project-ref vhrhgsqxwvouswjaiczn
+  ```
 - **Détail complet** : section "Refonte V3.5 vectorisation" dans `CLAUDE.md`.
 
 ### ✅ V3.4.24→27 — Quick fixes anti-régression du groupement Gemini (2026-05-21)

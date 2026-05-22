@@ -45,6 +45,17 @@ export interface JobTypeDisplayRow {
   vsAvgPct: number | null;
   /** True when the group is a lump-sum / forfait — price comparison is indicative only */
   isForfait: boolean;
+  /**
+   * V3.5.0 Phase D (2026-05-22) — Méta vectorielle propagée depuis l'edge function
+   * quand MARKET_MATCHER_VECTORIAL=on. Absent en mode V3.6 (groupement Gemini).
+   * Quand présent, BlockPrixMarche bascule en affichage "1 ligne = 1 carte +
+   * badge confidence (high/medium/low/no_match)" via VectorialPriceList.
+   */
+  vectorial?: {
+    top_similarity: number | null;
+    confidence: "high" | "medium" | "low" | "no_match";
+    all_candidates: Array<{ job_type: string; label: string; similarity: number }>;
+  };
 }
 
 // ========================================
@@ -436,6 +447,27 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
       verdict = "Comparaison indicative";
     }
 
+    // V3.5.0 Phase D — propagation méta vectorielle (présente si edge function
+    // a tourné en MARKET_MATCHER_VECTORIAL=on, sinon undefined).
+    const vectorialMeta = item.vectorial && typeof item.vectorial === "object"
+      ? {
+          top_similarity: typeof item.vectorial.top_similarity === "number" ? item.vectorial.top_similarity : null,
+          confidence: ["high", "medium", "low", "no_match"].includes(item.vectorial.confidence)
+            ? item.vectorial.confidence as "high" | "medium" | "low" | "no_match"
+            : "no_match" as const,
+          all_candidates: Array.isArray(item.vectorial.all_candidates)
+            ? item.vectorial.all_candidates
+                .filter((c: any) => c && typeof c === "object" && typeof c.job_type === "string")
+                .map((c: any) => ({
+                  job_type: String(c.job_type),
+                  label: String(c.label ?? ""),
+                  similarity: typeof c.similarity === "number" ? c.similarity : 0,
+                }))
+                .slice(0, 5)
+            : [],
+        }
+      : undefined;
+
     rows.push({
       jobTypeLabel: cleanedLabel,
       catalogJobTypes: item.catalog_job_types || item.job_types || [],
@@ -450,6 +482,7 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
       verdict,
       vsAvgPct,
       isForfait,
+      vectorial: vectorialMeta,
     });
   }
 
