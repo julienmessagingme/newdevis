@@ -86,6 +86,17 @@ export interface ConclusionData {
     courtier_nom: string | null;
   };
 
+  /**
+   * V3.4.28 (2026-05-22) — Devis HORS-SCOPE BTP (réparation véhicule, électroménager,
+   * service personnel, médical, etc.). Quand ce champ est set, ConclusionIA affiche
+   * une bannière dédiée et AnalysisResult masque BlockPrixMarche (qui sinon afficherait
+   * des hallucinations de matching catalogue type "Remplacement chaudière fioul" pour
+   * un nettoyage de vélo).
+   */
+  hors_scope?: {
+    categorie: "reparation_vehicule" | "reparation_electromenager" | "achat_biens" | "service_personnel" | "medical" | "veterinaire" | "autre";
+  };
+
   // ── Métadonnée ─────────────────────────────────────────────────────────────
   generated_at: string;
 }

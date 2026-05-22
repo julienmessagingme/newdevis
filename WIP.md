@@ -38,7 +38,10 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 - ✅ V3.4.25 (commit `80f163c`) — filtre lignes titre récap structurelles. Bug devis AS COUVERTURE 2000€ → 4000€ : Gemini extrait "Travaux à effectuer : Décapage" (2000€ titre) + 2 sous-lignes (1500€ + 500€) = 4000€. Patterns lexicaux étendus ("Travaux à effectuer", "Détail/Récapitulatif/Désignation des travaux") + garde structurelle "ligne ≈ somme des autres lignes".
 - ✅ V3.4.26 (commit `80f163c`) — filtre des actions absurdes pointant vers Infogreffe/Societe.com/Pappers. + reformulation wording "sous-couvrir la prestation" en "Comparaison limitée — notre référentiel prix n'a pas d'équivalent précis".
 - ✅ V3.4.27 (commit `bb43acf`) — Gemini a contourné V3.4.26 avec "vérifiez immatriculation / obligations légales / article 293B". Double défense : 4 nouvelles regex `EXTERNAL_VERIF_PATTERNS` + règle 8bis dans le prompt Gemini avec 3 alternatives suggérées (RC Pro + décennale, références chantiers, garantie écrite).
-- ENGINE_VERSION 3.4.21 → 3.4.27 (4 bumps cumulés)
+- ✅ V3.4.28 (2026-05-22) — 2 fixes complémentaires sur devis vélo.
+  - **Fix #1** : détection HORS-SCOPE BTP via nouveau `type_document="hors_scope"` (réparation véhicule/électroménager, achat biens, service personnel, médical, vétérinaire). Bypass dédié dans `conclusion.ts` + masquage `BlockPrixMarche` et `BlockEntreprise` côté UI (les checks artisan BTP n'ont aucun sens). Pattern identique à `is_foreign_quote` V3.4.14 et `estimation_courtier` V3.4.20.
+  - **Fix #2** : garde anti-hallucination "devis << marché_min" (ratio < 10%) — symétrique de V3.4.24 (devis >> marché_max). Filtre les faux matchs catalogue type "Nettoyage pédalier 38€ → Remplacement chaudière fioul 2500-7000€".
+- ENGINE_VERSION 3.4.21 → 3.4.28 (5 bumps cumulés sur la session)
 
 ### ✅ V3.4.23 simplification UI page d'analyse (2026-05-21, commit `d6b6ef5`)
 - Suppression du bloc Indice Stratégique Immobilier (IVP/IPI / `StrategicBadge`) — hors-scope particulier

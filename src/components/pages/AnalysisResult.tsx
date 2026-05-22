@@ -534,6 +534,23 @@ const AnalysisResult = () => {
   const totalHT = useMemo(() => calculateTotalHT(analysis?.types_travaux), [analysis?.types_travaux]);
   const visibleBlocks = useMemo(() => getVisibleBlocks(analysis?.domain || "travaux"), [analysis?.domain]);
 
+  // V3.4.28 (2026-05-22) — Détection du flag hors_scope BTP depuis conclusion_ia.
+  // Quand set (devis réparation vélo/auto/électroménager/médical/…), on masque
+  // BlockPrixMarche pour éviter d'afficher les hallucinations de matching
+  // catalogue ("Remplacement chaudière fioul" pour un nettoyage de pédalier).
+  // Le wording explicite est déjà dans phrase_intro de ConclusionIA.
+  const isHorsScopeBtp = useMemo(() => {
+    const sources = [conclusionIaLive, analysis?.conclusion_ia];
+    for (const raw of sources) {
+      if (!raw) continue;
+      try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (parsed && typeof parsed === "object" && (parsed as any).hors_scope) return true;
+      } catch { /* parse fail, skip */ }
+    }
+    return false;
+  }, [analysis?.conclusion_ia, conclusionIaLive]);
+
   // V3.4.17 (2026-05-19) — Extraction des clauses litigieuses depuis raw_text.
   // Détection assurée côté serveur (extract.ts) par Gemini sur le texte libre
   // du devis (CGV, mentions bas de page). Si présentes, on affiche le bloc
@@ -1206,8 +1223,11 @@ const AnalysisResult = () => {
 
         {/* ══════════════════════════════════════════════════════
             BLOC 2 — ENTREPRISE (fiabilité artisan)
+            V3.4.28 — Masqué si hors-scope BTP : les checks RGE/santé financière/
+            qualifications artisan ne s'appliquent pas à un magasin de vélo ou
+            un cabinet médical, et le badge ORANGE devient trompeur.
         ══════════════════════════════════════════════════════ */}
-        {visibleBlocks.includes("entreprise") && (
+        {visibleBlocks.includes("entreprise") && !isHorsScopeBtp && (
           <BlockEntreprise
             pointsOk={analysis.points_ok || []}
             alertes={analysis.alertes || []}
@@ -1236,8 +1256,11 @@ const AnalysisResult = () => {
 
         {/* ══════════════════════════════════════════════════════
             BLOC 3 — DÉTAIL PRIX MARCHÉ (accordéon)
+            V3.4.28 — Masqué si devis hors-scope BTP : le matching catalogue
+            BTP n'a aucun sens sur un devis vélo/auto/électroménager et
+            affiche des hallucinations.
         ══════════════════════════════════════════════════════ */}
-        {visibleBlocks.includes("prix_marche") && (
+        {visibleBlocks.includes("prix_marche") && !isHorsScopeBtp && (
           <BlockPrixMarche
             montantTotalHT={totalHT}
             codePostal={locationInfo.codePostal}

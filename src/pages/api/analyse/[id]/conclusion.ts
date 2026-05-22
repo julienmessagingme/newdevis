@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.27";
+const ENGINE_VERSION = "3.4.28";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -696,11 +696,15 @@ export const POST: APIRoute = async ({ params, request }) => {
       const lines  = Array.isArray(group.devis_lines) ? group.devis_lines : [];
       const mainQty = typeof group.main_quantity === "number" && group.main_quantity > 0 ? group.main_quantity : 1;
 
-      // Recompute theoreticalMaxHT (même formule que useMarketPriceAPI)
+      // Recompute theoreticalMinHT / theoreticalMaxHT (même formule que useMarketPriceAPI)
+      let theoreticalMinHT = 0;
       let theoreticalMaxHT = 0;
       for (const p of prices) {
+        const min = typeof p.price_min_unit_ht === "number" ? p.price_min_unit_ht : 0;
         const max = typeof p.price_max_unit_ht === "number" ? p.price_max_unit_ht : 0;
+        const fxMin = typeof p.fixed_min_ht === "number" ? p.fixed_min_ht : 0;
         const fxMax = typeof p.fixed_max_ht === "number" ? p.fixed_max_ht : 0;
+        theoreticalMinHT += min * mainQty + fxMin;
         theoreticalMaxHT += max * mainQty + fxMax;
       }
 
@@ -711,6 +715,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         return u === "forfait" || u === "ff" || u === "fft";
       });
 
+      // V3.4.24 — groupes massivement hallucinés (devis >> marché_max)
       if (
         theoreticalMaxHT > 0 &&
         devisTotal !== null &&
@@ -724,6 +729,23 @@ export const POST: APIRoute = async ({ params, request }) => {
             `devis_total=${devisTotal} € vs marché_max=${theoreticalMaxHT.toFixed(0)} € ` +
             `(ratio ${(devisTotal / theoreticalMaxHT).toFixed(1)}×, ${lines.length} lignes, ` +
             `main_qty=${mainQty})`,
+        );
+        return false;
+      }
+
+      // V3.4.28 (2026-05-22) — matchs catalogue manifestement faux (devis << marché_min).
+      // Cas devis vélo : "Nettoyage pédalier 38€" → catalogue "Chaudière fioul 2500-7000€".
+      if (
+        theoreticalMinHT >= 200 &&
+        devisTotal !== null &&
+        devisTotal >= 5 &&
+        devisTotal < theoreticalMinHT * 0.10 &&
+        !isForfait
+      ) {
+        console.warn(
+          `[conclusion] V3.4.28 match catalogue faux filtré (ratio inverse) — "${group.job_type_label ?? "?"}" : ` +
+            `devis=${devisTotal} € vs marché_min=${theoreticalMinHT.toFixed(0)} € ` +
+            `(ratio ${((devisTotal / theoreticalMinHT) * 100).toFixed(1)}% << seuil 10%)`,
         );
         return false;
       }
@@ -889,6 +911,87 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
   } catch {
     // raw_text invalide — continue avec le flow normal (qui re-tentera lui aussi le parse)
+  }
+
+  // ── V3.4.28 (2026-05-22) — BYPASS DEVIS HORS-SCOPE BTP ──────────────────────
+  // VMD est dédié aux devis BTP/rénovation/aménagement immobilier. Si le user
+  // upload un devis de réparation vélo, voiture, électroménager, prestation
+  // médicale, etc. → on bypass complet (pas de matching catalogue marché, pas
+  // de bloc Entreprise vérifié comme un artisan BTP, pas de score) et on
+  // affiche un message explicite "ce devis n'est pas dans notre périmètre".
+  //
+  // Cas d'origine "devis vélo" (2026-05-22) : devis réparation Trek Emonda par
+  // Cycle Service Lyon → analyse passait → matcher catalogue inventait
+  // "Remplacement chaudière fioul" pour des opérations vélo (3 unités 114€
+  // vs marché 2500-7000€) → résultat absurde.
+  try {
+    const parsed = JSON.parse(analysis.raw_text || "{}");
+    const extractedActuel  = parsed.extracted as Record<string, unknown> | undefined;
+    const extractedLegacy2 = parsed.extracted_data as Record<string, unknown> | undefined;
+    const typeDoc =
+      (extractedActuel?.type_document as string | undefined) ||
+      (extractedLegacy2?.type_document as string | undefined);
+
+    if (typeDoc === "hors_scope") {
+      const horsScopeCat =
+        (extractedActuel?.hors_scope_categorie as string | null | undefined) ||
+        (extractedLegacy2?.hors_scope_categorie as string | null | undefined) ||
+        "autre";
+
+      const HORS_SCOPE_LABELS: Record<string, string> = {
+        reparation_vehicule:      "réparation de véhicule (auto, moto, vélo, …)",
+        reparation_electromenager: "réparation d'électroménager",
+        achat_biens:              "achat de biens (mobilier, équipement, …)",
+        service_personnel:        "service personnel (formation, conseil, …)",
+        medical:                  "prestation médicale ou paramédicale",
+        veterinaire:              "prestation vétérinaire",
+        autre:                    "prestation hors du périmètre BTP",
+      };
+      const horsScopeLabel = HORS_SCOPE_LABELS[horsScopeCat] || HORS_SCOPE_LABELS.autre;
+
+      console.log(`[conclusion] HORS-SCOPE BYPASS — categorie="${horsScopeCat}" — pas de matching catalogue BTP, message dédié`);
+
+      const horsScopeConclusion: ConclusionData & { engine_version: string } = {
+        verdict_global:      "eleve_justifie", // valeur neutre — pas de vrai verdict possible
+        phrase_intro:        `Ce devis concerne une ${horsScopeLabel} — il n'est pas dans le périmètre de VerifierMonDevis, qui est dédié aux devis de TRAVAUX BTP (rénovation, aménagement, construction sur un bâtiment immobilier). Nous n'avons pas de référentiel prix marché pour ce type de prestation, et les vérifications artisan BTP (RGE, qualification, etc.) ne s'appliquent pas.`,
+        anomalies:           [],
+        justifications:      `Pour les devis hors BTP, nous vous recommandons des comparateurs spécialisés (ex: AlloVoisin pour les services à la personne, des sites comparateurs auto/moto pour la mécanique). Si vous pensez qu'il s'agit d'une erreur de détection (ex: ce devis contient bien des travaux BTP), n'hésitez pas à nous le signaler — on regardera ensemble.`,
+        has_anomalies:       false,
+        verdict_decisionnel: "signer_avec_negociation",
+        surcout_global:      { min: 0, max: 0 },
+        niveau_risque:       "modéré",
+        actions_avant_signature: [
+          `Comparer ce devis à 1-2 autres devis du même type pour avoir un ordre de prix de marché.`,
+          `Demander au prestataire une facture détaillée poste par poste (matériel/main d'œuvre/déplacement) plutôt qu'un forfait global.`,
+          `Vérifier les conditions de garantie (durée, conditions, exclusions) écrites sur le devis avant signature.`,
+        ],
+        verdict_reasons: {
+          summary: `Devis hors-scope (${horsScopeLabel}) — pas d'analyse BTP applicable`,
+          reasons: [
+            `Le devis ne décrit pas des travaux BTP/rénovation/aménagement sur un bâtiment.`,
+            `Notre référentiel prix marché et nos contrôles artisan (RGE, ADEME, finances) sont calibrés pour le BTP uniquement.`,
+          ],
+          context: [
+            `Si c'est une erreur de détection (ex: votre devis contient bien des travaux BTP), recliquez sur "Régénérer" — le moteur peut affiner sa décision.`,
+          ],
+        },
+        comparison_indicative: true,
+        hors_scope: {
+          categorie: (horsScopeCat as "reparation_vehicule" | "reparation_electromenager" | "achat_biens" | "service_personnel" | "medical" | "veterinaire" | "autre"),
+        },
+        generated_at: new Date().toISOString(),
+        engine_version: ENGINE_VERSION,
+      };
+
+      await (supabase as any)
+        .from("analyses")
+        .update({ conclusion_ia: JSON.stringify(horsScopeConclusion) })
+        .eq("id", analysisId);
+
+      return jsonOk({ conclusion: horsScopeConclusion, cached: false });
+    }
+  } catch {
+    // raw_text invalide — continue
   }
 
   // ── Parse scoring (critères rouges + oranges pour verdictEngine) ────────────

@@ -359,6 +359,40 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
       continue;
     }
 
+    // V3.4.28 (2026-05-22) — Filtre des matchs catalogue manifestement faux
+    // par RATIO INVERSE (devis << marché_min).
+    // Cas d'origine "devis vélo" : Gemini a matché un poste devis "Nettoyage du
+    // pédalier" 38€ → catalogue "Remplacement chaudière fioul" 2500-7000€.
+    // Le ratio devis/marché_min = 38/2500 = 1.5% → le poste n'a manifestement
+    // RIEN à voir avec une chaudière. Plutôt que d'afficher "Bien placé" pour
+    // un faux match qui passe inaperçu, on filtre le groupe → l'user voit
+    // moins de cartes mais celles affichées sont fiables.
+    //
+    // Heuristique conservative — 4 conditions ANDées :
+    //   - `theoreticalMinHT >= 200` (marché significatif — ne filtre pas les
+    //     petits postes type "fourniture vis" 5€ vs marché 8€)
+    //   - `devisTotalHT >= 5` (devis non nul, exclut les forfaits à 0€)
+    //   - `devisTotalHT < theoreticalMinHT * 0.10` (devis < 10% du marché min
+    //     = écart impossible pour un VRAI match catalogue, même sur du low-cost)
+    //   - `!isForfait` (les forfaits ont leur logique propre, déjà gérés ailleurs)
+    //
+    // Anti-régression : un poste catalogué légitimement bas (ex: devis 100€
+    // pour catalogue 200-500€) ne déclenche PAS (ratio 50% > 10%).
+    if (
+      theoreticalMinHT >= 200 &&
+      typeof devisTotalHT === "number" &&
+      devisTotalHT >= 5 &&
+      devisTotalHT < theoreticalMinHT * 0.10 &&
+      !isForfait
+    ) {
+      console.warn(
+        `[V3.4.28] match catalogue faux filtré (ratio inverse) — "${item.job_type_label ?? "?"}" : ` +
+          `devis=${devisTotalHT} € vs marché_min=${theoreticalMinHT.toFixed(0)} € ` +
+          `(ratio ${((devisTotalHT / theoreticalMinHT) * 100).toFixed(1)}% << seuil 10%)`,
+      );
+      continue;
+    }
+
     // No verdict if no catalog prices matched
     // For forfait groups: keep vsAvgPct for the gauge but override the label
     let { verdict, vsAvgPct } = prices.length > 0
