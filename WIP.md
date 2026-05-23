@@ -33,7 +33,36 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
   - `JobTypeDisplayRow` étendue avec `vectorial?: {top_similarity, confidence, all_candidates}` optionnel.
   - `processJobTypes` propage `vectorial` depuis le shape edge function.
 - ✅ Phase E — script analyse logs shadow (2026-05-22). `scripts/analyze_vectorial_shadow_logs.mjs` : parse les logs `[V35_VECTORIAL_SHADOW]` exportés depuis Supabase Dashboard, produit un rapport markdown avec volumétrie, distribution confidence, dispersion V3.6 vs vectoriel, top jobs, cas divergents, cas faible couverture, checklist Phase F. Mode `--demo` pour tester le script avec données factices. Mode `--file <path>` ou stdin pour analyser des logs réels. **À lancer dans 24-48h** sur ~30+ analyses naturelles.
-- ✅ Phase F — FLIP EFFECTUÉ EN PROD (2026-05-22). Décision sur la base d'un audit qualitatif sur le devis CYRIL CATEZ (29 lignes) : V3.6 → 3 labels 100% hallucinés, vectoriel → ~25/29 labels corrects + récupère les postes que V3.6 perdait (niche SDB, coffrage). ENGINE_VERSION bump 3.4.28 → 3.5.0 (invalidation cache massive). Flag set côté Supabase secrets : `MARKET_MATCHER_VECTORIAL=on`. Monitoring 24h via logs `[conclusion] V3.5 vectorial mode detected`. Rollback express disponible : `npx supabase secrets set MARKET_MATCHER_VECTORIAL=off`. Limite connue : confidence majoritairement medium (similarity 0.70-0.85) car libellés catalogue plus courts que descriptions devis — UI affiche beaucoup de badges ambre 🟡 "Match plausible". Recalibrage seuils possible en V3.5.1 après observation 7j (HIGH 0.85 → 0.78).
+- ✅ Phase F — FLIP EFFECTUÉ EN PROD (2026-05-22) + VALIDÉ EN LIVE le 2026-05-23 sur le devis CYRIL CATEZ : pastille passe de "3 groupes hallucinés V3.6" à "29 cartes ligne par ligne (25 correct / 1 légèrement / 0 surévalué / 3 anomalies)". Gain de précision massif confirmé.
+
+### 🟠 V3.5.1 — 2 bugs détectés en live sur CYRIL CATEZ (à arbitrer)
+
+> Phase F livre la promesse principale (1 ligne = 1 match) mais 2 bugs cohérence visibles. Discussion à reprendre quand on aura plus de recul sur d'autres devis.
+
+**Bug 1 — Faux positifs anomalies sur les forfaits**
+Sur les 3 cartes rouges 🔴 Anomalie du devis CYRIL CATEZ :
+- "Doublage placo" 325 €/m² → en réalité "Coffrage en placo" cuisine = 1 **forfait** 325€
+- "Doublage placo" 275 €/m² → "Coffrage en placo" WC = 1 **forfait** 275€
+- "Peinture plafond" 2400 €/m² → "Ponçage plafond et mur" = 1 **forfait** 2400€
+
+Cause : dans `market-matcher-vectorial.ts:matchSingleLineVectorial`, quand `workItem.unit === null` (Gemini n'extrait pas l'unité), on fallback sur `top.unit` du catalogue (en m²). Donc un forfait devient artificiellement "1 m² à 325€" → ratio × 4 du marché → fausse anomalie.
+
+**Patch envisagé** : si description workItem contient `/forfait|^ff$|^fft$/i` → forcer `main_unit="forfait"` (priorité sur catalogue) + bypass classification anomalie.
+
+**Bug 2 — Cohérence verdict / encadré "Comparaison limitée"**
+Sur le même devis : encadré jaune dit *"Aucune anomalie poste par poste n'a été détectée"* alors que le verdict expert ROUGE dit "3 postes dépassent largement les prix du marché" + 3 cartes rouges affichées.
+
+Cause : `hasUnitsMissing=true` (action 1 dit "29/29 lignes sans unité explicite") déclenche `comparisonIndicative=true`, mais le matching catalogue tourne quand même et trouve des anomalies. Résultat : 2 messages contradictoires.
+
+**Patch envisagé** : dans `ConclusionIA.tsx`, si `sanitizedAnomalies.length > 0 || verdict ∈ {a_negocier, ne_pas_signer}` → masquer l'encadré "Comparaison limitée" (le verdict d'anomalie prime).
+
+**Décision actuelle (2026-05-23)** : on **n'applique pas** les patches tout de suite. On laisse Phase F tourner sur d'autres devis pour voir si :
+- Le bug forfait apparaît systématiquement (vraisemblable mais à confirmer sur d'autres devis avec forfaits)
+- D'autres bugs structurels émergent (catalogue à enrichir, seuils confidence à recalibrer, etc.)
+
+Re-évaluer V3.5.1 après ~10-20 analyses naturelles post-flip.
+
+**Procédure complète Phase F (référence pour rollback / re-flip)** : Décision sur la base d'un audit qualitatif sur le devis CYRIL CATEZ (29 lignes) : V3.6 → 3 labels 100% hallucinés, vectoriel → ~25/29 labels corrects + récupère les postes que V3.6 perdait (niche SDB, coffrage). ENGINE_VERSION bump 3.4.28 → 3.5.0 (invalidation cache massive). Flag set côté Supabase secrets : `MARKET_MATCHER_VECTORIAL=on`. Monitoring 24h via logs `[conclusion] V3.5 vectorial mode detected`. Rollback express disponible : `npx supabase secrets set MARKET_MATCHER_VECTORIAL=off`. Limite connue : confidence majoritairement medium (similarity 0.70-0.85) car libellés catalogue plus courts que descriptions devis — UI affiche beaucoup de badges ambre 🟡 "Match plausible". Recalibrage seuils possible en V3.5.1 après observation 7j (HIGH 0.85 → 0.78).
 
 **Procédure complète Phase F (référence pour rollback / re-flip)** :
   ```bash
