@@ -33,7 +33,9 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
   - `JobTypeDisplayRow` étendue avec `vectorial?: {top_similarity, confidence, all_candidates}` optionnel.
   - `processJobTypes` propage `vectorial` depuis le shape edge function.
 - ✅ Phase E — script analyse logs shadow (2026-05-22). `scripts/analyze_vectorial_shadow_logs.mjs` : parse les logs `[V35_VECTORIAL_SHADOW]` exportés depuis Supabase Dashboard, produit un rapport markdown avec volumétrie, distribution confidence, dispersion V3.6 vs vectoriel, top jobs, cas divergents, cas faible couverture, checklist Phase F. Mode `--demo` pour tester le script avec données factices. Mode `--file <path>` ou stdin pour analyser des logs réels. **À lancer dans 24-48h** sur ~30+ analyses naturelles.
-- 🟡 Phase F — rollout en attente Phase E validée. **Procédure** :
+- ✅ Phase F — FLIP EFFECTUÉ EN PROD (2026-05-22). Décision sur la base d'un audit qualitatif sur le devis CYRIL CATEZ (29 lignes) : V3.6 → 3 labels 100% hallucinés, vectoriel → ~25/29 labels corrects + récupère les postes que V3.6 perdait (niche SDB, coffrage). ENGINE_VERSION bump 3.4.28 → 3.5.0 (invalidation cache massive). Flag set côté Supabase secrets : `MARKET_MATCHER_VECTORIAL=on`. Monitoring 24h via logs `[conclusion] V3.5 vectorial mode detected`. Rollback express disponible : `npx supabase secrets set MARKET_MATCHER_VECTORIAL=off`. Limite connue : confidence majoritairement medium (similarity 0.70-0.85) car libellés catalogue plus courts que descriptions devis — UI affiche beaucoup de badges ambre 🟡 "Match plausible". Recalibrage seuils possible en V3.5.1 après observation 7j (HIGH 0.85 → 0.78).
+
+**Procédure complète Phase F (référence pour rollback / re-flip)** :
   ```bash
   # 1. Vérifier critères go via le script Phase E
   cat ~/Downloads/shadow_logs.txt | node scripts/analyze_vectorial_shadow_logs.mjs
