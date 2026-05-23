@@ -7,7 +7,7 @@ import { requireAdmin } from '@/lib/auth/adminAuth';
 // Les manifestes B2 (photos de fond + assets décor) sont servis ici côté
 // serveur : B2 ne renvoie pas d'en-tête CORS, donc un fetch() direct depuis
 // le navigateur échoue. Ce proxy même-origine règle le problème.
-const B2_BASE = 'https://f003.backblazeb2.com/file/verifiermondevismarketing';
+const B2_BASE = 'https://f005.backblazeb2.com/file/gerermonchantier';
 
 async function fetchManifest(path: string, key: string): Promise<unknown[]> {
   try {

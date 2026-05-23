@@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
 
 // Proxy d'images B2 mis en cache par le CDN Vercel.
 //
-// Pourquoi : le bucket B2 `verifiermondevismarketing` est public mais B2 a un
+// Pourquoi : le bucket B2 `gerermonchantier` est public mais B2 a un
 // quota de download (bande passante + transactions classe B). Charger les ~2600
 // PNG de previews directement depuis le navigateur via <img src="…b2…"> tape B2
 // à CHAQUE affichage → le quota gratuit explose et toutes les images tombent en
@@ -18,7 +18,7 @@ import type { APIRoute } from 'astro';
 //
 // SSRF : seules les URLs du bucket marketing sont relayées.
 
-const B2_BASE = 'https://f003.backblazeb2.com/file/verifiermondevismarketing/';
+const B2_BASE = 'https://f005.backblazeb2.com/file/gerermonchantier/';
 
 export const GET: APIRoute = async ({ url }) => {
   const target = url.searchParams.get('u');

@@ -7,7 +7,7 @@
 // Les URLs non-B2 (live previews du render-server, data:, blob:) passent
 // inchangées.
 
-const B2_BASE = 'https://f003.backblazeb2.com/file/verifiermondevismarketing/';
+const B2_BASE = 'https://f005.backblazeb2.com/file/gerermonchantier/';
 
 export function proxyImg(url: string | null | undefined): string {
   if (!url) return '';
