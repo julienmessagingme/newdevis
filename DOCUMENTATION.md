@@ -1153,19 +1153,19 @@ Si Gemini API fail, timeout ou JSON invalide → 0 groupes. Matching direct par 
 
 **Diagnostic si régression** : logs Supabase → Functions → analyze-quote → chercher `[MarketPrices] Gemini raw response` (raw Gemini), `ALL 5 LEVELS FAILED` (couche 2 manquante), `Emergency fallback` (couche 3 déclenchée).
 
-**Roadmap V3.5 — Refonte vectorielle (en cours, 2026-05-21)** :
-La cause racine des regroupements aberrants (ex: PH VISION "Pose extracteur/WC = 3900€ tout-le-bloc-Sanitaires") est l'étape **groupement Gemini Phase 2** qui regroupe N lignes devis en M groupes avant matching catalogue. Solution : **1 ligne devis = 1 embedding** matché individuellement au catalogue via similarity search vectorielle (pgvector + HNSW + cosine).
+**Refonte V3.5 — Vectorielle (LIVE en prod depuis 2026-05-22)** :
+La cause racine des regroupements aberrants (ex: PH VISION "Pose extracteur/WC = 3900€ tout-le-bloc-Sanitaires", placo TCE "Peinture salle de bain pièce 26 040€") était l'étape **groupement Gemini Phase 2** qui regroupait N lignes devis en M groupes avant matching catalogue. Solution livrée : **1 ligne devis = 1 embedding** matché individuellement au catalogue via similarity search vectorielle (pgvector + HNSW + cosine).
 
 | Phase | Statut | Description |
 |---|---|---|
-| A — Migration pgvector | ✅ Livrée | `20260521_002_market_prices_vectorization.sql` ajoute colonne `embedding vector(768)` + index HNSW + RPC `search_market_prices_v2` |
-| B — Seed embeddings | ✅ Livrée | `scripts/seed_market_prices_embeddings.mjs` embed 911 entries via Gemini `text-embedding-004` (768 dim, ~24s, < 0.01 €) |
-| C — Refonte edge function | 🟡 À venir | `analyze-quote` appelle `supabase.rpc('search_market_prices_v2', ...)` ligne par ligne au lieu du groupement Gemini |
-| D — Feature flag | 🟡 À venir | `MARKET_MATCHER_VECTORIAL=true/false` env edge function pour rollout progressif |
-| E — Tests + validation | 🟡 À venir | Tests sur 3 devis canoniques (PH VISION, Thouret, Kern) + monitoring divergence vs V3.6 |
-| F — Bascule prod | 🟡 À venir | Flip flag à `true` après validation + retrait code legacy V3.6 après période de grâce |
+| A — Migration pgvector | ✅ Livrée 2026-05-21 | `20260521_002_market_prices_vectorization.sql` ajoute colonne `embedding vector(768)` + index HNSW + RPC `search_market_prices_v2` |
+| B — Seed embeddings | ✅ Livrée 2026-05-21 | `scripts/seed_market_prices_embeddings.mjs` embed les 911 entries via Gemini `gemini-embedding-001` + `outputDimensionality:768`. Seed exécuté en prod : 911/911 OK. |
+| C — Refonte edge function | ✅ Livrée 2026-05-21 | 5 sous-phases : helper `market-matcher-vectorial.ts` + feature flag `MARKET_MATCHER_VECTORIAL=off\|shadow\|on` + adapter `conclusion.ts` (skip garde "groupement invalide" en mode vectoriel) + 23 tests unitaires + shadow run via `EdgeRuntime.waitUntil` |
+| D — UI vectorielle | ✅ Livrée 2026-05-22 | Nouveau composant `VectorialPriceList.tsx` : 3 sections (Comparables fiables / Incertains / Non comparables) + badge confidence high/medium/low/no_match + pagination 15/section + top-5 candidats catalogue alternatifs. `BlockPrixMarche` bascule automatiquement quand le shape vectoriel est détecté |
+| E — Script analyse shadow | ✅ Livré 2026-05-22 | `scripts/analyze_vectorial_shadow_logs.mjs` parse les logs `[V35_VECTORIAL_SHADOW]` et sort un rapport markdown avec checklist Phase F automatisée |
+| F — Bascule prod | ✅ FLIPPÉ 2026-05-22 | `MARKET_MATCHER_VECTORIAL=on` set côté Supabase secrets + bump ENGINE_VERSION 3.4.28 → 3.5.0. Validé en live sur le devis CYRIL CATEZ le 2026-05-23 : 29 cartes ligne par ligne au lieu des 3 groupes hallucinés V3.6. Rollback express : `npx supabase secrets set MARKET_MATCHER_VECTORIAL=off` |
 
-Tant que `MARKET_MATCHER_VECTORIAL=false` (défaut), le pipeline V3.6 (3 couches ci-dessus) reste actif. Le champ `embedding` est créé NULL puis populé par le seed sans impact run-time.
+Le code V3.6 (3 couches groupement Gemini + matching) reste dans le code derrière le flag, prêt à servir en rollback. 2 bugs résiduels documentés dans `WIP.md` section V3.5.1 (faux positifs anomalies sur forfaits + cohérence verdict/encadré comparison_indicative) à arbitrer après ~10-20 analyses naturelles post-flip.
 
 ### Étape 5 : Scoring et résultat
 

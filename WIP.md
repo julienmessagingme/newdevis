@@ -11,29 +11,30 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
-## 🚧 Snapshot 2026-05-21 — chantiers actifs
+## 🚧 Snapshot 2026-05-23 — chantiers actifs
 
-### 🟡 V3.5 refonte vectorisation catalogue market_prices
-> Trigger : bug PH VISION ("Pose extracteur/WC = 3900€" regroupait à tort tout le bloc Sanitaires).
-> Plan validé : 6 phases A→F, embedding `gemini-embedding-001` (768 dim via `outputDimensionality`), affichage 1 ligne = 1 carte, feature flag.
-> **Phases A+B+C livrées en prod + seed exécuté (911/911 ✓) + shadow run ACTIVÉ (`MARKET_MATCHER_VECTORIAL=shadow` set côté Supabase secrets le 2026-05-21). Collecte de données en cours pour Phase E.**
-- ✅ Phase A — migration pgvector + colonne embedding + index HNSW + RPC `search_market_prices_v2`. Appliquée prod via SQL Editor.
-- ✅ Phase B — script `scripts/seed_market_prices_embeddings.mjs` (commits `72c6ff9` + `0d7c443` + `551208f`). **Seed exécuté par Julien le 2026-05-21 : 911 rows embedded / 0 missing / 911 total**. Index HNSW prêt à servir les similarity searches. Modèle final retenu : `gemini-embedding-001` + `outputDimensionality: 768` (embedding-001 ET text-embedding-004 étaient tous deux inaccessibles sur la clé API).
-- ✅ Phase C — refonte `market-prices.ts` (2026-05-21). 5 sous-phases livrées :
-  - C.1 : nouveau fichier `market-matcher-vectorial.ts` (helper + classification confidence)
-  - C.2 : feature flag `MARKET_MATCHER_VECTORIAL=off|shadow|on` dans `market-prices.ts` + extension `JobTypePriceResult.vectorial`
-  - C.3 : `conclusion.ts` détecte mode vectoriel, skip garde "groupement invalide" (non pertinente), ajoute garde `vectorialUncertaintyTriggered` (>30% no_match OU >50% low/no_match → `comparison_indicative=true`)
-  - C.4 : tests unitaires `market-matcher-vectorial.test.ts` (23 cas, 100% pass)
-  - C.5 : shadow run en background via `EdgeRuntime.waitUntil` → logs `[V35_VECTORIAL_SHADOW]` pour Phase E
-  - Modèle : `gemini-embedding-001` + `outputDimensionality:768` + `taskType:RETRIEVAL_QUERY`
-  - Prod en mode `off` par défaut → V3.6 inchangée tant qu'on flip pas la variable d'env
-- ✅ Phase D — adaptation UI vectorielle (2026-05-22).
-  - Nouveau composant `src/components/analysis/VectorialPriceList.tsx` : 3 sections (Comparables fiables / Comparables incertains / Non comparables) + badge confidence (high/medium/low/no_match) + pagination 15 cartes par section + tooltip explicatif sur chaque badge + dépliable montrant top-5 candidats catalogue alternatifs.
-  - `BlockPrixMarche.tsx` : détection `analysisRows.some(r => r.vectorial !== undefined)` → bascule sur VectorialPriceList, sinon affichage V3.6 inchangé.
-  - `JobTypeDisplayRow` étendue avec `vectorial?: {top_similarity, confidence, all_candidates}` optionnel.
-  - `processJobTypes` propage `vectorial` depuis le shape edge function.
-- ✅ Phase E — script analyse logs shadow (2026-05-22). `scripts/analyze_vectorial_shadow_logs.mjs` : parse les logs `[V35_VECTORIAL_SHADOW]` exportés depuis Supabase Dashboard, produit un rapport markdown avec volumétrie, distribution confidence, dispersion V3.6 vs vectoriel, top jobs, cas divergents, cas faible couverture, checklist Phase F. Mode `--demo` pour tester le script avec données factices. Mode `--file <path>` ou stdin pour analyser des logs réels. **À lancer dans 24-48h** sur ~30+ analyses naturelles.
-- ✅ Phase F — FLIP EFFECTUÉ EN PROD (2026-05-22) + VALIDÉ EN LIVE le 2026-05-23 sur le devis CYRIL CATEZ : pastille passe de "3 groupes hallucinés V3.6" à "29 cartes ligne par ligne (25 correct / 1 légèrement / 0 surévalué / 3 anomalies)". Gain de précision massif confirmé.
+### ✅ V3.5.0 refonte vectorisation catalogue market_prices — LIVE EN PROD
+
+> Trigger : bugs récurrents PH VISION / placo TCE / AS COUVERTURE / CYRIL CATEZ où le groupement Gemini Phase 2 hallucinait des labels catalogue ou empilait plusieurs lignes devis dans un seul groupe faux.
+> Solution livrée : **1 ligne devis = 1 embedding = 1 match catalogue** via pgvector + HNSW similarity search.
+> **MARKET_MATCHER_VECTORIAL=on activé en prod le 2026-05-22. Validé en live le 2026-05-23.**
+
+6 phases livrées (toutes commits sur main, code en prod) :
+
+| Phase | Livraison | Détail |
+|---|---|---|
+| **A** Migration pgvector | `72c6ff9` | colonne `embedding vector(768)` + index HNSW + RPC `search_market_prices_v2` |
+| **B** Seed embeddings | `72c6ff9` + `0d7c443` + `551208f` | 911/911 entries catalogue embeddées via `gemini-embedding-001` + `outputDimensionality:768` |
+| **C** Refonte edge function | `d49dc90` + `1537b38` | helper `market-matcher-vectorial.ts` + feature flag `MARKET_MATCHER_VECTORIAL=off\|shadow\|on` + adapter `conclusion.ts` + 23 tests + shadow run via `EdgeRuntime.waitUntil` |
+| **D** UI vectorielle | `9604be0` | `VectorialPriceList.tsx` (3 sections / badge confidence / pagination / top-5 candidats alternatifs) — `BlockPrixMarche` bascule auto si shape vectoriel détecté |
+| **E** Script analyse shadow | `9604be0` | `scripts/analyze_vectorial_shadow_logs.mjs` — checklist Phase F automatisée |
+| **F** Flip prod | `438a003` + secret Supabase | `MARKET_MATCHER_VECTORIAL=on` + ENGINE_VERSION 3.4.28 → 3.5.0 + redéploiement edge function |
+
+**Validation live (devis CYRIL CATEZ 17 645€, 29 lignes)** :
+- V3.6 : 3 grosses cartes 100% hallucinées (`isolation_phonique_cloison` 6671€, `enduit_de_lissage_plafond` 10015€, `menuiserie_taux_horaire` 960€)
+- V3.5 vectoriel : 29 cartes ligne par ligne — pastille **25 corrects / 1 légèrement / 0 surévalué / 3 anomalies** — niche SDB + coffrage récupérés (V3.6 les perdait), libellés corrects (`faux_plafond_ba13`, `enduit_lissage`, `pose_porte_int`, etc.)
+
+**Rollback express** disponible : `npx supabase secrets set MARKET_MATCHER_VECTORIAL=off --project-ref vhrhgsqxwvouswjaiczn` (effet immédiat sur les prochaines analyses).
 
 ### 🟠 V3.5.1 — 2 bugs détectés en live sur CYRIL CATEZ (à arbitrer)
 
@@ -62,29 +63,8 @@ Cause : `hasUnitsMissing=true` (action 1 dit "29/29 lignes sans unité explicite
 
 Re-évaluer V3.5.1 après ~10-20 analyses naturelles post-flip.
 
-**Procédure complète Phase F (référence pour rollback / re-flip)** : Décision sur la base d'un audit qualitatif sur le devis CYRIL CATEZ (29 lignes) : V3.6 → 3 labels 100% hallucinés, vectoriel → ~25/29 labels corrects + récupère les postes que V3.6 perdait (niche SDB, coffrage). ENGINE_VERSION bump 3.4.28 → 3.5.0 (invalidation cache massive). Flag set côté Supabase secrets : `MARKET_MATCHER_VECTORIAL=on`. Monitoring 24h via logs `[conclusion] V3.5 vectorial mode detected`. Rollback express disponible : `npx supabase secrets set MARKET_MATCHER_VECTORIAL=off`. Limite connue : confidence majoritairement medium (similarity 0.70-0.85) car libellés catalogue plus courts que descriptions devis — UI affiche beaucoup de badges ambre 🟡 "Match plausible". Recalibrage seuils possible en V3.5.1 après observation 7j (HIGH 0.85 → 0.78).
+**Piège déploiement edge function (à retenir absolument)** : `npx supabase functions deploy analyze-quote` upload **le code du dossier local actuel** — pas le code remote main. Si le clone local est en retard (ex: clone fait il y a 2 jours sans `git pull` entre temps), tu déploieras une version périmée et le secret `MARKET_MATCHER_VECTORIAL=on` ne servira à rien (le code déployé n'a même pas la garde `VECTORIAL_MODE`). **Toujours faire `git pull origin main` AVANT chaque `functions deploy`**. Symptôme du bug : `[MarketPrices] startup — vectorial_mode=on` absent des logs Supabase. Diagnostic confirmé sur le flip Phase F le 2026-05-23 (déploiement initial silencieusement périmé sans le nouveau fichier `market-matcher-vectorial.ts`).
 
-**Procédure complète Phase F (référence pour rollback / re-flip)** :
-  ```bash
-  # 1. Vérifier critères go via le script Phase E
-  cat ~/Downloads/shadow_logs.txt | node scripts/analyze_vectorial_shadow_logs.mjs
-  # → si "✅ GO pour Phase F" en bas du rapport :
-
-  # 2. Flip feature flag
-  npx supabase secrets set MARKET_MATCHER_VECTORIAL=on --project-ref vhrhgsqxwvouswjaiczn
-
-  # 3. Bump ENGINE_VERSION dans src/pages/api/analyse/[id]/conclusion.ts
-  # (invalidation cache conclusion_ia obligatoire — sinon les analyses pré-flip
-  # restent figées sur le mode V3.6)
-
-  # 4. Push + déploiement Vercel auto
-  git add . && git commit -m "feat(analyse): V3.5.0 Phase F — bascule prod vectoriel" && git push
-
-  # 5. Monitoring 24h : grep [conclusion] V3.5 vectorial mode detected dans
-  # Supabase Functions logs + verifier que les analyses récentes affichent
-  # VectorialPriceList côté UI. Rollback express si régression :
-  npx supabase secrets set MARKET_MATCHER_VECTORIAL=off --project-ref vhrhgsqxwvouswjaiczn
-  ```
 - **Détail complet** : section "Refonte V3.5 vectorisation" dans `CLAUDE.md`.
 
 ### ✅ V3.4.24→27 — Quick fixes anti-régression du groupement Gemini (2026-05-21)
