@@ -551,6 +551,24 @@ const AnalysisResult = () => {
     return false;
   }, [analysis?.conclusion_ia, conclusionIaLive]);
 
+  // V3.5.1 (2026-05-26) — Détection du flag incomplete_quote depuis conclusion_ia.
+  // Quand set (devis résumé par lot type Créteil 49 700€ sans détail quantités/PU),
+  // on masque BlockPrixMarche pour éviter d'afficher les fausses anomalies
+  // (ratio quantité=1 vs marché m² → ×80 partout). Le wording explicite avec
+  // instructions pour obtenir un devis détaillé est déjà dans la bannière de
+  // ConclusionIA.
+  const isIncompleteQuote = useMemo(() => {
+    const sources = [conclusionIaLive, analysis?.conclusion_ia];
+    for (const raw of sources) {
+      if (!raw) continue;
+      try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (parsed && typeof parsed === "object" && (parsed as any).incomplete_quote) return true;
+      } catch { /* parse fail, skip */ }
+    }
+    return false;
+  }, [analysis?.conclusion_ia, conclusionIaLive]);
+
   // V3.4.17 (2026-05-19) — Extraction des clauses litigieuses depuis raw_text.
   // Détection assurée côté serveur (extract.ts) par Gemini sur le texte libre
   // du devis (CGV, mentions bas de page). Si présentes, on affiche le bloc
@@ -1259,8 +1277,12 @@ const AnalysisResult = () => {
             V3.4.28 — Masqué si devis hors-scope BTP : le matching catalogue
             BTP n'a aucun sens sur un devis vélo/auto/électroménager et
             affiche des hallucinations.
+            V3.5.1 — Masqué si devis incomplet (résumé par lot sans détail) :
+            le matching catalogue produit ×80 absurde sur des sous-totaux.
+            Le user voit uniquement la bannière "demandez détail" dans
+            ConclusionIA.
         ══════════════════════════════════════════════════════ */}
-        {visibleBlocks.includes("prix_marche") && !isHorsScopeBtp && (
+        {visibleBlocks.includes("prix_marche") && !isHorsScopeBtp && !isIncompleteQuote && (
           <BlockPrixMarche
             montantTotalHT={totalHT}
             codePostal={locationInfo.codePostal}

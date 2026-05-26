@@ -97,6 +97,18 @@ export interface ConclusionData {
     categorie: "reparation_vehicule" | "reparation_electromenager" | "achat_biens" | "service_personnel" | "medical" | "veterinaire" | "autre";
   };
 
+  /**
+   * V3.5.1 (2026-05-26) — Devis incomplet / résumé par lot (sous-totaux par
+   * corps de métier sans quantités ni prix unitaires). Quand ce champ est set,
+   * ConclusionIA affiche une bannière dédiée "Devis trop synthétique" et
+   * AnalysisResult peut masquer BlockPrixMarche (qui sinon afficherait des
+   * fausses anomalies type "Plomberie 7600€ vs 90-220€" pour un sous-total
+   * de lot).
+   */
+  incomplete_quote?: {
+    reason: string;
+  };
+
   // ── Métadonnée ─────────────────────────────────────────────────────────────
   generated_at: string;
 }

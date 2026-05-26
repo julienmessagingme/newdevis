@@ -169,6 +169,21 @@ export interface ExtractedData {
    */
   courtier_nom?: string | null;
   /**
+   * V3.4.28 — Catégorie hors-scope (si type_document="hors_scope").
+   * Valeurs : reparation_vehicule | reparation_electromenager | achat_biens |
+   * service_personnel | medical | veterinaire | autre.
+   */
+  hors_scope_categorie?: string | null;
+  /**
+   * V3.5.1 (2026-05-26) — Devis incomplet / résumé par lot sans détail.
+   * Calculé par heuristique post-extraction dans extract.ts.
+   * Critères : ≥ 5 lignes ET ≥ 70% sans unité physique ET ≥ 70% quantité=1/null.
+   * Quand true, conclusion.ts bypass vers verdict synthétique "Devis incomplet"
+   * + bannière dédiée "demandez détail quantités + PU pour chaque ligne".
+   */
+  is_incomplete_quote?: boolean;
+  incomplete_quote_reason?: string | null;
+  /**
    * V3.4.17 (2026-05-19) — Détection de clauses contractuelles
    * potentiellement litigieuses ou illégales dans le texte libre du devis.
    * Patterns ciblés :

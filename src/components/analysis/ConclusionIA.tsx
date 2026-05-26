@@ -247,7 +247,11 @@ function ConclusionDisplay({
   // aussi le hero surcout car il n'y a pas d'artisan à vérifier.
   const isCourtierEstimation = Boolean(conclusion.estimation_courtier);
   const courtierNom = conclusion.estimation_courtier?.courtier_nom ?? null;
-  const showAccusatoryHero    = hasSurcout && !isVerdictSigner && !isComparisonIndicative && !isForeignQuote && !isCourtierEstimation;  // RÈGLE 2 + 3 + V3.4.13 + V3.4.14 + V3.4.20
+  // V3.5.1 — Devis incomplet (résumé par lot sans détail) : on masque le hero
+  // accusatoire car les "anomalies" affichées sont des artefacts d'extraction.
+  const isIncompleteQuote = Boolean(conclusion.incomplete_quote);
+  const incompleteQuoteReason = conclusion.incomplete_quote?.reason ?? null;
+  const showAccusatoryHero    = hasSurcout && !isVerdictSigner && !isComparisonIndicative && !isForeignQuote && !isCourtierEstimation && !isIncompleteQuote;  // RÈGLE 2 + 3 + V3.4.13 + V3.4.14 + V3.4.20 + V3.5.1
   const surcoutWithoutAnomaly = hasSurcout && anomCount === 0;         // RÈGLE 4
 
   // Wording neutre quand on a un surcoût détecté mais qu'on ne peut pas l'afficher accusatoire
@@ -338,6 +342,42 @@ function ConclusionDisplay({
                 Une fois le devis signé de l'artisan reçu, <strong>re-uploadez-le sur VerifierMonDevis</strong> pour
                 bénéficier de la vérification complète (identité, ancienneté, santé financière, conformité).
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* V3.5.1 (2026-05-26) — Bannière dédiée devis incomplet (résumé par lot).
+          Affichée AVANT le verdict, masque hero surcout (showAccusatoryHero=false).
+          Cas couvert : devis 49 700€ "Créteil" avec 9 sous-totaux par corps de
+          métier mais aucune quantité ni prix unitaire détaillé. Sans ça VMD
+          afficherait "+29 200€ d'anomalies" basé sur un matching ×80 absurde
+          (ratio quantité=1 vs marché m²). */}
+      {isIncompleteQuote && (
+        <div className="rounded-xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100/60 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl leading-none flex-shrink-0 mt-0.5" aria-hidden="true">📋</span>
+            <div className="min-w-0">
+              <p className="text-base font-bold text-amber-900 leading-snug">
+                Devis trop synthétique — détail manquant
+              </p>
+              <p className="text-sm text-amber-800/90 mt-1.5 leading-relaxed">
+                Ce devis indique uniquement les <strong>sous-totaux par corps de métier</strong> (Plomberie X €,
+                Maçonnerie Y €, etc.) sans les <strong>quantités</strong> (m², ml, u) ni les <strong>prix unitaires</strong>
+                de chaque prestation. Notre comparaison automatique au marché n'est <strong>pas fiable</strong> sans
+                ces informations — un sous-total "Plomberie 7 600 €" peut couvrir 5 ou 50 prestations différentes.
+              </p>
+              <p className="text-xs text-amber-800/80 mt-2 leading-relaxed">
+                ✓ <strong>Que faire :</strong> demandez à l'artisan un devis détaillé avec, pour chaque ligne :
+                description précise + quantité (m², ml, u) + prix unitaire HT + prix total. C'est un standard du métier
+                et c'est obligatoire pour pouvoir comparer au marché et négocier. Une fois le devis détaillé reçu,
+                ré-uploadez-le sur VerifierMonDevis pour une analyse complète.
+              </p>
+              {incompleteQuoteReason && (
+                <p className="text-[10px] text-amber-700/70 mt-2 italic">
+                  Détection : {incompleteQuoteReason}
+                </p>
+              )}
             </div>
           </div>
         </div>

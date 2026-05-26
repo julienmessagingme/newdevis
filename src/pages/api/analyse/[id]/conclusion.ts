@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.5.0";
+const ENGINE_VERSION = "3.5.1";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -838,6 +838,77 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
   } catch {
     // raw_text invalide — continue avec le flow normal (qui re-tentera lui aussi le parse)
+  }
+
+  // ── V3.5.1 (2026-05-26) — BYPASS DEVIS INCOMPLET ─────────────────────────────
+  //
+  // Cas d'origine "devis bidon Créteil" : devis 49 700€ avec 9 sections (Démolition,
+  // Plomberie, Maçonnerie, etc.) où SEULS les sous-totaux par lot sont remplis.
+  // Toutes les colonnes UNITE / QTE / Prix UNIT sont vides. Le vectoriel matche
+  // correctement chaque label catalogue mais le ratio quantité=1 vs marché m²
+  // produit des ×80 partout → faux verdict "+29 200€ d'anomalies".
+  //
+  // Détection : extract.ts:detectIncompleteQuote() — ≥ 5 lignes ET ≥ 70% sans
+  // unité physique ET ≥ 70% quantité=1/null. Si vrai, on bypass tout le scoring
+  // prix et on dit honnêtement à l'utilisateur que son devis n'est pas analysable
+  // en l'état + comment obtenir un vrai devis exploitable.
+  // ─────────────────────────────────────────────────────────────────────────────
+  try {
+    const parsed = JSON.parse(analysis.raw_text || "{}");
+    const extractedActuel = parsed.extracted as Record<string, unknown> | undefined;
+    const extractedLegacy2 = parsed.extracted_data as Record<string, unknown> | undefined;
+    const isIncomplete =
+      (extractedActuel?.is_incomplete_quote === true) ||
+      (extractedLegacy2?.is_incomplete_quote === true);
+
+    if (isIncomplete) {
+      const reason =
+        (extractedActuel?.incomplete_quote_reason as string | undefined) ||
+        (extractedLegacy2?.incomplete_quote_reason as string | undefined) ||
+        "devis résumé par lot — quantités et prix unitaires manquants";
+
+      console.log(`[conclusion] INCOMPLETE QUOTE bypass — ${reason} — pas d'appel Gemini, pas de matching prix`);
+
+      const incompleteConclusion: ConclusionData & { engine_version: string } = {
+        verdict_global:      "eleve_justifie",
+        phrase_intro:        `Ce devis est trop synthétique pour être analysé en l'état. Il manque les quantités précises (m², ml, u) et le prix unitaire de chaque prestation — seuls les sous-totaux par lot sont indiqués. Notre comparaison automatique au marché n'est pas fiable sans ces informations.`,
+        anomalies:           [],
+        justifications:      `Sans le détail ligne par ligne, impossible de savoir si le prix total est cohérent avec le marché. Un devis conforme à l'usage doit indiquer pour chaque prestation : (1) la description précise, (2) la quantité dans une unité physique (m², ml, u), (3) le prix unitaire HT, (4) le prix total HT de la ligne.`,
+        has_anomalies:       false,
+        verdict_decisionnel: "signer_avec_negociation",
+        surcout_global:      { min: 0, max: 0 },
+        niveau_risque:       "modéré",
+        actions_avant_signature: [
+          `Demandez à l'artisan un devis DÉTAILLÉ avec, pour chaque prestation : (1) quantité précise (m², ml, u), (2) prix unitaire HT, (3) prix total HT. C'est obligatoire pour pouvoir comparer au marché et négocier.`,
+          `Demandez le détail par pièce ou par poste (Démolition combien de m² ? Plomberie combien de points d'eau ? Peinture combien de m² ?). Un sous-total par corps de métier n'a aucune valeur de négociation.`,
+          `Demandez à l'artisan une attestation d'assurance RC Pro + décennale en cours de validité ainsi que 2-3 références de chantiers récents similaires.`,
+        ],
+        verdict_reasons: {
+          summary: `Devis trop synthétique — détail des quantités et prix unitaires manquant`,
+          reasons: [
+            `${reason}.`,
+            `Sans détail ligne par ligne, la comparaison automatique au marché n'est pas fiable — un sous-total "Plomberie 7600€" peut correspondre à 5 ou 50 prestations selon l'ampleur du chantier.`,
+          ],
+          context: [
+            "Les contrôles entreprise (SIRET, RGE, finances) restent valides quelle que soit la complétude du devis — voir le bloc Entreprise & Fiabilité.",
+            "Une fois le devis détaillé reçu, ré-uploadez-le pour obtenir une analyse complète.",
+          ],
+        },
+        comparison_indicative: true,
+        incomplete_quote: { reason },
+        generated_at: new Date().toISOString(),
+        engine_version: ENGINE_VERSION,
+      };
+
+      await (supabase as any)
+        .from("analyses")
+        .update({ conclusion_ia: JSON.stringify(incompleteConclusion) })
+        .eq("id", analysisId);
+
+      return jsonOk({ conclusion: incompleteConclusion, cached: false });
+    }
+  } catch {
+    // raw_text invalide — continue avec le flow normal
   }
 
   // ── V3.4.20 (2026-05-19) — BYPASS ESTIMATION COURTIER ────────────────────────

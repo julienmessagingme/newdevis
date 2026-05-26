@@ -115,6 +115,67 @@ async function uploadToGeminiFiles(
 }
 
 // ============================================================
+// V3.5.1 (2026-05-26) — Détection devis incomplet / résumé par lot.
+//
+// Cas d'origine "devis bidon Créteil" (49 700€, 9 sections) : devis avec
+// uniquement des SOUS TOTAUX par corps de métier (Démolition 3960€,
+// Plomberie 7600€, ...) et toutes les colonnes UNITE / QTE / Prix UNIT vides.
+// Gemini extrait 9 lignes avec quantity=1, unit=null, et le vectoriel matche
+// chaque label catalogue → ratio devis/marché × 80 sur tous les postes →
+// faux verdict "+29 200€ d'anomalies".
+//
+// Heuristique conservative (3 conditions ANDées) :
+//   - ≥ 5 lignes (éviter faux positifs sur petits devis 1-2 postes légitimement forfaitaires)
+//   - ≥ 70% des lignes sans unité physique (m²/ml/u/kg/h/m³)
+//   - ≥ 70% des lignes avec quantité = 1 OU null (= "1 forfait par lot")
+//
+// Si détecté → conclusion.ts bypass vers verdict synthétique "Devis incomplet"
+// + bannière dédiée + action prioritaire "demandez détail quantités + PU".
+// ============================================================
+
+const PHYSICAL_UNIT_NAMES = new Set([
+  "m2", "m²", "m^2", "metre2", "mètre carré",
+  "ml", "ml.", "m_lin", "mètre linéaire",
+  "kg", "g",
+  "h", "heure", "hr",
+  "m3", "m³", "m^3",
+  "l", "litre",
+  "t", "tonne",
+]);
+
+function detectIncompleteQuote(
+  travaux: Array<{ unite: string | null; quantite: number | null }>,
+): { is_incomplete: boolean; reason: string } {
+  if (!Array.isArray(travaux) || travaux.length < 5) {
+    return { is_incomplete: false, reason: "" };
+  }
+
+  let noPhysicalUnit = 0;
+  let qtyOneOrNull = 0;
+
+  for (const t of travaux) {
+    const unit = String(t.unite ?? "").trim().toLowerCase();
+    if (!PHYSICAL_UNIT_NAMES.has(unit)) noPhysicalUnit++;
+
+    const qty = t.quantite;
+    if (qty === null || qty === undefined || qty === 1 || qty === 0) qtyOneOrNull++;
+  }
+
+  const total = travaux.length;
+  const noPhysicalRatio = noPhysicalUnit / total;
+  const qtyOneRatio = qtyOneOrNull / total;
+
+  if (noPhysicalRatio >= 0.70 && qtyOneRatio >= 0.70) {
+    return {
+      is_incomplete: true,
+      reason: `${(noPhysicalRatio * 100).toFixed(0)}% lignes sans unité physique + ${(qtyOneRatio * 100).toFixed(0)}% lignes quantité=1/null sur ${total} lignes`,
+    };
+  }
+
+  return { is_incomplete: false, reason: "" };
+}
+
+// ============================================================
 // PHASE 1: EXTRACTION VIA AI
 // Stratégie : Files API (upload binaire) + thinkingBudget limité.
 // Évite le gros payload base64 inline et le thinking illimité → timeout.
@@ -518,6 +579,15 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
       console.log(`[extract] FOREIGN QUOTE detected: country=${countryDetection.country_code} (${countryDetection.country_label}) | signals=${JSON.stringify(countryDetection.signals)}`);
     }
 
+    // V3.5.1 — Détection devis incomplet (résumé par lot sans détail quantités/PU).
+    // On calcule sur parsed.travaux brut (avant filtrage RECAP) — les lignes récap
+    // sont peu nombreuses vs les vraies lignes du devis bidon, l'heuristique reste
+    // robuste.
+    const incompleteDetection = detectIncompleteQuote(parsed.travaux || []);
+    if (incompleteDetection.is_incomplete) {
+      console.log(`[extract] INCOMPLETE QUOTE detected: ${incompleteDetection.reason}`);
+    }
+
     return {
       type_document: typeDocument,
       entreprise: {
@@ -672,6 +742,9 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
         ["reparation_vehicule", "reparation_electromenager", "achat_biens", "service_personnel", "medical", "veterinaire", "autre"].includes(parsed.hors_scope_categorie)
         ? parsed.hors_scope_categorie
         : null,
+      // V3.5.1 — propagation de la détection devis incomplet vers conclusion.ts.
+      is_incomplete_quote: incompleteDetection.is_incomplete,
+      incomplete_quote_reason: incompleteDetection.reason || null,
       // V3.4.17 — Validation post-extraction des clauses litigieuses.
       // On accepte uniquement les types prédéfinis + une citation non-vide.
       // Si Gemini hallucine un type inconnu ou une citation vide → on skip.
