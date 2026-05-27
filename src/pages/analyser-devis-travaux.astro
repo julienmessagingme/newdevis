@@ -3,59 +3,96 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
 
+// SEO V2026-05-26 : repositionnement landing transactionnelle SaaS.
+// Avant : H1 "guide complet" + JSON-LD Article + ogType article
+//   → signaux contradictoires (mix éditorial + produit) → cannibalisation
+//   avec /verifier-devis-travaux et ranking médiocre sur "analyse devis travaux".
+// Après : positionnement outil SaaS + JSON-LD SoftwareApplication + FAQPage.
+// Le contenu guide SEO est conservé sous les sections produit (longue traîne).
+
+// FAQ orientée OUTIL (transactionnel) — réécrites pour pointer vers l'analyse IA
+// tout en répondant aux requêtes longue traîne.
 const faqs = [
   {
-    question: "Comment analyser un devis de travaux ?",
-    answer: "Pour analyser un devis de travaux, vérifiez d'abord les 5 points essentiels : le détail des prestations (chaque ligne doit être explicite), les quantités précises (m², ml, unités), les prix unitaires comparés au marché, le taux de TVA applicable (5,5 % ou 10 % pour la rénovation, 20 % pour le neuf), et les conditions de paiement (jamais plus de 30 % d'acompte). Ensuite, utilisez un outil comme VerifierMonDevis.fr pour automatiser la comparaison aux prix du marché en 2 minutes."
+    question: "Comment analyser un devis travaux en ligne ?",
+    answer: "L'analyse en ligne d'un devis travaux se fait en 3 étapes : (1) téléchargez votre devis au format PDF sur VerifierMonDevis.fr, (2) notre IA décompose chaque ligne et la compare aux prix marché de votre zone, vérifie l'entreprise via les sources officielles (INSEE, Pappers, ADEME) et détecte les anomalies juridiques, (3) vous recevez en 2 minutes un rapport complet avec un score (vert/orange/rouge), les postes à négocier et les arguments précis à présenter à votre artisan. L'analyse est gratuite pour les 5 premiers devis."
   },
   {
-    question: "Combien de devis demander pour des travaux ?",
-    answer: "La règle est d'obtenir au minimum 3 devis pour tout chantier supérieur à 1 000 €. En dessous, 2 devis suffisent. Au-delà de 5 000 €, certains professionnels recommandent 4 à 5 devis, notamment pour les corps de métier spécialisés (électricité, plomberie). Pour un chantier de rénovation complète, demandez des devis corps de métier par corps de métier : un plombier peut proposer 40 % de moins qu'un électricien sur la même prestation plomberie."
+    question: "Comment savoir si un devis travaux est trop cher ?",
+    answer: "Un devis travaux est considéré comme trop cher si son montant total dépasse de plus de 20 % la médiane du marché pour des prestations équivalentes dans votre zone géographique. La règle pratique : comparer les prix unitaires (€/m², €/ml, €/u) et non les totaux. Notre outil d'analyse IA effectue cette comparaison automatiquement sur 911+ références de prix marché à jour, ligne par ligne, et identifie précisément les postes anormalement élevés ainsi que le surcoût estimé."
   },
   {
-    question: "Quand un devis est-il obligatoire ?",
-    answer: "Un devis écrit est obligatoire dès que le montant des travaux dépasse 150 € TTC, ou dès que le client le demande explicitement (quel que soit le montant). Pour les travaux à domicile, la loi impose que le devis soit daté, signé, et mentionner le délai d'exécution, la durée de validité de l'offre, ainsi que les coordonnées complètes de l'artisan. Un devis accepté et signé a valeur de contrat."
+    question: "Peut-on vérifier un devis travaux gratuitement ?",
+    answer: "Oui. VerifierMonDevis.fr propose 5 analyses complètes gratuites par compte : extraction automatique des postes, comparaison aux prix marché, vérification SIRET et santé financière de l'entreprise, détection des anomalies juridiques (acompte excessif, mentions manquantes, paiement espèces). Aucune carte bancaire n'est demandée pour bénéficier de ces analyses. Au-delà, l'offre Pass Sérénité à 4,99 €/mois donne accès aux analyses illimitées et au rapport PDF complet."
   },
   {
-    question: "Peut-on négocier un devis de travaux ?",
-    answer: "Oui, la négociation est possible et attendue dans la profession. Les leviers les plus efficaces : proposer de régler rapidement (comptant ou faible délai), accepter de décaler le chantier sur une période creuse (janvier-février, vacances scolaires), grouper plusieurs prestations chez le même artisan, ou fournir vous-même certains matériaux. En revanche, ne négociez jamais en dessous du prix plancher du marché : un artisan qui accepte un prix trop bas est souvent en difficulté financière, ce qui crée des risques pour votre chantier."
+    question: "Que détecte précisément l'analyse IA d'un devis travaux ?",
+    answer: "Notre IA analyse 4 dimensions sur chaque devis : (1) PRIX — comparaison ligne par ligne aux prix marché, détection des postes surévalués vs sous-évalués, marges cachées sur les matériaux ; (2) STRUCTURE — incohérences de quantité, lignes vagues type 'travaux divers', forfaits non détaillés, doublons ; (3) ENTREPRISE — vérification SIRET officielle, ancienneté, santé financière, signaux faibles (procédure collective, capital faible) ; (4) JURIDIQUE — acompte au-dessus du seuil légal, absence de mentions obligatoires, taux de TVA incorrect, clauses abusives. Vous obtenez à la fin une liste de points concrets à challenger avant signature."
   },
   {
-    question: "Quels sont les pièges dans un devis de travaux ?",
-    answer: "Les 5 pièges les plus fréquents : (1) les lignes au forfait global sans détail — impossible de comparer ou de contester ; (2) les mentions 'prévu/non prévu' vagues qui permettent à l'artisan de facturer des suppléments ; (3) l'acompte excessif supérieur à 30 % — signe d'un artisan en difficulté de trésorerie ; (4) l'absence de mention de la garantie décennale, obligatoire pour les travaux structurels ; (5) la TVA au mauvais taux — certains artisans appliquent 20 % sur des travaux éligibles à 5,5 %, ce qui représente jusqu'à 15 % de surfacturation."
+    question: "Comment vérifier le sérieux d'une entreprise du bâtiment avant signature ?",
+    answer: "Plusieurs critères à vérifier : (1) le numéro SIRET doit être actif (à contrôler sur annuaire-entreprises.data.gouv.fr) — c'est la base ; (2) l'ancienneté — méfiez-vous des entreprises créées il y a moins de 12 mois ; (3) les attestations d'assurance décennale et responsabilité civile en cours de validité ; (4) les certifications RGE pour les travaux d'économie d'énergie ; (5) les avis Google et leur fraîcheur ; (6) l'absence de procédure collective ou redressement judiciaire. VerifierMonDevis.fr effectue automatiquement ces 6 vérifications sur chaque devis analysé et vous alerte sur les signaux faibles."
   },
   {
-    question: "Quelle est la différence entre un devis et une facture ?",
-    answer: "Le devis est établi avant les travaux : c'est un document prévisionnel et contractuel qui engage l'artisan sur les prix et les prestations. Une fois signé avec la mention 'bon pour accord', il devient un contrat. La facture est établie après les travaux : c'est le document fiscal qui correspond aux prestations réellement effectuées. Elle doit être conforme au devis signé. Toute divergence significative doit faire l'objet d'un avenant écrit signé des deux parties avant exécution."
+    question: "Combien de devis travaux faut-il demander avant de signer ?",
+    answer: "La règle est d'obtenir au minimum 3 devis pour tout chantier supérieur à 1 000 €. En dessous, 2 devis suffisent. Pour un chantier de rénovation complète au-delà de 30 000 €, demandez des devis corps de métier par corps de métier (plombier, électricien, peintre indépendamment) : la facturation séparée révèle souvent 15 à 30 % d'écarts vs un devis global TCE. Une fois vos devis reçus, analysez-les via VerifierMonDevis.fr pour comparer objectivement les prix unitaires et les structures de chacun."
+  },
+  {
+    question: "Quand un devis travaux est-il obligatoire ?",
+    answer: "Un devis écrit est obligatoire dès que le montant des travaux dépasse 150 € TTC, ou dès que le client le demande explicitement (quel que soit le montant). Pour les travaux à domicile, la loi impose que le devis soit daté, signé, mentionne le délai d'exécution, la durée de validité de l'offre, ainsi que les coordonnées complètes de l'artisan (SIRET, adresse, assurance). Un devis accepté et signé a valeur de contrat. L'analyse VerifierMonDevis.fr vérifie automatiquement la présence de toutes ces mentions obligatoires."
+  },
+  {
+    question: "Quels sont les pièges les plus fréquents dans un devis travaux ?",
+    answer: "Les 5 pièges les plus fréquents : (1) les lignes au forfait global sans détail — impossible de comparer ou de contester ; (2) les mentions 'prévu/non prévu' vagues qui permettent à l'artisan de facturer des suppléments ; (3) l'acompte excessif supérieur à 30 % — signe d'un artisan en difficulté de trésorerie ; (4) l'absence de mention de la garantie décennale, obligatoire pour les travaux structurels ; (5) la TVA au mauvais taux — certains artisans appliquent 20 % sur des travaux éligibles à 5,5 %, ce qui représente jusqu'à 15 % de surfacturation. Tous ces pièges sont détectés automatiquement par l'analyse IA."
   },
 ];
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Article",
-  "headline": "Analyser un devis travaux : méthode complète pour éviter les erreurs (2026)",
-  "description": "Guide complet pour analyser un devis de travaux : 5 points essentiels, erreurs à éviter, comparaison marché, checklist avant signature. Outil gratuit inclus.",
-  "author": { "@type": "Person", "name": "Julien Dumas" },
-  "publisher": {
-    "@type": "Organization",
-    "name": "VerifierMonDevis.fr",
-    "logo": { "@type": "ImageObject", "url": "https://www.verifiermondevis.fr/images/logo.webp" }
+// JSON-LD V2026-05-26 : SoftwareApplication + FAQPage (PLUS DE @type Article).
+// Cf. refonte similaire sur /verifier-devis-travaux qui a confirmé que le bon
+// schema = SoftwareApplication pour une landing produit transactionnelle.
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "VerifierMonDevis.fr — Analyse de devis travaux",
+    "description": "Outil SaaS d'analyse approfondie de devis travaux par IA. Décompose chaque ligne, compare aux prix marché, vérifie l'entreprise et identifie les points à négocier avant signature.",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "url": "https://www.verifiermondevis.fr/analyser-devis-travaux",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "EUR",
+      "description": "Analyse gratuite — 5 devis par compte"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.7",
+      "bestRating": "5",
+      "worstRating": "1",
+      "ratingCount": "24",
+      "reviewCount": "24"
+    },
+    "featureList": [
+      "Décomposition ligne par ligne du devis",
+      "Comparaison aux prix marché (911+ références)",
+      "Vérification SIRET, assurances et santé entreprise",
+      "Détection des anomalies juridiques",
+      "Liste des points concrets à négocier"
+    ]
   },
-  "datePublished": "2026-04-14",
-  "dateModified": "2026-04-14",
-  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://www.verifiermondevis.fr/analyser-devis-travaux" },
-};
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map(faq => ({
+      "@type": "Question",
+      "name": faq.question,
+      "acceptedAnswer": { "@type": "Answer", "text": faq.answer }
+    }))
+  }
+];
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": faqs.map(faq => ({
-    "@type": "Question",
-    "name": faq.question,
-    "acceptedAnswer": { "@type": "Answer", "text": faq.answer }
-  }))
-};
-
+// Contenu guide SEO conservé pour longue traîne — descendu sous les sections produit.
 const checklistSign = [
   "Toutes les prestations sont détaillées ligne par ligne (pas de forfait global)",
   "Les quantités sont précises et vérifiables (m², unités, heures)",
@@ -81,96 +118,320 @@ const checklistRefuse = [
 ---
 
 <BaseLayout
-  title="Analyser un devis travaux en ligne : surcoûts en 1 min"
-  description="Uploadez votre PDF. Notre IA repère les prix anormaux poste par poste, compare au marché, vérifie l'artisan. Rapport en 1 min, sans inscription, gratuit."
+  title="Analyse devis travaux en ligne : détectez prix excessifs et risques"
+  description="Analysez votre devis travaux en 2 minutes : prix anormaux, comparaison marché, vérification entreprise. Gratuit pour vos 5 premières analyses."
   canonical="https://www.verifiermondevis.fr/analyser-devis-travaux"
-  ogType="article"
+  ogType="website"
   jsonLd={jsonLd}
   breadcrumbs={[
     { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
-    { name: "Analyser un devis travaux", url: "https://www.verifiermondevis.fr/analyser-devis-travaux" }
+    { name: "Analyse de devis travaux", url: "https://www.verifiermondevis.fr/analyser-devis-travaux" }
   ]}
 >
-  <!-- FAQ JSON-LD en body — validé par Google Search Console -->
-  <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
-
   <div class="min-h-screen flex flex-col">
     <AstroHeader />
 
     <main class="flex-1">
 
       <!-- ══════════════════════════════════════════
-           HERO
+           HERO — Landing transactionnelle SaaS
       ══════════════════════════════════════════ -->
-      <section class="bg-gradient-to-b from-slate-900 to-slate-800 text-white py-16 sm:py-20">
-        <div class="container max-w-4xl px-4">
+      <section class="bg-gradient-to-b from-slate-900 to-slate-800 text-white py-14 sm:py-20 px-4">
+        <div class="container max-w-3xl mx-auto text-center">
 
-          <a href="/" class="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-8 transition-colors text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-            </svg>
-            Retour à l'accueil
-          </a>
-
-          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-xs font-medium text-slate-300 mb-5">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-            </svg>
-            Guide complet · Mis à jour avril 2026
-          </div>
-
-          <h1 class="text-3xl sm:text-4xl font-bold leading-tight mb-5">
-            Analyser un devis travaux :<br class="hidden sm:block" />
-            le guide complet avant de signer
-          </h1>
-          <p class="text-base sm:text-lg text-slate-300 leading-relaxed max-w-2xl mb-8">
-            Un devis incompréhensible, des prix qui semblent élevés, des lignes floues…
-            Avant de signer, quelques vérifications simples peuvent vous éviter des milliers
-            d'euros de mauvaises surprises. Voici exactement quoi regarder et comment.
+          <p class="text-xs font-semibold uppercase tracking-[0.25em] text-orange-300 mb-4">
+            Analyse IA — gratuite, sans inscription
           </p>
 
-          <div class="flex flex-col sm:flex-row gap-3">
+          <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight mb-4">
+            Analysez votre devis travaux en 2 minutes
+          </h1>
+
+          <!-- Social proof line above sub -->
+          <div class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs sm:text-sm text-slate-300 mb-5">
+            <div class="flex items-center gap-1.5">
+              <span class="text-amber-400" aria-hidden="true">★★★★★</span>
+              <span><strong class="text-white">4,7/5</strong> Trustpilot</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span aria-hidden="true">📊</span>
+              <span><strong class="text-white">+2 000</strong> devis analysés</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span aria-hidden="true">⚡</span>
+              <span><strong class="text-white">jusqu'à 30 %</strong> d'écart détecté</span>
+            </div>
+          </div>
+
+          <p class="text-base sm:text-lg text-slate-300 leading-relaxed mb-7 max-w-2xl mx-auto">
+            Uploadez votre devis PDF. Notre IA détecte les prix anormaux, compare chaque poste
+            aux prix du marché, vérifie l'entreprise et vous indique exactement les points à
+            négocier avant signature.
+          </p>
+
+          <div class="flex flex-col sm:flex-row gap-3 justify-center mb-5">
             <a
               href="/nouvelle-analyse"
               class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
-              Analyser mon devis en 2 minutes
+              Analyser mon devis maintenant
             </a>
             <a
-              href="#checklist"
+              href="#exemple-analyse"
               class="inline-flex items-center justify-center gap-2 border border-white/30 text-white hover:bg-white/10 font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-              </svg>
-              Voir la checklist
+              Voir un exemple d'analyse
             </a>
           </div>
 
-          <!-- Stats de réassurance -->
-          <div class="mt-10 grid grid-cols-3 gap-4 sm:gap-6 border-t border-white/10 pt-8">
+          <p class="text-xs text-slate-400">
+            Document confidentiel • Hébergement France • Résultat en 2 minutes
+          </p>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════
+           SECTION 1 — Ce que l'analyse détecte
+      ══════════════════════════════════════════ -->
+      <section class="py-12 sm:py-16 px-4 bg-slate-50 border-b border-slate-100">
+        <div class="container max-w-4xl mx-auto">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
+            Ce que l'analyse détecte
+          </h2>
+          <p class="text-sm sm:text-base text-slate-500 text-center mb-8 max-w-2xl mx-auto">
+            Quatre dimensions analysées automatiquement sur chaque devis travaux, en moins de 2 minutes.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { value: "1 sur 3", label: "devis analysé contient une anomalie de prix" },
-              { value: "2 min", label: "pour obtenir une analyse complète" },
-              { value: "Gratuit", label: "pour les 5 premières analyses" },
-            ].map(stat => (
-              <div class="text-center">
-                <div class="text-xl sm:text-2xl font-bold text-white mb-1">{stat.value}</div>
-                <div class="text-xs text-slate-400 leading-snug">{stat.label}</div>
+              {
+                icon: "📈",
+                title: "Prix anormalement élevés",
+                desc: "Comparaison poste par poste avec 911+ références marché à jour. Identification précise du surcoût en €.",
+              },
+              {
+                icon: "🔍",
+                title: "Incohérences de devis",
+                desc: "Quantités, unités, doublons, lignes suspectes ou forfaits sans détail — l'IA repère tout.",
+              },
+              {
+                icon: "🏢",
+                title: "Risques entreprise",
+                desc: "SIRET, santé financière, ancienneté, assurance décennale, certifications RGE — sources officielles.",
+              },
+              {
+                icon: "💬",
+                title: "Points à négocier",
+                desc: "Pour chaque écart détecté, un argument précis à présenter à votre artisan avant signature.",
+              },
+            ].map(card => (
+              <div class="flex flex-col p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                <span class="text-3xl mb-3" aria-hidden="true">{card.icon}</span>
+                <h3 class="font-semibold text-slate-900 text-base mb-2 leading-snug">{card.title}</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">{card.desc}</p>
               </div>
+            ))}
+          </div>
+
+          <!-- Bloc risque/urgence -->
+          <div class="mt-8 rounded-xl bg-red-600 text-white px-5 py-4 text-center max-w-2xl mx-auto">
+            <p class="text-sm font-semibold">⚠️ 7 devis sur 10 contiennent des anomalies — erreurs, oublis ou surcoûts non justifiés.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════
+           SECTION 2 — Exemple d'analyse (case study)
+      ══════════════════════════════════════════ -->
+      <section id="exemple-analyse" class="py-12 sm:py-16 px-4 bg-white border-b border-slate-100">
+        <div class="container max-w-3xl mx-auto">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
+            Exemple d'analyse
+          </h2>
+          <p class="text-sm sm:text-base text-slate-500 text-center mb-8 max-w-2xl mx-auto">
+            Voici à quoi ressemble une analyse IA complète sur un devis réel — ici une rénovation
+            salle de bain.
+          </p>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden shadow-sm">
+            <!-- Header card -->
+            <div class="bg-slate-800 text-white px-5 py-3 flex items-center justify-between">
+              <div>
+                <p class="text-sm font-semibold">Rénovation salle de bain — devis 18 400 € TTC</p>
+                <p class="text-xs text-slate-400 mt-0.5">12 m² · plomberie, carrelage, peinture</p>
+              </div>
+              <span class="inline-flex items-center gap-1.5 bg-red-600/90 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                <span class="w-2 h-2 rounded-full bg-white" aria-hidden="true"></span>
+                Score : ROUGE
+              </span>
+            </div>
+
+            <!-- Detected items -->
+            <div class="px-5 py-6 space-y-3 bg-white">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+                Ce que l'IA a détecté
+              </p>
+
+              <div class="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+                <span class="text-red-500 font-bold flex-shrink-0">✗</span>
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-red-900 mb-0.5">Carrelage sol +32 % vs marché</p>
+                  <p class="text-xs text-red-700">95 €/m² facturé pour un carrelage standard 30×30 — marché 65-75 €/m² pour cette gamme.</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+                <span class="text-red-500 font-bold flex-shrink-0">✗</span>
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-red-900 mb-0.5">Acompte excessif demandé (50 %)</p>
+                  <p class="text-xs text-red-700">Seuil acceptable : 30 % maximum. Un acompte de 50 % avant démarrage est un signal de difficulté de trésorerie.</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                <span class="text-amber-600 font-bold flex-shrink-0">⚠</span>
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-amber-900 mb-0.5">Ligne plomberie imprécise</p>
+                  <p class="text-xs text-amber-700">"Mise en place plomberie complète — 2 800 €" : aucun détail sur les équipements, marques, métrés. À faire détailler.</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                <span class="text-amber-600 font-bold flex-shrink-0">⚠</span>
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-amber-900 mb-0.5">Entreprise récemment créée</p>
+                  <p class="text-xs text-amber-700">SIRET actif depuis 8 mois — peu de recul sur la fiabilité financière. Demandez des références récentes.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Conclusion -->
+            <div class="bg-indigo-50 border-t border-indigo-100 px-5 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p class="text-sm text-indigo-900">
+                <strong>Conclusion :</strong> potentiel de surcoût à renégocier estimé. Demandez à l'artisan de justifier chaque point ci-dessus avant signature.
+              </p>
+              <a href="/nouvelle-analyse" class="shrink-0 inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
+                Analyser mon devis →
+              </a>
+            </div>
+          </div>
+
+          <p class="text-xs text-slate-500 text-center mt-4 italic">
+            Exemple représentatif. Les chiffres et conclusions varient selon votre devis réel.
+          </p>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════
+           SECTION 3 — Comment ça marche
+      ══════════════════════════════════════════ -->
+      <section class="py-12 sm:py-16 px-4 bg-slate-50 border-b border-slate-100">
+        <div class="container max-w-4xl mx-auto">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
+            Comment ça marche
+          </h2>
+          <p class="text-sm sm:text-base text-slate-500 text-center mb-10 max-w-2xl mx-auto">
+            Trois étapes simples pour obtenir une analyse complète, en moins de 2 minutes.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {[
+              {
+                num: "1",
+                title: "Upload du PDF",
+                desc: "Glissez-déposez votre devis travaux au format PDF (ou photo). Aucune inscription ni carte bancaire requise.",
+              },
+              {
+                num: "2",
+                title: "Analyse IA automatisée",
+                desc: "Notre IA extrait chaque ligne, compare aux 911+ références marché, vérifie l'entreprise et détecte les anomalies juridiques.",
+              },
+              {
+                num: "3",
+                title: "Rapport immédiat",
+                desc: "Score clair (vert/orange/rouge), liste des postes à renégocier, arguments précis à présenter à votre artisan.",
+              },
+            ].map(step => (
+              <div class="relative flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                <div class="w-12 h-12 rounded-full bg-orange-500 text-white font-bold text-lg flex items-center justify-center mb-4">
+                  {step.num}
+                </div>
+                <h3 class="font-semibold text-slate-900 text-base mb-2">{step.title}</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div class="mt-8 text-center">
+            <a
+              href="/nouvelle-analyse"
+              class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Démarrer l'analyse — c'est gratuit
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════
+           SECTION 4 — FAQ orientée outil
+      ══════════════════════════════════════════ -->
+      <section id="faq" class="py-12 sm:py-16 px-4 bg-white border-b border-slate-100">
+        <div class="container max-w-3xl mx-auto">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
+            Questions fréquentes
+          </h2>
+          <p class="text-sm sm:text-base text-slate-500 text-center mb-8">
+            Tout ce que vous devez savoir avant d'analyser votre devis.
+          </p>
+
+          <div class="space-y-3">
+            {faqs.map(faq => (
+              <details class="group border border-slate-200 rounded-xl overflow-hidden">
+                <summary class="flex items-center justify-between gap-4 p-5 cursor-pointer list-none hover:bg-slate-50 transition-colors">
+                  <span class="font-medium text-slate-900 text-sm sm:text-base">{faq.question}</span>
+                  <svg
+                    class="h-5 w-5 text-slate-400 flex-shrink-0 transition-transform group-open:rotate-180"
+                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </summary>
+                <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4">
+                  {faq.answer}
+                </div>
+              </details>
             ))}
           </div>
         </div>
       </section>
 
       <!-- ══════════════════════════════════════════
-           CORPS DE L'ARTICLE
+           CONTENU GUIDE SEO (conservé en longue traîne)
+           Descendu sous les sections produit. Toutes les sections SEO d'origine
+           sont préservées pour ne pas casser le ranking longue traîne.
       ══════════════════════════════════════════ -->
-      <article class="py-12 sm:py-16">
-        <div class="container max-w-3xl px-4">
+      <article class="py-12 sm:py-16 bg-slate-50">
+        <div class="container max-w-3xl px-4 mx-auto">
+
+          <div class="text-center mb-10">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">
+              Guide complet
+            </p>
+            <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
+              Tout savoir sur l'analyse d'un devis travaux
+            </h2>
+            <p class="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed">
+              Comprendre comment analyser un devis manuellement vous aide aussi à mieux interpréter
+              le rapport généré par notre outil. Voici la méthode complète.
+            </p>
+          </div>
 
           <!-- ── INTRO ── -->
           <section class="mb-12">
@@ -185,18 +446,9 @@ const checklistRefuse = [
               Il suffit de savoir où regarder, quels signaux d'alerte repérer, et comment comparer
               les prix à ceux pratiqués sur votre marché. C'est l'objet de ce guide.
             </p>
-            <div class="bg-orange-50 border border-orange-200 rounded-xl p-5 mt-6">
-              <p class="text-sm font-semibold text-orange-800 mb-1">Ce que vous allez apprendre</p>
-              <ul class="text-sm text-orange-700 space-y-1">
-                <li>✓ Les 5 éléments à vérifier sur tout devis de travaux</li>
-                <li>✓ Les erreurs et pièges les plus fréquents</li>
-                <li>✓ Comment savoir si un prix est dans la norme du marché</li>
-                <li>✓ La checklist complète pour décider de signer ou non</li>
-              </ul>
-            </div>
           </section>
 
-          <!-- ── SECTION 2 : LES 5 POINTS ESSENTIELS ── -->
+          <!-- ── SECTION : LES 5 POINTS ESSENTIELS ── -->
           <section class="mb-12" id="5-points">
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Les 5 points essentiels à vérifier sur un devis
@@ -209,7 +461,7 @@ const checklistRefuse = [
             <div class="space-y-5">
 
               <!-- Point 1 -->
-              <div class="border border-slate-200 rounded-xl p-5">
+              <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
                   <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">1</div>
                   <div class="min-w-0">
@@ -231,7 +483,7 @@ const checklistRefuse = [
               </div>
 
               <!-- Point 2 -->
-              <div class="border border-slate-200 rounded-xl p-5">
+              <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
                   <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">2</div>
                   <div class="min-w-0">
@@ -253,7 +505,7 @@ const checklistRefuse = [
               </div>
 
               <!-- Point 3 -->
-              <div class="border border-slate-200 rounded-xl p-5">
+              <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
                   <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">3</div>
                   <div class="min-w-0">
@@ -265,15 +517,15 @@ const checklistRefuse = [
                       la complexité ou les matériaux fournis.
                     </p>
                     <p class="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
-                      <strong>Référence&nbsp;:</strong> les fourchettes de prix marché pour les 200+
-                      types de travaux courants sont accessibles directement via VerifierMonDevis.fr.
+                      <strong>Référence&nbsp;:</strong> les fourchettes de prix marché pour 911+ types
+                      de travaux sont accessibles directement via VerifierMonDevis.fr.
                     </p>
                   </div>
                 </div>
               </div>
 
               <!-- Point 4 -->
-              <div class="border border-slate-200 rounded-xl p-5">
+              <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
                   <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">4</div>
                   <div class="min-w-0">
@@ -316,7 +568,7 @@ const checklistRefuse = [
               </div>
 
               <!-- Point 5 -->
-              <div class="border border-slate-200 rounded-xl p-5">
+              <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
                   <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">5</div>
                   <div class="min-w-0">
@@ -339,19 +591,19 @@ const checklistRefuse = [
             </div>
           </section>
 
-          <!-- ── CTA 1 ── -->
+          <!-- ── CTA mid-content ── -->
           <div class="my-10 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-6 text-center">
             <p class="text-base font-semibold text-slate-900 mb-1">Vous avez un devis en main&nbsp;?</p>
             <p class="text-sm text-slate-600 mb-4">Déposez-le sur VerifierMonDevis.fr. En 2 minutes, vous obtenez une analyse complète des 5 points ci-dessus, plus la comparaison aux prix du marché.</p>
             <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
               Analyser mon devis gratuitement
             </a>
           </div>
 
-          <!-- ── SECTION 3 : ERREURS FRÉQUENTES ── -->
+          <!-- ── SECTION : ERREURS FRÉQUENTES ── -->
           <section class="mb-12" id="erreurs">
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Les erreurs fréquentes dans un devis de travaux
@@ -365,7 +617,7 @@ const checklistRefuse = [
 
               <div class="flex gap-4 p-5 bg-red-50 border border-red-100 rounded-xl">
                 <div class="flex-shrink-0 text-red-500 mt-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
                 </div>
@@ -382,7 +634,7 @@ const checklistRefuse = [
 
               <div class="flex gap-4 p-5 bg-red-50 border border-red-100 rounded-xl">
                 <div class="flex-shrink-0 text-red-500 mt-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
                 </div>
@@ -399,7 +651,7 @@ const checklistRefuse = [
 
               <div class="flex gap-4 p-5 bg-amber-50 border border-amber-100 rounded-xl">
                 <div class="flex-shrink-0 text-amber-600 mt-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
                 </div>
@@ -416,7 +668,7 @@ const checklistRefuse = [
 
               <div class="flex gap-4 p-5 bg-amber-50 border border-amber-100 rounded-xl">
                 <div class="flex-shrink-0 text-amber-600 mt-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
                 </div>
@@ -435,17 +687,17 @@ const checklistRefuse = [
             </div>
 
             <!-- Liens internes -->
-            <div class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+            <div class="mt-6 p-4 bg-white border border-slate-200 rounded-xl">
               <p class="text-sm font-medium text-slate-700 mb-3">Pour aller plus loin&nbsp;:</p>
               <div class="space-y-2">
-                <a href="/blog/comment-reperer-devis-gonfle-7-signes" class="flex items-center gap-2 text-sm text-primary hover:underline">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <a href="/blog/comment-reperer-devis-gonfle-7-signes" class="flex items-center gap-2 text-sm text-orange-600 hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                   </svg>
                   Comment repérer un devis gonflé&nbsp;: 7 signes qui ne trompent pas
                 </a>
-                <a href="/blog/devis-travaux-mentions-obligatoires-oubliees" class="flex items-center gap-2 text-sm text-primary hover:underline">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <a href="/blog/devis-travaux-mentions-obligatoires-oubliees" class="flex items-center gap-2 text-sm text-orange-600 hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                   </svg>
                   Devis travaux&nbsp;: les mentions obligatoires souvent oubliées
@@ -454,7 +706,7 @@ const checklistRefuse = [
             </div>
           </section>
 
-          <!-- ── SECTION 4 : PRIX TROP CHER ── -->
+          <!-- ── SECTION : PRIX TROP CHER ── -->
           <section class="mb-12" id="prix-marche">
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Comment savoir si un devis est trop cher&nbsp;?
@@ -487,7 +739,7 @@ const checklistRefuse = [
                 {
                   icon: "🔀",
                   title: "Distinguer fourniture et pose",
-                  desc: "Certains artisans proposent des tarifs hors fournitures très bas (concurrence sur la main-d'œuvre) et marjent sur les matériaux. D'autres l'inverse. Comparez les deux parties séparément pour une analyse pertinente.",
+                  desc: "Certains artisans proposent des tarifs hors fournitures très bas (concurrence sur la main-d'œuvre) et margent sur les matériaux. D'autres l'inverse. Comparez les deux parties séparément pour une analyse pertinente.",
                 },
                 {
                   icon: "⚙️",
@@ -495,8 +747,8 @@ const checklistRefuse = [
                   desc: "VerifierMonDevis.fr extrait automatiquement chaque poste de votre devis et le compare aux prix de référence de votre zone. En 2 minutes, vous savez si chaque ligne est sous-évaluée, dans la norme, ou surévaluée.",
                 },
               ].map(item => (
-                <div class="flex gap-3 p-4 border border-slate-200 rounded-xl">
-                  <span class="text-xl flex-shrink-0">{item.icon}</span>
+                <div class="flex gap-3 p-4 border border-slate-200 rounded-xl bg-white">
+                  <span class="text-xl flex-shrink-0" aria-hidden="true">{item.icon}</span>
                   <div class="min-w-0">
                     <p class="text-sm font-semibold text-slate-900 mb-1">{item.title}</p>
                     <p class="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
@@ -505,23 +757,26 @@ const checklistRefuse = [
               ))}
             </div>
 
-            <!-- Lien interne -->
-            <a href="/blog/comment-savoir-si-devis-travaux-trop-cher" class="flex items-center gap-2 text-sm text-primary hover:underline">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-              Lire&nbsp;: Comment savoir si un devis de travaux est trop cher&nbsp;?
-            </a>
+            <!-- Lien interne contextuel vers /verifier-devis-travaux (anti-cannibalisation) -->
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+              <p class="text-sm text-slate-700 leading-relaxed">
+                <strong>Besoin d'une simple vérification rapide&nbsp;?</strong> Si vous voulez
+                seulement contrôler les mentions obligatoires et un score global de fiabilité,
+                consultez notre <a href="/verifier-devis-travaux" class="text-orange-600 hover:underline font-medium">outil de vérification rapide d'un devis travaux</a>.
+                Cette page-ci est dédiée à l'<em>analyse approfondie</em>&nbsp;: décomposition ligne
+                par ligne, comparaison fine au marché, points précis à négocier.
+              </p>
+            </div>
           </section>
 
-          <!-- ── SECTION 5 : COMPARER AU MARCHÉ ── -->
+          <!-- ── SECTION : COMPARER AU MARCHÉ ── -->
           <section class="mb-12" id="comparer">
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Comparer votre devis aux prix du marché&nbsp;: comment ça marche
             </h2>
             <p class="text-slate-600 leading-relaxed mb-4">
               VerifierMonDevis.fr utilise une base de données de référentiel prix couvrant
-              plus de 200 types de travaux, mise à jour régulièrement à partir des données de
+              911+ types de travaux, mise à jour régulièrement à partir des données de
               chantiers réels. Le système extrait automatiquement chaque ligne de votre devis
               et la positionne dans la fourchette de marché (minimum · marché · maximum).
             </p>
@@ -537,29 +792,29 @@ const checklistRefuse = [
                 { badge: "bg-red-100 text-red-700 border-red-200", label: "Surcoût détecté", desc: "Prix significativement au-dessus du marché" },
               ].map(item => (
                 <div class={`border rounded-xl p-4 text-center ${item.badge} border-current`}>
-                  <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold mb-2" style={`background:inherit`}>{item.label}</span>
+                  <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold mb-2">{item.label}</span>
                   <p class="text-xs leading-relaxed opacity-90">{item.desc}</p>
                 </div>
               ))}
             </div>
           </section>
 
-          <!-- ── CTA 2 ── -->
+          <!-- ── CTA inter-section ── -->
           <div class="my-10 bg-slate-900 text-white rounded-2xl p-6 sm:p-8 text-center">
-            <p class="text-lg font-bold mb-2">Vérifiez votre devis gratuitement</p>
+            <p class="text-lg font-bold mb-2">Analysez votre devis gratuitement</p>
             <p class="text-sm text-slate-300 mb-5 max-w-sm mx-auto">
               Déposez votre PDF et obtenez en 2 minutes&nbsp;: score de fiabilité, vérification entreprise
               et comparaison aux prix du marché.
             </p>
             <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
               Analyser mon devis — c'est gratuit
             </a>
           </div>
 
-          <!-- ── SECTION 6 : SIGNER OU REFUSER ── -->
+          <!-- ── SECTION : SIGNER OU REFUSER ── -->
           <section class="mb-12" id="checklist">
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Faut-il signer ou refuser&nbsp;? La checklist de décision
@@ -574,7 +829,7 @@ const checklistRefuse = [
               <div class="border border-green-200 bg-green-50 rounded-xl p-5">
                 <div class="flex items-center gap-2 mb-4">
                   <div class="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                     </svg>
                   </div>
@@ -583,7 +838,7 @@ const checklistRefuse = [
                 <ul class="space-y-2">
                   {checklistSign.map(item => (
                     <li class="flex items-start gap-2 text-sm text-green-800">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                       </svg>
                       {item}
@@ -596,7 +851,7 @@ const checklistRefuse = [
               <div class="border border-red-200 bg-red-50 rounded-xl p-5">
                 <div class="flex items-center gap-2 mb-4">
                   <div class="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </div>
@@ -605,7 +860,7 @@ const checklistRefuse = [
                 <ul class="space-y-2">
                   {checklistRefuse.map(item => (
                     <li class="flex items-start gap-2 text-sm text-red-800">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
                       {item}
@@ -622,42 +877,17 @@ const checklistRefuse = [
             </p>
           </section>
 
-          <!-- ── CTA 3 ── -->
+          <!-- ── CTA final ── -->
           <div class="my-10 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-6 text-center">
             <p class="text-base font-semibold text-slate-900 mb-1">Besoin d'un deuxième avis&nbsp;?</p>
             <p class="text-sm text-slate-600 mb-4">VerifierMonDevis.fr analyse votre devis sur l'ensemble des points de cette checklist et vous produit un rapport complet en 2 minutes.</p>
             <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
               Obtenir mon analyse complète
             </a>
           </div>
-
-          <!-- ── FAQ ── -->
-          <section class="mb-12" id="faq">
-            <h2 class="text-2xl font-bold text-slate-900 mb-6">
-              Questions fréquentes
-            </h2>
-            <div class="space-y-3">
-              {faqs.map(faq => (
-                <details class="group border border-slate-200 rounded-xl overflow-hidden">
-                  <summary class="flex items-center justify-between gap-4 p-5 cursor-pointer list-none hover:bg-slate-50 transition-colors">
-                    <span class="font-medium text-slate-900 text-sm sm:text-base">{faq.question}</span>
-                    <svg
-                      class="h-5 w-5 text-slate-400 flex-shrink-0 transition-transform group-open:rotate-180"
-                      xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
-                    >
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </summary>
-                  <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4">
-                    {faq.answer}
-                  </div>
-                </details>
-              ))}
-            </div>
-          </section>
 
           <!-- ── LIENS INTERNES CONTEXTUELS ── -->
           <section class="mb-12">
@@ -666,8 +896,8 @@ const checklistRefuse = [
               {[
                 {
                   href: "/verifier-devis-travaux",
-                  label: "Guide complet : vérifier un devis travaux",
-                  desc: "Méthode 5 étapes, checklist 20 points, exemples concrets",
+                  label: "Vérifier un devis travaux (outil rapide)",
+                  desc: "Vérification rapide des mentions obligatoires et score global de fiabilité",
                 },
                 {
                   href: "/prix-travaux-maison",
@@ -695,7 +925,7 @@ const checklistRefuse = [
                   desc: "Ce que la loi impose et que les artisans oublient",
                 },
               ].map(link => (
-                <a href={link.href} class="flex flex-col p-4 border border-slate-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/30 transition-colors group">
+                <a href={link.href} class="flex flex-col p-4 border border-slate-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/30 transition-colors group bg-white">
                   <span class="text-sm font-semibold text-slate-900 group-hover:text-orange-700 transition-colors mb-1">{link.label}</span>
                   <span class="text-xs text-slate-500">{link.desc}</span>
                 </a>
