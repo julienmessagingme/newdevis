@@ -195,7 +195,7 @@ const Register = ({ brand }: Props) => {
                 </ul>
                 <div className="mt-3 pt-3 border-t border-primary/10 flex items-center gap-3 text-xs text-muted-foreground">
                   <span className="text-amber-500" aria-hidden="true">★★★★★</span>
-                  <span><strong className="text-foreground">4,7/5</strong> · +2 000 devis analysés</span>
+                  <span><strong className="text-foreground">4,7/5</strong> · +250 devis analysés</span>
                 </div>
               </div>
             );
