@@ -642,6 +642,29 @@ const AnalysisResult = () => {
         const parsedConclusion = JSON.parse(liveOrCached);
         const vg = parsedConclusion?.verdict_global as string | undefined;
         if (vg) {
+          // V3.5.2 (2026-05-27) — GARDE FAIL-SAFE entreprise radiée.
+          // Si l'analyse a un critère rouge "Entreprise radiée" dans score.criteres_rouges,
+          // le verdict DOIT être ROUGE quoi qu'en dise le conclusion_ia cached (qui peut
+          // être stale ou avoir été généré avant que la garde hard_block_company_status
+          // n'ait été appliquée). Cas observé sur SARL TECHNO BAIN : bloc Entreprise
+          // affichait "Radiée" + critère rouge présent, mais conclusion_ia.verdict_global
+          // = "dans_la_norme" → contradiction visible. Cette garde override toujours
+          // les autres valeurs de vg quand entreprise_radiee est confirmée.
+          try {
+            const _scoreData = typeof analysis.score === "string"
+              ? JSON.parse(analysis.score)
+              : (analysis.score as Record<string, unknown> | null) || {};
+            const _rouges: string[] = Array.isArray(_scoreData?.criteres_rouges)
+              ? _scoreData.criteres_rouges
+              : [];
+            const _hasRadiee = _rouges.some(r =>
+              typeof r === "string" && /radi[eé]{1,2}/i.test(r)
+            );
+            if (_hasRadiee) {
+              return "ROUGE" as "VERT" | "ORANGE" | "ROUGE";
+            }
+          } catch { /* parse fail, on continue avec le mapping standard */ }
+
           // V3.4.8 (2026-05-13) — mapping complet conclusion_ia.verdict_global
           //   "dans_la_norme"  → VERT
           //   "eleve_justifie" → ORANGE (cher mais justifié — bug avant : VERT par défaut)

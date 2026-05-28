@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.5.1";
+const ENGINE_VERSION = "3.5.2";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -1913,6 +1913,34 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
 
     let verdictGlobal: ConclusionData["verdict_global"]        = GLOBAL_MAP[preEngine.verdict]   ?? "a_negocier";
     let verdictDecision: ConclusionData["verdict_decisionnel"] = DECISION_MAP[preEngine.verdict] ?? "signer_avec_negociation";
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // V3.5.2 (2026-05-27) — GARDE FAIL-SAFE entreprise radiée
+    //
+    // Bug observé (devis SARL TECHNO BAIN, SIRET 503 263 345 00038) : le bloc
+    // Entreprise affichait correctement "Situation juridique à risque — entreprise
+    // radiée" + badge Radiée, mais le verdict expert sortait en VERT "Vous pouvez
+    // signer". Diagnostic : pour une raison non encore identifiée, le hard block
+    // company_status n'a pas fire au moment du computeVerdict (peut-être que
+    // preCompanyStatus était null pour cette analyse spécifique, ou cache stale).
+    //
+    // Cette garde est une DOUBLE-DÉFENSE : on relit directement criteres_rouges
+    // ici et si on trouve une mention "radiée", on FORCE le verdict ROUGE quoi
+    // qu'en dise preEngine. Ça neutralise tout bug latent dans la chaîne
+    // d'extraction du company_status. Côté front, AnalysisResult.tsx fait la
+    // même garde sur la pastille header pour ne plus jamais avoir de
+    // contradiction visible.
+    // ──────────────────────────────────────────────────────────────────────────
+    const _failsafeHasRadiee = (criteres_rouges || []).some(r =>
+      typeof r === "string" && /radi[eé]{1,2}/i.test(r)
+    );
+    if (_failsafeHasRadiee && verdictGlobal !== "a_risque") {
+      console.warn(
+        `[conclusion] V3.5.2 FAIL-SAFE déclenché — entreprise radiée détectée dans criteres_rouges mais preEngine.verdict="${preEngine.verdict}" → force ROUGE`,
+      );
+      verdictGlobal = "a_risque";
+      verdictDecision = "ne_pas_signer";
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // GARDE DE COHÉRENCE FINALE (V3.2.1 — 2026-05-11)
