@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.5.2";
+const ENGINE_VERSION = "3.5.3";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -1077,7 +1077,46 @@ export const POST: APIRoute = async ({ params, request }) => {
     criteres_oranges = Array.isArray(scoreData.criteres_oranges) ? scoreData.criteres_oranges : [];
     entreprise_radiee = criteres_rouges.some((r: string) => r.toLowerCase().includes("radié"));
   } catch {
-    // score invalide
+    // score invalide OU stocké en string brute ("ROUGE"/"ORANGE"/"VERT") par le
+    // pipeline (cf. V3.5.3 fallback ci-dessous).
+  }
+
+  // ── V3.5.3 (2026-05-27) — FALLBACK depuis raw_text.scoring ──────────────────
+  //
+  // Bug observé sur SARL TECHNO BAIN : `analysis.score` était stocké comme la
+  // string brute "ROUGE" (régression du pipeline `analyze-quote/index.ts:985`
+  // qui sauve uniquement `scoring.score_global` au lieu de l'objet entier).
+  // Conséquence : JSON.parse("ROUGE") throw → criteres_rouges vide → pas de
+  // hard block "entreprise radiée" → verdict VERT alors que l'entreprise est
+  // radiée → contradiction visible avec le bloc Entreprise & Fiabilité (ROUGE).
+  //
+  // Solution sans toucher le pipeline ni le schema DB : `analyze-quote/index.ts`
+  // stocke ALSO les critères complets dans `raw_text.scoring`. On les y lit
+  // en fallback quand `analysis.score` ne contient pas l'objet structuré.
+  // Couvre les analyses existantes ET futures.
+  if (criteres_rouges.length === 0 && criteres_oranges.length === 0) {
+    try {
+      const _parsedRaw = JSON.parse(analysis.raw_text || "{}");
+      const _rawScoring = _parsedRaw?.scoring;
+      if (_rawScoring) {
+        if (Array.isArray(_rawScoring.criteres_rouges)) {
+          criteres_rouges = _rawScoring.criteres_rouges;
+        }
+        if (Array.isArray(_rawScoring.criteres_oranges)) {
+          criteres_oranges = _rawScoring.criteres_oranges;
+        }
+        if (criteres_rouges.length > 0 || criteres_oranges.length > 0) {
+          entreprise_radiee = criteres_rouges.some(
+            (r: string) => typeof r === "string" && r.toLowerCase().includes("radié"),
+          );
+          console.log(
+            `[conclusion] V3.5.3 fallback raw_text.scoring — rouges=${criteres_rouges.length}, oranges=${criteres_oranges.length}, entreprise_radiee=${entreprise_radiee}`,
+          );
+        }
+      }
+    } catch {
+      // raw_text invalide, on continue avec les arrays vides
+    }
   }
 
   const client   = (extractedData.client  as Record<string, unknown>) || {};

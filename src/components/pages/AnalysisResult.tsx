@@ -643,27 +643,44 @@ const AnalysisResult = () => {
         const vg = parsedConclusion?.verdict_global as string | undefined;
         if (vg) {
           // V3.5.2 (2026-05-27) — GARDE FAIL-SAFE entreprise radiée.
-          // Si l'analyse a un critère rouge "Entreprise radiée" dans score.criteres_rouges,
-          // le verdict DOIT être ROUGE quoi qu'en dise le conclusion_ia cached (qui peut
-          // être stale ou avoir été généré avant que la garde hard_block_company_status
-          // n'ait été appliquée). Cas observé sur SARL TECHNO BAIN : bloc Entreprise
-          // affichait "Radiée" + critère rouge présent, mais conclusion_ia.verdict_global
-          // = "dans_la_norme" → contradiction visible. Cette garde override toujours
-          // les autres valeurs de vg quand entreprise_radiee est confirmée.
+          // V3.5.3 (2026-05-27) — Étendu pour lire AUSSI raw_text.scoring quand
+          // analysis.score est stocké en string brute "ROUGE" (régression pipeline).
+          //
+          // Si l'analyse a un critère rouge "Entreprise radiée" dans
+          // score.criteres_rouges OU raw_text.scoring.criteres_rouges, le verdict
+          // DOIT être ROUGE quoi qu'en dise le conclusion_ia cached. Cas observé
+          // sur SARL TECHNO BAIN : bloc Entreprise affichait "Radiée" + critère
+          // rouge présent dans raw_text.scoring, mais analysis.score="ROUGE"
+          // (string brute, pas un objet JSON) → JSON.parse fail → garde inactive
+          // → conclusion_ia.verdict_global="dans_la_norme" persisté.
           try {
-            const _scoreData = typeof analysis.score === "string"
-              ? JSON.parse(analysis.score)
-              : (analysis.score as Record<string, unknown> | null) || {};
-            const _rouges: string[] = Array.isArray(_scoreData?.criteres_rouges)
-              ? _scoreData.criteres_rouges
-              : [];
+            let _rouges: string[] = [];
+            // Tentative 1 : analysis.score en JSON structuré
+            try {
+              const _scoreData = typeof analysis.score === "string"
+                ? JSON.parse(analysis.score)
+                : (analysis.score as Record<string, unknown> | null) || {};
+              if (Array.isArray(_scoreData?.criteres_rouges)) {
+                _rouges = _scoreData.criteres_rouges;
+              }
+            } catch { /* analysis.score = string brute "ROUGE", on tombe en fallback */ }
+            // Tentative 2 : raw_text.scoring.criteres_rouges (fallback V3.5.3)
+            if (_rouges.length === 0) {
+              try {
+                const _parsedRaw = JSON.parse(analysis.raw_text || "{}");
+                const _rawScoring = _parsedRaw?.scoring;
+                if (_rawScoring && Array.isArray(_rawScoring.criteres_rouges)) {
+                  _rouges = _rawScoring.criteres_rouges;
+                }
+              } catch { /* skip */ }
+            }
             const _hasRadiee = _rouges.some(r =>
               typeof r === "string" && /radi[eé]{1,2}/i.test(r)
             );
             if (_hasRadiee) {
               return "ROUGE" as "VERT" | "ORANGE" | "ROUGE";
             }
-          } catch { /* parse fail, on continue avec le mapping standard */ }
+          } catch { /* parse fail global, on continue avec le mapping standard */ }
 
           // V3.4.8 (2026-05-13) — mapping complet conclusion_ia.verdict_global
           //   "dans_la_norme"  → VERT
