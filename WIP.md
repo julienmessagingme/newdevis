@@ -11,6 +11,42 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🚧 Snapshot 2026-05-28 — chantiers actifs
+
+### 🟠 Audit GMC — backlog à attaquer (audit complet du 2026-05-28)
+
+> **Score global** : 6.8/10. Produit techniquement solide (cockpit mobile-first bien pensé, multi-domaine fonctionnel, JSON-LD propre), mais landing sous-performe sur 3 axes : footer dead links, page noindex en bout de funnel, anti-cannibalisation VMD inexistante côté SEO.
+
+**✅ Quick wins du lundi déjà livrés (commit `be13c57`, 2026-05-28)** :
+- Title `/mon-chantier/nouveau` : "Créer mon chantier IA — VerifierMonDevis" → "Démarrer mon chantier — GérerMonChantier"
+- Badge toggle Annuel Pricing : "−30 %" → "Jusqu'à −30 %" (risque DGCCRF neutralisé — plan Essentiel n'économise que 16,7%, pas 30%)
+- Vérif `/demo/?embed=1` : ✅ route statique en place (`public/demo/index.html`)
+
+**🟠 Backlog audit GMC à reprendre** (par ordre de priorité, effort estimé) :
+
+1. **Footer dead links** (`Footer.astro:9-15`) — 5 liens `#` (Sécurité, Guide rénovation, Aides énergétiques, API & MCP, Blog). Créer pages skeletons ou supprimer les liens. **Effort 30 min**, impact SEO +5-10%.
+2. **Page `/securite` dédiée** — argument B2B fort pour cibler MOE/architectes (plan "Sur mesure"). Chiffrement, GDPR, hébergement OVH, RTO/RPO. **Effort 1-2h**.
+3. **CTAs Pricing différenciés** — ajouter `?plan=essentiel` / `?plan=multi` aux liens Pricing pour tracker l'intent et pré-sélectionner Stripe checkout. Actuellement tous pointent vers `/mon-chantier/nouveau` sans param. **Effort 30 min**, conversion +5-10%.
+4. **Social proof landing GMC** — section dédiée avec témoignages + nombre de chantiers pilotés. Si beta, mettre "Beta privée — N premiers utilisateurs actifs". **Effort 2h**, conversion +10-15%.
+5. **Cross-link VMD → GMC** — bandeau dans `/verifier-devis-travaux` et `/analyser-devis-travaux` : "Vous avez plusieurs devis ? Pilotez le chantier complet avec GMC →". Maillage interne entrant absent. **Effort 1h**, SEO + conversion VMD→GMC.
+6. **FAQ pricing** — section dans `Pricing.astro` : "C'est quoi le Pilote IA ?", "Annulation ?", "Données en France ?". **Effort 2h**, SEO longue traîne + conversion.
+7. **Renommer "Accueil" → "Vue d'ensemble"** dans BottomNav, ou clarifier le mapping interne `budget` (`BottomNav.tsx:22`) — confusion sémantique pour devs tiers. **Effort 30 min**.
+8. **Démarrer blog GMC** — 2-3 articles MOFU pour SEO : "Comment piloter un chantier de rénovation totale", "Échéancier travaux : les 14 jalons à anticiper", "Suivre WhatsApp avec ses artisans". **Effort 4h/article**, SEO +20-30% impressions sur 3 mois.
+
+**🟡 Quick wins secondaires identifiés** :
+- A/B test Hero H1 : "Votre chantier, piloté au millimètre" vs "Le logiciel qui pilote votre chantier à votre place" (2 keywords).
+- Reviews schema dans JSON-LD GMC dès 10 testimonials authentiques (rich snippet étoiles = +25% CTR documenté).
+- Wording footer "Sœur de VerifierMonDevis.fr" maladroit → reformuler.
+
+**📊 Détail complet de l'audit** : disponible dans l'historique de session 2026-05-28. Note dimension par dimension :
+- SEO technique 7/10, SEO sémantique 5/10
+- UX landing 7.5/10, UX cockpit 8/10
+- Mobile/responsive 8/10 (très bon — safe-area iOS, touch-manipulation, composants dédiés)
+- Conversion 6/10, Trust/RGPD 6.5/10
+- Cohérence brand vs VMD 5/10
+
+---
+
 ## 🚧 Snapshot 2026-05-23 — chantiers actifs
 
 ### ✅ V3.5.0 refonte vectorisation catalogue market_prices — LIVE EN PROD
