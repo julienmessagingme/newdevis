@@ -133,6 +133,16 @@ async function uploadToGeminiFiles(
 // + bannière dédiée + action prioritaire "demandez détail quantités + PU".
 // ============================================================
 
+// V3.5.4 (2026-05-28) — Ajout "u" / "pce" / "pièce" suite faux-positif sur devis
+// Côte Maison Travaux (30 lignes très détaillées dont 24 équipements en "u" :
+// 1 mitigeur GROHE 382€, 1 bac WEDI 495€, 1 cabine douche 498€, etc.).
+// "u" est une unité physique LÉGITIME pour le comptage d'équipements ponctuels.
+//
+// SEUL le pattern "unite=null OU unite=''" reste détecté comme "résumé par lot"
+// (cas devis bidon Crételi où aucune unité n'était saisie dans le PDF). On évite
+// d'ajouter "unite" / "unité" car ce sont des fallbacks génériques que Gemini
+// peut écrire quand la colonne UNITE est vide. "forfait" reste hors liste aussi
+// — un devis 100% forfait sans détail est suspect.
 const PHYSICAL_UNIT_NAMES = new Set([
   "m2", "m²", "m^2", "metre2", "mètre carré",
   "ml", "ml.", "m_lin", "mètre linéaire",
@@ -141,6 +151,9 @@ const PHYSICAL_UNIT_NAMES = new Set([
   "m3", "m³", "m^3",
   "l", "litre",
   "t", "tonne",
+  // V3.5.4 — abréviations explicites de comptage d'objets (équipements distincts)
+  "u", "u.",
+  "pce", "pcs", "p.", "piece", "pièce",
 ]);
 
 function detectIncompleteQuote(
