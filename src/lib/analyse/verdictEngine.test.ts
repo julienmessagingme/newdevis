@@ -12,7 +12,9 @@ import {
 const SAFE_FLAGS: VerdictFlags = {
   entreprise_radiee: false, siret_invalide: false, absence_assurance: false,
   paiement_cash_suspect: false, iban_suspect: false,
-  mentions_legales_manquantes: false, acompte_excessif: false, incoherence_contractuelle: false,
+  mentions_legales_manquantes: false, acompte_excessif: false,
+  acompte_cumule_excessif: false,
+  incoherence_contractuelle: false,
 };
 
 let passed = 0; let failed = 0;

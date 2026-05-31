@@ -774,6 +774,7 @@ serve(async (req) => {
         entreprise_radiee: false, siret_invalide: false, absence_assurance: false,
         paiement_cash_suspect: false, iban_suspect: false,
         mentions_legales_manquantes: false, acompte_excessif: false,
+        acompte_cumule_excessif: false, // V3.5.6
         incoherence_contractuelle: false,
       };
 

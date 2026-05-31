@@ -26,6 +26,14 @@ export interface VerdictFlags {
   iban_suspect:              boolean;
   mentions_legales_manquantes: boolean;
   acompte_excessif:          boolean;
+  /**
+   * V3.5.6 (2026-05-31) — Acompte CUMULÉ > 50% AVANT réception travaux.
+   * Distinct de `acompte_excessif` (qui couvre l'acompte initial > 30%).
+   * Cumulé > 50% avant réception = signal très fort de défaillance imminente
+   * de l'entreprise (cf. Code consommation L121-18 + arrêté 2 mars 1990).
+   * Traité comme HARD BLOCK → verdict ROUGE forcé.
+   */
+  acompte_cumule_excessif:   boolean;
   incoherence_contractuelle: boolean;
 }
 
@@ -239,12 +247,16 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
   threshold_ok = clamp(threshold_ok, THRESHOLD_OK_MIN, THRESHOLD_OK_MAX);
 
   // ── 1. Hard block — sécurité absolue ─────────────────────────────────────────
+  // V3.5.6 (2026-05-31) — acompte_cumule_excessif ajouté à la liste : un
+  // acompte cumulé > 50% AVANT réception est un signal très fort de défaillance
+  // imminente de l'entreprise + atteinte aux protections consommateur.
   const is_hard_block = (
     flags.entreprise_radiee      ||
     flags.siret_invalide         ||
     flags.absence_assurance      ||
     flags.paiement_cash_suspect  ||
-    flags.iban_suspect
+    flags.iban_suspect           ||
+    flags.acompte_cumule_excessif
   );
 
   if (is_hard_block) {
@@ -616,6 +628,18 @@ export function extractFlagsFromCriteria(
     iban_suspect:                join.includes("iban") && (join.includes("étranger") || join.includes("invalide")),
     mentions_legales_manquantes: join.includes("mentions légales") || join.includes("mentions legales"),
     acompte_excessif:            join.includes("acompte") && (join.includes("50%") || join.includes("excessif") || join.includes("30%")),
+    // V3.5.6 — détection acompte CUMULÉ excessif (vs simple acompte initial).
+    // Match le critère rouge généré par score.ts:130 :
+    // "Acompte cumulé supérieur à 50% demandé avant réception des travaux (95%...)"
+    // Patterns ANDés : "acompte" + "cumul" + ("50%" OU "avant réception").
+    // Ne déclenche QUE pour le critère structurellement nommé "cumulé" — pas
+    // pour un simple acompte initial de 50% (qui reste a_negocier).
+    acompte_cumule_excessif:     criteres_rouges.some((r: string) => {
+      const s = String(r ?? "").toLowerCase();
+      return s.includes("acompte") &&
+        s.includes("cumul") &&
+        (s.includes("50%") || s.includes("avant réception") || s.includes("avant reception"));
+    }),
     incoherence_contractuelle:   join.includes("incohér") || join.includes("incoher") || join.includes("contractuelle"),
   };
 }
