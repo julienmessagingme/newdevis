@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.5.4";
+const ENGINE_VERSION = "3.5.6";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -861,7 +861,49 @@ export const POST: APIRoute = async ({ params, request }) => {
       (extractedActuel?.is_incomplete_quote === true) ||
       (extractedLegacy2?.is_incomplete_quote === true);
 
-    if (isIncomplete) {
+    // V3.5.6 (2026-05-31) — GARDE de priorité : ne PAS bypass vers le verdict
+    // synthétique "devis incomplet" si le pipeline a déjà détecté un critère
+    // ROUGE majeur (entreprise radiée, acompte cumulé excessif, etc.).
+    //
+    // Cas d'origine devis Côte Maison Travaux : la garde V3.5.1 a déclenché
+    // un faux-positif (24 lignes en "u" comptées comme "sans unité physique"
+    // — bug V3.5.4 censé être corrigé). MAIS le pipeline avait correctement
+    // détecté un VRAI critère rouge "Acompte cumulé 95% > 50% — risque majeur".
+    // Le bypass synthétique a OVERRIDÉ ce critère rouge avec un verdict orange
+    // "À négocier" qui MASQUE le risque réel.
+    //
+    // Logique : un critère rouge présent dans criteres_rouges est TOUJOURS
+    // prioritaire sur la détection "devis incomplet". Si le pipeline a su
+    // identifier un risque réel, on le respecte. Le bypass n'est légitime que
+    // pour les devis vraiment sans détail ET sans critère rouge.
+    //
+    // criteres_rouges est parsé plus bas dans le fichier (ligne ~1076), mais
+    // on doit le check ICI. Parse local autonome — duplication assumée.
+    let earlyCriteresRouges: string[] = [];
+    try {
+      const _scoreData = typeof analysis.score === "string"
+        ? JSON.parse(analysis.score)
+        : (analysis.score as Record<string, unknown> | null) || {};
+      if (Array.isArray(_scoreData?.criteres_rouges)) {
+        earlyCriteresRouges = _scoreData.criteres_rouges;
+      }
+    } catch {
+      // analysis.score = string brute "ROUGE", tentative fallback raw_text.scoring (V3.5.3)
+      try {
+        const _rawScoring = parsed?.scoring;
+        if (_rawScoring && Array.isArray(_rawScoring.criteres_rouges)) {
+          earlyCriteresRouges = _rawScoring.criteres_rouges;
+        }
+      } catch { /* skip */ }
+    }
+    const hasRedCriteria = earlyCriteresRouges.length > 0;
+    if (isIncomplete && hasRedCriteria) {
+      console.warn(
+        `[conclusion] V3.5.6 GARDE bypass — is_incomplete_quote=true MAIS ${earlyCriteresRouges.length} critère(s) rouge(s) présent(s) → ne PAS bypass, pipeline normal applique le verdict ROUGE. Critères: ${JSON.stringify(earlyCriteresRouges.slice(0, 3))}`,
+      );
+      // Skip le bypass, on continue vers le pipeline normal qui va générer
+      // un verdict ROUGE basé sur les critères rouges (via computeVerdict).
+    } else if (isIncomplete) {
       const reason =
         (extractedActuel?.incomplete_quote_reason as string | undefined) ||
         (extractedLegacy2?.incomplete_quote_reason as string | undefined) ||
