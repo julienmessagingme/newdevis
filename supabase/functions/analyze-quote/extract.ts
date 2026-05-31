@@ -596,7 +596,11 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     // On calcule sur parsed.travaux brut (avant filtrage RECAP) — les lignes récap
     // sont peu nombreuses vs les vraies lignes du devis bidon, l'heuristique reste
     // robuste.
+    // V3.5.5 (2026-05-31) — log diagnostic version explicite pour traquer les
+    // problèmes de cache instance Supabase. Si on voit ce log avec V3.5.5 dans
+    // Supabase Functions logs après un re-upload, le code à jour est bien actif.
     const incompleteDetection = detectIncompleteQuote(parsed.travaux || []);
+    console.log(`[extract] V3.5.5 detectIncompleteQuote — nb_lignes=${(parsed.travaux || []).length} is_incomplete=${incompleteDetection.is_incomplete} unites_sample=${JSON.stringify((parsed.travaux || []).slice(0, 5).map((t: any) => t?.unite))} u_in_set=${PHYSICAL_UNIT_NAMES.has("u")}`);
     if (incompleteDetection.is_incomplete) {
       console.log(`[extract] INCOMPLETE QUOTE detected: ${incompleteDetection.reason}`);
     }
