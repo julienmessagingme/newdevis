@@ -2,6 +2,7 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
+import CrossLinkGMC from '@/components/analysis/CrossLinkGMC.astro';
 
 const faqs = [
   {
@@ -223,6 +224,9 @@ const jsonLd = [
           </div>
         </div>
       </section>
+
+      <!-- ── Cross-link GMC (anti-cannibalisation + maillage interne) ───── -->
+      <CrossLinkGMC />
 
       <!-- ── Contenu principal ────────────────────────────────────────────── -->
       <article class="py-12 sm:py-16 px-4">

@@ -1,0 +1,131 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'Sécurité & RGPD — GérerMonChantier',
+  description: 'Hébergement OVH France, chiffrement, conformité RGPD, sauvegardes. Les engagements sécurité de GMC.',
+  url: 'https://gerermonchantier.fr/securite',
+};
+---
+
+<BaseLayout
+  title="Sécurité & RGPD — GérerMonChantier"
+  description="Hébergement France, chiffrement TLS, conformité RGPD, sauvegardes quotidiennes. Comment GMC protège vos données de chantier."
+  canonical="https://gerermonchantier.fr/securite"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1 py-12 px-6">
+      <article class="max-w-3xl mx-auto">
+        <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Sécurité</p>
+        <h1 class="font-bold text-[#0E1730] text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-6">
+          Vos données de chantier, en sécurité.
+        </h1>
+        <p class="text-lg text-gray-600 leading-relaxed mb-10">
+          GérerMonChantier traite des informations sensibles : devis, factures, IBAN, échanges avec
+          vos artisans. Nous appliquons des standards de sécurité conformes au RGPD et hébergeons
+          tout en France.
+        </p>
+
+        <section class="space-y-8">
+          <div class="bg-white border border-gray-100 rounded-2xl p-6">
+            <div class="flex items-start gap-4">
+              <span class="w-10 h-10 rounded-xl bg-[#EFF4FF] flex items-center justify-center text-xl shrink-0">🇫🇷</span>
+              <div>
+                <h2 class="font-bold text-[#0E1730] text-xl mb-2">Hébergement en France</h2>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                  Toutes vos données sont stockées sur des serveurs OVH situés en France métropolitaine.
+                  Aucun transfert hors de l'Union européenne pour le stockage primaire. Vos données
+                  restent sous juridiction française.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white border border-gray-100 rounded-2xl p-6">
+            <div class="flex items-start gap-4">
+              <span class="w-10 h-10 rounded-xl bg-[#EFF4FF] flex items-center justify-center text-xl shrink-0">🔒</span>
+              <div>
+                <h2 class="font-bold text-[#0E1730] text-xl mb-2">Chiffrement bout-en-bout</h2>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                  Toutes les communications avec GMC passent par HTTPS (TLS 1.2+). Les documents
+                  uploadés (PDF de devis, factures, photos) sont stockés chiffrés au repos via les
+                  buckets sécurisés de notre infrastructure.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white border border-gray-100 rounded-2xl p-6">
+            <div class="flex items-start gap-4">
+              <span class="w-10 h-10 rounded-xl bg-[#EFF4FF] flex items-center justify-center text-xl shrink-0">📋</span>
+              <div>
+                <h2 class="font-bold text-[#0E1730] text-xl mb-2">Conformité RGPD</h2>
+                <p class="text-sm text-gray-600 leading-relaxed mb-3">
+                  GMC respecte le règlement général sur la protection des données (RGPD). Vous avez
+                  un droit d'accès, de rectification, d'effacement et de portabilité sur vos données.
+                </p>
+                <ul class="text-sm text-gray-600 space-y-1.5">
+                  <li class="flex items-start gap-2"><span class="text-[#1FB664] font-bold mt-0.5">✓</span> Minimisation : nous ne collectons que les données strictement nécessaires</li>
+                  <li class="flex items-start gap-2"><span class="text-[#1FB664] font-bold mt-0.5">✓</span> Aucune vente ni partage avec des tiers à des fins commerciales</li>
+                  <li class="flex items-start gap-2"><span class="text-[#1FB664] font-bold mt-0.5">✓</span> Suppression sur demande dans un délai maximum de 30 jours</li>
+                  <li class="flex items-start gap-2"><span class="text-[#1FB664] font-bold mt-0.5">✓</span> Export complet de vos données à tout moment</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white border border-gray-100 rounded-2xl p-6">
+            <div class="flex items-start gap-4">
+              <span class="w-10 h-10 rounded-xl bg-[#EFF4FF] flex items-center justify-center text-xl shrink-0">💾</span>
+              <div>
+                <h2 class="font-bold text-[#0E1730] text-xl mb-2">Sauvegardes & disponibilité</h2>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                  Vos données sont sauvegardées automatiquement chaque jour. En cas d'incident, nous
+                  pouvons restaurer les données à n'importe quel point dans les 7 derniers jours.
+                  L'infrastructure est conçue pour une disponibilité de 99,9 %.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white border border-gray-100 rounded-2xl p-6">
+            <div class="flex items-start gap-4">
+              <span class="w-10 h-10 rounded-xl bg-[#EFF4FF] flex items-center justify-center text-xl shrink-0">🤝</span>
+              <div>
+                <h2 class="font-bold text-[#0E1730] text-xl mb-2">Sous-traitants</h2>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                  Nous utilisons un nombre limité de prestataires techniques (hébergement, envoi
+                  d'emails, IA d'analyse de devis). Tous sont conformes RGPD et listés dans nos
+                  <a href="/confidentialite" class="text-[#1B3FA1] underline hover:text-[#16348A]">conditions de confidentialité</a>.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="mt-12 bg-[#0E1730] text-white rounded-2xl p-8 text-center">
+          <h2 class="font-bold text-xl mb-3">Une question sur la sécurité ?</h2>
+          <p class="text-sm text-white/80 mb-5 max-w-md mx-auto">
+            Audit interne, conformité MOE/architectes, SLA contractuels — contactez-nous pour les
+            sujets B2B avancés.
+          </p>
+          <a href="/contact" class="inline-flex items-center gap-1.5 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors">
+            Nous contacter
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+      </article>
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

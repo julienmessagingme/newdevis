@@ -1,0 +1,82 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'Guide rénovation maison — GérerMonChantier',
+  description: 'Les 7 étapes clés pour réussir une rénovation : devis, lots, planning, paiement, réception.',
+  url: 'https://gerermonchantier.fr/guide-renovation',
+};
+
+const etapes = [
+  { n: '01', t: 'Cadrer le projet', d: "Définissez l'enveloppe budgétaire, les pièces concernées, le niveau de finition souhaité. Anticipez 10-15 % de marge pour les imprévus structurels." },
+  { n: '02', t: 'Identifier les lots', d: "Démolition, plomberie, électricité, maçonnerie, isolation, menuiseries, revêtements, peinture. Pour chaque lot, un artisan dédié (ou un MOE qui les coordonne)." },
+  { n: '03', t: 'Demander 3 devis par lot', d: "Au minimum 3 devis pour chaque corps de métier. Le moins cher n'est jamais le meilleur — comparez les détails ligne par ligne, les assurances, les délais." },
+  { n: '04', t: 'Vérifier chaque devis', d: "Mentions obligatoires (SIRET, assurance décennale), prix unitaires au marché, acompte ≤ 30 %, TVA correcte (5,5 % rénovation énergétique vs 10 % vs 20 %)." },
+  { n: '05', t: 'Établir le planning CPM', d: "Lots chaînés selon les dépendances : démolition avant maçonnerie, électricité/plomberie avant placo, placo avant peinture. Compter buffers entre lots." },
+  { n: '06', t: 'Gérer les paiements', d: "Acompte signature (≤ 30 %), appels de fonds à l'avancement, solde ≥ 5-10 % à la réception. JAMAIS payer 95 % avant la réception finale." },
+  { n: '07', t: 'Réception du chantier', d: "Visite contradictoire, liste des réserves écrites, levée des réserves sous 30-60 jours. Garanties : parfait achèvement (1 an), biennale (2 ans), décennale (10 ans)." },
+];
+---
+
+<BaseLayout
+  title="Guide rénovation maison : 7 étapes clés (2026) — GérerMonChantier"
+  description="Comment réussir une rénovation : cadrer le budget, comparer les devis, planifier les lots, gérer les paiements, réceptionner. Guide complet."
+  canonical="https://gerermonchantier.fr/guide-renovation"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1 py-12 px-6">
+      <article class="max-w-3xl mx-auto">
+        <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Guide rénovation</p>
+        <h1 class="font-bold text-[#0E1730] text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-6">
+          Réussir une rénovation : les 7 étapes clés.
+        </h1>
+        <p class="text-lg text-gray-600 leading-relaxed mb-10">
+          Une rénovation maison réussie tient à 3 facteurs : un cadrage rigoureux en amont, des artisans
+          fiables, et un pilotage serré pendant les travaux. Ce guide synthétise les étapes essentielles
+          pour éviter les pièges classiques (devis gonflés, retards, malfaçons).
+        </p>
+
+        <ol class="space-y-5">
+          {etapes.map((e) => (
+            <li class="bg-white border border-gray-100 rounded-2xl p-6">
+              <div class="flex items-start gap-4">
+                <span class="font-bold text-3xl text-[#1B3FA1]/30 shrink-0">{e.n}</span>
+                <div>
+                  <h2 class="font-bold text-[#0E1730] text-xl mb-2">{e.t}</h2>
+                  <p class="text-sm text-gray-600 leading-relaxed">{e.d}</p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <div class="mt-12 bg-[#0E1730] text-white rounded-2xl p-8 text-center">
+          <h2 class="font-bold text-xl mb-3">Piloter votre rénovation, simplement.</h2>
+          <p class="text-sm text-white/80 mb-5 max-w-md mx-auto">
+            GérerMonChantier orchestre les 7 étapes ci-dessus : planning CPM auto, vérification IA des
+            devis, suivi des paiements, journal IA quotidien. Vous arbitrez, le Pilote exécute.
+          </p>
+          <a href="/mon-chantier/nouveau" class="inline-flex items-center gap-1.5 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors">
+            Démarrer mon chantier
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+
+        <p class="mt-8 text-xs text-gray-500 text-center">
+          Pour vérifier un devis spécifique : <a href="https://www.verifiermondevis.fr" class="text-[#1B3FA1] underline">VerifierMonDevis.fr</a> (gratuit).
+        </p>
+      </article>
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

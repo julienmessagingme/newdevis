@@ -101,7 +101,10 @@ const plans = [
             ))}
           </ul>
           <a
-            href={pl.cta === 'Nous contacter' ? '/contact' : '/mon-chantier/nouveau'}
+            href={pl.cta === 'Nous contacter'
+              ? '/contact'
+              : `/mon-chantier/nouveau?plan=${pl.n === 'Essentiel' ? 'essentiel' : 'multi'}`}
+            data-plan={pl.n === 'Essentiel' ? 'essentiel' : pl.n === 'Multi-chantiers' ? 'multi' : 'custom'}
             class:list={[
               'mt-6 inline-flex items-center justify-center w-full gap-1.5 text-sm font-bold px-5 h-11 rounded-xl cursor-pointer transition-colors',
               pl.highlight ? 'bg-[#F58A06] hover:bg-[#E47C00] text-white' : 'bg-[#1B3FA1] hover:bg-[#16348A] text-white',

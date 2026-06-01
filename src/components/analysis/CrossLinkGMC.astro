@@ -1,0 +1,64 @@
+---
+/**
+ * CrossLinkGMC.astro — Bandeau cross-promo VMD → GMC.
+ *
+ * Inséré dans les pages SEO VMD (/verifier-devis-travaux, /analyser-devis-travaux)
+ * pour transformer du trafic SEO existant en trafic qualifié vers GMC.
+ *
+ * Maillage interne entrant : `rel="related"` sur le lien pour signaler à Google
+ * la relation entre les 2 propriétés. UTM tracking pour mesurer la conversion
+ * VMD → GMC dans Search Console / GA.
+ *
+ * Design : conserve la palette orange + slate de VMD, mais introduit la couleur
+ * navy/indigo de GMC sur le bouton CTA pour signaler le passage vers l'autre
+ * propriété.
+ */
+---
+
+<section class="px-4 py-10">
+  <div class="container max-w-3xl mx-auto">
+    <div class="relative overflow-hidden rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-orange-50/40 p-6 sm:p-8">
+      <!-- Décor : bulle navy en haut à droite -->
+      <div class="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" aria-hidden="true"></div>
+
+      <div class="relative flex flex-col sm:flex-row items-start sm:items-center gap-5">
+        <!-- Icône -->
+        <div class="shrink-0 w-14 h-14 rounded-2xl bg-white border border-indigo-100 shadow-sm flex items-center justify-center text-3xl" aria-hidden="true">
+          🏗️
+        </div>
+
+        <!-- Texte -->
+        <div class="flex-1 min-w-0">
+          <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-700 mb-1">
+            Vous avez plusieurs devis ?
+          </p>
+          <h2 class="text-lg sm:text-xl font-bold text-slate-900 leading-snug mb-2">
+            Pilotez tout votre chantier, pas seulement vos devis.
+          </h2>
+          <p class="text-sm text-slate-600 leading-relaxed">
+            <strong class="text-slate-900">GérerMonChantier</strong> orchestre l'ensemble :
+            planning des lots, messagerie WhatsApp unifiée avec vos artisans, trésorerie,
+            rappels d'échéances. L'IA fait le suivi, vous arbitrez.
+          </p>
+        </div>
+
+        <!-- CTA -->
+        <a
+          href="https://gerermonchantier.fr/?utm_source=vmd&utm_medium=cross-link&utm_campaign=seo-devis"
+          rel="related noopener"
+          class="shrink-0 inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-3 rounded-xl transition-colors whitespace-nowrap"
+        >
+          Découvrir GMC
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <path d="M7 17L17 7M7 7h10v10" />
+          </svg>
+        </a>
+      </div>
+
+      <p class="relative mt-4 text-[11px] text-slate-500 leading-relaxed">
+        15 jours d'essai libre · sans CB · données hébergées en France.
+        Compte unique avec VerifierMonDevis.
+      </p>
+    </div>
+  </div>
+</section>

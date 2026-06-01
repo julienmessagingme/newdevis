@@ -1,0 +1,122 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'Aides énergétiques rénovation — GérerMonChantier',
+  description: "MaPrimeRénov', CEE, Eco-PTZ, TVA 5,5 % : panorama des aides 2026 pour votre rénovation.",
+  url: 'https://gerermonchantier.fr/aides-energetiques',
+};
+
+const aides = [
+  {
+    n: "MaPrimeRénov'",
+    montant: 'Jusqu\'à 70 % du devis HT',
+    cible: 'Tous les propriétaires, modulée selon revenus + ampleur des travaux',
+    travaux: "Isolation, chauffage, ventilation, audit énergétique. Cumul possible avec CEE.",
+    site: 'https://maprimerenov.gouv.fr',
+  },
+  {
+    n: 'Certificats d\'Économies d\'Énergie (CEE)',
+    montant: '500 à 4 000 € selon poste',
+    cible: 'Propriétaires occupants et bailleurs, locataires',
+    travaux: 'Isolation, pompe à chaleur, chaudière biomasse, ventilation double-flux. Versés par fournisseurs d\'énergie.',
+    site: 'https://www.ecologie.gouv.fr/certificats-deconomies-denergie-cee',
+  },
+  {
+    n: 'Éco-prêt à taux zéro (Éco-PTZ)',
+    montant: 'Jusqu\'à 50 000 € à 0 %',
+    cible: 'Propriétaires (logement > 2 ans)',
+    travaux: 'Rénovation énergétique globale ou par lots (isolation, chauffage, fenêtres).',
+    site: 'https://www.service-public.fr/particuliers/vosdroits/F19905',
+  },
+  {
+    n: 'TVA réduite 5,5 %',
+    montant: 'Économie 14,5 % sur main-d\'œuvre + matériaux',
+    cible: 'Logement > 2 ans, occupants ou locataires',
+    travaux: 'Rénovation énergétique : isolation, PAC, chaudière à condensation, fenêtres performantes.',
+    site: 'https://www.economie.gouv.fr/particuliers/tva-travaux',
+  },
+  {
+    n: 'Coup de pouce Chauffage / Isolation',
+    montant: 'Bonus CEE majorés (jusqu\'à 1 200 € de plus)',
+    cible: 'Tous les ménages, bonus pour précaires énergétiques',
+    travaux: 'Remplacement chaudière fioul/gaz → PAC ou biomasse, isolation combles ou planchers.',
+    site: 'https://france-renov.gouv.fr',
+  },
+];
+---
+
+<BaseLayout
+  title="Aides énergétiques rénovation 2026 : MaPrimeRénov', CEE, Éco-PTZ — GérerMonChantier"
+  description="Panorama des aides 2026 pour rénovation : MaPrimeRénov', CEE, Éco-PTZ, TVA 5,5 %. Conditions, montants, cumul possible."
+  canonical="https://gerermonchantier.fr/aides-energetiques"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1 py-12 px-6">
+      <article class="max-w-3xl mx-auto">
+        <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Aides 2026</p>
+        <h1 class="font-bold text-[#0E1730] text-4xl sm:text-5xl leading-[1.05] tracking-tight mb-6">
+          Les aides énergétiques pour votre rénovation.
+        </h1>
+        <p class="text-lg text-gray-600 leading-relaxed mb-10">
+          Une rénovation énergétique bien orchestrée peut être <strong>financée jusqu'à 70 %</strong> via
+          les dispositifs publics. Encore faut-il identifier ceux auxquels vous avez droit et savoir les
+          cumuler. Voici le panorama 2026 des principales aides.
+        </p>
+
+        <ol class="space-y-5">
+          {aides.map((a) => (
+            <li class="bg-white border border-gray-100 rounded-2xl p-6">
+              <div class="flex flex-col md:flex-row md:items-start gap-4">
+                <div class="md:flex-1">
+                  <h2 class="font-bold text-[#0E1730] text-xl mb-2">{a.n}</h2>
+                  <p class="text-sm font-bold text-[#1B3FA1] mb-3">{a.montant}</p>
+                  <p class="text-sm text-gray-600 leading-relaxed mb-2"><strong class="text-gray-900">Cible :</strong> {a.cible}</p>
+                  <p class="text-sm text-gray-600 leading-relaxed mb-3"><strong class="text-gray-900">Travaux :</strong> {a.travaux}</p>
+                  <a href={a.site} target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-[#1B3FA1] hover:underline inline-flex items-center gap-1">
+                    Site officiel
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M7 17L17 7M7 7h10v10" />
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+          <p class="text-sm text-amber-900 leading-relaxed">
+            <strong>⚠️ Conditions à vérifier :</strong> ressources, logement de plus de 2 ans, travaux
+            exécutés par un artisan RGE (Reconnu Garant de l'Environnement). Les montants évoluent
+            chaque année — vérifiez sur les sites officiels avant signature.
+          </p>
+        </div>
+
+        <div class="mt-12 bg-[#0E1730] text-white rounded-2xl p-8 text-center">
+          <h2 class="font-bold text-xl mb-3">GMC détecte les aides éligibles automatiquement.</h2>
+          <p class="text-sm text-white/80 mb-5 max-w-md mx-auto">
+            À la création de votre chantier, le Pilote IA estime votre éligibilité MaPrimeRénov', CEE
+            et TVA 5,5 % en fonction du projet et des matériaux. Vous savez tout de suite combien
+            l'État peut financer.
+          </p>
+          <a href="/mon-chantier/nouveau" class="inline-flex items-center gap-1.5 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors">
+            Estimer mes aides
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+      </article>
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

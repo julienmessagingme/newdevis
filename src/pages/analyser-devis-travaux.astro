@@ -2,6 +2,7 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
+import CrossLinkGMC from '@/components/analysis/CrossLinkGMC.astro';
 
 // SEO V2026-05-26 : repositionnement landing transactionnelle SaaS.
 // Avant : H1 "guide complet" + JSON-LD Article + ogType article
@@ -411,6 +412,9 @@ const checklistRefuse = [
           </div>
         </div>
       </section>
+
+      <!-- ── Cross-link GMC (anti-cannibalisation + maillage interne) ───── -->
+      <CrossLinkGMC />
 
       <!-- ══════════════════════════════════════════
            CONTENU GUIDE SEO (conservé en longue traîne)
