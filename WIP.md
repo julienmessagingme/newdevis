@@ -11,24 +11,29 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
-## 🚧 Snapshot 2026-05-28 — chantiers actifs
+## 🚧 Snapshot 2026-06-02 — chantiers actifs
 
-### 🟠 Audit GMC — backlog à attaquer (audit complet du 2026-05-28)
+### ✅ Audit GMC — 4 priorités livrées sur 8 (état au 2026-06-02)
 
-> **Score global** : 6.8/10. Produit techniquement solide (cockpit mobile-first bien pensé, multi-domaine fonctionnel, JSON-LD propre), mais landing sous-performe sur 3 axes : footer dead links, page noindex en bout de funnel, anti-cannibalisation VMD inexistante côté SEO.
+> **Score global initial** : 6.8/10. Audit complet du 2026-05-28.
 
-**✅ Quick wins du lundi déjà livrés (commit `be13c57`, 2026-05-28)** :
-- Title `/mon-chantier/nouveau` : "Créer mon chantier IA — VerifierMonDevis" → "Démarrer mon chantier — GérerMonChantier"
-- Badge toggle Annuel Pricing : "−30 %" → "Jusqu'à −30 %" (risque DGCCRF neutralisé — plan Essentiel n'économise que 16,7%, pas 30%)
-- Vérif `/demo/?embed=1` : ✅ route statique en place (`public/demo/index.html`)
+**✅ Items du backlog livrés** :
 
-**🟠 Backlog audit GMC à reprendre** (par ordre de priorité, effort estimé) :
+| # | Item | Commit | Status |
+|---|---|---|---|
+| Pre | Title `/mon-chantier/nouveau` + Badge "Jusqu'à -30 %" + vérif `/demo/` | `be13c57` | ✅ |
+| 1 | **Footer dead links** : 5 liens `#` remplacés par pages réelles `/securite`, `/guide-renovation`, `/aides-energetiques`, `/blog`, `VerifierMonDevis`. 3 pages skeletons créées avec contenu SEO + JSON-LD WebPage | `4a7febd` | ✅ |
+| 3 | **CTAs Pricing différenciés** : `?plan=essentiel` / `?plan=multi` + `data-plan` pour analytics futur | `4a7febd` | ✅ |
+| 5 | **Cross-link VMD → GMC** : composant `CrossLinkGMC.astro` injecté dans `/verifier-devis-travaux` et `/analyser-devis-travaux`, UTM tracking, rel="related noopener" | `4a7febd` | ✅ |
+| Bonus | Fix Header GMC : liens nav `/#fonctionnalites|pilote|tarifs` pour ancrages absolus (bug observé sur `/guide-renovation` où les ancres pointaient vers la page courante) | `745ec64` | ✅ |
 
-1. **Footer dead links** (`Footer.astro:9-15`) — 5 liens `#` (Sécurité, Guide rénovation, Aides énergétiques, API & MCP, Blog). Créer pages skeletons ou supprimer les liens. **Effort 30 min**, impact SEO +5-10%.
-2. **Page `/securite` dédiée** — argument B2B fort pour cibler MOE/architectes (plan "Sur mesure"). Chiffrement, GDPR, hébergement OVH, RTO/RPO. **Effort 1-2h**.
-3. **CTAs Pricing différenciés** — ajouter `?plan=essentiel` / `?plan=multi` aux liens Pricing pour tracker l'intent et pré-sélectionner Stripe checkout. Actuellement tous pointent vers `/mon-chantier/nouveau` sans param. **Effort 30 min**, conversion +5-10%.
+**🟠 Items du backlog restant** :
+
+1. ~~Footer dead links~~ ✅ FAIT (`4a7febd`)
+2. **Page `/securite` dédiée enrichie** — la version skeleton créée (`4a7febd`) couvre les bases mais peut être enrichie pour cibler B2B/MOE (audits, SLA, RTO/RPO). **Effort 1-2h** quand on ouvrira plan "Sur mesure".
+3. ~~CTAs Pricing différenciés~~ ✅ FAIT (`4a7febd`)
 4. **Social proof landing GMC** — section dédiée avec témoignages + nombre de chantiers pilotés. Si beta, mettre "Beta privée — N premiers utilisateurs actifs". **Effort 2h**, conversion +10-15%.
-5. **Cross-link VMD → GMC** — bandeau dans `/verifier-devis-travaux` et `/analyser-devis-travaux` : "Vous avez plusieurs devis ? Pilotez le chantier complet avec GMC →". Maillage interne entrant absent. **Effort 1h**, SEO + conversion VMD→GMC.
+5. ~~Cross-link VMD → GMC~~ ✅ FAIT (`4a7febd`)
 6. **FAQ pricing** — section dans `Pricing.astro` : "C'est quoi le Pilote IA ?", "Annulation ?", "Données en France ?". **Effort 2h**, SEO longue traîne + conversion.
 7. **Renommer "Accueil" → "Vue d'ensemble"** dans BottomNav, ou clarifier le mapping interne `budget` (`BottomNav.tsx:22`) — confusion sémantique pour devs tiers. **Effort 30 min**.
 8. **Démarrer blog GMC** — 2-3 articles MOFU pour SEO : "Comment piloter un chantier de rénovation totale", "Échéancier travaux : les 14 jalons à anticiper", "Suivre WhatsApp avec ses artisans". **Effort 4h/article**, SEO +20-30% impressions sur 3 mois.
@@ -38,12 +43,33 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 - Reviews schema dans JSON-LD GMC dès 10 testimonials authentiques (rich snippet étoiles = +25% CTR documenté).
 - Wording footer "Sœur de VerifierMonDevis.fr" maladroit → reformuler.
 
-**📊 Détail complet de l'audit** : disponible dans l'historique de session 2026-05-28. Note dimension par dimension :
+**📊 Note dimension par dimension** (audit 2026-05-28) :
 - SEO technique 7/10, SEO sémantique 5/10
 - UX landing 7.5/10, UX cockpit 8/10
-- Mobile/responsive 8/10 (très bon — safe-area iOS, touch-manipulation, composants dédiés)
+- Mobile/responsive 8/10
 - Conversion 6/10, Trust/RGPD 6.5/10
 - Cohérence brand vs VMD 5/10
+
+### 🟠 Fixes verdict V3.5.4 → V3.5.8 (2026-05-28 au 2026-06-02)
+
+**Suite de patches sur le pipeline analyse de devis** consignés détail par détail dans `CLAUDE.md` (section ENGINE_VERSION) :
+
+| Version | Trigger devis | Fix |
+|---|---|---|
+| V3.5.4 | Côte Maison Travaux (SDB 11 871€, 30 lignes) | Faux-positif "Devis incomplet" sur unité "u" → ajout "u"/"pce"/"pièce" à PHYSICAL_UNIT_NAMES |
+| V3.5.5 | (debug) | Log diagnostic temporaire `[extract] V3.5.5` pour traquer cache instance Supabase |
+| V3.5.6 | Côte Maison Travaux suite | Garde priorité critères rouges sur bypass `is_incomplete_quote` + flag `acompte_cumule_excessif` ajouté en hard block |
+| V3.5.7 | DV0003541.pdf admin | Override admin sur `/api/analyse/[id]/conclusion` + `/mark-failed` (parité avec front qui avait déjà l'override depuis `56e4100`) |
+| V3.5.8 | TLC Construction (reno Bois-Colombes) | 3 fixes : (P1) wording hard block contextuel (5 wordings selon flag au lieu du générique "entreprise radiée"), (P2) surcoût aligné sur hero (plus de 3 chiffres différents), (P3) +8 entrées catalogue gros œuvre (plancher hourdis béton, charpente fermette m²/ml/U, dalle béton finition, pré-mur préfabriqué) |
+
+**⚠️ Actions manuelles requises après push V3.5.8 (commit `c4808b4`)** :
+1. Appliquer la migration `supabase/migrations/20260602_001_market_prices_gros_oeuvre_enrichment.sql` via Dashboard Supabase SQL Editor
+2. Lancer `node scripts/seed_market_prices_embeddings.mjs` pour embed les 8 nouvelles entrées catalogue (idempotent)
+3. Redéployer la edge function : `npx supabase functions deploy analyze-quote`
+
+### 🟠 Bug latent : `analyses.score` stocké comme string brute "ROUGE" (depuis V3.5.3)
+
+Régression du pipeline `supabase/functions/analyze-quote/index.ts:985+1011+1028` qui fait `score: scoring.score_global` (= string brute) au lieu de stocker l'objet structuré `{score_global, criteres_rouges, criteres_oranges, ...}`. Workaround V3.5.3 : fallback sur `raw_text.scoring.criteres_rouges` quand le parse JSON échoue. **Pas critique** (fallback fonctionne) mais à refactorer dans une session ultérieure pour propreté + cohérence.
 
 ---
 
