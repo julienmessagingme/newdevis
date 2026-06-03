@@ -623,7 +623,22 @@ export const POST: APIRoute = async ({ params, request }) => {
     .single();
 
   if (!analysis) return jsonError("Analyse introuvable", 404);
-  if (analysis.user_id !== user.id) return jsonError("Accès refusé", 403);
+
+  // V3.5.7 (2026-06-02) — Override admin : un admin peut générer la conclusion
+  // de N'IMPORTE QUELLE analyse (utile pour debug + audit en prod).
+  // Cf. AnalysisResult.tsx:397-420 qui fait le même check côté front.
+  // Sans ça : admin voit l'analyse côté liste/détail mais ne peut PAS la
+  // régénérer → "Accès refusé" sur Préparation du verdict.
+  if (analysis.user_id !== user.id) {
+    const { data: roleData } = await (supabase as any)
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (!roleData) return jsonError("Accès refusé", 403);
+    console.log(`[conclusion] V3.5.7 admin override — user=${user.id} accède à analyse de user=${analysis.user_id}`);
+  }
 
   // ── Cache hit (sauf si force=true dans le body) ───────────────────────────
   let forceRegen = false;

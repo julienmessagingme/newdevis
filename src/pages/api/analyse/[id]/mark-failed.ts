@@ -36,7 +36,18 @@ export const POST: APIRoute = async ({ params, request }) => {
     .single();
 
   if (!analysis) return jsonError("Analyse introuvable", 404);
-  if (analysis.user_id !== user.id) return jsonError("Accès refusé", 403);
+
+  // V3.5.7 (2026-06-02) — Override admin pour cohérence avec /conclusion.
+  if (analysis.user_id !== user.id) {
+    const { data: roleData } = await (supabase as any)
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (!roleData) return jsonError("Accès refusé", 403);
+    console.log(`[mark-failed] admin override — user=${user.id} → analyse de user=${analysis.user_id}`);
+  }
 
   // Seulement si l'analyse est en cours depuis plus de 2 minutes (évite les faux positifs)
   const createdAt = new Date(analysis.created_at).getTime();
