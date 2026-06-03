@@ -914,11 +914,19 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     } else {
       // refuser — prix fortement dépassé
       // V3.3.2 — surcoût aligné sur le hero (server_surcout_mid si fourni)
+      // V3.5.8 (2026-06-02) — branche fallback alignée elle aussi sur surcoutForWording
+      // (au lieu de `overprice` agrégé qui peut diverger fortement du chiffre hero —
+      // bug observé devis TLC Construction : hero +28 600 €, mais reasons disait
+      // "105 k€" → 3 chiffres incohérents sur la même page).
       if (wa) {
         // V3.4.2 — surcout_pct au lieu de poids_anomalies (cf. commentaire ci-dessus)
         reasons.push(`🛑 Surcoût représentant ${Math.round(wa.surcout_pct * 100)}% du devis — estimé ~${fmtEur(surcoutForWording)}`);
+      } else if (surcoutForWording > 0) {
+        reasons.push(`🛑 Prix au-dessus du marché — surcoût à renégocier estimé ~${fmtEur(surcoutForWording)}`);
       } else {
-        reasons.push(`🛑 Prix fortement au-dessus du marché — surcoût estimé ${fmtEur(overprice)} (${fmtPct(overprice_pct)})`);
+        // Pas de surcout calculable poste par poste — wording neutre sans chiffre
+        // (évite d'afficher un overprice agrégé qui peut être trompeur).
+        reasons.push(`🛑 Prix au-dessus du marché — voir détail poste par poste`);
       }
     }
   }

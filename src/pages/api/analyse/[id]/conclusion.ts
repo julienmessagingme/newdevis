@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.5.6";
+const ENGINE_VERSION = "3.5.8";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -1416,7 +1416,28 @@ VERDICT IMPOSÉ PAR LE MOTEUR DÉTERMINISTE:
 - verdict_decisionnel: "${imposedDecision}"
 - verdict_global: "${imposedGlobal}"
 - Surcoût estimé: ${preEngine.overprice > 0 ? `+${Math.round(preEngine.overprice_pct * 100)}% vs moyenne marché (${Math.round(preEngine.overprice).toLocaleString("fr-FR")} €)` : "dans la norme ou sous la moyenne"}
-- Seuil de tolérance appliqué: ${Math.round(preEngine.threshold_ok * 100)}%${preEngine.hard_block_reason === "company_status" ? `\n- HARD BLOCK PRIORITÉ 0 : STATUT JURIDIQUE À RISQUE (${preCompanyStatus ?? "cessation/liquidation/redressement/radiée"}) — verdict REFUSER forcé indépendamment du prix` : preEngine.is_hard_block ? "\n- HARD BLOCK ACTIF (entreprise radiée ou paiement suspect)" : ""}${weightedBlock}
+- Seuil de tolérance appliqué: ${Math.round(preEngine.threshold_ok * 100)}%${
+  // V3.5.8 (2026-06-02) — Wording hard block CONTEXTUEL.
+  // Avant : tous les hard blocks (sauf company_status) déclenchaient le wording
+  // générique "entreprise radiée ou paiement suspect" — ERRONÉ pour un acompte
+  // cumulé excessif sur une entreprise active (vu sur devis TLC Construction).
+  // Maintenant : on détecte le flag spécifique et on donne au LLM le BON contexte.
+  preEngine.hard_block_reason === "company_status"
+    ? `\n- HARD BLOCK PRIORITÉ 0 : STATUT JURIDIQUE À RISQUE (${preCompanyStatus ?? "cessation/liquidation/redressement/radiée"}) — verdict REFUSER forcé indépendamment du prix`
+    : preEngine.is_hard_block && preFlags.acompte_cumule_excessif
+      ? "\n- HARD BLOCK : ACOMPTE CUMULÉ EXCESSIF avant réception des travaux (> 50%). L'entreprise demande un paiement quasi-total avant que vous puissiez juger du résultat final. Risque majeur de défaillance ou de prestations bâclées. ⚠️ L'entreprise peut être par ailleurs en règle (SIRET actif, bonnes notes) — NE PAS la confondre avec une 'entreprise radiée'. Le risque ici est UNIQUEMENT contractuel/financier."
+      : preEngine.is_hard_block && preFlags.absence_assurance
+        ? "\n- HARD BLOCK : ABSENCE D'ASSURANCE (RC Pro ou décennale non mentionnées) — risque critique en cas de malfaçon"
+        : preEngine.is_hard_block && preFlags.siret_invalide
+          ? "\n- HARD BLOCK : SIRET INVALIDE OU NON TROUVÉ — identité de l'entreprise incertaine"
+          : preEngine.is_hard_block && preFlags.paiement_cash_suspect
+            ? "\n- HARD BLOCK : PAIEMENT EN ESPÈCES IMPOSÉ — illégal au-dessus de 1 000 € (loi anti-blanchiment) et risque fiscal"
+            : preEngine.is_hard_block && preFlags.iban_suspect
+              ? "\n- HARD BLOCK : IBAN SUSPECT (étranger ou invalide)"
+              : preEngine.is_hard_block
+                ? "\n- HARD BLOCK ACTIF (signal critique identifié)"
+                : ""
+}${weightedBlock}
 
 RÈGLES ABSOLUES (ne pas déroger):
 1. Tu DOIS produire exactement verdict_decisionnel="${imposedDecision}" et verdict_global="${imposedGlobal}".
