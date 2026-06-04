@@ -28,6 +28,17 @@ function previewSlideCount(t: TemplateListItem): number {
   );
 }
 
+/** True si les aperçus sont des vidéos (.mp4) — carrousel "hors-pipeline" figé. */
+function previewIsVideo(t: TemplateListItem): boolean {
+  if (!t.preview_urls) return false;
+  for (const slides of Object.values(t.preview_urls)) {
+    for (const url of Object.values(slides ?? {})) {
+      if (typeof url === "string" && /\.mp4(\?|$)/i.test(url)) return true;
+    }
+  }
+  return false;
+}
+
 export default function TemplateTable({
   templates,
   loading,
@@ -120,8 +131,8 @@ export default function TemplateTable({
                 <td className="px-3 py-2 text-center">{t.format_size}</td>
                 <td className="px-3 py-2 text-center">
                   {previewSlideCount(t) > 0 ? (
-                    <span className="inline-block px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-                      {previewSlideCount(t)} PNG
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs border font-medium ${previewIsVideo(t) ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}>
+                      {previewSlideCount(t)} {previewIsVideo(t) ? "vidéo" : "PNG"}
                     </span>
                   ) : (
                     <span className="text-muted-foreground text-xs">—</span>

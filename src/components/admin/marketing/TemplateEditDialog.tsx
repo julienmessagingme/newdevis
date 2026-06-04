@@ -48,6 +48,19 @@ function slidePngUrl(
   return pu.instagram?.[key] ?? pu.facebook?.[key] ?? pu.tiktok?.[key] ?? null;
 }
 
+/** True si l'URL d'aperçu pointe vers une vidéo (carrousel "hors-pipeline" figé). */
+function isVideoUrl(url: string | null | undefined): boolean {
+  return !!url && /\.mp4(\?|$)/i.test(url);
+}
+
+/** Aperçu d'une slide : <video> en boucle si .mp4, sinon <img>. */
+function SlideMedia({ url, alt, className }: { url: string; alt: string; className: string }) {
+  if (isVideoUrl(url)) {
+    return <video src={proxyImg(url)} className={className} autoPlay loop muted playsInline preload="metadata" />;
+  }
+  return <img src={proxyImg(url)} alt={alt} className={className} />;
+}
+
 interface Props {
   templateId: string | null;
   authToken: string | null;
@@ -424,8 +437,8 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
                         <div className="w-full sm:w-56 shrink-0 self-start space-y-2">
                           <div className="relative">
                             {displayUrl ? (
-                              <img
-                                src={proxyImg(displayUrl)}
+                              <SlideMedia
+                                url={displayUrl}
                                 alt={key}
                                 className="w-full rounded-md border"
                               />
@@ -608,7 +621,7 @@ function SlideCarouselPreview({
     <div className="flex flex-col items-center gap-3">
       <div className="relative w-full max-w-[280px]">
         {pngUrl ? (
-          <img src={proxyImg(pngUrl)} alt={key} className="w-full rounded-lg border" />
+          <SlideMedia url={pngUrl} alt={key} className="w-full rounded-lg border" />
         ) : (
           <div className="aspect-[4/5] w-full rounded-lg border bg-muted/40 flex items-center justify-center text-xs text-muted-foreground text-center p-4">
             aperçu pas encore généré
