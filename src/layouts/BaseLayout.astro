@@ -159,19 +159,43 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
       <script src="https://ai.messagingme.app/widget/f236879w135897.js" async="async"></script>
     )}
 
-    <!-- Google Analytics 4 — Consent Mode v2 -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJFMR8ST50"></script>
+    <!-- Google Analytics 4 — Consent Mode v2 + 2 streams (VMD + GMC)
+         Multi-domaine : détecte le hostname au runtime pour charger le bon
+         Measurement ID. La même build sert les 2 domaines (Vercel), donc le
+         choix ne peut PAS être fait au build time.
+           - verifiermondevis.fr  → G-HJFMR8ST50 (stream VMD)
+           - gerermonchantier.fr  → G-1S6SWM2254 (stream GMC)
+         Cookie consent reste `denied` par défaut. À activer via cookie banner
+         (option A backlog) ou en passant en mode exemption CNIL (option B).
+    -->
     <script is:inline>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){window.dataLayer.push(arguments);}
-      // Consent par défaut : refusé jusqu'à l'accord de l'utilisateur
-      gtag('consent', 'default', {
-        'analytics_storage': 'denied',
-        'ad_storage': 'denied',
-        'wait_for_update': 500
-      });
-      gtag('js', new Date());
-      gtag('config', 'G-HJFMR8ST50', { 'anonymize_ip': true });
+      (function() {
+        // Détection domaine côté client (multi-domaine sur même build Vercel)
+        var hostname = (window.location.hostname || '').toLowerCase();
+        var gaId = hostname.indexOf('gerermonchantier') !== -1
+          ? 'G-1S6SWM2254'   // GMC
+          : 'G-HJFMR8ST50';  // VMD (défaut + dev local)
+
+        // Charge gtag.js dynamiquement avec le bon Measurement ID
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
+        document.head.appendChild(s);
+
+        // Init gtag + Consent Mode v2
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){ window.dataLayer.push(arguments); }
+        gtag('consent', 'default', {
+          'analytics_storage': 'denied',
+          'ad_storage': 'denied',
+          'wait_for_update': 500
+        });
+        gtag('js', new Date());
+        gtag('config', gaId, { 'anonymize_ip': true });
+
+        // Expose globalement pour cookie banner futur
+        window.gtag = gtag;
+      })();
     </script>
   </head>
   <body>
