@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LayoutList, RefreshCw, ArrowLeft, Settings, Image } from "lucide-react";
+import { LayoutList, RefreshCw, ArrowLeft, Settings, Image, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLoading, AdminAccessDenied } from "@/components/admin/sections/AdminGuards";
@@ -11,6 +11,7 @@ import TemplateFilters, {
 import TemplateTable from "@/components/admin/marketing/TemplateTable";
 import TemplateEditDialog from "@/components/admin/marketing/TemplateEditDialog";
 import GenerateDialog from "@/components/admin/marketing/GenerateDialog";
+import CarouselImportDialog from "@/components/admin/marketing/CarouselImportDialog";
 import type { TemplateListItem } from "@/types/marketing";
 
 export default function AdminMarketingTemplates() {
@@ -25,6 +26,7 @@ export default function AdminMarketingTemplates() {
 
   const [editId, setEditId] = useState<string | null>(null);
   const [generateTarget, setGenerateTarget] = useState<TemplateListItem | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const reqIdRef = useRef(0);
 
@@ -120,6 +122,10 @@ export default function AdminMarketingTemplates() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="default" size="sm" onClick={() => setImportOpen(true)}>
+              <UploadCloud className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Importer un HTML</span>
+            </Button>
             <a href="/admin/marketing/assets">
               <Button variant="outline" size="sm">
                 <Image className="h-4 w-4 mr-2" />
@@ -170,6 +176,13 @@ export default function AdminMarketingTemplates() {
         open={!!generateTarget}
         template={generateTarget}
         onClose={() => setGenerateTarget(null)}
+      />
+
+      <CarouselImportDialog
+        open={importOpen}
+        authToken={authToken}
+        onClose={() => setImportOpen(false)}
+        onImported={fetchTemplates}
       />
     </div>
   );

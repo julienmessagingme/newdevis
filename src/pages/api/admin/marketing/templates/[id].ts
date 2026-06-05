@@ -83,14 +83,27 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     // marketing-regen-worker (PM2 sur le VPS) poll preview_regen_at toutes
     // les 30s, re-render le carrousel, ré-upload sur B2 et MAJ preview_urls.
     // → l'utilisateur édite + sauvegarde, le PNG se met à jour tout seul.
-    const { error: regenErr } = await sb
-      .schema('marketing')
-      .from('script_templates')
-      .update({ preview_regen_at: new Date().toISOString() })
-      .eq('id', id);
-    if (regenErr) {
-      console.error('[marketing/templates/:id PATCH] flag regen error:', regenErr.message);
-      // non bloquant : la sauvegarde a réussi, seul l'auto-render est raté
+    //
+    // SAUF pour les carrousels figés importés via le dashboard (macro_format
+    // `*-VID*` vidéo ou `*-IMG*` images) : leurs aperçus sont des fichiers
+    // custom (mp4 / PNG hors-pipeline V3). Un re-render V3 les écraserait. On
+    // saute donc le flag pour eux → on peut éditer titre/légende/hashtags d'un
+    // import sans détruire ses médias. (Lecture null-safe : macro NULL = non figé.)
+    const { data: row } = await sb
+      .schema('marketing').from('script_templates')
+      .select('macro_format').eq('id', id).single();
+    const frozenImport = typeof row?.macro_format === 'string' && /-VID|-IMG/i.test(row.macro_format);
+
+    if (!frozenImport) {
+      const { error: regenErr } = await sb
+        .schema('marketing')
+        .from('script_templates')
+        .update({ preview_regen_at: new Date().toISOString() })
+        .eq('id', id);
+      if (regenErr) {
+        console.error('[marketing/templates/:id PATCH] flag regen error:', regenErr.message);
+        // non bloquant : la sauvegarde a réussi, seul l'auto-render est raté
+      }
     }
 
     return jsonOk(data);
