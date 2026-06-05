@@ -10,6 +10,7 @@ import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import BrandLogo from "@/components/auth/BrandLogo";
 import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/auth/brand";
 import { trackEvent } from "@/lib/integrations/amplitude";
+import { trackPixel } from "@/lib/integrations/metaPixel";
 
 interface Props {
   brand?: Brand;
@@ -130,6 +131,9 @@ const Register = ({ brand }: Props) => {
           accept_commercial: acceptCommercial,
           return_to: returnTo || '/tableau-de-bord',
         });
+
+        // Meta Pixel — conversion "inscription" (no-op si cookies refusés)
+        trackPixel('CompleteRegistration', { content_name: signupSource });
 
         toast.success("Compte créé avec succès !");
         window.location.href = returnTo || "/tableau-de-bord";
