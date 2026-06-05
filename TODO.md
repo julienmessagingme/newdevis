@@ -20,6 +20,15 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ---
 
+## Marketing / tracking (2026-06-05)
+
+- [ ] **Vérifier les 2 domaines dans Meta Business** : Events Manager → Sécurité de la marque → Domaines (ou Business Settings → Domaines). Ajouter `verifiermondevis.fr` ET `gerermonchantier.fr`. Obligatoire pour l'Aggregated Event Measurement (iOS 14.5+) et la priorisation d'événements. Méthode balise meta : Claude ajoute les 2 `<meta name="facebook-domain-verification">` au `BaseLayout` en 2 min (les fournir). Sinon méthode DNS chez OVH.
+- [ ] **Créer les Custom Audiences segmentées par URL** : `contient verifiermondevis.fr` vs `contient gerermonchantier.fr` (un seul pixel mutualisé, on segmente côté Ads Manager).
+- [ ] **Événements de conversion au-delà du PageView** : `Lead` en fin d'analyse VMD, `StartTrial` / `Subscribe` côté GMC (à câbler via `fbq('track', ...)`), pour mesurer les conversions et pas juste le trafic.
+- [ ] **Auditer la passerelle CAPI stape.de** (`capig.stape.de`) branchée côté config du pixel : confirmer qui l'a configurée et si on la garde.
+
+---
+
 ## UX/UI cockpit GMC — issus de l'audit #2 (2026-05-09)
 
 ### P0 — Frein produit majeur

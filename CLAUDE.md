@@ -595,6 +595,18 @@ Sans ces URLs, le magic link `generateLink({ type: 'magiclink', options: { redir
 
 ---
 
+## Tracking / Pixels publicitaires (2026-06-05)
+
+Tout le tracking vit dans `src/layouts/BaseLayout.astro`, conditionné au consentement cookies (la fonction `loadTrackingScripts()` ne tourne qu'après clic « Accepter » ou si `localStorage['cookie-consent'] === 'accepted'`). RGPD : la bannière nomme explicitement Google Analytics ET Meta/Facebook.
+
+- **Meta Pixel UNIQUE** : ID `1006152355233216`, mutualisé VMD + GMC (le layout est partagé, un seul `fbq('init', ...)` couvre les 2 domaines). Vérifié au runtime : `connect.facebook.net/en_US/fbevents.js` + `facebook.com/tr?id=1006152355233216&ev=PageView`. Portfolio Meta Business « Gerermonchantier », `business_id=4998931600333136`.
+- **Google Analytics = 2 streams SÉPARÉS** (asymétrie VOLONTAIRE, ne pas « harmoniser » avec le pixel) : détection `window.location.hostname` au runtime dans le `<script is:inline>` du `<head>`, `G-NE80KQDS6W` pour gerermonchantier, `G-HJFMR8ST50` sinon (VMD + dev local). Le choix ne peut PAS se faire au build (même build Vercel pour les 2 domaines).
+- **`gtag` est exposé en `window.gtag`** par le script inline, donc `loadTrackingScripts()` (script bundlé, déféré) peut l'appeler. Ne pas casser cette exposition.
+- **CAPI gateway stape.de** (`capig.stape.de`) déjà branchée côté config Meta du pixel (vue dans la réponse `signals/config`). Pas dans notre code, à auditer si on ne l'a pas configurée.
+- **Segmentation** : un seul pixel, mais audiences à créer par URL côté Ads Manager (`contient verifiermondevis.fr` vs `gerermonchantier.fr`). Vérif des 2 domaines dans Meta Business : voir `TODO.md`.
+
+---
+
 ## Conventions mobile
 
 Patterns établis pendant les passes mobile (Axe 2 + Quick Wins P0 cockpit). Tout est **additif** via prefixes Tailwind (`sm:`/`md:`/`lg:`) → zero régression desktop.
