@@ -208,7 +208,7 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
           <div class="flex-1 min-w-0">
             <p class="text-sm text-foreground font-medium mb-1">Cookies et confidentialit&eacute;</p>
             <p class="text-xs text-muted-foreground">
-              Ce site utilise des cookies techniques (n&eacute;cessaires au fonctionnement) et, avec votre accord, des cookies d'analyse <strong>Google Analytics</strong> pour mesurer l'audience et am&eacute;liorer nos services. Aucun cookie de tracking n'est d&eacute;pos&eacute; sans votre accord.
+              Ce site utilise des cookies techniques (n&eacute;cessaires au fonctionnement) et, avec votre accord, des cookies de mesure d'audience (<strong>Google Analytics</strong>) et de publicit&eacute; (<strong>Meta&nbsp;/&nbsp;Facebook</strong>) pour mesurer l'audience et am&eacute;liorer nos services. Aucun cookie de tracking n'est d&eacute;pos&eacute; sans votre accord.
               <a href="/confidentialite" class="text-primary hover:underline ml-1">Politique de confidentialit&eacute;</a>
             </p>
           </div>
@@ -384,16 +384,16 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
             'ad_storage': 'granted'
           });
 
-          // === Meta Pixel (Facebook) ===
-          // Remplacer XXXXXXXXXXXXXXX par votre Pixel ID
-          // !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
-          //   n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-          //   if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-          //   n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;
-          //   s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
-          //   (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-          // fbq('init', 'XXXXXXXXXXXXXXX');
-          // fbq('track', 'PageView');
+          // === Meta Pixel (Facebook) — ID 1006152355233216 (VMD + GMC, layout partagé) ===
+          !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+          n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+          if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+          n.queue=[];t=b.createElement(e);t.async=!0;
+          t.src=v;s=b.getElementsByTagName(e)[0];
+          s.parentNode.insertBefore(t,s)}(window,document,'script',
+          'https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init', '1006152355233216');
+          fbq('track', 'PageView');
         }
       })();
     </script>
