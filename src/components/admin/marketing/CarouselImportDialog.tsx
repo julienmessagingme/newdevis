@@ -21,11 +21,21 @@ import { toast } from "sonner";
 
 /**
  * Importe un carrousel HTML autoportant (export Claude Code / Claude Design) et
- * le publie comme template. Le HTML (~15-25 Mo) dépasse la limite Vercel : on
- * obtient d'abord un token court (route /import/sign, admin) puis on uploade le
- * fichier EN DIRECT vers le service de rendu VPS, qui rend chaque slide en mp4
- * (animé) ou PNG (statique), upload B2 et crée la ligne. Aperçus jouables ensuite.
+ * le publie comme template. 2 chemins possibles :
+ *
+ * - **Petit fichier (≤ 4 Mo)** — passe par le proxy Vercel `/import/proxy`
+ *   (le navigateur n'envoie qu'à verifiermondevis.fr). Contourne les blocages
+ *   navigateur (ad-blocker, DNS sécurisé, antivirus) qui empêchent l'upload
+ *   direct vers marketing-render.messagingme.app.
+ * - **Gros fichier (> 4 Mo)** — flow direct historique : token signé via
+ *   `/import/sign` puis upload XHR direct vers le VPS, qui rend chaque slide
+ *   en mp4 (animé) ou PNG (statique), upload B2 et crée la ligne.
+ *
+ * La plupart des HTML standalone font 1-3 Mo donc passent par le proxy. Le flow
+ * direct reste pour les exports lourds (images embed > 5 Mo).
  */
+const PROXY_MAX_BYTES = 4_000_000;
+
 interface Props {
   open: boolean;
   authToken: string | null;
@@ -64,40 +74,74 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
     if (!title.trim()) { toast.error("Donne un titre."); return; }
 
     try {
-      // 1. Token court pour l'upload direct vers le VPS.
-      setPhase("signing");
-      const signRes = await fetch("/api/admin/marketing/import/sign", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      const signData = await signRes.json();
-      if (!signRes.ok) throw new Error(signData?.error ?? `Sign ${signRes.status}`);
-      const { uploadUrl, token } = signData as { uploadUrl: string; token: string };
-
-      // 2. Upload direct navigateur → VPS (XHR pour la progression).
-      setPhase("uploading");
-      setProgress(0);
       const qs = new URLSearchParams({ product, title: title.trim(), mode, platform: "instagram" });
-      const result = await new Promise<{ id: number; kind: string; slideCount: number }>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", `${uploadUrl}?${qs.toString()}`);
-        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-        xhr.setRequestHeader("Content-Type", "text/html");
-        xhr.timeout = 5 * 60 * 1000;
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-        };
-        xhr.upload.onload = () => setPhase("rendering"); // upload fini, le VPS rend
-        xhr.onload = () => {
-          let body: unknown = null;
-          try { body = JSON.parse(xhr.responseText); } catch { /* noop */ }
-          if (xhr.status === 200) resolve(body as { id: number; kind: string; slideCount: number });
-          else reject(new Error((body as { error?: string })?.error ?? `Rendu ${xhr.status}`));
-        };
-        xhr.onerror = () => reject(new Error("Service de rendu injoignable"));
-        xhr.ontimeout = () => reject(new Error("Délai dépassé (rendu trop long)"));
-        xhr.send(file);
-      });
+      const useProxy = file.size <= PROXY_MAX_BYTES;
+
+      let result: { id: number; kind: string; slideCount: number };
+
+      if (useProxy) {
+        // ── Petit fichier : proxy Vercel ────────────────────────────────────
+        // Le navigateur n'envoie qu'à notre origin (verifiermondevis.fr ou
+        // gerermonchantier.fr) → bypass les bloqueurs DNS/ad-blocker qui
+        // peuvent filtrer messagingme.app.
+        setPhase("uploading");
+        setProgress(0);
+        result = await new Promise<{ id: number; kind: string; slideCount: number }>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", `/api/admin/marketing/import/proxy?${qs.toString()}`);
+          xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+          xhr.setRequestHeader("Content-Type", "text/html");
+          xhr.timeout = 6 * 60 * 1000; // proxy + rendu VPS
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+          };
+          xhr.upload.onload = () => setPhase("rendering");
+          xhr.onload = () => {
+            let body: unknown = null;
+            try { body = JSON.parse(xhr.responseText); } catch { /* noop */ }
+            if (xhr.status === 200) resolve(body as { id: number; kind: string; slideCount: number });
+            else reject(new Error((body as { error?: string })?.error ?? `Rendu ${xhr.status}`));
+          };
+          xhr.onerror = () => reject(new Error("Connexion au serveur perdue (XHR network error)."));
+          xhr.ontimeout = () => reject(new Error("Délai dépassé (rendu trop long)"));
+          xhr.send(file);
+        });
+      } else {
+        // ── Gros fichier : signed direct upload navigateur → VPS ───────────
+        setPhase("signing");
+        const signRes = await fetch("/api/admin/marketing/import/sign", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        const signData = await signRes.json();
+        if (!signRes.ok) throw new Error(signData?.error ?? `Sign ${signRes.status}`);
+        const { uploadUrl, token } = signData as { uploadUrl: string; token: string };
+
+        setPhase("uploading");
+        setProgress(0);
+        result = await new Promise<{ id: number; kind: string; slideCount: number }>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", `${uploadUrl}?${qs.toString()}`);
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          xhr.setRequestHeader("Content-Type", "text/html");
+          xhr.timeout = 5 * 60 * 1000;
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+          };
+          xhr.upload.onload = () => setPhase("rendering");
+          xhr.onload = () => {
+            let body: unknown = null;
+            try { body = JSON.parse(xhr.responseText); } catch { /* noop */ }
+            if (xhr.status === 200) resolve(body as { id: number; kind: string; slideCount: number });
+            else reject(new Error((body as { error?: string })?.error ?? `Rendu ${xhr.status}`));
+          };
+          xhr.onerror = () => reject(new Error(
+            "Service de rendu injoignable (probable blocage navigateur — extension, DNS, antivirus). Réessaie avec un fichier ≤ 4 Mo pour passer par le proxy.",
+          ));
+          xhr.ontimeout = () => reject(new Error("Délai dépassé (rendu trop long)"));
+          xhr.send(file);
+        });
+      }
 
       setPhase("done");
       toast.success(
