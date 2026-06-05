@@ -16,6 +16,7 @@ const STATIC_PAGES = [
   { loc: "https://www.verifiermondevis.fr/simulateur-valorisation-travaux",lastmod: "2026-02-25",priority: "0.7", changefreq: "monthly" },
   { loc: "https://www.verifiermondevis.fr/valorisation-travaux-immobiliers",lastmod: "2026-02-25",priority: "0.7", changefreq: "monthly" },
   { loc: "https://www.verifiermondevis.fr/analyser-devis-travaux",         lastmod: "2026-04-14", priority: "0.9", changefreq: "monthly" },
+  { loc: "https://www.verifiermondevis.fr/comparer-devis-travaux",         lastmod: "2026-06-08", priority: "0.9", changefreq: "weekly"  },
   { loc: "https://www.verifiermondevis.fr/devis-piscine-prix",             lastmod: "2026-04-14", priority: "0.8", changefreq: "monthly" },
   { loc: "https://www.verifiermondevis.fr/qui-sommes-nous",               lastmod: "2026-03-30", priority: "0.6", changefreq: "monthly" },
   { loc: "https://www.verifiermondevis.fr/contact",                       lastmod: "2026-02-15", priority: "0.5", changefreq: "yearly"  },

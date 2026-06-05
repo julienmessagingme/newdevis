@@ -1,0 +1,516 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+import CrossLinkGMC from '@/components/analysis/CrossLinkGMC.astro';
+
+// SEO V2026-06-08 — landing transactionnelle SaaS sur "comparer devis travaux".
+// Pattern aligné sur /verifier-devis-travaux : SoftwareApplication + FAQPage
+// + BreadcrumbList. Ton produit (verbes d'action), guide minimaliste en bas
+// pour la longue traîne. Anti-cannibalisation avec /verifier et /analyser :
+// angle COMPARAISON (≥ 2 devis), pas vérification (1 devis).
+const faqs = [
+  {
+    question: "Comment comparer deux devis travaux ?",
+    answer: "Pour comparer deux devis travaux objectivement, ne regardez pas seulement le prix total — il dépend des quantités et des prestations incluses. Comparez plutôt : (1) les prix unitaires (€/m², €/ml, €/u) pour chaque ligne ; (2) le détail des prestations incluses ou non (évacuation des déchets, protection des sols, finitions) ; (3) les délais d'exécution ; (4) les garanties et assurances (RC Pro, décennale, RGE) ; (5) les conditions de paiement. Notre outil VerifierMonDevis automatise cette comparaison en analysant chaque devis individuellement puis en mettant en regard les écarts sur chaque poste."
+  },
+  {
+    question: "Combien de devis travaux faut-il demander avant de signer ?",
+    answer: "La règle est d'obtenir au minimum 3 devis pour tout chantier supérieur à 1 000 €. En dessous, 2 devis suffisent. Pour un chantier de rénovation complète (au-delà de 30 000 €), demandez des devis corps de métier par corps de métier (plombier, électricien, peintre indépendamment) : la facturation séparée révèle souvent 15 à 30 % d'écarts vs un devis global TCE. Trois devis = vous avez un repère de marché. Un seul devis = vous êtes vulnérable aux surcoûts."
+  },
+  {
+    question: "Quel écart de prix est normal entre 2 devis pour les mêmes travaux ?",
+    answer: "Un écart de 15 à 25 % entre 2 devis pour des prestations équivalentes est courant et reflète les différences d'organisation, de gamme de matériaux, et de marge commerciale. Au-delà de 30 % d'écart : creusez les détails — soit le moins cher omet des postes (évacuation, finitions, garanties), soit le plus cher surfacture. En dessous de 10 % d'écart : les artisans se sont probablement alignés sur le marché, vous pouvez négocier sur les modalités (acompte, délais, fournitures fournies par vous)."
+  },
+  {
+    question: "Faut-il toujours choisir le devis le moins cher ?",
+    answer: "Non, et c'est souvent une erreur coûteuse. Un devis anormalement bas (plus de 30 % sous la moyenne) cache généralement : matériaux de moindre qualité, postes omis facturés en suppléments a posteriori, sous-traitance à des non-professionnels, ou artisan en difficulté financière (risque d'abandon de chantier). Le bon devis est celui qui combine : prix dans le marché, prestations détaillées, artisan avec assurance décennale active, et bonnes références. C'est exactement ce que VerifierMonDevis évalue automatiquement."
+  },
+  {
+    question: "Comment vérifier la fiabilité d'un artisan avant de signer ?",
+    answer: "Six critères à vérifier : (1) SIRET actif sur annuaire-entreprises.data.gouv.fr ; (2) ancienneté ≥ 12 mois ; (3) attestation décennale et RC Pro valides ; (4) certifications RGE si travaux d'économie d'énergie ; (5) avis Google récents (≥ 10 avis, note ≥ 4/5) ; (6) absence de procédure collective. VerifierMonDevis effectue automatiquement ces 6 vérifications sur chaque devis analysé et vous alerte si l'un des critères est rouge."
+  },
+  {
+    question: "Comment analyser un devis travaux ?",
+    answer: "L'analyse d'un devis travaux se fait en 5 points : (1) Détail des prestations — chaque ligne doit être précise (pas de \"fournitures diverses\") ; (2) Quantités et unités physiques (m², ml, u) — pas de forfait global ; (3) Prix unitaires HT comparables au marché ; (4) Taux de TVA correct (5,5 % rénovation énergétique vs 10 % vs 20 % neuf) ; (5) Acompte ≤ 30 % et solde ≥ 5-10 % à la réception. Notre outil automatise les 5 vérifications + compare aux prix de référence catalogue."
+  },
+  {
+    question: "Peut-on comparer un devis d'artisan à un devis de courtier travaux ?",
+    answer: "Non, les 2 documents ne sont pas comparables. Un devis d'artisan est un contrat ferme avec un professionnel identifié (SIRET, assurance décennale). Un devis de courtier travaux (Renovation Man, Hellio, Ootravaux, etc.) est une estimation indicative — l'artisan sera désigné PLUS TARD, parfois avec un prix renégocié. Si vous avez les deux, comparez le devis d'artisan à 2-3 autres devis d'artisans similaires, pas au devis du courtier."
+  },
+  {
+    question: "Que faire si un seul artisan a répondu à mon appel d'offres ?",
+    answer: "Mauvaise nouvelle : vous n'avez aucun repère de marché. 3 actions concrètes : (1) Élargissez la recherche — Plateforme RGE, Houzz, recommandations Facebook locale ; (2) Faites analyser le devis unique par un outil comme VerifierMonDevis qui le compare aux fourchettes marché de votre zone ; (3) Si le marché est tendu (zone rurale, période d'été), acceptez un prix dans la fourchette haute mais négociez les modalités (étalement des paiements, fourniture des matériaux par vous, délais flexibles)."
+  },
+  {
+    question: "Quel devis choisir entre 2 prix similaires ?",
+    answer: "Quand 2 devis affichent un prix proche (écart < 10 %), la décision se joue sur 4 critères secondaires : (1) Détail des prestations — celui qui décrit le plus précisément ; (2) Réputation — note Google, avis, ancienneté de l'entreprise ; (3) Réactivité commerciale — délai de réponse, qualité du contact ; (4) Conditions de paiement — acompte plus faible, solde plus important = mieux pour vous. Demandez à voir 2-3 chantiers similaires récents (références) avant de trancher."
+  },
+  {
+    question: "Combien coûte une analyse de devis travaux en ligne ?",
+    answer: "L'analyse de devis sur VerifierMonDevis est gratuite pour les 5 premiers devis par compte. Vous obtenez : score de fiabilité (vert/orange/rouge), vérification SIRET et assurances, comparaison ligne par ligne aux prix marché, détection des anomalies juridiques (acompte excessif, mentions manquantes), liste des points à négocier. Aucune carte bancaire requise. Au-delà des 5 premières analyses, le Pass Sérénité à 4,99 €/mois donne accès illimité."
+  },
+  {
+    question: "Combien de temps pour comparer 3 devis avec VerifierMonDevis ?",
+    answer: "Comptez 6 à 10 minutes au total pour 3 devis. Chaque devis individuel est analysé en 2 minutes (extraction PDF + comparaison marché + vérification entreprise + détection anomalies). Vous obtenez 3 rapports indépendants — score, surcoût estimé, postes à négocier — que vous mettez ensuite en regard pour identifier le meilleur compromis prix / fiabilité / prestations."
+  },
+];
+
+// JSON-LD : SoftwareApplication + FAQPage + BreadcrumbList.
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "VerifierMonDevis.fr — Comparaison de devis travaux",
+    "description": "Outil SaaS gratuit pour comparer plusieurs devis travaux d'artisans. Analyse IA ligne par ligne, comparaison aux prix marché, vérification SIRET et assurances. Score de fiabilité pour chaque devis.",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "url": "https://www.verifiermondevis.fr/comparer-devis-travaux",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "EUR",
+      "description": "Analyse gratuite — 5 devis par compte"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.7",
+      "bestRating": "5",
+      "worstRating": "1",
+      "ratingCount": "24",
+      "reviewCount": "24"
+    },
+    "featureList": [
+      "Analyse ligne par ligne de chaque devis",
+      "Comparaison automatique aux prix marché",
+      "Vérification SIRET + assurances + santé entreprise",
+      "Détection des anomalies juridiques et financières",
+      "Score de fiabilité (vert/orange/rouge) par devis",
+      "Liste personnalisée des postes à négocier"
+    ]
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map(f => ({
+      "@type": "Question",
+      "name": f.question,
+      "acceptedAnswer": { "@type": "Answer", "text": f.answer }
+    }))
+  },
+];
+---
+
+<BaseLayout
+  title="Comparer plusieurs devis travaux : guide + analyse gratuite"
+  description="Comparez facilement plusieurs devis travaux. Prix, garanties, prestations et fiabilité des artisans. Analyse gratuite de vos devis."
+  canonical="https://www.verifiermondevis.fr/comparer-devis-travaux"
+  ogType="website"
+  jsonLd={jsonLd}
+  breadcrumbs={[
+    { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+    { name: "Comparer plusieurs devis travaux", url: "https://www.verifiermondevis.fr/comparer-devis-travaux" }
+  ]}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1">
+
+      <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+      <section class="bg-gradient-to-b from-slate-900 to-slate-800 py-14 sm:py-20 px-4">
+        <div class="container max-w-3xl mx-auto text-center">
+          <p class="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-300 mb-4">
+            Comparaison IA — gratuite, sans inscription
+          </p>
+          <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight mb-4">
+            Comparer plusieurs devis travaux :<br class="hidden sm:block" />
+            méthode simple pour choisir le bon artisan
+          </h1>
+
+          <!-- Social proof -->
+          <div class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs sm:text-sm text-slate-300 mb-5">
+            <div class="flex items-center gap-1.5">
+              <span class="text-amber-400" aria-hidden="true">★★★★★</span>
+              <span><strong class="text-white">4,7/5</strong> Trustpilot</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span aria-hidden="true">📊</span>
+              <span><strong class="text-white">+250</strong> devis analysés</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span aria-hidden="true">⚡</span>
+              <span><strong class="text-white">jusqu'à 30 %</strong> d'écart détecté</span>
+            </div>
+          </div>
+
+          <p class="text-base sm:text-lg text-slate-300 leading-relaxed mb-7 max-w-2xl mx-auto">
+            Comparez les prix, prestations, délais et garanties avant de signer. Notre IA analyse
+            chaque devis ligne par ligne, vérifie l'entreprise et vous donne le meilleur compromis
+            prix / fiabilité — pour éviter les surcoûts et les mauvaises surprises.
+          </p>
+
+          <div class="flex flex-col sm:flex-row gap-3 justify-center mb-5">
+            <a
+              href="/nouvelle-analyse"
+              class="inline-flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+            >
+              📊 Comparer mes devis maintenant
+            </a>
+            <a
+              href="#criteres"
+              class="inline-flex items-center justify-center gap-2 border border-slate-500 text-slate-200 hover:bg-slate-700 font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+            >
+              Voir les 7 critères de comparaison
+            </a>
+          </div>
+
+          <p class="text-xs text-slate-400">
+            Document confidentiel • Hébergement France • Résultat en 2 minutes par devis
+          </p>
+        </div>
+      </section>
+
+      <!-- ── Bloc : Pourquoi comparer plusieurs devis ? ─────────────────── -->
+      <section class="py-12 sm:py-16 px-4 bg-slate-50 border-b border-slate-100">
+        <div class="container max-w-4xl mx-auto">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
+            Pourquoi comparer plusieurs devis travaux ?
+          </h2>
+          <p class="text-sm sm:text-base text-slate-500 text-center mb-8 max-w-2xl mx-auto">
+            Sur un même chantier, deux artisans peuvent proposer des prix qui varient de 30 % — et
+            offrir des prestations totalement différentes. Comparer protège votre budget et votre
+            chantier.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              {
+                icon: "📈",
+                title: "Écarts de prix",
+                desc: "Sur des prestations identiques, on observe couramment 15-30 % d'écart entre 2 artisans. Sans repère, vous risquez de payer 5 000 € de trop sur un chantier à 20 000 €.",
+              },
+              {
+                icon: "🔍",
+                title: "Différences de prestations",
+                desc: "Le prix dépend de ce qui est inclus : évacuation des déchets, protection des sols, finitions, garanties de pièces. Un \"forfait global\" peut cacher 10 postes manquants.",
+              },
+              {
+                icon: "🛡️",
+                title: "Garanties variables",
+                desc: "Assurance décennale, RC Pro, garanties de matériaux fournis : tous les artisans ne se valent pas. Comparer permet d'écarter ceux qui ont des couvertures fragiles.",
+              },
+              {
+                icon: "⏱️",
+                title: "Délais d'exécution",
+                desc: "Un artisan qui promet 3 semaines vs un autre 3 mois pour le même chantier : ce n'est pas neutre. Comparer les délais aide à valider la cohérence de la promesse.",
+              },
+            ].map(card => (
+              <div class="flex flex-col p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                <span class="text-3xl mb-3" aria-hidden="true">{card.icon}</span>
+                <h3 class="font-semibold text-slate-900 text-base mb-2 leading-snug">{card.title}</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">{card.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div class="mt-8 rounded-xl bg-red-600 text-white px-5 py-4 text-center max-w-2xl mx-auto">
+            <p class="text-sm font-semibold">⚠️ 7 devis sur 10 contiennent des anomalies (surcoûts, mentions manquantes, acompte excessif).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Section : Les 7 critères à comparer ─────────────────────────── -->
+      <section id="criteres" class="py-12 sm:py-16 px-4 bg-white border-b border-slate-100">
+        <div class="container max-w-4xl mx-auto">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
+            Les 7 critères à comparer ligne par ligne
+          </h2>
+          <p class="text-sm sm:text-base text-slate-500 text-center mb-8 max-w-2xl mx-auto">
+            Ces 7 critères couvrent l'essentiel d'une comparaison rigoureuse. Notre outil les vérifie
+            tous automatiquement pour chacun de vos devis.
+          </p>
+
+          <div class="overflow-x-auto -mx-4 sm:mx-0">
+            <table class="min-w-full text-sm border-collapse">
+              <thead>
+                <tr class="bg-slate-100 text-slate-700">
+                  <th class="text-left px-4 py-3 font-semibold border border-slate-200 w-12">#</th>
+                  <th class="text-left px-4 py-3 font-semibold border border-slate-200">Critère</th>
+                  <th class="text-left px-4 py-3 font-semibold border border-slate-200">Ce qu'il faut vérifier</th>
+                  <th class="text-left px-4 py-3 font-semibold border border-slate-200">Signal d'alarme</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  {
+                    num: "1",
+                    label: "Prix total HT et TTC",
+                    check: "Cohérence du TTC avec le bon taux de TVA (5,5 % rénovation énergétique vs 10 % vs 20 % neuf).",
+                    alarm: "TVA 20 % sur travaux éligibles à 5,5 % = jusqu'à 2 900 € de surfacturation sur 20 000 €.",
+                  },
+                  {
+                    num: "2",
+                    label: "Détail des prestations",
+                    check: "Chaque ligne décrit la prestation précise : nature, matériau, marque/référence si pertinent.",
+                    alarm: "\"Travaux divers\" ou \"fournitures\" sans précision = facturation a posteriori incontrôlable.",
+                  },
+                  {
+                    num: "3",
+                    label: "Matériaux et fournitures",
+                    check: "Marque, référence, qualité (entrée/milieu/haut de gamme). Inclus ou hors devis ?",
+                    alarm: "Marges cachées sur matériaux : artisan vend +40 % sur des produits standards trouvables ailleurs.",
+                  },
+                  {
+                    num: "4",
+                    label: "Délais d'exécution",
+                    check: "Date de démarrage + durée estimée. Présence d'une clause de pénalité de retard.",
+                    alarm: "\"Dans les meilleurs délais\" sans engagement écrit = aucun recours en cas de chantier long.",
+                  },
+                  {
+                    num: "5",
+                    label: "Garanties (décennale, biennale, parfait achèvement)",
+                    check: "Mention explicite de l'assurance décennale + numéro contrat + assureur.",
+                    alarm: "Absence de mention décennale = refus de prise en charge en cas de désordre 5 ans après.",
+                  },
+                  {
+                    num: "6",
+                    label: "Assurances et SIRET",
+                    check: "SIRET actif, RC Pro en cours, certifications RGE si travaux d'économie d'énergie.",
+                    alarm: "Entreprise radiée, SIRET fantaisiste, ou RGE manquante = pas d'éligibilité MaPrimeRénov'.",
+                  },
+                  {
+                    num: "7",
+                    label: "Réputation et références",
+                    check: "Avis Google (≥ 10 avis, note ≥ 4/5), références de chantiers similaires fournies sur demande.",
+                    alarm: "Aucun avis en ligne ou avis très récents en masse (faux profils) = méfiance.",
+                  },
+                ].map(row => (
+                  <tr class="border border-slate-200 hover:bg-slate-50/50 transition-colors">
+                    <td class="px-4 py-3 border border-slate-200 align-top">
+                      <span class="inline-flex w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs items-center justify-center">{row.num}</span>
+                    </td>
+                    <td class="px-4 py-3 border border-slate-200 font-semibold text-slate-900 align-top">{row.label}</td>
+                    <td class="px-4 py-3 border border-slate-200 text-slate-600 align-top">{row.check}</td>
+                    <td class="px-4 py-3 border border-slate-200 text-red-700 align-top">{row.alarm}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p class="text-xs text-slate-500 italic text-center mt-4">
+            Notre outil automatise les 7 vérifications sur chacun de vos devis et fait apparaître les écarts en un coup d'œil.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── Section : Erreur fréquente ──────────────────────────────────── -->
+      <section class="py-12 sm:py-16 px-4 bg-gradient-to-br from-amber-50 to-red-50/40 border-b border-amber-100">
+        <div class="container max-w-3xl mx-auto">
+          <div class="rounded-2xl border border-red-200 bg-white p-6 sm:p-8">
+            <div class="flex items-start gap-4 mb-4">
+              <span class="text-4xl flex-shrink-0" aria-hidden="true">⚠️</span>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-red-700 mb-1">L'erreur la plus fréquente</p>
+                <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 leading-snug">
+                  Choisir le devis le moins cher sans vérifier ce qu'il y a derrière.
+                </h2>
+              </div>
+            </div>
+
+            <p class="text-slate-700 leading-relaxed mb-4">
+              Un devis 30 % moins cher que les autres pour des travaux <em>apparemment identiques</em>
+              cache <strong>presque toujours</strong> au moins l'un de ces problèmes :
+            </p>
+
+            <ul class="space-y-2.5 text-sm text-slate-700">
+              <li class="flex items-start gap-3"><span class="text-red-500 font-bold flex-shrink-0 mt-0.5">✗</span><span><strong>Postes omis</strong> qui seront facturés en suppléments (évacuation gravats, protection sols, reprises d'enduit, raccordements).</span></li>
+              <li class="flex items-start gap-3"><span class="text-red-500 font-bold flex-shrink-0 mt-0.5">✗</span><span><strong>Matériaux de qualité inférieure</strong> qui dégrade le résultat final (carrelage 1er prix, peinture monocouche, ferraillage minimum).</span></li>
+              <li class="flex items-start gap-3"><span class="text-red-500 font-bold flex-shrink-0 mt-0.5">✗</span><span><strong>Sous-traitance à des intervenants non-professionnels</strong> sans assurance décennale — vous porterez les malfaçons.</span></li>
+              <li class="flex items-start gap-3"><span class="text-red-500 font-bold flex-shrink-0 mt-0.5">✗</span><span><strong>Artisan en difficulté financière</strong> qui accepte un prix bas par désespoir — risque élevé d'abandon de chantier après l'acompte.</span></li>
+              <li class="flex items-start gap-3"><span class="text-red-500 font-bold flex-shrink-0 mt-0.5">✗</span><span><strong>Garanties fantômes</strong> : décennale en cours d'expiration, RC Pro impayée, RGE perdue. En cas de désordre 3 ans après, aucun recours.</span></li>
+            </ul>
+
+            <div class="mt-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+              <p class="text-sm text-emerald-900 leading-relaxed">
+                <strong>👉 La bonne approche</strong> : éliminez d'abord les devis trop bas (> 30 % sous la médiane), puis comparez les 2-3 devis restants sur les 7 critères de la section précédente.
+                Le bon devis n'est pas le moins cher — c'est celui qui combine prix dans le marché, prestations détaillées, et artisan fiable.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Section : Comment VerifierMonDevis aide à comparer ────────── -->
+      <section class="py-12 sm:py-16 px-4 bg-slate-50 border-b border-slate-100">
+        <div class="container max-w-4xl mx-auto">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
+            Comment VerifierMonDevis vous aide à comparer
+          </h2>
+          <p class="text-sm sm:text-base text-slate-500 text-center mb-10 max-w-2xl mx-auto">
+            Quatre dimensions analysées automatiquement sur chaque devis. Vous comparez en mettant
+            les rapports en regard — sans tableur Excel, sans appel à un expert.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            {[
+              {
+                icon: "🤖",
+                title: "Analyse IA automatique",
+                desc: "Chaque devis est extrait ligne par ligne en 2 min. Aucune saisie manuelle, aucun tableur à monter.",
+              },
+              {
+                icon: "🚨",
+                title: "Détection des anomalies",
+                desc: "Acompte excessif, TVA incorrecte, lignes vagues, postes omis, marges cachées — tout est repéré.",
+              },
+              {
+                icon: "📊",
+                title: "Comparaison aux prix marché",
+                desc: "Chaque ligne est positionnée sur une fourchette marché (911+ références). Vous voyez ce qui dépasse.",
+              },
+              {
+                icon: "✓",
+                title: "Score de fiabilité",
+                desc: "Pour chaque devis : un score Vert/Orange/Rouge basé sur prix, structure, entreprise et juridique.",
+              },
+            ].map(card => (
+              <div class="flex flex-col p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                <span class="text-3xl mb-3" aria-hidden="true">{card.icon}</span>
+                <h3 class="font-semibold text-slate-900 text-base mb-2 leading-snug">{card.title}</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">{card.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div class="rounded-2xl bg-indigo-50 border border-indigo-200 p-6 sm:p-8 text-center">
+            <p class="text-lg font-bold text-indigo-900 mb-2">
+              Analysez vos devis un par un, comparez les rapports en regard.
+            </p>
+            <p class="text-sm text-indigo-800/85 mb-5 max-w-xl mx-auto leading-relaxed">
+              5 analyses gratuites par compte. Aucune carte bancaire, aucune inscription préalable.
+              Les rapports sont enregistrés dans votre tableau de bord pour comparaison ultérieure.
+            </p>
+            <a
+              href="/nouvelle-analyse"
+              class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+            >
+              📊 Analyser mon 1<sup>er</sup> devis gratuitement
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Cross-link GMC (maillage VMD → GMC) ─────────────────────────── -->
+      <CrossLinkGMC />
+
+      <!-- ── FAQ orientée comparaison ────────────────────────────────────── -->
+      <section id="faq" class="py-12 sm:py-16 px-4 bg-white border-b border-slate-100">
+        <div class="container max-w-3xl mx-auto">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
+            Questions fréquentes
+          </h2>
+          <p class="text-sm sm:text-base text-slate-500 text-center mb-8">
+            Tout ce que vous devez savoir avant de comparer vos devis.
+          </p>
+
+          <div class="space-y-3">
+            {faqs.map(faq => (
+              <details class="group border border-slate-200 rounded-xl overflow-hidden">
+                <summary class="flex items-center justify-between gap-4 p-5 cursor-pointer list-none hover:bg-slate-50 transition-colors">
+                  <span class="font-medium text-slate-900 text-sm sm:text-base">{faq.question}</span>
+                  <svg
+                    class="h-5 w-5 text-slate-400 flex-shrink-0 transition-transform group-open:rotate-180"
+                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </summary>
+                <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4">
+                  {faq.answer}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Liens internes connexes ─────────────────────────────────────── -->
+      <section class="py-12 sm:py-16 px-4 bg-slate-50 border-b border-slate-100">
+        <div class="container max-w-4xl mx-auto">
+          <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-6">Ressources complémentaires</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              {
+                href: "/verifier-devis-travaux",
+                label: "Vérifier un devis travaux (un seul devis)",
+                desc: "Outil dédié à la vérification rapide d'un devis isolé : SIRET, mentions, fiabilité.",
+              },
+              {
+                href: "/analyser-devis-travaux",
+                label: "Analyse approfondie d'un devis travaux",
+                desc: "Décomposition ligne par ligne, matching marché précis, points concrets à négocier.",
+              },
+              {
+                href: "/choisir-artisan-travaux",
+                label: "Comment choisir un artisan fiable",
+                desc: "6 vérifications essentielles avant de signer (SIRET, RGE, décennale, références).",
+              },
+              {
+                href: "/prix-travaux-maison",
+                label: "Prix des travaux maison 2026",
+                desc: "Fourchettes marché par type de travaux pour calibrer vos devis.",
+              },
+              {
+                href: "/blog/comment-reperer-devis-gonfle-7-signes",
+                label: "7 signes d'un devis gonflé",
+                desc: "Les signaux d'alarme concrets à repérer dans un devis suspect.",
+              },
+              {
+                href: "/blog/devis-travaux-mentions-obligatoires-oubliees",
+                label: "Mentions obligatoires d'un devis",
+                desc: "Ce que la loi impose et que les artisans oublient régulièrement.",
+              },
+            ].map(link => (
+              <a href={link.href} class="flex flex-col p-4 border border-slate-200 rounded-xl hover:border-indigo-300 hover:bg-white transition-colors group bg-white/60">
+                <span class="text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors mb-1">{link.label}</span>
+                <span class="text-xs text-slate-500">{link.desc}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- ── CTA Final ────────────────────────────────────────────────────── -->
+      <section class="py-14 sm:py-20 px-4 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900">
+        <div class="container max-w-3xl mx-auto text-center">
+          <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">
+            Vous hésitez entre plusieurs devis ?
+          </h2>
+          <p class="text-base sm:text-lg text-slate-300 leading-relaxed mb-7 max-w-xl mx-auto">
+            Déposez vos devis un par un. Notre IA vous donne en 2 minutes par devis le score de
+            fiabilité, le surcoût estimé et les points à négocier. Comparer les rapports devient
+            instantané.
+          </p>
+          <a
+            href="/nouvelle-analyse"
+            class="inline-flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-bold px-8 py-4 rounded-xl transition-colors text-base"
+          >
+            Analyser mes devis gratuitement
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+          </a>
+          <p class="text-xs text-slate-400 mt-5">
+            5 analyses gratuites · sans carte bancaire · 2 min par devis · données hébergées en France
+          </p>
+        </div>
+      </section>
+
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>
