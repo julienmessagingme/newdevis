@@ -38,31 +38,56 @@ function urlEntry(loc: string, lastmod: string, priority: string, changefreq: st
 
 export const GET: APIRoute = async () => {
   // Récupérer les articles de blog publiés
+  // V3.5.x — utilise SERVICE_ROLE_KEY car PUBLIC_SUPABASE_URL/_PUBLISHABLE_KEY
+  // ne sont pas toujours dispo en SSR Vercel (injection au build pour code
+  // client, runtime serveur reçoit les vars non-PUBLIC). Le service_role
+  // bypass RLS donc on est sûr de récupérer tous les posts published.
   let blogUrls: string[] = [];
-  try {
-    const supabase = createClient(
-      import.meta.env.PUBLIC_SUPABASE_URL ?? "",
-      import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? ""
-    );
-    const { data: posts } = await supabase
-      .from("blog_posts")
-      .select("slug, published_at, updated_at")
-      .eq("status", "published")
-      .order("published_at", { ascending: false });
+  let blogCount = 0;
+  let blogError: string | null = null;
 
-    blogUrls = (posts ?? [])
-      .filter((p) => p.slug)
-      .map((p) => {
-        const lastmod = (p.updated_at || p.published_at || "2026-04-10").split("T")[0];
-        return urlEntry(
-          `https://www.verifiermondevis.fr/blog/${encodeURIComponent(p.slug)}`,
-          lastmod,
-          "0.7",
-          "monthly"
-        );
-      });
+  try {
+    const supabaseUrl =
+      import.meta.env.SUPABASE_URL ||
+      import.meta.env.PUBLIC_SUPABASE_URL ||
+      "";
+    const supabaseKey =
+      import.meta.env.SUPABASE_SERVICE_ROLE_KEY ||
+      import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      "";
+
+    if (!supabaseUrl || !supabaseKey) {
+      blogError = `env_missing url=${!!supabaseUrl} key=${!!supabaseKey}`;
+      console.error("[sitemap]", blogError);
+    } else {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { data: posts, error } = await supabase
+        .from("blog_posts")
+        .select("slug, published_at, updated_at")
+        .eq("status", "published")
+        .order("published_at", { ascending: false });
+
+      if (error) {
+        blogError = `supabase_error: ${error.message}`;
+        console.error("[sitemap]", blogError);
+      } else {
+        const validPosts = (posts ?? []).filter((p) => p.slug);
+        blogCount = validPosts.length;
+        blogUrls = validPosts.map((p) => {
+          const lastmod = (p.updated_at || p.published_at || "2026-04-10").split("T")[0];
+          return urlEntry(
+            `https://www.verifiermondevis.fr/blog/${encodeURIComponent(p.slug)}`,
+            lastmod,
+            "0.7",
+            "weekly"
+          );
+        });
+        console.log(`[sitemap] ${blogCount} blog articles included`);
+      }
+    }
   } catch (err) {
-    console.error("[sitemap] blog fetch error:", err);
+    blogError = err instanceof Error ? err.message : String(err);
+    console.error("[sitemap] catch:", blogError);
   }
 
   const staticUrls = STATIC_PAGES.map((p) =>
@@ -70,7 +95,13 @@ export const GET: APIRoute = async () => {
   );
 
   const allUrls = [...staticUrls, ...blogUrls].join("\n");
+  // Commentaire XML inline pour debug en prod (visible via curl) sans casser
+  // le parsing Sitemap protocol (les commentaires XML sont autorisés).
+  const debugComment = blogError
+    ? `<!-- sitemap-debug: blog_articles=${blogCount} error="${blogError}" -->`
+    : `<!-- sitemap-debug: blog_articles=${blogCount} -->`;
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
+${debugComment}
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${allUrls}
 </urlset>`;
