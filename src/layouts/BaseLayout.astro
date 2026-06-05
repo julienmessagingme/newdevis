@@ -63,6 +63,10 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <meta name="description" content={description} />
     <meta name="author" content="VerifierMonDevis.fr" />
     <meta name="robots" content={noindex ? "noindex, nofollow" : "index, follow"} />
+    <!-- Vérification de domaine Meta Business (layout partagé : les 2 balises coexistent,
+         Meta ne lit que celle qui correspond au domaine crawlé) -->
+    <meta name="facebook-domain-verification" content="r54gw5ze41etkhwrgz1t5r5h55yl90" />
+    <meta name="facebook-domain-verification" content="6lo9yop3msxls7me8kvm7pvb8ltooh" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
