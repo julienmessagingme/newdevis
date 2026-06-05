@@ -44,7 +44,15 @@ interface Props {
 }
 
 type Mode = "auto" | "video" | "png";
-type Phase = "idle" | "signing" | "uploading" | "rendering" | "done";
+type Phase = "idle" | "signing" | "uploading" | "rendering" | "retrying-png" | "done";
+
+// Détecte les erreurs de timeout Playwright côté VPS — typiquement
+// `page.waitForFunction: Timeout 30000ms exceeded` quand l'animation
+// n'atteint jamais son état stable. Dans ce cas un retry mode PNG
+// (screenshot statique à T+1s) passe presque toujours.
+function isRenderTimeoutError(message: string): boolean {
+  return /timeout|waitfor|exceeded/i.test(message);
+}
 
 export default function CarouselImportDialog({ open, authToken, onClose, onImported }: Props) {
   const [file, setFile] = useState<File | null>(null);
@@ -68,79 +76,115 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
     if (f && !title) setTitle(f.name.replace(/\.html?$/i, "").slice(0, 120));
   };
 
+  /**
+   * Lance un upload + rendu. Retourne le résultat ou throw une Error.
+   * Encapsule les 2 voies (proxy Vercel pour ≤ 4 Mo, direct VPS sinon).
+   */
+  const uploadAndRender = async (
+    f: File,
+    runMode: Mode,
+  ): Promise<{ id: number; kind: string; slideCount: number }> => {
+    if (!authToken) throw new Error("Session expirée, recharge la page.");
+
+    const qs = new URLSearchParams({
+      product,
+      title: title.trim(),
+      mode: runMode,
+      platform: "instagram",
+    });
+    const useProxy = f.size <= PROXY_MAX_BYTES;
+
+    if (useProxy) {
+      // ── Petit fichier : proxy Vercel ──────────────────────────────────
+      // Le navigateur n'envoie qu'à notre origin → bypass les bloqueurs
+      // DNS/ad-blocker qui peuvent filtrer messagingme.app.
+      setPhase("uploading");
+      setProgress(0);
+      return new Promise<{ id: number; kind: string; slideCount: number }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `/api/admin/marketing/import/proxy?${qs.toString()}`);
+        xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+        xhr.setRequestHeader("Content-Type", "text/html");
+        xhr.timeout = 6 * 60 * 1000;
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.upload.onload = () => setPhase("rendering");
+        xhr.onload = () => {
+          let body: unknown = null;
+          try { body = JSON.parse(xhr.responseText); } catch { /* noop */ }
+          if (xhr.status === 200) resolve(body as { id: number; kind: string; slideCount: number });
+          else reject(new Error((body as { error?: string })?.error ?? `Rendu ${xhr.status}`));
+        };
+        xhr.onerror = () => reject(new Error("Connexion au serveur perdue (XHR network error)."));
+        xhr.ontimeout = () => reject(new Error("Délai dépassé (rendu trop long)"));
+        xhr.send(f);
+      });
+    }
+
+    // ── Gros fichier : signed direct upload navigateur → VPS ────────────
+    setPhase("signing");
+    const signRes = await fetch("/api/admin/marketing/import/sign", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    const signData = await signRes.json();
+    if (!signRes.ok) throw new Error(signData?.error ?? `Sign ${signRes.status}`);
+    const { uploadUrl, token } = signData as { uploadUrl: string; token: string };
+
+    setPhase("uploading");
+    setProgress(0);
+    return new Promise<{ id: number; kind: string; slideCount: number }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${uploadUrl}?${qs.toString()}`);
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.setRequestHeader("Content-Type", "text/html");
+      xhr.timeout = 5 * 60 * 1000;
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.upload.onload = () => setPhase("rendering");
+      xhr.onload = () => {
+        let body: unknown = null;
+        try { body = JSON.parse(xhr.responseText); } catch { /* noop */ }
+        if (xhr.status === 200) resolve(body as { id: number; kind: string; slideCount: number });
+        else reject(new Error((body as { error?: string })?.error ?? `Rendu ${xhr.status}`));
+      };
+      xhr.onerror = () => reject(new Error(
+        "Service de rendu injoignable (probable blocage navigateur — extension, DNS, antivirus). Réessaie avec un fichier ≤ 4 Mo pour passer par le proxy.",
+      ));
+      xhr.ontimeout = () => reject(new Error("Délai dépassé (rendu trop long)"));
+      xhr.send(f);
+    });
+  };
+
   const submit = async () => {
     if (!authToken) { toast.error("Session expirée, recharge la page."); return; }
     if (!file) { toast.error("Choisis un fichier HTML."); return; }
     if (!title.trim()) { toast.error("Donne un titre."); return; }
 
     try {
-      const qs = new URLSearchParams({ product, title: title.trim(), mode, platform: "instagram" });
-      const useProxy = file.size <= PROXY_MAX_BYTES;
-
       let result: { id: number; kind: string; slideCount: number };
 
-      if (useProxy) {
-        // ── Petit fichier : proxy Vercel ────────────────────────────────────
-        // Le navigateur n'envoie qu'à notre origin (verifiermondevis.fr ou
-        // gerermonchantier.fr) → bypass les bloqueurs DNS/ad-blocker qui
-        // peuvent filtrer messagingme.app.
-        setPhase("uploading");
-        setProgress(0);
-        result = await new Promise<{ id: number; kind: string; slideCount: number }>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", `/api/admin/marketing/import/proxy?${qs.toString()}`);
-          xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
-          xhr.setRequestHeader("Content-Type", "text/html");
-          xhr.timeout = 6 * 60 * 1000; // proxy + rendu VPS
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-          };
-          xhr.upload.onload = () => setPhase("rendering");
-          xhr.onload = () => {
-            let body: unknown = null;
-            try { body = JSON.parse(xhr.responseText); } catch { /* noop */ }
-            if (xhr.status === 200) resolve(body as { id: number; kind: string; slideCount: number });
-            else reject(new Error((body as { error?: string })?.error ?? `Rendu ${xhr.status}`));
-          };
-          xhr.onerror = () => reject(new Error("Connexion au serveur perdue (XHR network error)."));
-          xhr.ontimeout = () => reject(new Error("Délai dépassé (rendu trop long)"));
-          xhr.send(file);
-        });
-      } else {
-        // ── Gros fichier : signed direct upload navigateur → VPS ───────────
-        setPhase("signing");
-        const signRes = await fetch("/api/admin/marketing/import/sign", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-        const signData = await signRes.json();
-        if (!signRes.ok) throw new Error(signData?.error ?? `Sign ${signRes.status}`);
-        const { uploadUrl, token } = signData as { uploadUrl: string; token: string };
+      try {
+        result = await uploadAndRender(file, mode);
+      } catch (firstErr) {
+        const errMsg = firstErr instanceof Error ? firstErr.message : String(firstErr);
+        const canRetryPng = mode !== "png" && isRenderTimeoutError(errMsg);
 
-        setPhase("uploading");
+        if (!canRetryPng) throw firstErr;
+
+        // Fallback automatique : le rendu animé a timeout côté VPS Playwright
+        // (typique `page.waitForFunction: Timeout 30000ms exceeded`). Le mode PNG
+        // fait un screenshot statique sans attendre la stabilisation des animations
+        // → quasi-toujours OK même quand auto/video échoue.
+        toast.info(
+          "Rendu animé trop long — nouvelle tentative en mode Images statiques…",
+          { duration: 6000 },
+        );
+        setPhase("retrying-png");
         setProgress(0);
-        result = await new Promise<{ id: number; kind: string; slideCount: number }>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", `${uploadUrl}?${qs.toString()}`);
-          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-          xhr.setRequestHeader("Content-Type", "text/html");
-          xhr.timeout = 5 * 60 * 1000;
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-          };
-          xhr.upload.onload = () => setPhase("rendering");
-          xhr.onload = () => {
-            let body: unknown = null;
-            try { body = JSON.parse(xhr.responseText); } catch { /* noop */ }
-            if (xhr.status === 200) resolve(body as { id: number; kind: string; slideCount: number });
-            else reject(new Error((body as { error?: string })?.error ?? `Rendu ${xhr.status}`));
-          };
-          xhr.onerror = () => reject(new Error(
-            "Service de rendu injoignable (probable blocage navigateur — extension, DNS, antivirus). Réessaie avec un fichier ≤ 4 Mo pour passer par le proxy.",
-          ));
-          xhr.ontimeout = () => reject(new Error("Délai dépassé (rendu trop long)"));
-          xhr.send(file);
-        });
+        result = await uploadAndRender(file, "png");
       }
 
       setPhase("done");
@@ -152,7 +196,12 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
       onClose();
     } catch (err) {
       setPhase("idle");
-      toast.error(err instanceof Error ? err.message : "Échec de l'import");
+      const message = err instanceof Error ? err.message : "Échec de l'import";
+      // Si même le retry PNG a échoué, on enrichit le message pour orienter le debug.
+      const finalMessage = isRenderTimeoutError(message)
+        ? `${message} — vérifie que ton HTML ne contient pas d'animation infinie, de polices externes (Google Fonts) ou d'images bloquées par CSP.`
+        : message;
+      toast.error(finalMessage);
     }
   };
 
@@ -160,6 +209,7 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
     phase === "signing" ? "Préparation…"
     : phase === "uploading" ? `Upload ${progress}%…`
     : phase === "rendering" ? "Rendu en cours (peut prendre ~1 min)…"
+    : phase === "retrying-png" ? "Nouvelle tentative en mode Images…"
     : null;
 
   return (
