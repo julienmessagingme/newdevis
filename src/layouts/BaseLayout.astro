@@ -163,8 +163,8 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
          Multi-domaine : détecte le hostname au runtime pour charger le bon
          Measurement ID. La même build sert les 2 domaines (Vercel), donc le
          choix ne peut PAS être fait au build time.
-           - verifiermondevis.fr  → G-HJFMR8ST50 (stream VMD)
-           - gerermonchantier.fr  → G-1S6SWM2254 (stream GMC)
+           - verifiermondevis.fr  → G-HJFMR8ST50 (compte Google VMD)
+           - gerermonchantier.fr  → G-NE80KQDS6W (compte Google GMC séparé)
          Cookie consent reste `denied` par défaut. À activer via cookie banner
          (option A backlog) ou en passant en mode exemption CNIL (option B).
     -->
@@ -173,7 +173,7 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
         // Détection domaine côté client (multi-domaine sur même build Vercel)
         var hostname = (window.location.hostname || '').toLowerCase();
         var gaId = hostname.indexOf('gerermonchantier') !== -1
-          ? 'G-1S6SWM2254'   // GMC
+          ? 'G-NE80KQDS6W'   // GMC (compte Google séparé)
           : 'G-HJFMR8ST50';  // VMD (défaut + dev local)
 
         // Charge gtag.js dynamiquement avec le bon Measurement ID
