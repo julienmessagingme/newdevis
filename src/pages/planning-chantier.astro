@@ -1,0 +1,216 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+// SEO 2026-06-08 — Landing GMC ciblant "planning chantier" /
+// "planning travaux" / "planning rénovation" / "diagramme Gantt chantier".
+// Angle exclusif : planification, dépendances lots, CPM, retards.
+
+const faqs = [
+  { question: "Comment faire un planning de chantier de rénovation ?", answer: "Suivez 4 étapes : (1) Identifier les lots (démolition, gros œuvre, élec, plomberie, placo, peinture, sols, finitions) ; (2) Estimer la durée de chaque lot en jours ouvrés ; (3) Définir les dépendances (un lot ne peut commencer que si le précédent est fini — ex: placo après élec) ; (4) Construire le diagramme et identifier le chemin critique. GérerMonChantier construit ce planning automatiquement depuis vos devis." },
+  { question: "Qu'est-ce que la méthode du chemin critique (CPM) ?", answer: "Le CPM (Critical Path Method) est la méthode standard de planification BTP. Elle identifie la chaîne de tâches dépendantes la plus longue dans le planning — celle qui détermine la durée totale du chantier. Si un lot du chemin critique prend du retard, TOUT le chantier glisse. Si un lot HORS chemin critique prend du retard, c'est rattrapable. GérerMonChantier met le chemin critique en évidence visuellement et alerte sur les retards critiques." },
+  { question: "Comment gérer les dépendances entre lots de travaux ?", answer: "3 types de dépendances : (1) Finish-to-Start (FS) — le plus courant : lot B commence quand A finit ; (2) Start-to-Start (SS) : lot B commence quand A commence ; (3) Finish-to-Finish (FF) : lot B finit quand A finit. La plupart des chantiers résidentiels utilisent FS uniquement. GérerMonChantier permet de modéliser ces dépendances en drag & drop, et recalcule automatiquement toutes les dates aval si un lot amont bouge." },
+  { question: "Combien de temps prévoir pour une rénovation complète ?", answer: "Indicatif : (1) Cuisine seule : 3-6 semaines ; (2) Salle de bain seule : 2-4 semaines ; (3) Rénovation appartement 60-80 m² : 2-4 mois ; (4) Rénovation maison 100-150 m² : 4-9 mois ; (5) Construction neuve : 8-14 mois. Marges : prévoir +20-30 % pour imprévus structurels. GérerMonChantier estime la durée dès la création du chantier et la recalcule au fur et à mesure que la réalité s'écarte du prévu." },
+  { question: "Comment éviter les retards de chantier ?", answer: "5 pratiques : (1) Valider les délais avec chaque artisan PAR ÉCRIT avant signature ; (2) Anticiper les livraisons matériaux 2-3 semaines à l'avance (carrelage italien, fenêtres sur mesure) ; (3) Coordonner les corps de métier (un placo ne peut pas commencer si l'élec n'est pas faite) ; (4) Suivre le chemin critique de près ; (5) Mettre une clause de pénalité de retard dans chaque devis > 5 000 €. GérerMonChantier automatise les rappels de jalons et les anticipations." },
+  { question: "Quel logiciel de planning chantier pour particulier ?", answer: "Les solutions pros (MS Project, Primavera, GanttProject) sont trop techniques et chères. Trello/Asana sont génériques, pas adaptés au BTP (pas de CPM, pas de dépendances). GérerMonChantier propose un planning Gantt simplifié avec dépendances + CPM auto + drag & drop, accessible depuis le navigateur, sans formation. 12 €/mois après 15 jours d'essai libre." },
+  { question: "Le planning peut-il être partagé avec les artisans ?", answer: "Oui. Vous pouvez générer un lien partagé en lecture seule du planning pour chaque artisan, qui voit son lot + les lots qui le précèdent et le suivent. Il sait quand il doit commencer, quand finir, et qui passe après lui. Réduit les disputes \"je ne savais pas qu'il fallait que ce soit fini lundi\"." },
+  { question: "Que faire si un artisan annule en cours de chantier ?", answer: "GérerMonChantier propose 3 actions : (1) Marquer le lot \"en attente de réaffectation\" et identifier l'impact sur le chemin critique ; (2) Lancer une recherche d'artisan de remplacement (annuaire intégré + vérification fiabilité) ; (3) Recalculer le planning avec décalage automatique des lots aval. Astuce préventive : avoir un artisan back-up identifié dès le début pour les lots critiques (élec, plomberie)." },
+  { question: "Comment intégrer les livraisons matériaux au planning ?", answer: "Chaque livraison peut être ajoutée comme jalon (milestone) dans le planning, avec date prévue et dépendance avec le lot qui en a besoin. Si la livraison glisse, l'app alerte et propose de décaler le lot dépendant. Particulièrement utile pour les éléments avec long délai : fenêtres sur mesure (8-12 semaines), carrelage import (4-6 semaines), cuisines équipées (6-10 semaines)." },
+  { question: "Quelle est la différence entre durée et délai ?", answer: "Durée = temps qu'un lot prend une fois commencé (ex: pose carrelage 80 m² = 5 jours ouvrés). Délai (ou marge) = temps disponible entre la fin du lot prédécesseur et le début du lot suivant. Dans le CPM, les lots du chemin critique ont 0 marge — ils doivent enchaîner immédiatement. Les autres ont une marge qu'on peut utiliser pour absorber les retards. GérerMonChantier affiche la marge disponible sur chaque lot." },
+  { question: "Le planning se met-il à jour automatiquement ?", answer: "Oui. Toute modification (lot terminé en avance/retard, durée révisée, livraison décalée) déclenche un recalcul automatique du planning aval via l'algorithme CPM. Vous voyez immédiatement la nouvelle date de livraison estimée. Les alertes IA flaguent les retards critiques (> 5 % du chantier) pour décision rapide." },
+  { question: "Peut-on exporter le planning du chantier ?", answer: "Oui. Export PDF (vue Gantt imprimable, format A3 paysage), Excel (tableau lots + dates + dépendances) et iCal (intégration dans votre calendrier perso : Outlook, Google Calendar, Apple Calendar). Utile pour les visites de chantier, les réunions de coordination ou simplement le partage à un proche qui suit le projet." },
+];
+
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Planning chantier — GérerMonChantier", "description": "Logiciel de planning de chantier avec CPM auto, dépendances lots, drag & drop. Conçu pour particuliers.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/planning-chantier", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
+];
+---
+
+<BaseLayout
+  title="Planning chantier : dates, dépendances et retards maîtrisés"
+  description="Logiciel de planning chantier pour particuliers. Dépendances entre lots, CPM automatique, drag & drop, alertes retards. 15 jours d'essai libre."
+  canonical="https://gerermonchantier.fr/planning-chantier"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Planning chantier", url: "https://gerermonchantier.fr/planning-chantier" }]}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1">
+
+      <section class="relative overflow-hidden bg-white">
+        <div class="absolute inset-0 -z-10 pointer-events-none">
+          <div class="absolute -top-32 -right-32 w-[520px] h-[520px] rounded-full bg-[#1B3FA1] opacity-[0.06] blur-3xl"></div>
+          <div class="absolute -bottom-32 -left-20 w-[440px] h-[440px] rounded-full bg-[#F58A06] opacity-[0.05] blur-3xl"></div>
+        </div>
+        <div class="max-w-[1200px] mx-auto px-6 pt-14 pb-12 text-center">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4">Planning de chantier</p>
+          <h1 class="font-bold text-[#0E1730] text-[36px] sm:text-[48px] md:text-[56px] leading-[1.05] tracking-tight max-w-[900px] mx-auto">
+            Planning chantier&nbsp;:<br class="hidden sm:block" />
+            <span class="relative inline-block">
+              <span class="relative z-10">dates, dépendances, retards maîtrisés</span>
+              <svg class="absolute left-0 -bottom-1 w-full" viewBox="0 0 320 14" fill="none" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M3 11 C 80 4, 240 4, 317 10" stroke="#F58A06" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </h1>
+          <p class="mt-6 text-lg text-gray-600 leading-relaxed max-w-[640px] mx-auto">
+            Construisez votre planning de rénovation en quelques minutes. Dépendances entre lots, chemin
+            critique en évidence, recalcul automatique si un retard survient.
+          </p>
+          <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-7 py-3.5 rounded-xl transition-colors text-sm shadow-sm">
+              Tester gratuitement
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#methode" class="inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#0E1730] px-5 py-3 transition-colors">Voir la méthode</a>
+          </div>
+          <p class="mt-4 text-[11px] text-gray-500">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+      <!-- Méthode CPM -->
+      <section id="methode" class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100 scroll-mt-20">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Méthode CPM</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">La méthode du chemin critique, simplifiée.</h2>
+            <p class="mt-4 text-gray-600">La même méthode utilisée par les pros du BTP, accessible aux particuliers.</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { num: "1", title: "Listez vos lots", desc: "Démolition, gros œuvre, élec, plomberie, placo, peinture, sols. L'IA vous suggère les lots manquants." },
+              { num: "2", title: "Durées estimées", desc: "Par défaut depuis la base GMC (vraies données chantiers similaires). Vous ajustez si besoin." },
+              { num: "3", title: "Dépendances liées", desc: "Drag & drop entre lots : placo dépend d'élec, peinture dépend de placo. Visuel intuitif." },
+              { num: "4", title: "Chemin critique mis en évidence", desc: "Les lots critiques apparaissent en rouge. Si l'un retarde, alerte instantanée." },
+            ].map(step => (
+              <div class="bg-white border border-gray-100 rounded-2xl p-5 text-center">
+                <div class="text-3xl font-bold text-[#1B3FA1] mb-2">{step.num}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{step.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Fonctionnalités planning -->
+      <section class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Fonctionnalités</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Tout pour piloter le calendrier.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { icon: "📅", title: "Vue Gantt interactive", desc: "Drag & drop pour déplacer, redimensionner pour ajuster la durée. Zoom jour/semaine/mois." },
+              { icon: "🔗", title: "Dépendances FS visuelles", desc: "Tracez une flèche entre 2 lots, la dépendance est créée. Le planning se recalcule." },
+              { icon: "⚠️", title: "Alertes retards", desc: "Notification si un lot critique glisse > 2 jours. Décalage aval calculé automatiquement." },
+              { icon: "📍", title: "Jalons & livraisons", desc: "Ajoutez les livraisons matériaux comme milestones. Préavis 7 jours, 3 jours, 24 h." },
+              { icon: "📤", title: "Export & partage", desc: "PDF Gantt imprimable, Excel, iCal. Lien partagé lecture seule pour les artisans." },
+              { icon: "🤖", title: "Recalcul automatique", desc: "Toute modif déclenche un nouveau calcul CPM. Nouvelle date de livraison instantanée." },
+            ].map(item => (
+              <div class="bg-[#F8F9FC] border border-gray-100 rounded-2xl p-5 hover:border-[#1B3FA1]/30 hover:bg-white hover:shadow-md transition-all">
+                <div class="w-10 h-10 rounded-xl bg-[#EFF4FF] flex items-center justify-center text-xl mb-3" aria-hidden="true">{item.icon}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{item.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Ordre des lots -->
+      <section class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[900px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-8">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Référentiel</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">L'ordre standard d'une rénovation</h2>
+          </div>
+          <div class="space-y-2">
+            {[
+              { ordre: "1", lot: "Démolition / dépose", duree: "3-7 j" },
+              { ordre: "2", lot: "Gros œuvre / maçonnerie", duree: "5-15 j" },
+              { ordre: "3", lot: "Plomberie (passage tuyaux)", duree: "5-10 j" },
+              { ordre: "4", lot: "Électricité (passage gaines)", duree: "5-10 j" },
+              { ordre: "5", lot: "Placo / isolation / cloisons", duree: "7-14 j" },
+              { ordre: "6", lot: "Menuiseries intérieures", duree: "3-7 j" },
+              { ordre: "7", lot: "Carrelage / sols", duree: "5-12 j" },
+              { ordre: "8", lot: "Peinture", duree: "5-15 j" },
+              { ordre: "9", lot: "Cuisine / SDB (finitions équipement)", duree: "3-10 j" },
+              { ordre: "10", lot: "Nettoyage / réception", duree: "1-2 j" },
+            ].map(row => (
+              <div class="flex items-center gap-4 bg-white border border-gray-100 rounded-xl p-4">
+                <div class="w-9 h-9 rounded-full bg-[#1B3FA1] text-white font-bold text-sm flex items-center justify-center flex-shrink-0">{row.ordre}</div>
+                <div class="flex-1 font-medium text-[#0E1730] text-sm">{row.lot}</div>
+                <div class="text-xs text-gray-500 font-medium">{row.duree}</div>
+              </div>
+            ))}
+          </div>
+          <p class="mt-6 text-xs text-gray-500 italic text-center">Indicatif pour une rénovation 80-120 m². Durées par corps, hors séchages et délais matériaux.</p>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[800px] mx-auto">
+          <div class="text-center mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">FAQ</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Questions fréquentes</h2>
+          </div>
+          <div class="space-y-3">
+            {faqs.map(faq => (
+              <details class="group bg-[#F8F9FC] border border-gray-100 rounded-xl overflow-hidden">
+                <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none hover:bg-white transition-colors">
+                  <span class="font-semibold text-[#0E1730] text-sm sm:text-base">{faq.question}</span>
+                  <svg class="h-5 w-5 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                  </svg>
+                </summary>
+                <div class="px-5 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4 bg-white">{faq.answer}</div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Pages connexes -->
+      <section class="py-12 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4 text-center">Pages connexes</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { href: "/logiciel-suivi-chantier", title: "Logiciel suivi chantier", desc: "Pilotez sans stress" },
+              { href: "/application-gestion-chantier", title: "Application gestion chantier", desc: "Tout dans une appli" },
+              { href: "/suivi-budget-travaux", title: "Suivi budget travaux", desc: "Maîtrisez chaque euro" },
+              { href: "/gestion-artisans-travaux", title: "Gestion artisans", desc: "Coordination simplifiée" },
+            ].map(link => (
+              <a href={link.href} class="block p-4 rounded-xl bg-white border border-gray-100 hover:border-[#1B3FA1]/30 hover:shadow-sm transition-all">
+                <p class="font-semibold text-[#0E1730] text-sm">{link.title}</p>
+                <p class="text-xs text-gray-500 mt-1">{link.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="py-16 sm:py-20 px-6 bg-gradient-to-br from-[#0E1730] via-[#152A66] to-[#1B3FA1]">
+        <div class="max-w-[800px] mx-auto text-center">
+          <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">Construisez votre planning en 10 minutes.</h2>
+          <p class="text-base sm:text-lg text-white/80 leading-relaxed mb-8 max-w-xl mx-auto">Pas de Gantt complexe à apprendre. Drag & drop, dépendances, chemin critique — l'IA gère, vous décidez.</p>
+          <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base shadow-lg">
+            Tester GérerMonChantier
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <p class="text-xs text-white/60 mt-5">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

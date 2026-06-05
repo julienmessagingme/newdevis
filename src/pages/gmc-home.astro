@@ -64,6 +64,34 @@ const jsonLd = {
       <Features />
       <PiloteSection />
       <Pricing />
+
+      <!-- Maillage interne SEO vers les landing pages GMC -->
+      <section class="py-14 px-6 bg-white border-t border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Explorez</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">GérerMonChantier, par usage.</h2>
+            <p class="mt-4 text-gray-600 text-base">Choisissez l'angle qui vous correspond.</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { href: "/logiciel-suivi-chantier",      title: "Logiciel de suivi chantier", desc: "Pilotez vos travaux sans stress.", icon: "🏗️" },
+              { href: "/application-suivi-travaux",    title: "Application de suivi travaux", desc: "Centralisez devis, budget, planning.", icon: "📱" },
+              { href: "/application-gestion-chantier", title: "Application de gestion chantier", desc: "Tout votre projet dans une appli.", icon: "🗂️" },
+              { href: "/planning-chantier",            title: "Planning chantier", desc: "Dates, dépendances, retards maîtrisés.", icon: "📅" },
+              { href: "/suivi-budget-travaux",         title: "Suivi budget travaux", desc: "Maîtrisez chaque euro de votre chantier.", icon: "💸" },
+              { href: "/gestion-artisans-travaux",     title: "Gestion artisans travaux", desc: "Coordonnez sans stress.", icon: "👷" },
+            ].map(link => (
+              <a href={link.href} class="block p-5 rounded-2xl bg-[#F8F9FC] border border-gray-100 hover:border-[#1B3FA1]/30 hover:bg-white hover:shadow-md transition-all">
+                <div class="text-2xl mb-2" aria-hidden="true">{link.icon}</div>
+                <p class="font-bold text-[#0E1730] text-sm mb-1">{link.title}</p>
+                <p class="text-xs text-gray-600 leading-relaxed">{link.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <FinalCTA />
     </main>
     <Footer />

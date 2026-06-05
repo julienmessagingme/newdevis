@@ -1,0 +1,225 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+// SEO 2026-06-08 — Landing transactionnelle GMC ciblant
+// "application gestion chantier" / "appli gestion travaux" /
+// "gestion de chantier en ligne" / "outil gestion rénovation".
+// Angle : application COMPLÈTE multi-volet (vs /logiciel-suivi-chantier
+// angle pilotage, /application-suivi-travaux angle centralisation).
+
+const faqs = [
+  { question: "Qu'est-ce qu'une application de gestion de chantier ?", answer: "Une application de gestion de chantier centralise toutes les composantes d'un projet de rénovation ou de construction : devis, factures, paiements, planning, contacts artisans, documents, communications. Elle remplace le patchwork Excel + WhatsApp + dossiers PDF par une interface unique accessible depuis n'importe quel appareil. GérerMonChantier est conçue spécifiquement pour les particuliers (vs solutions B2B trop complexes)." },
+  { question: "Quelle application choisir pour gérer un chantier de rénovation ?", answer: "Critères de choix : (1) Conçue pour particuliers (pas pros) — formation < 30 min ; (2) Tarif raisonnable (≤ 25 €/mois) ; (3) Couvre les 4 piliers (budget + planning + artisans + documents) ; (4) Web app responsive (pas d'install) ; (5) Données hébergées en France RGPD. GérerMonChantier coche les 5 critères, 12 €/mois pour 1 chantier après 15 jours d'essai libre." },
+  { question: "Une application de gestion de chantier remplace-t-elle un maître d'œuvre ?", answer: "Non. Un maître d'œuvre signe la maîtrise d'œuvre (responsabilité contractuelle, suivi technique terrain, coordination physique). GérerMonChantier est un OUTIL qui vous aide à coordonner vous-même votre chantier sans MOE — c'est complémentaire. Si votre projet implique du gros œuvre structurel ou si vous n'avez aucun temps à y consacrer, MOE recommandé. Sinon, l'app suffit largement." },
+  { question: "Peut-on gérer plusieurs chantiers dans la même application ?", answer: "Oui avec le forfait Multi-chantiers (25 €/mois ou 210 €/an). Vous gérez un nombre illimité de projets dans le même compte : une résidence principale + un investissement locatif + la maison de campagne. Vue agrégée, bascule en 1 clic. Idéal pour les rénovateurs sériels ou les marchands de biens en personne physique." },
+  { question: "Comment commencer à utiliser l'application ?", answer: "3 chemins selon votre situation : (1) Page blanche — décrivez votre projet en français, l'IA pose 4 questions et structure tout en 10 min ; (2) Devis en main — déposez vos PDF, l'IA extrait artisan/lots/montants/dates ; (3) Chantier en cours — créez manuellement vos lots et ajoutez les documents au fur et à mesure. 15 jours d'essai libre sans CB." },
+  { question: "L'application fonctionne-t-elle sur mobile ?", answer: "Oui. Web app responsive accessible depuis n'importe quel téléphone (iOS, Android). Photo terrain → upload direct, validation paiement depuis le smartphone, messagerie artisan dans l'app, mise à jour statut lot depuis le chantier. Ajoutez le site à votre écran d'accueil pour un accès 1-tap (PWA)." },
+  { question: "Quelles sont les fonctionnalités essentielles ?", answer: "Les 6 essentielles : (1) Centralisation documents (devis, factures, photos, attestations) ; (2) Suivi budget temps réel (prévu/engagé/décaissé) ; (3) Planning lots avec dépendances ; (4) Gestion artisans (contacts, lots, fiabilité) ; (5) Messagerie unifiée (WhatsApp + email) ; (6) Journal IA + historique exportable. GérerMonChantier intègre les 6 dans une seule interface." },
+  { question: "L'application est-elle accessible aux non-techniciens ?", answer: "Oui, c'est même la cible principale. L'interface est conçue pour des particuliers qui pilotent leurs travaux sans formation BTP. Le Pilote IA copilote chaque étape : suggestions de lots, alertes prix marché, propositions d'actions. Pas besoin de connaître les CCTP, les unités de mesure techniques ou les normes — l'app vulgarise et vous guide." },
+  { question: "Les données sont-elles sécurisées et exportables ?", answer: "Oui. Conforme RGPD, hébergement OVH France, chiffrement TLS 1.2+, stockage chiffré au repos, sauvegardes quotidiennes restaurables 7 jours. Export complet du chantier en PDF + Excel à tout moment. Suppression définitive du compte possible en 1 clic depuis vos paramètres." },
+  { question: "Comment l'application aide-t-elle à respecter le budget ?", answer: "3 leviers : (1) Analyse marché automatique sur chaque devis déposé — détection des écarts > 20 % vs prix moyens en France ; (2) Jauge budget temps réel — alerte dès que les engagements dépassent 90 % du prévu ; (3) Projection trésorerie 14 semaines — anticipation des pics de paiement avant qu'ils arrivent. En moyenne, les utilisateurs économisent 8-12 % vs budget initial." },
+  { question: "Combien coûte l'application de gestion de chantier ?", answer: "Essai libre 15 jours sans carte bancaire. Au-delà : Essentiel 12 €/mois (ou 120 €/an, économie 17 %) pour 1 chantier illimité dans le temps. Multi-chantiers 25 €/mois (ou 210 €/an, économie 30 %) pour projets illimités. Annulation à tout moment depuis votre espace, sans engagement." },
+  { question: "L'application gère-t-elle les aides énergétiques (MaPrimeRénov, CEE) ?", answer: "Oui. Vous renseignez les caractéristiques de votre logement (zone climatique, type de chauffage, revenu fiscal) et l'app identifie les aides éligibles + leur montant indicatif. Suivi des dossiers de demande en cours, archivage des certificats RGE des artisans nécessaires aux aides. Voir aussi /aides-energetiques pour le détail des dispositifs 2026." },
+];
+
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "GérerMonChantier — Application de gestion de chantier", "description": "Application complète de gestion de chantier pour particuliers : devis, budget, planning, artisans et documents.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/application-gestion-chantier", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }, { "@type": "Offer", "price": "25", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
+];
+---
+
+<BaseLayout
+  title="Application gestion chantier : tout votre projet dans une appli"
+  description="Application de gestion de chantier pour particuliers. Devis, budget, planning, artisans, documents : tout votre projet de rénovation au même endroit."
+  canonical="https://gerermonchantier.fr/application-gestion-chantier"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Application de gestion de chantier", url: "https://gerermonchantier.fr/application-gestion-chantier" }]}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1">
+
+      <!-- Hero -->
+      <section class="relative overflow-hidden bg-white">
+        <div class="absolute inset-0 -z-10 pointer-events-none">
+          <div class="absolute -top-32 -right-32 w-[520px] h-[520px] rounded-full bg-[#1B3FA1] opacity-[0.06] blur-3xl"></div>
+          <div class="absolute -bottom-32 -left-20 w-[440px] h-[440px] rounded-full bg-[#F58A06] opacity-[0.05] blur-3xl"></div>
+        </div>
+        <div class="max-w-[1200px] mx-auto px-6 pt-14 pb-12 text-center">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4">Application de gestion de chantier</p>
+          <h1 class="font-bold text-[#0E1730] text-[36px] sm:text-[48px] md:text-[56px] leading-[1.05] tracking-tight max-w-[900px] mx-auto">
+            Application de gestion chantier&nbsp;:<br class="hidden sm:block" />
+            <span class="relative inline-block">
+              <span class="relative z-10">tout votre projet dans une appli</span>
+              <svg class="absolute left-0 -bottom-1 w-full" viewBox="0 0 320 14" fill="none" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M3 11 C 80 4, 240 4, 317 10" stroke="#F58A06" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </h1>
+          <p class="mt-6 text-lg text-gray-600 leading-relaxed max-w-[640px] mx-auto">
+            Devis, budget, planning, artisans, documents — gérez votre projet de rénovation
+            <strong class="text-gray-900">de A à Z</strong>, depuis votre téléphone ou votre ordinateur.
+          </p>
+          <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-7 py-3.5 rounded-xl transition-colors text-sm shadow-sm">
+              Commencer gratuitement
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#modules" class="inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#0E1730] px-5 py-3 transition-colors">Voir les modules</a>
+          </div>
+          <p class="mt-4 text-[11px] text-gray-500">15 jours d'essai libre · sans CB · données hébergées en France</p>
+        </div>
+      </section>
+
+      <!-- 6 modules -->
+      <section id="modules" class="py-14 px-6 bg-white border-b border-gray-100 scroll-mt-20">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Les 6 modules</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Une application, 6 modules connectés.</h2>
+            <p class="mt-4 text-gray-600">Chaque module alimente les autres. Pas de double saisie, pas de désynchro.</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { num: "01", title: "Devis & analyse", desc: "Dépôt PDF + extraction automatique + comparaison marché + détection anomalies prix par poste." },
+              { num: "02", title: "Budget & trésorerie", desc: "Prévu vs Engagé vs Décaissé en temps réel + projection 14 semaines + alerte dépassement." },
+              { num: "03", title: "Planning & lots", desc: "CPM auto avec dépendances + drag & drop + recalcul dates si retard + chemin critique mis en évidence." },
+              { num: "04", title: "Artisans & contacts", desc: "Répertoire + vérification fiabilité (Google, SIRET, ancienneté) + lots affectés + statut par corps de métier." },
+              { num: "05", title: "Documents & photos", desc: "Stockage centralisé classé par lot + recherche full-text + export PDF fin de chantier." },
+              { num: "06", title: "Messagerie & journal", desc: "WhatsApp + email unifiés + historique persistant + journal IA quotidien + timeline complète." },
+            ].map(m => (
+              <div class="bg-[#F8F9FC] border border-gray-100 rounded-2xl p-5 hover:border-[#1B3FA1]/30 hover:bg-white hover:shadow-md transition-all">
+                <div class="text-2xl font-bold text-[#1B3FA1] mb-2">{m.num}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{m.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{m.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Pour qui -->
+      <section class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Pour qui</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Conçue pour les particuliers qui pilotent eux-mêmes.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { icon: "🏠", title: "Rénovation maison/appart", desc: "Cuisine, SDB, sols, peinture, élec, plomberie, fenêtres. De 5 000 € à 150 000 € de travaux." },
+              { icon: "🏗️", title: "Extension / construction", desc: "Surélévation, véranda, extension neuve, garage. Avec MOE si gros œuvre structurel." },
+              { icon: "🔑", title: "Investissement locatif", desc: "Rénovation avant mise en location. Multi-chantiers pour gérer plusieurs biens en parallèle." },
+            ].map(item => (
+              <div class="bg-white border border-gray-100 rounded-2xl p-6 text-center">
+                <div class="text-3xl mb-3" aria-hidden="true">{item.icon}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{item.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Comparatif rapide -->
+      <section class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[1000px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-8">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Notre différence</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Pourquoi pas un outil pro&nbsp;?</h2>
+          </div>
+          <div class="overflow-x-auto -mx-6 sm:mx-0">
+            <table class="min-w-full text-sm border-collapse bg-white border border-gray-100 rounded-2xl overflow-hidden">
+              <thead>
+                <tr>
+                  <th class="text-left px-5 py-4 font-semibold text-[#0E1730] border-b border-gray-100">Critère</th>
+                  <th class="text-center px-5 py-4 font-semibold text-gray-700 border-b border-gray-100">Outils pro BTP</th>
+                  <th class="text-center px-5 py-4 font-semibold text-gray-700 border-b border-gray-100">Excel + WhatsApp</th>
+                  <th class="text-center px-5 py-4 font-bold text-[#1B3FA1] bg-[#1B3FA1]/5 border-b border-gray-100">GMC</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { c: "Tarif mensuel",        a: "80-300 €",  b: "0 €",      d: "12-25 €" },
+                  { c: "Formation requise",    a: "1-3 jours", b: "0",        d: "30 min" },
+                  { c: "Conçu particuliers",   a: "❌",        b: "—",        d: "✅" },
+                  { c: "Mobile responsive",    a: "⚠️",        b: "⚠️",       d: "✅" },
+                  { c: "Vulgarisation BTP",    a: "❌",        b: "❌",       d: "✅" },
+                ].map((row, i) => (
+                  <tr class={i % 2 === 1 ? "bg-[#F8F9FC]/50" : ""}>
+                    <td class="px-5 py-4 font-medium text-[#0E1730] border-b border-gray-100">{row.c}</td>
+                    <td class="px-5 py-4 text-center text-gray-700 border-b border-gray-100">{row.a}</td>
+                    <td class="px-5 py-4 text-center text-gray-700 border-b border-gray-100">{row.b}</td>
+                    <td class="px-5 py-4 text-center font-semibold text-[#1B3FA1] bg-[#1B3FA1]/5 border-b border-gray-100">{row.d}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[800px] mx-auto">
+          <div class="text-center mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">FAQ</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Questions fréquentes</h2>
+          </div>
+          <div class="space-y-3">
+            {faqs.map(faq => (
+              <details class="group bg-white border border-gray-100 rounded-xl overflow-hidden">
+                <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none hover:bg-gray-50 transition-colors">
+                  <span class="font-semibold text-[#0E1730] text-sm sm:text-base">{faq.question}</span>
+                  <svg class="h-5 w-5 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                  </svg>
+                </summary>
+                <div class="px-5 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4">{faq.answer}</div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Pages connexes -->
+      <section class="py-12 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4 text-center">Pages connexes</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { href: "/logiciel-suivi-chantier", title: "Logiciel suivi chantier", desc: "Pilotez sans stress" },
+              { href: "/planning-chantier", title: "Planning chantier", desc: "Dates et dépendances" },
+              { href: "/suivi-budget-travaux", title: "Suivi budget travaux", desc: "Maîtrisez chaque euro" },
+              { href: "/gestion-artisans-travaux", title: "Gestion artisans", desc: "Coordonnez sans stress" },
+            ].map(link => (
+              <a href={link.href} class="block p-4 rounded-xl border border-gray-100 hover:border-[#1B3FA1]/30 hover:shadow-sm transition-all">
+                <p class="font-semibold text-[#0E1730] text-sm">{link.title}</p>
+                <p class="text-xs text-gray-500 mt-1">{link.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="py-16 sm:py-20 px-6 bg-gradient-to-br from-[#0E1730] via-[#152A66] to-[#1B3FA1]">
+        <div class="max-w-[800px] mx-auto text-center">
+          <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">Toute votre rénovation dans une appli&nbsp;?</h2>
+          <p class="text-base sm:text-lg text-white/80 leading-relaxed mb-8 max-w-xl mx-auto">15 jours pour tester sans engagement. Vous décidez après.</p>
+          <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base shadow-lg">
+            Tester gratuitement
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <p class="text-xs text-white/60 mt-5">15 jours · sans CB · données en France</p>
+        </div>
+      </section>
+
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

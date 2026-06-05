@@ -1,0 +1,220 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+// SEO 2026-06-08 — Landing GMC ciblant "gestion artisans travaux" /
+// "coordination artisans chantier" / "messagerie chantier" /
+// "trouver artisans fiables travaux". Angle relationnel exclusif.
+
+const faqs = [
+  { question: "Comment trouver des artisans fiables pour ses travaux ?", answer: "5 critères de fiabilité : (1) SIRET valide actif (vérifier sur INSEE/Pappers) ; (2) Note Google ≥ 4/5 avec ≥ 15 avis sur 12 mois ; (3) Attestation RC Pro + décennale en cours de validité ; (4) Ancienneté ≥ 3 ans à la même adresse ; (5) Comptes déposés au RCS (transparence financière). GérerMonChantier vérifie automatiquement ces 5 points à chaque devis déposé et alerte si une entreprise présente un risque (cessation, radiation, comptes non déposés)." },
+  { question: "Comment comparer plusieurs devis d'artisans ?", answer: "3 règles : (1) Comparer poste à poste (pas le total) — un devis 5 % moins cher au total peut cacher des oublis ; (2) Vérifier que les périmètres sont identiques (fourniture incluse ? finitions ? évacuation gravats ?) ; (3) Croiser avec les prix marché par poste (peinture lissage m², plomberie ml…). GérerMonChantier extrait les lignes de chaque devis, les normalise, et permet la comparaison côte à côte avec verdict par poste (vert/orange/rouge)." },
+  { question: "Comment gérer plusieurs artisans sur un même chantier ?", answer: "4 piliers : (1) Répertoire unifié — coordonnées, SIRET, lots affectés, statut ; (2) Messagerie centralisée — WhatsApp + email dans la même timeline par artisan ; (3) Planning partagé — chacun voit son lot + ce qui précède/suit ; (4) Échéancier paiements — qui doit quoi quand. GérerMonChantier intègre les 4 piliers et automatise les rappels (livraisons, acomptes, RDV)." },
+  { question: "Comment éviter les arnaques d'artisans ?", answer: "8 signaux d'alerte : (1) Pas de SIRET ou SIRET invalide ; (2) Demande paiement intégral d'avance ; (3) Acompte > 30 % à la signature ; (4) Refus de fournir attestation décennale ; (5) Pas d'adresse fixe vérifiable ; (6) Note Google < 3,5 ou < 5 avis ; (7) Démarchage à domicile non sollicité ; (8) IBAN étranger sans justification. GérerMonChantier détecte ces 8 signaux automatiquement à l'analyse du devis et alerte avant signature." },
+  { question: "Comment communiquer efficacement avec ses artisans ?", answer: "3 bonnes pratiques : (1) Privilégier l'ÉCRIT (WhatsApp/email) plutôt que l'oral — preuve en cas de litige ; (2) Récapituler chaque décision par message court (\"On a confirmé X pour le Y, OK ?\") ; (3) Centraliser les échanges par artisan (pas 6 fils WhatsApp dispersés). GérerMonChantier crée automatiquement un groupe WhatsApp par artisan + une adresse email reply-to dédiée, avec archivage persistant." },
+  { question: "Qu'est-ce que la note Google d'un artisan ?", answer: "C'est la moyenne pondérée des avis publics laissés sur Google Business par les clients. Échelle 1-5 étoiles. Indicateur le plus pertinent (mieux que les avis Facebook ou site perso). Seuils recommandés : ≥ 4/5 avec ≥ 15 avis dans les 12 derniers mois. Attention aux artisans avec note parfaite (5/5) sur < 10 avis : peut être manipulé. GérerMonChantier remonte la note + nombre d'avis + date du dernier avis pour chaque artisan." },
+  { question: "Comment vérifier qu'un artisan a une assurance décennale ?", answer: "L'artisan DOIT fournir : (1) Attestation RC Pro (responsabilité civile professionnelle) couvrant l'année en cours ; (2) Attestation décennale couvrant son corps de métier ET la période où les travaux seront exécutés. Vérifier : raison sociale exacte, dates de validité, plafond garanti (≥ 1 M €), corps de métier listés. À DEMANDER AVANT signature. GérerMonChantier stocke ces attestations par artisan et alerte avant expiration." },
+  { question: "Faut-il un contrat ou un devis suffit ?", answer: "Pour les particuliers, un DEVIS détaillé signé fait office de contrat dès qu'il dépasse 1 500 € (loi). Doit contenir : raison sociale + SIRET, désignation précise des travaux, prix unitaires + total HT/TTC, délais d'exécution, conditions de paiement, garanties. Pour chantiers > 50 000 € OU travaux structurels (gros œuvre, surélévation) : recommandé d'ajouter CCAP/CCTP. Au-dessus de 100 000 € : MOE recommandé avec contrat de maîtrise d'œuvre dédié." },
+  { question: "Comment évaluer un artisan après les travaux ?", answer: "4 critères pour votre prochaine recommandation : (1) Respect des délais (date prévue vs réelle) ; (2) Qualité du travail (finitions, propreté, conformité au devis) ; (3) Respect du budget (zéro plus-value abusive) ; (4) Relation humaine (disponibilité, écoute, transparence). GérerMonChantier vous propose une fiche d'évaluation à la clôture du chantier — utile pour vos propres choix futurs ET pour recommander à vos proches." },
+  { question: "Comment gérer un litige avec un artisan ?", answer: "5 étapes graduelles : (1) Email recommandé avec AR formalisant le problème (description précise, photos, preuve documentaire) ; (2) Mise en demeure 15 jours par LRAR si pas de réponse ; (3) Médiation gratuite via FFB/CAPEB ou Conciliateur de Justice ; (4) Procédure judiciaire — Tribunal Judiciaire (montants > 10 000 €) ou Tribunal de Proximité (< 10 000 €) ; (5) Activation décennale via assurance dommages-ouvrage si grave. GérerMonChantier archive l'historique complet (photos, échanges, devis, factures) — preuves utilisables en justice." },
+  { question: "Comment gérer la coordination quand il y a plusieurs corps de métier ?", answer: "La règle d'or : un seul interlocuteur par lot, et un planning partagé visible par tous. Évitez les triangulations \"l'élec a dit au plombier que…\" — chaque artisan parle directement avec vous OU avec son successeur sur le chemin critique. GérerMonChantier facilite ça avec : groupes WhatsApp dédiés par lot, planning partagé en lecture seule, rappels automatiques aux artisans avant leur jalon." },
+  { question: "Quel artisan choisir pour quel type de travaux ?", answer: "Cartographie rapide : (1) Maçon — gros œuvre, démolition, fondations, dalles ; (2) Plombier-chauffagiste — sanitaires, chaudière, PAC, plancher chauffant ; (3) Électricien — câblage, tableau, prises, éclairage ; (4) Plaquiste — cloisons placo, isolation intérieure, faux plafonds ; (5) Carreleur — sols et murs carrelage ; (6) Peintre — peinture, revêtements muraux, papier peint ; (7) Menuisier — fenêtres, portes, cuisine, dressing ; (8) Couvreur — toiture, zinguerie ; (9) Façadier — ITE, ravalement. GérerMonChantier suggère le bon corps de métier pour chaque ligne de devis." },
+];
+
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Gestion artisans travaux — GérerMonChantier", "description": "Logiciel pour gérer artisans, devis et coordination de chantier. Vérification fiabilité auto + messagerie centralisée + planning partagé.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/gestion-artisans-travaux", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
+];
+---
+
+<BaseLayout
+  title="Gestion artisans travaux : coordonnez tout sans stress"
+  description="Logiciel de gestion artisans pour chantier rénovation. Vérification fiabilité, messagerie centralisée, planning partagé. 15 jours d'essai libre."
+  canonical="https://gerermonchantier.fr/gestion-artisans-travaux"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Gestion artisans travaux", url: "https://gerermonchantier.fr/gestion-artisans-travaux" }]}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1">
+
+      <section class="relative overflow-hidden bg-white">
+        <div class="absolute inset-0 -z-10 pointer-events-none">
+          <div class="absolute -top-32 -right-32 w-[520px] h-[520px] rounded-full bg-[#1B3FA1] opacity-[0.06] blur-3xl"></div>
+          <div class="absolute -bottom-32 -left-20 w-[440px] h-[440px] rounded-full bg-[#F58A06] opacity-[0.05] blur-3xl"></div>
+        </div>
+        <div class="max-w-[1200px] mx-auto px-6 pt-14 pb-12 text-center">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4">Gestion artisans travaux</p>
+          <h1 class="font-bold text-[#0E1730] text-[36px] sm:text-[48px] md:text-[56px] leading-[1.05] tracking-tight max-w-[900px] mx-auto">
+            Gestion artisans&nbsp;:<br class="hidden sm:block" />
+            <span class="relative inline-block">
+              <span class="relative z-10">coordonnez tout sans stress</span>
+              <svg class="absolute left-0 -bottom-1 w-full" viewBox="0 0 320 14" fill="none" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M3 11 C 80 4, 240 4, 317 10" stroke="#F58A06" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </h1>
+          <p class="mt-6 text-lg text-gray-600 leading-relaxed max-w-[640px] mx-auto">
+            Vérifiez leur fiabilité, centralisez les échanges, suivez les paiements.
+            <strong class="text-gray-900">Tout au même endroit, par artisan.</strong>
+          </p>
+          <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-7 py-3.5 rounded-xl transition-colors text-sm shadow-sm">
+              Tester gratuitement
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#fiabilite" class="inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#0E1730] px-5 py-3 transition-colors">Voir les contrôles fiabilité</a>
+          </div>
+          <p class="mt-4 text-[11px] text-gray-500">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+      <!-- 5 contrôles fiabilité -->
+      <section id="fiabilite" class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100 scroll-mt-20">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Vérification fiabilité</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">5 contrôles automatiques par artisan.</h2>
+            <p class="mt-4 text-gray-600">À chaque devis déposé, l'IA vérifie ces 5 points et vous alerte si quelque chose cloche.</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {[
+              { icon: "🆔", title: "SIRET valide", desc: "Existence légale + statut actif INSEE." },
+              { icon: "⭐", title: "Note Google", desc: "≥ 4/5 sur ≥ 15 avis vérifiés." },
+              { icon: "🛡️", title: "Assurances", desc: "RC Pro + décennale en cours." },
+              { icon: "📅", title: "Ancienneté", desc: "≥ 3 ans à la même adresse." },
+              { icon: "💼", title: "Comptes RCS", desc: "Bilans déposés = transparence." },
+            ].map(item => (
+              <div class="bg-white border border-gray-100 rounded-2xl p-5 text-center">
+                <div class="text-3xl mb-2" aria-hidden="true">{item.icon}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-1">{item.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div class="mt-8 p-5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-900 max-w-2xl mx-auto">
+            <strong>🚨 Verdict ROUGE forcé</strong> si l'entreprise est en cessation, liquidation, redressement judiciaire ou radiée — quel que soit le prix. C'est une règle absolue chez GMC : on ne vous laisse pas signer avec une entreprise en danger.
+          </div>
+        </div>
+      </section>
+
+      <!-- Messagerie + workflow -->
+      <section class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Workflow par artisan</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Tout l'historique, par artisan.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { icon: "📇", title: "Fiche complète", desc: "Coordonnées, SIRET, lots affectés, RC/décennale, RIB. Tout en 1 page." },
+              { icon: "💬", title: "Messagerie unifiée", desc: "WhatsApp + email dans la même timeline. Historique persistant." },
+              { icon: "📅", title: "Planning partagé", desc: "L'artisan voit son lot + ce qui précède/suit. Lien lecture seule." },
+              { icon: "💸", title: "Échéancier paiements", desc: "Acompte, jalons, solde. Rappels avant chaque échéance." },
+              { icon: "📂", title: "Documents par artisan", desc: "Devis, factures, attestations, RIB, PV de réception. Classés." },
+              { icon: "🔔", title: "Rappels auto", desc: "Confirmation livraison, échéance acompte, retard détecté. WhatsApp." },
+              { icon: "📸", title: "Photos chantier", desc: "Avant/pendant/après par lot. Géolocalisées et horodatées." },
+              { icon: "⚠️", title: "Alertes IA fiabilité", desc: "Changement statut entreprise détecté, alerte avant règlement." },
+              { icon: "⭐", title: "Évaluation fin de chantier", desc: "4 critères : délais, qualité, budget, relation. Utile pour vos proches." },
+            ].map(item => (
+              <div class="bg-[#F8F9FC] border border-gray-100 rounded-2xl p-5 hover:border-[#1B3FA1]/30 hover:bg-white hover:shadow-md transition-all">
+                <div class="w-10 h-10 rounded-xl bg-[#EFF4FF] flex items-center justify-center text-xl mb-3" aria-hidden="true">{item.icon}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{item.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- 8 signaux d'alerte arnaque -->
+      <section class="py-14 px-6 bg-[#FFF7EC]/40 border-b border-gray-100">
+        <div class="max-w-[1000px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-8">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#F58A06] mb-3">Prévention arnaques</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">8 signaux à surveiller AVANT signature</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              "Pas de SIRET ou SIRET invalide",
+              "Demande paiement intégral d'avance",
+              "Acompte > 30 % à la signature",
+              "Refus de fournir attestation décennale",
+              "Pas d'adresse fixe vérifiable",
+              "Note Google < 3,5 ou < 5 avis",
+              "Démarchage à domicile non sollicité",
+              "IBAN étranger sans justification",
+            ].map(item => (
+              <div class="flex gap-3 items-start bg-white border border-gray-100 rounded-xl p-4">
+                <span class="text-[#F58A06] font-bold flex-shrink-0">⚠</span>
+                <span class="text-sm text-gray-700">{item}</span>
+              </div>
+            ))}
+          </div>
+          <p class="mt-6 text-xs text-gray-500 italic text-center">GérerMonChantier détecte automatiquement ces 8 signaux à l'analyse du devis et vous alerte avant signature.</p>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[800px] mx-auto">
+          <div class="text-center mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">FAQ</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Questions fréquentes</h2>
+          </div>
+          <div class="space-y-3">
+            {faqs.map(faq => (
+              <details class="group bg-white border border-gray-100 rounded-xl overflow-hidden">
+                <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none hover:bg-gray-50 transition-colors">
+                  <span class="font-semibold text-[#0E1730] text-sm sm:text-base">{faq.question}</span>
+                  <svg class="h-5 w-5 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                  </svg>
+                </summary>
+                <div class="px-5 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4">{faq.answer}</div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Pages connexes -->
+      <section class="py-12 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4 text-center">Pages connexes</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { href: "/logiciel-suivi-chantier", title: "Logiciel suivi chantier", desc: "Pilotez sans stress" },
+              { href: "/application-gestion-chantier", title: "Application gestion chantier", desc: "Tout dans une appli" },
+              { href: "/planning-chantier", title: "Planning chantier", desc: "Dates et dépendances" },
+              { href: "/suivi-budget-travaux", title: "Suivi budget travaux", desc: "Maîtrisez chaque euro" },
+            ].map(link => (
+              <a href={link.href} class="block p-4 rounded-xl border border-gray-100 hover:border-[#1B3FA1]/30 hover:shadow-sm transition-all">
+                <p class="font-semibold text-[#0E1730] text-sm">{link.title}</p>
+                <p class="text-xs text-gray-500 mt-1">{link.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="py-16 sm:py-20 px-6 bg-gradient-to-br from-[#0E1730] via-[#152A66] to-[#1B3FA1]">
+        <div class="max-w-[800px] mx-auto text-center">
+          <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">Coordonnez vos artisans sereinement.</h2>
+          <p class="text-base sm:text-lg text-white/80 leading-relaxed mb-8 max-w-xl mx-auto">Vérification fiabilité auto, messagerie unifiée, planning partagé. Vous décidez, l'app exécute.</p>
+          <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base shadow-lg">
+            Tester GérerMonChantier
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <p class="text-xs text-white/60 mt-5">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

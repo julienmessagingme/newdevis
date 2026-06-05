@@ -29,6 +29,11 @@ const STATIC_PAGES = [
   // ── GérerMonChantier (même build Vercel, multi-domaine) ──
   { loc: "https://gerermonchantier.fr/",                                  lastmod: "2026-06-08", priority: "1.0", changefreq: "weekly"  },
   { loc: "https://gerermonchantier.fr/application-suivi-travaux",         lastmod: "2026-06-08", priority: "0.9", changefreq: "weekly"  },
+  { loc: "https://gerermonchantier.fr/logiciel-suivi-chantier",           lastmod: "2026-06-08", priority: "0.9", changefreq: "weekly"  },
+  { loc: "https://gerermonchantier.fr/application-gestion-chantier",      lastmod: "2026-06-08", priority: "0.9", changefreq: "weekly"  },
+  { loc: "https://gerermonchantier.fr/planning-chantier",                 lastmod: "2026-06-08", priority: "0.9", changefreq: "weekly"  },
+  { loc: "https://gerermonchantier.fr/suivi-budget-travaux",              lastmod: "2026-06-08", priority: "0.9", changefreq: "weekly"  },
+  { loc: "https://gerermonchantier.fr/gestion-artisans-travaux",          lastmod: "2026-06-08", priority: "0.9", changefreq: "weekly"  },
   { loc: "https://gerermonchantier.fr/securite",                          lastmod: "2026-06-05", priority: "0.6", changefreq: "monthly" },
   { loc: "https://gerermonchantier.fr/guide-renovation",                  lastmod: "2026-06-05", priority: "0.7", changefreq: "monthly" },
   { loc: "https://gerermonchantier.fr/aides-energetiques",                lastmod: "2026-06-05", priority: "0.7", changefreq: "monthly" },

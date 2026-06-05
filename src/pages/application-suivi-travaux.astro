@@ -360,6 +360,26 @@ const jsonLd = [
         </div>
       </section>
 
+      <!-- ── Pages connexes ──────────────────────────────────────────────── -->
+      <section class="py-12 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4 text-center">Pages connexes</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { href: "/logiciel-suivi-chantier",      title: "Logiciel suivi chantier",       desc: "Pilotez sans stress" },
+              { href: "/application-gestion-chantier", title: "Application gestion chantier", desc: "Tout dans une appli" },
+              { href: "/planning-chantier",            title: "Planning chantier",             desc: "Dates et dépendances" },
+              { href: "/suivi-budget-travaux",         title: "Suivi budget travaux",          desc: "Maîtrisez chaque euro" },
+            ].map(link => (
+              <a href={link.href} class="block p-4 rounded-xl bg-white border border-gray-100 hover:border-[#1B3FA1]/30 hover:shadow-sm transition-all">
+                <p class="font-semibold text-[#0E1730] text-sm">{link.title}</p>
+                <p class="text-xs text-gray-500 mt-1">{link.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <!-- ── CTA final ────────────────────────────────────────────────────── -->
       <section class="py-16 sm:py-20 px-6 bg-gradient-to-br from-[#0E1730] via-[#152A66] to-[#1B3FA1]">
         <div class="max-w-[800px] mx-auto text-center">
