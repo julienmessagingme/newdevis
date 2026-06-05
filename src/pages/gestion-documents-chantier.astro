@@ -1,0 +1,247 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+// SEO 2026-06-08 — Landing GMC "gestion documents chantier".
+// Intent : organisation, stockage, durée conservation, export.
+// Angle nouveau (pas couvert par les autres pages).
+
+const faqs = [
+  { question: "Quels documents conserver pendant des travaux de rénovation ?", answer: "Les essentiels : (1) Devis signés (preuve contractuelle) ; (2) Factures avec mention TVA + SIRET artisan ; (3) Attestations RC Pro + décennale en cours de validité ; (4) RIB de chaque artisan ; (5) Justificatifs paiement (virements, chèques numérisés) ; (6) Avenants signés ; (7) PV de réception par lot ; (8) Certificats RGE pour aides énergétiques ; (9) Photos avant/après par lot ; (10) Plans, permis, diagnostics. GérerMonChantier classe automatiquement ces 10 catégories par lot et par artisan." },
+  { question: "Combien de temps conserver les documents d'un chantier ?", answer: "Durées légales en France : (1) Devis et factures : 10 ans (durée de la garantie décennale) ; (2) Attestations décennales : 10 ans après la fin du chantier ; (3) PV de réception : à VIE (justifie l'activation décennale en cas de sinistre 9 ans plus tard) ; (4) Justificatifs RGE pour MaPrimeRénov : 5 ans ; (5) Documents fiscaux (revenus fonciers locatif) : 6 ans après la déclaration. Recommandation : 10 ans pour TOUT, par sécurité. GérerMonChantier exporte le dossier complet en PDF/Excel à tout moment." },
+  { question: "Comment organiser ses documents de chantier ?", answer: "Méthode efficace : (1) Classement PAR ARTISAN puis PAR TYPE (devis, factures, attestations) ; (2) Nommage fichiers : YYYY-MM-DD_NomArtisan_TypeDoc.pdf (chrono + tri auto) ; (3) Backup cloud redondant (Dropbox + GMC + disque externe) ; (4) Photos avant/pendant/après séparées par lot, géolocalisées ; (5) Index résumé en 1 page accessible rapidement. GérerMonChantier automatise ces 5 points dès l'upload — vous n'avez plus à classer manuellement." },
+  { question: "Comment retrouver rapidement un document de chantier ?", answer: "3 méthodes : (1) Recherche full-text (mots du document, pas seulement le nom de fichier) — fonctionne sur OCR pour PDF scannés ; (2) Filtres : par artisan, par lot, par date, par type ; (3) Tags personnalisés (ex: \"urgent\", \"litige\", \"déclaré aux impôts\"). GérerMonChantier implémente les 3, avec un export ciblé en 1 clic. Délai moyen pour retrouver un document : 5-15 secondes vs 5-30 minutes en classement manuel." },
+  { question: "Comment numériser ses documents de chantier ?", answer: "Outils recommandés : (1) Application téléphone Adobe Scan / Microsoft Lens / iOS Notes (gratuit, OCR auto, format PDF) ; (2) Scanner physique avec OCR si volume important (~150 €) ; (3) Service externe (~50 € pour 100 documents si pas de temps). Qualité requise : 300 DPI minimum, couleur, fichier ≤ 5 Mo/page. Une fois numérisé, l'original papier peut être détruit (sauf documents légaux comme actes notariés). GérerMonChantier accepte tous formats PDF/JPG/PNG." },
+  { question: "Faut-il garder l'original papier ou la version numérique suffit ?", answer: "En France, depuis 2017, la copie numérique a la même valeur juridique que l'original SI : (1) Elle est fidèle (sans modification) ; (2) Lisible (300 DPI minimum) ; (3) Conservée dans des conditions de fiabilité (cloud chiffré avec horodatage). Exceptions où l'original papier reste obligatoire : actes notariés, jugements, documents sous seing privé enregistrés. Pour les chantiers résidentiels classiques, la version numérique suffit légalement et est plus pratique." },
+  { question: "Quels documents fournir aux impôts pour les travaux ?", answer: "Pour chaque type de bénéfice fiscal : (1) MaPrimeRénov : factures originales + attestation RGE + audit énergétique (si demandé) ; (2) Déduction revenus fonciers locatif : factures détaillées + relevés bancaires paiement + déclaration 2044 ; (3) TVA réduite 5,5 % énergétique : attestation simplifiée signée + facture nominative ; (4) Crédit d'impôt résidence principale (équipements personnes âgées) : factures + attestations. GérerMonChantier classe par usage fiscal et exporte un récap PDF/Excel pour votre déclaration." },
+  { question: "Comment archiver les photos de chantier ?", answer: "5 règles : (1) Une photo par lot et par étape clé (avant démolition, gros œuvre, finitions) ; (2) Géolocalisation activée (preuve du lieu) ; (3) Métadonnées EXIF préservées (date originale = preuve juridique) ; (4) Résolution minimum 1920×1080 px ; (5) Sauvegarde redondante (téléphone + cloud + GMC). Évitez de modifier les photos (recadrage OK, retouche couleur NON) — les EXIF doivent être intacts pour usage judiciaire. GérerMonChantier préserve les EXIF à l'upload." },
+  { question: "Comment partager mes documents avec un assureur ou un avocat ?", answer: "Export ciblé : (1) Pour assureur dommages-ouvrage : factures + attestations décennales + PV de réception + photos avant/après ; (2) Pour avocat litige : tous les échanges horodatés + devis signés + factures + photos + témoignages. Format recommandé : 1 PDF unique avec sommaire chronologique. GérerMonChantier génère ce PDF en 1 clic, classé chronologiquement ou par thématique, avec hyperliens internes. Évite les zip avec 200 fichiers éparpillés que personne ne lira." },
+  { question: "Comment sécuriser ses documents sensibles (RIB, factures) ?", answer: "5 protections : (1) HTTPS TLS 1.2+ sur toute communication (vérifier le cadenas) ; (2) Stockage chiffré au repos côté serveur ; (3) Authentification forte (mot de passe complexe + 2FA si possible) ; (4) Pas de partage par email simple — utiliser un lien partagé temporaire avec mot de passe ; (5) Sauvegarde redondante chiffrée. GérerMonChantier coche les 5 (hébergement OVH France, chiffrement TLS + AES, sauvegardes quotidiennes). Aucun document ne fuit." },
+  { question: "Quels logiciels pour gérer ses documents de chantier ?", answer: "Options selon budget : (1) Gratuit basique : Google Drive ou Dropbox + classement manuel en dossiers ; (2) Intermédiaire : Notion ou Airtable (50 €/mois pour quelques utilisateurs) ; (3) Dédié BTP pro : Bati-Pilote, ProgBati (100-300 €/mois, trop pour un particulier) ; (4) Spécialisé particulier : GérerMonChantier (12 €/mois, classement automatique, alertes IA, export). Le critère qui compte : capacité à RETROUVER un document en < 30 secondes 6 mois après." },
+  { question: "Comment GérerMonChantier gère les documents ?", answer: "Workflow complet : (1) Upload depuis téléphone, ordinateur ou email (adresse dédiée par chantier) ; (2) Classement automatique par OCR : extraction artisan, lot, montant, date ; (3) Affectation au bon lot et bon artisan automatiquement ; (4) Détection des types (devis vs facture vs attestation) ; (5) Recherche full-text instantanée ; (6) Export PDF/Excel par lot, par artisan, par usage fiscal ; (7) Sauvegardes quotidiennes chiffrées. Aucune action manuelle de classement requise." },
+];
+
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Gestion documents chantier — GérerMonChantier", "description": "Centraliser et classer automatiquement tous les documents de votre chantier rénovation : devis, factures, attestations, photos.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/gestion-documents-chantier", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
+];
+---
+
+<BaseLayout
+  title="Gestion documents chantier : devis, factures, attestations classés"
+  description="Centraliser devis, factures, attestations, photos de chantier. Classement auto, recherche full-text, export fiscal. Essai libre 15 jours."
+  canonical="https://gerermonchantier.fr/gestion-documents-chantier"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Gestion documents chantier", url: "https://gerermonchantier.fr/gestion-documents-chantier" }]}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1">
+
+      <section class="relative overflow-hidden bg-white">
+        <div class="absolute inset-0 -z-10 pointer-events-none">
+          <div class="absolute -top-32 -right-32 w-[520px] h-[520px] rounded-full bg-[#1B3FA1] opacity-[0.06] blur-3xl"></div>
+          <div class="absolute -bottom-32 -left-20 w-[440px] h-[440px] rounded-full bg-[#F58A06] opacity-[0.05] blur-3xl"></div>
+        </div>
+        <div class="max-w-[1200px] mx-auto px-6 pt-14 pb-12 text-center">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4">Gestion documents chantier</p>
+          <h1 class="font-bold text-[#0E1730] text-[36px] sm:text-[48px] md:text-[56px] leading-[1.05] tracking-tight max-w-[900px] mx-auto">
+            Documents chantier&nbsp;:<br class="hidden sm:block" />
+            <span class="relative inline-block">
+              <span class="relative z-10">classés automatiquement</span>
+              <svg class="absolute left-0 -bottom-1 w-full" viewBox="0 0 320 14" fill="none" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M3 11 C 80 4, 240 4, 317 10" stroke="#F58A06" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </h1>
+          <p class="mt-6 text-lg text-gray-600 leading-relaxed max-w-[640px] mx-auto">
+            Devis, factures, attestations, photos. Centralisés, classés par lot et par artisan,
+            <strong class="text-gray-900">retrouvables en 5 secondes.</strong>
+          </p>
+          <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-7 py-3.5 rounded-xl transition-colors text-sm shadow-sm">
+              Tester gratuitement
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#categories" class="inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#0E1730] px-5 py-3 transition-colors">10 catégories à archiver</a>
+          </div>
+          <p class="mt-4 text-[11px] text-gray-500">15 jours d'essai libre · sans CB · hébergement France</p>
+        </div>
+      </section>
+
+      <!-- 10 catégories essentielles -->
+      <section id="categories" class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100 scroll-mt-20">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">À conserver</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">10 catégories essentielles.</h2>
+            <p class="mt-4 text-gray-600">Tout ce que vous devez archiver pendant ET après un chantier.</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {[
+              { icon: "📄", title: "Devis signés", desc: "Preuve contractuelle" },
+              { icon: "🧾", title: "Factures TVA", desc: "Avec SIRET artisan" },
+              { icon: "🛡️", title: "Attestations RC + déc.", desc: "Validité en cours" },
+              { icon: "🏦", title: "RIB artisans", desc: "Justificatifs paiement" },
+              { icon: "💸", title: "Justificatifs paiement", desc: "Virements, chèques" },
+              { icon: "✍️", title: "Avenants signés", desc: "Modifications devis" },
+              { icon: "📋", title: "PV de réception", desc: "Garantie décennale" },
+              { icon: "🌱", title: "Certificats RGE", desc: "Aides énergétiques" },
+              { icon: "📸", title: "Photos avant/après", desc: "Géolocalisées EXIF" },
+              { icon: "📐", title: "Plans + permis + diagnostics", desc: "Amiante, plomb, DPE" },
+            ].map(item => (
+              <div class="bg-white border border-gray-100 rounded-xl p-4 text-center">
+                <div class="text-2xl mb-2" aria-hidden="true">{item.icon}</div>
+                <p class="font-bold text-[#0E1730] text-xs mb-1">{item.title}</p>
+                <p class="text-[10px] text-gray-500 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Durées légales -->
+      <section class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[900px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Durées légales</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Combien de temps garder&nbsp;?</h2>
+          </div>
+          <div class="space-y-3">
+            {[
+              { doc: "Devis et factures", duree: "10 ans", just: "Durée garantie décennale" },
+              { doc: "Attestations décennales", duree: "10 ans après fin chantier", just: "Activation garantie" },
+              { doc: "PV de réception", duree: "À vie", just: "Active la décennale 9 ans plus tard" },
+              { doc: "Justificatifs RGE / MaPrimeRénov", duree: "5 ans", just: "Contrôle administratif" },
+              { doc: "Documents fiscaux (locatif)", duree: "6 ans après déclaration", just: "Contrôle fiscal" },
+            ].map(row => (
+              <div class="flex items-center gap-4 bg-[#F8F9FC] border border-gray-100 rounded-xl p-4">
+                <div class="flex-1">
+                  <p class="font-bold text-[#0E1730] text-sm">{row.doc}</p>
+                  <p class="text-xs text-gray-500 mt-0.5">{row.just}</p>
+                </div>
+                <div class="text-sm font-bold text-[#1B3FA1] flex-shrink-0">{row.duree}</div>
+              </div>
+            ))}
+          </div>
+          <div class="mt-6 p-4 bg-[#FFF1DD] border border-[#F58A06]/30 rounded-xl text-sm text-gray-700 text-center">
+            <strong class="text-[#0E1730]">Recommandation simple :</strong> 10 ans pour TOUT, par sécurité. GMC le fait pour vous, vous n'y pensez plus.
+          </div>
+        </div>
+      </section>
+
+      <!-- Workflow GMC -->
+      <section class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Workflow GMC</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Aucun classement manuel.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { num: "1", title: "Upload", desc: "Téléphone, ordinateur, ou email dédié par chantier. Drag & drop ou photo." },
+              { num: "2", title: "OCR + extraction", desc: "Artisan, lot, montant, date extraits automatiquement par IA." },
+              { num: "3", title: "Affectation auto", desc: "Classé au bon lot, au bon artisan, dans la bonne catégorie." },
+              { num: "4", title: "Recherche + export", desc: "Full-text en 5 sec. Export PDF/Excel par lot ou par usage fiscal." },
+            ].map(step => (
+              <div class="bg-white border border-gray-100 rounded-2xl p-5 text-center">
+                <div class="w-10 h-10 rounded-full bg-[#1B3FA1] text-white font-bold text-base flex items-center justify-center mx-auto mb-3">{step.num}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{step.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Sécurité -->
+      <section class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[900px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-8">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Sécurité & RGPD</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Vos documents sensibles, protégés.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              { icon: "🇫🇷", title: "Hébergement OVH France", desc: "Serveurs en France métropolitaine, conformes RGPD." },
+              { icon: "🔒", title: "Chiffrement TLS 1.2+", desc: "Toutes communications HTTPS. Aucune fuite possible." },
+              { icon: "💾", title: "Stockage chiffré AES", desc: "Documents chiffrés au repos sur disque." },
+              { icon: "🗄️", title: "Sauvegardes quotidiennes", desc: "Restauration possible sur 7 jours glissants." },
+              { icon: "🚫", title: "Aucun partage tiers", desc: "Vos données ne sont jamais vendues ou partagées." },
+              { icon: "🗑️", title: "Suppression définitive", desc: "Export + delete complet en 1 clic depuis vos paramètres." },
+            ].map(item => (
+              <div class="flex gap-3 items-start bg-[#F8F9FC] border border-gray-100 rounded-xl p-4">
+                <span class="text-xl flex-shrink-0" aria-hidden="true">{item.icon}</span>
+                <div>
+                  <p class="font-bold text-[#0E1730] text-sm mb-1">{item.title}</p>
+                  <p class="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[800px] mx-auto">
+          <div class="text-center mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">FAQ</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Questions fréquentes</h2>
+          </div>
+          <div class="space-y-3">
+            {faqs.map(faq => (
+              <details class="group bg-white border border-gray-100 rounded-xl overflow-hidden">
+                <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none hover:bg-gray-50 transition-colors">
+                  <span class="font-semibold text-[#0E1730] text-sm sm:text-base">{faq.question}</span>
+                  <svg class="h-5 w-5 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                  </svg>
+                </summary>
+                <div class="px-5 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4">{faq.answer}</div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Pages connexes -->
+      <section class="py-12 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4 text-center">Pages connexes</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { href: "/coordination-artisans", title: "Coordination artisans", desc: "Workflows quotidiens" },
+              { href: "/securite", title: "Sécurité & RGPD", desc: "Détail technique" },
+              { href: "/aides-energetiques", title: "Aides énergétiques", desc: "Documents MaPrimeRénov" },
+              { href: "/logiciel-suivi-chantier", title: "Logiciel suivi chantier", desc: "Vue d'ensemble GMC" },
+            ].map(link => (
+              <a href={link.href} class="block p-4 rounded-xl border border-gray-100 hover:border-[#1B3FA1]/30 hover:shadow-sm transition-all">
+                <p class="font-semibold text-[#0E1730] text-sm">{link.title}</p>
+                <p class="text-xs text-gray-500 mt-1">{link.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="py-16 sm:py-20 px-6 bg-gradient-to-br from-[#0E1730] via-[#152A66] to-[#1B3FA1]">
+        <div class="max-w-[800px] mx-auto text-center">
+          <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">Fini la course aux documents.</h2>
+          <p class="text-base sm:text-lg text-white/80 leading-relaxed mb-8 max-w-xl mx-auto">Upload, classement OCR automatique, recherche full-text en 5 sec. Export PDF/Excel quand vous voulez.</p>
+          <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base shadow-lg">
+            Tester GérerMonChantier
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <p class="text-xs text-white/60 mt-5">15 jours d'essai libre · sans CB · hébergement France</p>
+        </div>
+      </section>
+
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

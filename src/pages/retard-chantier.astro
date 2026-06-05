@@ -1,0 +1,297 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+// SEO 2026-06-08 — Landing GMC pain-point "retard chantier".
+// Intent : particulier dont le chantier prend du retard. Angle problème.
+// Anti-cannibalisation : /planning-chantier vend l'OUTIL planification ;
+// cette page-ci cadre le PROBLÈME retard subi + actions à mener.
+
+const faqs = [
+  { question: "Comment réagir face à un chantier en retard ?", answer: "5 actions à mener AVANT que la situation s'aggrave : (1) Documenter par écrit (email/WhatsApp) le constat de retard avec date initialement prévue ; (2) Demander un nouveau planning écrit à l'artisan avec les jalons révisés ; (3) Vérifier si une clause de pénalité de retard est dans le devis (typique : 1/1000 du montant HT par jour ouvré) ; (4) Identifier l'impact sur les autres lots (cascade) ; (5) Si > 30 jours de retard non justifié : mise en demeure LRAR. GérerMonChantier trace automatiquement chaque échéance vs date réelle et alerte dès qu'un retard structurel apparaît." },
+  { question: "Quelles sont les causes les plus fréquentes de retard ?", answer: "Top 7 des causes (par ordre de fréquence) : (1) Délais d'approvisionnement matériaux sous-estimés (carrelage import, cuisine sur mesure, fenêtres double vitrage 8-12 sem) ; (2) Découvertes pendant la démolition (amiante, plomb, structure non conforme) ; (3) Artisan en sur-engagement sur d'autres chantiers ; (4) Demandes de modifications du client en cours de chantier ; (5) Conflit entre corps de métier mal coordonnés ; (6) Météo (façades, toiture, terrassements) ; (7) Retards administratifs (permis, dérogations urbanisme)." },
+  { question: "Quel est le coût réel d'un retard de chantier ?", answer: "Pour un chantier 80 000 €, 1 mois de retard coûte typiquement 1 200-2 500 € au particulier : (a) Double-loyer ou hébergement temporaire 600-1 500 € ; (b) Frais financiers crédit travaux mobilisé sans usage 150-400 € ; (c) Garde-meubles / déménagement complémentaire 200-400 € ; (d) Coût d'opportunité immobilière (location locatif non engagée) 0-500 € selon contexte. Côté entreprise, le retard peut aussi coûter à l'artisan via pénalités contractuelles (si prévues) et perte de réputation." },
+  { question: "Une pénalité de retard est-elle obligatoire dans un devis ?", answer: "Non. Une pénalité de retard n'est PAS automatique en droit français — elle ne s'applique que si elle est explicitement écrite dans le devis OU dans un CCAP signé. Si le devis ne mentionne rien, vous ne pourrez pas exiger de pénalité, seulement demander la réparation des préjudices subis (preuves à apporter). À NÉGOCIER systématiquement avant signature : 1/1000 du montant HT par jour ouvré de retard est standard et accepté par les artisans sérieux." },
+  { question: "Quand mettre en demeure un artisan en retard ?", answer: "Seuils typiques : (1) Retard < 15 jours sans justification écrite → relance écrite simple ; (2) Retard 15-30 jours → demande formelle d'un planning révisé + visite chantier ; (3) Retard > 30 jours OU absence de réponse → mise en demeure LRAR avec délai de réalisation impératif (15-30 jours) ; (4) Sans réponse à la mise en demeure → résiliation du contrat + saisine Tribunal Judiciaire ou Tribunal de Proximité. Documenter chaque étape avec preuves (photos, échanges écrits, devis)." },
+  { question: "Comment éviter qu'un retard ne se propage à tout le chantier ?", answer: "La propagation suit la logique du chemin critique : si un lot DU chemin critique retarde, TOUS les lots aval glissent. Si un lot HORS chemin critique retarde, c'est rattrapable (vous avez de la marge). 3 leviers de containment : (1) Identifier les lots critiques dès le début (élec, plomberie, placo en général) ; (2) Anticiper les livraisons 2-3 semaines à l'avance ; (3) Avoir un artisan back-up identifié pour les lots critiques. GérerMonChantier met le chemin critique en évidence et recalcule l'impact à chaque retard." },
+  { question: "Mon artisan invoque la météo pour justifier le retard, est-ce recevable ?", answer: "Oui, mais avec limites. Les intempéries (gel, fortes pluies, vent > 60 km/h) sont une cause exonératoire pour : façades, toiture, ITE, terrassements, étanchéité. Mais PAS pour les travaux intérieurs (placo, peinture, élec, plomberie). L'artisan doit prouver les jours d'intempérie via bulletins Météo France. Vous pouvez exiger un relevé jour par jour. Typiquement, 5-10 jours d'intempéries/an sont acceptables ; au-delà, suspect ou mal anticipé." },
+  { question: "Comment prouver un retard en cas de litige ?", answer: "Preuves utilisables : (1) Devis signé avec date d'achèvement écrite ; (2) Emails/SMS/WhatsApp datés montrant l'évolution ; (3) Photos horodatées du chantier (avec EXIF non modifié) ; (4) Factures de livraisons matériaux datées ; (5) Témoignages de voisins ou autres artisans intervenant sur place ; (6) Constat d'huissier si nécessaire (~250-400 €). GérerMonChantier archive automatiquement toutes les communications avec dates exactes — un dossier judiciaire complet est exportable en PDF en 1 clic." },
+  { question: "Puis-je faire intervenir un autre artisan pour finir le chantier ?", answer: "Oui, mais avec procédure : (1) Mise en demeure LRAR à l'artisan défaillant avec délai impératif ; (2) En cas de non-réponse, constat d'huissier de l'inachèvement ; (3) Devis d'un nouvel artisan avec descriptif précis des travaux restants ; (4) Action en justice pour faire condamner l'artisan défaillant à payer la différence si le nouveau devis est plus cher (jurisprudence constante). À NE PAS FAIRE sans mise en demeure préalable — vous perdriez vos droits à indemnisation." },
+  { question: "Quelle est la différence entre retard simple et abandon de chantier ?", answer: "Retard simple = travaux ralentis, mais l'artisan reste présent et communique. Abandon = absence prolongée (> 30 jours) + absence de réponse aux relances + état d'avancement bloqué. L'abandon est une faute contractuelle grave qui ouvre droit à résiliation immédiate + dommages-intérêts. Si l'artisan reste injoignable malgré 2 LRAR, c'est un abandon. Réagir vite — plus la procédure traîne, plus le préjudice grossit." },
+  { question: "Comment GérerMonChantier détecte les retards automatiquement ?", answer: "L'app surveille en permanence l'écart entre les dates prévues (au planning) et les dates réelles (statut lot mis à jour par vous OU par l'artisan via WhatsApp). Si un lot dépasse sa date de fin théorique > 5 % de sa durée OU > 3 jours ouvrés, alerte rouge dans le panneau Alertes IA. Le copilote propose alors une action : relancer l'artisan, recalculer le planning aval, ou notifier les autres corps de métier des décalages." },
+  { question: "Peut-on accélérer un chantier qui prend du retard ?", answer: "Quelques leviers (à arbitrer selon le coût) : (1) Doubler les équipes sur le lot critique (+30-50 % de coût mais −40-50 % de durée si possible) ; (2) Paralléliser des lots qui devaient être séquentiels (ex: plomberie + élec côte à côte si pas de gêne) ; (3) Travail samedi/dimanche (majoration 25-50 %) ; (4) Approvisionnement matériaux express (frais transport +200-500 €). À discuter avec l'artisan AVANT d'imposer — il faut son accord et c'est un avenant." },
+];
+
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Suivi retards chantier — GérerMonChantier", "description": "Logiciel pour suivre les échéances, identifier les blocages et documenter les retards de chantier rénovation.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/retard-chantier", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
+];
+---
+
+<BaseLayout
+  title="Retard chantier : comment réagir et documenter le préjudice"
+  description="Chantier en retard ? Causes, coûts, démarches pour réagir et preuves à constituer. Suivi automatique avec GérerMonChantier. Essai libre 15 jours."
+  canonical="https://gerermonchantier.fr/retard-chantier"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Retard chantier", url: "https://gerermonchantier.fr/retard-chantier" }]}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1">
+
+      <!-- Hero -->
+      <section class="relative overflow-hidden bg-white">
+        <div class="absolute inset-0 -z-10 pointer-events-none">
+          <div class="absolute -top-32 -right-32 w-[520px] h-[520px] rounded-full bg-[#F58A06] opacity-[0.08] blur-3xl"></div>
+          <div class="absolute -bottom-32 -left-20 w-[440px] h-[440px] rounded-full bg-[#1B3FA1] opacity-[0.05] blur-3xl"></div>
+        </div>
+        <div class="max-w-[1200px] mx-auto px-6 pt-14 pb-12 text-center">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#F58A06] mb-4">Retard chantier</p>
+          <h1 class="font-bold text-[#0E1730] text-[36px] sm:text-[48px] md:text-[56px] leading-[1.05] tracking-tight max-w-[900px] mx-auto">
+            Retard chantier&nbsp;:<br class="hidden sm:block" />
+            <span class="relative inline-block">
+              <span class="relative z-10">comment réagir et documenter</span>
+              <svg class="absolute left-0 -bottom-1 w-full" viewBox="0 0 320 14" fill="none" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M3 11 C 80 4, 240 4, 317 10" stroke="#F58A06" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </h1>
+          <p class="mt-6 text-lg text-gray-600 leading-relaxed max-w-[640px] mx-auto">
+            7 causes fréquentes, ce que ça vous coûte vraiment, et les 5 actions à mener
+            <strong class="text-gray-900">avant que la situation s'aggrave.</strong>
+          </p>
+          <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-7 py-3.5 rounded-xl transition-colors text-sm shadow-sm">
+              Suivre mes échéances
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#checklist" class="inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#0E1730] px-5 py-3 transition-colors">Voir la checklist</a>
+          </div>
+          <p class="mt-4 text-[11px] text-gray-500">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+      <!-- 7 causes -->
+      <section class="py-14 px-6 bg-[#FFF7EC]/40 border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#F58A06] mb-3">7 causes fréquentes</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Pourquoi votre chantier prend du retard.</h2>
+            <p class="mt-4 text-gray-600">Classement par ordre de fréquence observée sur 200+ chantiers de rénovation suivis.</p>
+          </div>
+          <div class="space-y-3">
+            {[
+              { rang: "1", cat: "Approvisionnement", desc: "Délais matériaux sous-estimés : carrelage italien (4-6 sem), cuisine sur mesure (6-10 sem), fenêtres double vitrage (8-12 sem)." },
+              { rang: "2", cat: "Découvertes démolition", desc: "Amiante, plomb, structure non conforme, canalisations à reprendre. Toute rénovation > 1985 a un risque." },
+              { rang: "3", cat: "Sur-engagement artisan", desc: "Artisan présent sur 3-4 chantiers simultanément, ne peut pas tenir tous les délais. Symptôme : absence répétée." },
+              { rang: "4", cat: "Modifications client", desc: "Demande d'avenant en cours de chantier (déplacement prise, changement carrelage). Chaque modif décale 2-7 jours." },
+              { rang: "5", cat: "Conflit corps de métier", desc: "Le plombier attend l'élec, l'élec attend le maçon. Coordination défaillante = perte 5-15 jours par cascade." },
+              { rang: "6", cat: "Météo défavorable", desc: "Façades, toiture, ITE, terrassements. Limite : 5-10 jours/an acceptables. Au-delà, c'est mal anticipé." },
+              { rang: "7", cat: "Retards administratifs", desc: "Permis, dérogations urbanisme, certifications RGE. Anticipation 2-3 mois minimum recommandée." },
+            ].map(item => (
+              <div class="flex gap-4 items-start bg-white border border-gray-100 rounded-xl p-5 hover:border-[#F58A06]/30 transition-all">
+                <div class="w-10 h-10 rounded-full bg-[#F58A06] text-white font-bold text-base flex items-center justify-center flex-shrink-0">{item.rang}</div>
+                <div>
+                  <p class="font-bold text-[#0E1730] text-sm mb-1">{item.cat}</p>
+                  <p class="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Coût retard -->
+      <section class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[1000px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Coût réel</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Combien vous coûte 1 mois de retard&nbsp;?</h2>
+            <p class="mt-4 text-gray-600">Simulation pour un chantier 80 000 € de rénovation principale.</p>
+          </div>
+          <div class="bg-gradient-to-br from-[#F5F6FA] to-white border border-gray-100 rounded-2xl p-6 sm:p-8">
+            <div class="space-y-3">
+              {[
+                { poste: "Double-loyer / hébergement temporaire", min: 600, max: 1500 },
+                { poste: "Frais financiers crédit travaux mobilisé sans usage", min: 150, max: 400 },
+                { poste: "Garde-meubles + déménagement complémentaire", min: 200, max: 400 },
+                { poste: "Coût d'opportunité (locatif, mise en vente différée)", min: 0, max: 500 },
+                { poste: "Stress, énergie, gestion administrative supplémentaire", min: "—", max: "non chiffré" },
+              ].map(row => (
+                <div class="flex items-center justify-between gap-3 py-2 border-b border-gray-100 last:border-0">
+                  <p class="text-sm text-gray-700">{row.poste}</p>
+                  <p class="text-sm font-semibold text-[#0E1730] flex-shrink-0">{typeof row.min === "number" ? `${row.min}-${row.max} €` : `${row.min}`}</p>
+                </div>
+              ))}
+            </div>
+            <div class="mt-6 pt-4 border-t-2 border-[#1B3FA1] flex items-center justify-between">
+              <p class="font-bold text-[#0E1730] text-base">Total estimé sur 1 mois</p>
+              <p class="text-2xl font-bold text-[#1B3FA1]">1 200 − 2 500 €</p>
+            </div>
+          </div>
+          <p class="mt-6 text-xs text-gray-500 italic text-center">Sur un chantier 4-9 mois de durée, un dérapage de 2-3 mois est fréquent — coût total 4-8 k€ pour le particulier.</p>
+        </div>
+      </section>
+
+      <!-- 5 actions -->
+      <section class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Comment réagir</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">5 actions à mener AVANT que ça empire.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {[
+              { num: "1", title: "Documenter par écrit", desc: "Email ou WhatsApp daté qui acte le constat de retard vs date initiale du devis." },
+              { num: "2", title: "Demander nouveau planning", desc: "Par écrit, signé. Avec jalons révisés et nouvelle date de livraison engageante." },
+              { num: "3", title: "Vérifier pénalité retard", desc: "Relire le devis. Clause de pénalité (1/1000 HT/jour) ? À activer si oui." },
+              { num: "4", title: "Évaluer impact cascade", desc: "Lots aval impactés ? Si chemin critique → tout le chantier glisse. Si marge → rattrapable." },
+              { num: "5", title: "Mise en demeure LRAR", desc: "Si retard > 30 jours sans justification + absence de communication. Première étape juridique." },
+            ].map(step => (
+              <div class="bg-white border border-gray-100 rounded-2xl p-5 text-center">
+                <div class="w-10 h-10 rounded-full bg-[#1B3FA1] text-white font-bold text-base flex items-center justify-center mx-auto mb-3">{step.num}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{step.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Checklist téléchargeable -->
+      <section id="checklist" class="py-14 px-6 bg-white border-b border-gray-100 scroll-mt-20">
+        <div class="max-w-[800px] mx-auto">
+          <div class="text-center mb-8">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#F58A06] mb-3">À imprimer</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Checklist retard chantier</h2>
+            <p class="mt-3 text-gray-600 text-sm">Imprime cette page pour la garder à portée de main pendant tes échanges artisan.</p>
+            <button onclick="window.print()" class="mt-5 inline-flex items-center justify-center gap-2 bg-[#1B3FA1] hover:bg-[#16348A] text-white font-bold px-6 py-2.5 rounded-lg transition-colors text-sm shadow-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              Imprimer / télécharger en PDF
+            </button>
+          </div>
+          <div class="bg-[#F8F9FC] border-2 border-dashed border-[#1B3FA1]/30 rounded-2xl p-6 sm:p-8">
+            <p class="font-bold text-[#0E1730] text-base mb-5">À cocher au fur et à mesure&nbsp;:</p>
+            <div class="space-y-3">
+              {[
+                "Date de fin engageante écrite dans le devis signé",
+                "Pénalité de retard (1/1000 HT/jour) prévue dans le devis",
+                "Premier constat de retard documenté par email/WhatsApp daté",
+                "Demande écrite de planning révisé envoyée à l'artisan",
+                "Photos chantier horodatées (3-5 par semaine minimum)",
+                "Historique complet des échanges artisan conservé",
+                "Identification des lots du chemin critique impactés",
+                "Évaluation impact sur les lots aval + autres artisans",
+                "Liste des justifications recevables (intempéries, etc.) vérifiée",
+                "Mise en demeure LRAR rédigée si retard > 30 jours non justifié",
+                "Devis alternatif d'un autre artisan préparé (plan B)",
+                "Justification budget supplémentaire (loyer, garde-meuble) chiffrée",
+              ].map(item => (
+                <label class="flex gap-3 items-start cursor-pointer group">
+                  <input type="checkbox" class="mt-0.5 h-5 w-5 rounded border-2 border-gray-300 text-[#1B3FA1] focus:ring-[#1B3FA1] cursor-pointer flex-shrink-0" />
+                  <span class="text-sm text-gray-700 leading-relaxed group-hover:text-[#0E1730]">{item}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Comment GMC aide -->
+      <section class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Comment GMC aide</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Détection automatique des retards.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { icon: "📅", title: "Suivi échéances", desc: "Date prévue vs date réelle sur chaque lot. Alerte rouge dès dépassement > 3 jours." },
+              { icon: "🚨", title: "Alertes IA proactives", desc: "Le copilote détecte automatiquement les retards critiques et propose une action concrète." },
+              { icon: "📝", title: "Documentation auto", desc: "Tous les échanges horodatés et archivés. Dossier judiciaire exportable en PDF en 1 clic." },
+              { icon: "🔗", title: "Impact cascade calculé", desc: "Recalcul automatique du chemin critique aval et de la nouvelle date de livraison." },
+              { icon: "📸", title: "Photos horodatées", desc: "Géolocalisation + timestamp EXIF préservés. Preuves utilisables en justice." },
+              { icon: "🔔", title: "Rappels artisans", desc: "Notifications WhatsApp envoyées à l'artisan avant chaque jalon. Reduce les retards de 30-50 %." },
+            ].map(item => (
+              <div class="bg-white border border-gray-100 rounded-2xl p-5 hover:border-[#1B3FA1]/30 hover:shadow-md transition-all">
+                <div class="w-10 h-10 rounded-xl bg-[#EFF4FF] flex items-center justify-center text-xl mb-3" aria-hidden="true">{item.icon}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{item.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[800px] mx-auto">
+          <div class="text-center mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">FAQ</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Questions fréquentes</h2>
+          </div>
+          <div class="space-y-3">
+            {faqs.map(faq => (
+              <details class="group bg-[#F8F9FC] border border-gray-100 rounded-xl overflow-hidden">
+                <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none hover:bg-white transition-colors">
+                  <span class="font-semibold text-[#0E1730] text-sm sm:text-base">{faq.question}</span>
+                  <svg class="h-5 w-5 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                  </svg>
+                </summary>
+                <div class="px-5 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4 bg-white">{faq.answer}</div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Pages connexes -->
+      <section class="py-12 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4 text-center">Pages connexes</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { href: "/planning-chantier", title: "Planning chantier", desc: "Anticiper avec le CPM" },
+              { href: "/surcout-travaux", title: "Surcoût travaux", desc: "Gérer les dépassements" },
+              { href: "/coordination-artisans", title: "Coordination artisans", desc: "Aligner les corps de métier" },
+              { href: "/logiciel-suivi-chantier", title: "Logiciel suivi chantier", desc: "Vue d'ensemble GMC" },
+            ].map(link => (
+              <a href={link.href} class="block p-4 rounded-xl bg-white border border-gray-100 hover:border-[#1B3FA1]/30 hover:shadow-sm transition-all">
+                <p class="font-semibold text-[#0E1730] text-sm">{link.title}</p>
+                <p class="text-xs text-gray-500 mt-1">{link.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="py-16 sm:py-20 px-6 bg-gradient-to-br from-[#0E1730] via-[#152A66] to-[#1B3FA1]">
+        <div class="max-w-[800px] mx-auto text-center">
+          <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">Ne subissez plus les retards.</h2>
+          <p class="text-base sm:text-lg text-white/80 leading-relaxed mb-8 max-w-xl mx-auto">GérerMonChantier détecte automatiquement les retards, calcule l'impact aval, et archive vos preuves au cas où.</p>
+          <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base shadow-lg">
+            Tester GérerMonChantier
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <p class="text-xs text-white/60 mt-5">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>
+
+<style is:global>
+  @media print {
+    header, footer, .py-16, [class*="bg-gradient-to-br from-[#0E1730]"], section.bg-\[\#F5F6FA\]:has(p:contains("Pages connexes")) { display: none !important; }
+    body { background: white; }
+  }
+</style>

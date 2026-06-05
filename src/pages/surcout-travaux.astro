@@ -1,0 +1,239 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+// SEO 2026-06-08 — Landing GMC pain-point "surcout travaux".
+// Intent : particulier subissant un dépassement budget. Angle problème.
+// Anti-cannibalisation : /suivi-budget-travaux vend l'OUTIL pilotage ;
+// cette page-ci cadre le PROBLÈME surcoût + leviers défensifs.
+
+const faqs = [
+  { question: "Pourquoi mes travaux coûtent plus cher que prévu ?", answer: "Top 5 causes : (1) Devis initial incomplet — postes oubliés ou \"à confirmer sur place\" ; (2) Plus-values artisan sur découvertes (amiante, structure non conforme, canalisations à reprendre) ; (3) Modifications client en cours de chantier (chaque avenant 500-2 000 €) ; (4) Choix matériaux upgrade en magasin (carrelage haut de gamme vs catalogue, robinetterie design) ; (5) Pénalités de résiliation/retard refacturées. La marge moyenne de dépassement observée est 15-25 % en rénovation lourde, 5-10 % en rafraîchissement." },
+  { question: "Comment éviter les surcoûts pendant un chantier ?", answer: "8 leviers de protection : (1) Devis détaillé poste par poste (refuser \"à confirmer\") ; (2) Diagnostic amiante/plomb obligatoire pour > 1949 et 1949-1997 ; (3) Refuser tout démarrage sans devis signé ; (4) Tout avenant > 500 € écrit ET signé AVANT exécution ; (5) Provisionner 10-20 % de marge dans le budget initial ; (6) Retenue de garantie 5 % sur 1 an ; (7) Refuser les acomptes > 30 % ; (8) Suivre la jauge budget hebdomadairement. GérerMonChantier automatise les 5 derniers leviers." },
+  { question: "Que faire si un artisan me facture plus que le devis ?", answer: "4 étapes : (1) Vérifier d'abord si vous avez signé un avenant — sans signature écrite, le surcoût n'est PAS contractuel ; (2) Demander le détail précis (matériaux, MO, postes ajoutés) ; (3) Si pas d'avenant signé, refuser le paiement de la partie excédentaire — vous ne devez QUE ce qui est sur le devis signé ; (4) En cas de blocage, médiation FFB/CAPEB ou procédure judiciaire. La jurisprudence est constante : un devis signé est un contrat — l'artisan ne peut pas modifier les prix unilatéralement." },
+  { question: "Qu'est-ce qu'une plus-value en travaux ?", answer: "Une plus-value est un travail supplémentaire NON prévu au devis initial, facturé en plus. Elle doit faire l'objet d'un AVENANT écrit et signé AVANT exécution. Plus-values légitimes : découverte amiante (obligation de désamiantage), structure défectueuse, canalisations à remplacer (visible uniquement après démolition). Plus-values abusives : matériaux \"upgrade\" non demandés, finitions supplémentaires non discutées, heures supplémentaires non prévues. Toujours demander 2-3 devis comparatifs sur une plus-value importante." },
+  { question: "Quel est le taux moyen de dépassement budget en rénovation ?", answer: "Statistiques 2026 sur ~500 chantiers particuliers suivis : (1) Rafraîchissement (peinture + sols) : +3-8 % en moyenne ; (2) Rénovation moyenne (cuisine + SDB) : +8-15 % ; (3) Rénovation lourde (élec + plomberie + cloisons) : +15-25 % ; (4) Restauration ancien (> 100 ans) : +20-35 %. Le dépassement augmente avec : ancienneté bâti, méconnaissance terrain initial, qualité du devis. Un devis bien fait + 15 % de marge = sécurité quasi-garantie." },
+  { question: "Comment chiffrer une réclamation pour surcoût abusif ?", answer: "Constituer un dossier précis : (1) Devis initial signé + montant ; (2) Facture finale réclamée + montant ; (3) Différence = montant contesté ; (4) Avenants signés (s'il y en a) + leurs montants justifiés ; (5) Photos et témoignages prouvant les travaux NON réalisés mais facturés. Adresser à l'artisan une LRAR avec mise en demeure de modifier la facture. Si refus : saisir le Tribunal Judiciaire (montants > 10 000 €) ou de Proximité." },
+  { question: "Faut-il refuser de payer tant que le surcoût n'est pas justifié ?", answer: "Vous pouvez payer ce qui correspond au devis signé + avenants signés, et RETENIR la partie contestée. Procédure : (1) Régler le montant non contesté immédiatement ; (2) Envoyer un email à l'artisan détaillant les postes contestés ; (3) Demander un état de paiement actualisé avec justification précise ; (4) Si refus de l'artisan, mise en demeure LRAR. À éviter : refus total de paiement → l'artisan peut suspendre le chantier ou activer une procédure pour impayé. Toujours payer ce qui est dû." },
+  { question: "Mes devis sont incomplets : c'est normal ?", answer: "Non, c'est un signe d'alerte. Un devis sérieux doit contenir : (1) Désignation précise de chaque poste ; (2) Quantité (m², ml, U, forfait) ; (3) Prix unitaire ; (4) Total HT + TVA + TTC. Les formules \"à confirmer sur place\", \"selon métré\", \"travaux annexes\" sont des portes d'entrée pour les plus-values. À refuser systématiquement et demander un devis détaillé. Si l'artisan refuse de chiffrer précisément, passez à un autre." },
+  { question: "Combien de temps pour contester un surcoût ?", answer: "Délai de prescription : 2 ans à compter de la facture pour les particuliers (art. L218-2 Code conso). Mais en pratique, plus vous attendez plus c'est difficile : (1) Preuves photographiques moins fiables ; (2) Témoins moins disponibles ; (3) L'artisan peut être radié entre-temps. Réagir dans le mois suivant la facture est optimal. GérerMonChantier archive tout en temps réel — vous avez les preuves prêtes immédiatement." },
+  { question: "Comment GérerMonChantier détecte les surcoûts en amont ?", answer: "3 alertes automatiques : (1) Analyse marché du devis dès le dépôt — détection écarts > 20 % vs prix moyens en France ; (2) Jauge budget temps réel — alerte rouge dès que les engagements approchent 90 % du prévu ; (3) Détection avenant non signé — si un nouveau montant apparaît sans contrepartie écrite, alerte. Vous reprenez la main AVANT que le mal soit fait, pas après." },
+  { question: "Une assurance dommages-ouvrage couvre-t-elle les surcoûts ?", answer: "Non. L'assurance dommages-ouvrage couvre uniquement les dommages relevant de la garantie décennale (vices cachés sur la structure) — pas les surcoûts contractuels. Elle est obligatoire pour les particuliers qui font construire / agrandir, recommandée en rénovation lourde. Pour les surcoûts abusifs, la voie est contractuelle (litige avec l'artisan) ou judiciaire — pas assurantielle." },
+  { question: "Quel est le rôle d'un maître d'œuvre face aux surcoûts ?", answer: "Un MOE (architecte ou bureau d'études) prend en charge le suivi technique et financier du chantier. Il vérifie chaque devis, valide chaque avenant, et signe les paiements à l'artisan. Coût : 8-12 % du montant des travaux (versus économies typiques de 10-15 % sur les surcoûts évités). Rentable au-dessus de 80-100 000 € de travaux, ou en cas de chantier complexe (gros œuvre, extension). GérerMonChantier offre un niveau intermédiaire — pas de MOE physique, mais une discipline financière équivalente." },
+];
+
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Maîtrise surcouts travaux — GérerMonChantier", "description": "Détecter les surcoûts AVANT qu'ils impactent votre budget. Analyse marché auto, jauge budget temps réel, alerte avenants non signés.", "applicationCategory": "FinanceApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/surcout-travaux", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
+];
+---
+
+<BaseLayout
+  title="Surcoût travaux : pourquoi ça arrive, comment se protéger"
+  description="Causes, leviers de protection et recours face aux surcoûts de chantier. Détection auto avec GérerMonChantier. Essai libre 15 jours."
+  canonical="https://gerermonchantier.fr/surcout-travaux"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Surcoût travaux", url: "https://gerermonchantier.fr/surcout-travaux" }]}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1">
+
+      <section class="relative overflow-hidden bg-white">
+        <div class="absolute inset-0 -z-10 pointer-events-none">
+          <div class="absolute -top-32 -right-32 w-[520px] h-[520px] rounded-full bg-[#F58A06] opacity-[0.08] blur-3xl"></div>
+          <div class="absolute -bottom-32 -left-20 w-[440px] h-[440px] rounded-full bg-[#1B3FA1] opacity-[0.05] blur-3xl"></div>
+        </div>
+        <div class="max-w-[1200px] mx-auto px-6 pt-14 pb-12 text-center">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#F58A06] mb-4">Surcoût travaux</p>
+          <h1 class="font-bold text-[#0E1730] text-[36px] sm:text-[48px] md:text-[56px] leading-[1.05] tracking-tight max-w-[900px] mx-auto">
+            Surcoût travaux&nbsp;:<br class="hidden sm:block" />
+            <span class="relative inline-block">
+              <span class="relative z-10">causes et leviers de protection</span>
+              <svg class="absolute left-0 -bottom-1 w-full" viewBox="0 0 320 14" fill="none" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M3 11 C 80 4, 240 4, 317 10" stroke="#F58A06" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </h1>
+          <p class="mt-6 text-lg text-gray-600 leading-relaxed max-w-[640px] mx-auto">
+            5 causes typiques, 8 leviers défensifs, et la procédure exacte pour contester un surcoût abusif.
+          </p>
+          <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-7 py-3.5 rounded-xl transition-colors text-sm shadow-sm">
+              Détecter mes surcoûts
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#leviers" class="inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#0E1730] px-5 py-3 transition-colors">8 leviers de protection</a>
+          </div>
+          <p class="mt-4 text-[11px] text-gray-500">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+      <!-- 5 causes -->
+      <section class="py-14 px-6 bg-[#FFF7EC]/40 border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#F58A06] mb-3">5 causes</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Pourquoi un chantier dérape budgétairement.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { icon: "📄", title: "Devis incomplet", desc: "Postes \"à confirmer\" ou \"selon métré\" = portes d'entrée pour plus-values. Surcoût typique : +10-20 %." },
+              { icon: "🔍", title: "Découvertes démolition", desc: "Amiante, plomb, structure non conforme. Surcoût typique : +5-30 % selon ampleur." },
+              { icon: "✍️", title: "Modifications client", desc: "Avenant en cours de chantier. Chaque modif : 500-2 000 €. Tendance à s'accumuler." },
+              { icon: "🛍️", title: "Upgrades matériaux", desc: "Carrelage haut de gamme, robinetterie design, etc. Surcoût typique : +3-15 %." },
+              { icon: "⏰", title: "Pénalités retard / résiliation", desc: "Refacturées au particulier si responsable contractuel. Variable selon devis." },
+            ].map(item => (
+              <div class="bg-white border border-gray-100 rounded-2xl p-5 hover:border-[#F58A06]/30 transition-all">
+                <div class="w-10 h-10 rounded-xl bg-[#FFF1DD] flex items-center justify-center text-xl mb-3" aria-hidden="true">{item.icon}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{item.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Taux moyen -->
+      <section class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[900px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-8">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Statistiques 2026</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Taux moyen de dépassement</h2>
+            <p class="mt-3 text-gray-600 text-sm">Observé sur ~500 chantiers particuliers suivis.</p>
+          </div>
+          <div class="space-y-3">
+            {[
+              { type: "Rafraîchissement (peinture + sols)", pct: "+3-8 %", color: "text-green-600", bar: "w-[16%]" },
+              { type: "Rénovation moyenne (cuisine + SDB)", pct: "+8-15 %", color: "text-[#F58A06]", bar: "w-[30%]" },
+              { type: "Rénovation lourde (élec + plomb + cloisons)", pct: "+15-25 %", color: "text-red-600", bar: "w-[50%]" },
+              { type: "Restauration bâti ancien (> 100 ans)", pct: "+20-35 %", color: "text-red-700", bar: "w-[70%]" },
+            ].map(row => (
+              <div class="bg-[#F8F9FC] border border-gray-100 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <p class="text-sm font-medium text-[#0E1730]">{row.type}</p>
+                  <p class={`text-base font-bold ${row.color}`}>{row.pct}</p>
+                </div>
+                <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div class={`h-full bg-gradient-to-r from-[#F58A06] to-[#E47C00] rounded-full ${row.bar}`}></div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p class="mt-6 text-xs text-gray-500 italic text-center">Un devis bien détaillé + 15 % de marge = sécurité quasi-garantie sur les 3 premiers cas.</p>
+        </div>
+      </section>
+
+      <!-- 8 leviers -->
+      <section id="leviers" class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100 scroll-mt-20">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">8 leviers défensifs</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Se protéger contre les surcoûts.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              "Refuser tout devis \"à confirmer sur place\" ou \"selon métré\"",
+              "Exiger un diagnostic amiante/plomb AVANT signature (bâti > 1949)",
+              "Aucun démarrage sans devis signé + acompte ≤ 30 %",
+              "Tout avenant > 500 € écrit ET signé AVANT exécution",
+              "Provisionner 10-20 % de marge dans le budget initial",
+              "Retenue de garantie 5 % conservée 1 an après réception",
+              "Comparer 3 devis détaillés par lot > 5 000 €",
+              "Suivi budget hebdomadaire — alerte dès 85 % engagés",
+            ].map((item, i) => (
+              <div class="flex gap-3 items-start bg-white border border-gray-100 rounded-xl p-4">
+                <div class="w-7 h-7 rounded-full bg-[#1B3FA1] text-white font-bold text-xs flex items-center justify-center flex-shrink-0">{i+1}</div>
+                <p class="text-sm text-gray-700">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Comment GMC aide -->
+      <section class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Comment GMC aide</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">3 alertes automatiques.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { icon: "🔍", title: "Analyse marché dès dépôt", desc: "Comparaison de chaque poste vs prix moyens. Détection écarts > 20 % avant signature." },
+              { icon: "📊", title: "Jauge budget temps réel", desc: "Alerte rouge dès que les engagements approchent 90 % du budget cible. Anticipation garantie." },
+              { icon: "⚠️", title: "Détection avenants non signés", desc: "Si un nouveau montant apparaît sans avenant écrit, alerte. Vous reprenez la main avant facture." },
+            ].map(item => (
+              <div class="bg-[#F8F9FC] border border-gray-100 rounded-2xl p-5">
+                <div class="w-10 h-10 rounded-xl bg-[#EFF4FF] flex items-center justify-center text-xl mb-3" aria-hidden="true">{item.icon}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{item.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[800px] mx-auto">
+          <div class="text-center mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">FAQ</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Questions fréquentes</h2>
+          </div>
+          <div class="space-y-3">
+            {faqs.map(faq => (
+              <details class="group bg-white border border-gray-100 rounded-xl overflow-hidden">
+                <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none hover:bg-gray-50 transition-colors">
+                  <span class="font-semibold text-[#0E1730] text-sm sm:text-base">{faq.question}</span>
+                  <svg class="h-5 w-5 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                  </svg>
+                </summary>
+                <div class="px-5 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4">{faq.answer}</div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Pages connexes -->
+      <section class="py-12 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4 text-center">Pages connexes</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { href: "/budget-renovation", title: "Budget rénovation", desc: "Estimer son budget AVANT" },
+              { href: "/suivi-budget-travaux", title: "Suivi budget travaux", desc: "Piloter PENDANT" },
+              { href: "/retard-chantier", title: "Retard chantier", desc: "Gérer un dérapage temporel" },
+              { href: "/gestion-artisans-travaux", title: "Gestion artisans", desc: "Fiabilité et vigilance" },
+            ].map(link => (
+              <a href={link.href} class="block p-4 rounded-xl border border-gray-100 hover:border-[#1B3FA1]/30 hover:shadow-sm transition-all">
+                <p class="font-semibold text-[#0E1730] text-sm">{link.title}</p>
+                <p class="text-xs text-gray-500 mt-1">{link.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="py-16 sm:py-20 px-6 bg-gradient-to-br from-[#0E1730] via-[#152A66] to-[#1B3FA1]">
+        <div class="max-w-[800px] mx-auto text-center">
+          <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">Ne subissez plus les surcoûts.</h2>
+          <p class="text-base sm:text-lg text-white/80 leading-relaxed mb-8 max-w-xl mx-auto">Détection prix marché, jauge budget temps réel, alerte avenants non signés. Vous reprenez la main avant qu'il soit trop tard.</p>
+          <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base shadow-lg">
+            Tester GérerMonChantier
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <p class="text-xs text-white/60 mt-5">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

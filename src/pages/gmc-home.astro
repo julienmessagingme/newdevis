@@ -73,21 +73,61 @@ const jsonLd = {
             <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">GérerMonChantier, par usage.</h2>
             <p class="mt-4 text-gray-600 text-base">Choisissez l'angle qui vous correspond.</p>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { href: "/logiciel-suivi-chantier",      title: "Logiciel de suivi chantier", desc: "Pilotez vos travaux sans stress.", icon: "🏗️" },
-              { href: "/application-suivi-travaux",    title: "Application de suivi travaux", desc: "Centralisez devis, budget, planning.", icon: "📱" },
-              { href: "/application-gestion-chantier", title: "Application de gestion chantier", desc: "Tout votre projet dans une appli.", icon: "🗂️" },
-              { href: "/planning-chantier",            title: "Planning chantier", desc: "Dates, dépendances, retards maîtrisés.", icon: "📅" },
-              { href: "/suivi-budget-travaux",         title: "Suivi budget travaux", desc: "Maîtrisez chaque euro de votre chantier.", icon: "💸" },
-              { href: "/gestion-artisans-travaux",     title: "Gestion artisans travaux", desc: "Coordonnez sans stress.", icon: "👷" },
-            ].map(link => (
-              <a href={link.href} class="block p-5 rounded-2xl bg-[#F8F9FC] border border-gray-100 hover:border-[#1B3FA1]/30 hover:bg-white hover:shadow-md transition-all">
-                <div class="text-2xl mb-2" aria-hidden="true">{link.icon}</div>
-                <p class="font-bold text-[#0E1730] text-sm mb-1">{link.title}</p>
-                <p class="text-xs text-gray-600 leading-relaxed">{link.desc}</p>
-              </a>
-            ))}
+
+          <!-- Sous-thème 1 : Vue d'ensemble -->
+          <div class="mb-8">
+            <p class="text-[11px] font-bold uppercase tracking-[.15em] text-[#F58A06] mb-3">Vue d'ensemble</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[
+                { href: "/logiciel-suivi-chantier",      title: "Logiciel de suivi chantier",      desc: "Pilotez vos travaux sans stress.",           icon: "🏗️" },
+                { href: "/application-suivi-travaux",    title: "Application de suivi travaux",     desc: "Centralisez devis, budget, planning.",       icon: "📱" },
+                { href: "/application-gestion-chantier", title: "Application de gestion chantier", desc: "Tout votre projet dans une appli.",          icon: "🗂️" },
+              ].map(link => (
+                <a href={link.href} class="block p-4 rounded-xl bg-[#F8F9FC] border border-gray-100 hover:border-[#1B3FA1]/30 hover:bg-white hover:shadow-md transition-all">
+                  <div class="text-xl mb-1.5" aria-hidden="true">{link.icon}</div>
+                  <p class="font-bold text-[#0E1730] text-sm mb-1">{link.title}</p>
+                  <p class="text-xs text-gray-600 leading-relaxed">{link.desc}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <!-- Sous-thème 2 : Modules clés -->
+          <div class="mb-8">
+            <p class="text-[11px] font-bold uppercase tracking-[.15em] text-[#F58A06] mb-3">Modules clés</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { href: "/planning-chantier",            title: "Planning chantier",        desc: "Dates et dépendances.",       icon: "📅" },
+                { href: "/suivi-budget-travaux",         title: "Suivi budget travaux",     desc: "Pilotez chaque euro.",         icon: "💸" },
+                { href: "/gestion-artisans-travaux",     title: "Gestion artisans",         desc: "Fiabilité + coordination.",     icon: "👷" },
+                { href: "/gestion-documents-chantier",   title: "Documents chantier",       desc: "Classement automatique.",       icon: "📂" },
+              ].map(link => (
+                <a href={link.href} class="block p-4 rounded-xl bg-[#F8F9FC] border border-gray-100 hover:border-[#1B3FA1]/30 hover:bg-white hover:shadow-md transition-all">
+                  <div class="text-xl mb-1.5" aria-hidden="true">{link.icon}</div>
+                  <p class="font-bold text-[#0E1730] text-sm mb-1">{link.title}</p>
+                  <p class="text-xs text-gray-600 leading-relaxed">{link.desc}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <!-- Sous-thème 3 : Problèmes fréquents -->
+          <div>
+            <p class="text-[11px] font-bold uppercase tracking-[.15em] text-[#F58A06] mb-3">Problèmes fréquents</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { href: "/retard-chantier",              title: "Retard chantier",          desc: "Causes + comment réagir.",      icon: "⏰" },
+                { href: "/surcout-travaux",              title: "Surcoût travaux",          desc: "Causes + protection.",          icon: "💰" },
+                { href: "/budget-renovation",            title: "Budget rénovation",        desc: "Estimer AVANT signer.",         icon: "📊" },
+                { href: "/coordination-artisans",        title: "Coordination artisans",    desc: "Aligner les corps de métier.",  icon: "🤝" },
+              ].map(link => (
+                <a href={link.href} class="block p-4 rounded-xl bg-[#F8F9FC] border border-gray-100 hover:border-[#1B3FA1]/30 hover:bg-white hover:shadow-md transition-all">
+                  <div class="text-xl mb-1.5" aria-hidden="true">{link.icon}</div>
+                  <p class="font-bold text-[#0E1730] text-sm mb-1">{link.title}</p>
+                  <p class="text-xs text-gray-600 leading-relaxed">{link.desc}</p>
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </section>

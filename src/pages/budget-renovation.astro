@@ -1,0 +1,226 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+// SEO 2026-06-08 — Landing GMC "budget rénovation".
+// Intent : particulier qui estime son projet AVANT de lancer.
+// Anti-cannibalisation : /suivi-budget-travaux = pilotage PENDANT,
+// /surcout-travaux = pain point ; cette page-ci = ESTIMATION AVANT.
+
+const faqs = [
+  { question: "Comment calculer son budget de rénovation ?", answer: "Méthode au m² (rénovation complète) : (1) Rafraîchissement : 250-400 €/m² ; (2) Rénovation moyenne (cuisine + SDB + sols + peinture) : 600-1 000 €/m² ; (3) Rénovation lourde (élec + plomberie + cloisons + finitions) : 1 200-2 000 €/m² ; (4) Construction neuve : 1 500-2 500 €/m². Ces fourchettes Île-de-France/grandes villes. Province : −15 à −25 %. Ajoutez 10-20 % de marge imprévus, 8-12 % si MOE. GérerMonChantier propose un calculateur précis qui combine prix marché + zone + niveau de finition." },
+  { question: "Combien coûte une rénovation complète au m² ?", answer: "Données 2026 ventilées par poste sur rénovation moyenne 80 m² appartement : (1) Démolition : 30-50 €/m² ; (2) Maçonnerie ouvertures : 200-500 €/U ; (3) Plomberie complète : 80-150 €/m² ; (4) Électricité complète : 90-180 €/m² ; (5) Placo + isolation : 60-110 €/m² ; (6) Carrelage sol + faïence : 90-170 €/m² ; (7) Peinture : 30-60 €/m² ; (8) Cuisine équipée : 6-25 k€ ; (9) Salle de bain : 7-18 k€." },
+  { question: "Quelle marge prévoir pour les imprévus ?", answer: "Selon la nature du chantier : (1) Rafraîchissement sans démolition : 5-8 % ; (2) Rénovation moyenne avec démolition légère : 10-12 % ; (3) Rénovation lourde avec gros œuvre : 15-20 % ; (4) Restauration bâti ancien (>100 ans) : 20-30 %. Les imprévus typiques : amiante/plomb détecté, canalisations à reprendre, structure non conforme, plus-values artisans. Sans marge, vous serez à découvert. AVEC marge correctement provisionnée, vous restez serein." },
+  { question: "Comment répartir son budget entre les lots ?", answer: "Répartition indicative rénovation 100 m² appartement complète 100 000 € : (1) Démolition + maçonnerie : 8 % ; (2) Plomberie : 12 % ; (3) Électricité : 10 % ; (4) Placo + isolation : 12 % ; (5) Menuiseries intérieures : 6 % ; (6) Carrelage + sols : 12 % ; (7) Peinture : 8 % ; (8) Cuisine équipée : 15 % ; (9) Salle de bain : 12 % ; (10) Imprévus + finitions : 5 %. Ajuste selon priorités personnelles. GérerMonChantier propose ce template à la création de chantier." },
+  { question: "Faut-il faire estimer son budget par un pro ?", answer: "Pour chantiers > 50 000 € OU travaux structurels : oui, par un architecte (étude de faisabilité 1 500-3 500 €) ou bureau d'études. Pour chantiers < 50 000 € : non, votre propre estimation au m² + 3 devis comparatifs suffisent. Étape AVANT devis : (1) Définir précisément le périmètre (pièces, lots, niveau finition) ; (2) Calcul au m² référence ; (3) Marge imprévus ; (4) Validation par 1-2 amis ayant rénové. GérerMonChantier remplace l'estimation pro pour les chantiers résidentiels classiques." },
+  { question: "Comment financer une rénovation ?", answer: "5 sources principales : (1) Apport personnel — toujours conserver une réserve de sécurité ; (2) Crédit travaux affecté (taux 4-6 %, durée 7-15 ans, max 75 000 €) ; (3) Crédit conso non affecté (5-7 %, plus rapide à obtenir, max 75 000 €) ; (4) MaPrimeRénov + CEE pour les travaux énergétiques (jusqu'à 30 000 € selon revenus) ; (5) Éco-PTZ jusqu'à 50 000 € pour rénovation globale. Cumul possible aides + crédit. Voir /aides-energetiques pour le détail dispositifs 2026." },
+  { question: "Combien coûte une rénovation de salle de bain ?", answer: "Budget moyen SDB 4-6 m² 2026 : (1) Démolition + évacuation : 600-1 200 € ; (2) Plomberie complète : 1 500-3 500 € ; (3) Électricité : 600-1 200 € ; (4) Placo + isolation : 400-900 € ; (5) Carrelage + faïence : 1 500-3 500 € (selon haut/bas gamme) ; (6) Équipement (douche, vasque, WC) : 1 500-5 000 € ; (7) Robinetterie + accessoires : 300-1 500 €. Total : 6 400-16 800 €. Comptez 10-15 jours de chantier. Source revente immobilière : 60-80 % du coût récupéré au m² valorisé." },
+  { question: "Combien coûte une rénovation de cuisine ?", answer: "Budget cuisine 10-15 m² 2026 : (1) Démolition existante : 300-800 € ; (2) Plomberie + déplacement réseaux : 800-2 500 € ; (3) Électricité 32 A : 600-1 500 € ; (4) Placo + isolation : 400-1 200 € ; (5) Carrelage sol + crédence : 800-2 500 € ; (6) Peinture : 300-700 € ; (7) Cuisine équipée (caissons + façades + plan + électroménager) : 6 000-25 000 € ; (8) Pose : 800-2 500 €. Total : 10 000-37 000 €. La cuisine équipée représente 60-70 % du budget." },
+  { question: "TVA 10 % ou 5,5 % : quelle différence sur mon budget ?", answer: "Sur logements > 2 ans : (1) TVA 10 % par défaut sur travaux d'amélioration/transformation/entretien (économie 10 pts vs 20 %) ; (2) TVA 5,5 % sur travaux d'amélioration énergétique (isolation, chaudière efficace, PAC, ventilation double flux, éclairage LED). Sur 50 000 € de travaux : économie 5 000 € avec TVA 10 % (vs neuf), économie 7 250 € avec TVA 5,5 %. Condition : facture nominative + attestation simplifiée signée par vous AVANT facturation." },
+  { question: "Comment obtenir des devis fiables pour estimer son budget ?", answer: "Méthode pour devis fiable : (1) Décrire précisément le périmètre (m², matériaux, finitions) sur 1 page A4 ; (2) Envoyer à 3-5 artisans (annuaire, bouche-à-oreille, plateformes) ; (3) Visite obligatoire de chaque artisan (pas de devis crédible sans visite) ; (4) Devis détaillé poste par poste avec quantités et prix unitaires ; (5) Comparaison sur GérerMonChantier — analyse marché auto, détection écarts > 20 %. Délai typique entre demande et devis signé : 4-8 semaines." },
+  { question: "Quel budget pour rénover une maison ancienne ?", answer: "Données 2026 maison ancienne 100-150 m² : (1) Rénovation moyenne (cuisine, SDB, sols, peinture) : 800-1 300 €/m², soit 80-195 k€ ; (2) Rénovation complète avec isolation : 1 200-1 800 €/m², soit 120-270 k€ ; (3) Réhabilitation lourde (gros œuvre + tout) : 1 800-2 500 €/m², soit 180-375 k€. Spécificités ancien : amiante/plomb obligatoire, structure souvent à reprendre, performances énergétiques à viser. Marge 20-30 % indispensable." },
+  { question: "Comment GérerMonChantier aide à estimer le budget ?", answer: "3 outils intégrés : (1) Calculateur au m² par typologie (rafraîchissement / moyenne / lourde / neuve) + ajustement zone géographique ; (2) Templates de répartition par lot (cuisine 15 %, SDB 12 %, plomberie 12 %, etc.) — modifiables ; (3) Analyse marché poste par poste à chaque devis déposé — détection écarts > 20 % vs prix moyens en France. Vous arrivez aux devis avec une base solide, et vous validez objectivement chaque proposition." },
+];
+
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Budget rénovation — GérerMonChantier", "description": "Estimer le budget de votre rénovation au m². Templates par lot, marges imprévus, analyse marché des devis.", "applicationCategory": "FinanceApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/budget-renovation", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
+];
+---
+
+<BaseLayout
+  title="Budget rénovation : comment estimer le coût de vos travaux"
+  description="Estimer le budget de votre rénovation au m². Prix par lot 2026, marge imprévus, financement. Outils GérerMonChantier inclus."
+  canonical="https://gerermonchantier.fr/budget-renovation"
+  ogType="website"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Budget rénovation", url: "https://gerermonchantier.fr/budget-renovation" }]}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1">
+
+      <section class="relative overflow-hidden bg-white">
+        <div class="absolute inset-0 -z-10 pointer-events-none">
+          <div class="absolute -top-32 -right-32 w-[520px] h-[520px] rounded-full bg-[#1B3FA1] opacity-[0.06] blur-3xl"></div>
+          <div class="absolute -bottom-32 -left-20 w-[440px] h-[440px] rounded-full bg-[#F58A06] opacity-[0.05] blur-3xl"></div>
+        </div>
+        <div class="max-w-[1200px] mx-auto px-6 pt-14 pb-12 text-center">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4">Budget rénovation</p>
+          <h1 class="font-bold text-[#0E1730] text-[36px] sm:text-[48px] md:text-[56px] leading-[1.05] tracking-tight max-w-[900px] mx-auto">
+            Budget rénovation&nbsp;:<br class="hidden sm:block" />
+            <span class="relative inline-block">
+              <span class="relative z-10">estimer le coût avant de signer</span>
+              <svg class="absolute left-0 -bottom-1 w-full" viewBox="0 0 320 14" fill="none" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M3 11 C 80 4, 240 4, 317 10" stroke="#F58A06" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </h1>
+          <p class="mt-6 text-lg text-gray-600 leading-relaxed max-w-[640px] mx-auto">
+            Prix au m² 2026 par type de rénovation, répartition par lot, marge à provisionner.
+            Pour arriver aux devis avec <strong class="text-gray-900">une base solide.</strong>
+          </p>
+          <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-7 py-3.5 rounded-xl transition-colors text-sm shadow-sm">
+              Estimer mon budget
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#prix-m2" class="inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#0E1730] px-5 py-3 transition-colors">Voir les prix au m²</a>
+          </div>
+          <p class="mt-4 text-[11px] text-gray-500">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+      <!-- Prix au m² -->
+      <section id="prix-m2" class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100 scroll-mt-20">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Référentiel 2026</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Prix au m² par typologie</h2>
+            <p class="mt-4 text-gray-600">Île-de-France et grandes villes. Province : −15 à −25 %. Hors équipements/électroménager.</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              { type: "Rafraîchissement", desc: "Peinture + sols, sans gros œuvre", prix: "250 - 400 €/m²", marge: "5-8 %" },
+              { type: "Rénovation moyenne", desc: "Cuisine + SDB + sols + peinture", prix: "600 - 1 000 €/m²", marge: "10-12 %" },
+              { type: "Rénovation lourde", desc: "Élec + plomb + cloisons + finitions", prix: "1 200 - 2 000 €/m²", marge: "15-20 %" },
+              { type: "Construction neuve", desc: "Maison hors terrain et VRD", prix: "1 500 - 2 500 €/m²", marge: "5-10 %" },
+              { type: "Restauration ancien (>100 ans)", desc: "Réhabilitation complète avec gros œuvre", prix: "1 800 - 2 500 €/m²", marge: "20-30 %" },
+              { type: "Extension neuve", desc: "Surélévation ou extension latérale", prix: "1 600 - 2 600 €/m²", marge: "10-15 %" },
+            ].map(row => (
+              <div class="bg-white border border-gray-100 rounded-2xl p-5">
+                <p class="font-bold text-[#0E1730] text-base mb-1">{row.type}</p>
+                <p class="text-xs text-gray-500 mb-3">{row.desc}</p>
+                <div class="flex items-end justify-between gap-2">
+                  <p class="text-xl font-bold text-[#1B3FA1]">{row.prix}</p>
+                  <span class="text-xs text-[#F58A06] font-semibold">+ marge {row.marge}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Répartition par lot -->
+      <section class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[900px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Répartition typique</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Comment répartir 100 000 €&nbsp;?</h2>
+            <p class="mt-3 text-gray-600 text-sm">Rénovation complète appartement 100 m² (indicatif).</p>
+          </div>
+          <div class="space-y-2">
+            {[
+              { lot: "Cuisine équipée", pct: "15 %", val: "15 000 €", bar: "w-[60%]" },
+              { lot: "Salle de bain", pct: "12 %", val: "12 000 €", bar: "w-[48%]" },
+              { lot: "Plomberie complète", pct: "12 %", val: "12 000 €", bar: "w-[48%]" },
+              { lot: "Carrelage + sols", pct: "12 %", val: "12 000 €", bar: "w-[48%]" },
+              { lot: "Placo + isolation", pct: "12 %", val: "12 000 €", bar: "w-[48%]" },
+              { lot: "Électricité complète", pct: "10 %", val: "10 000 €", bar: "w-[40%]" },
+              { lot: "Démolition + maçonnerie", pct: "8 %", val: "8 000 €", bar: "w-[32%]" },
+              { lot: "Peinture", pct: "8 %", val: "8 000 €", bar: "w-[32%]" },
+              { lot: "Menuiseries intérieures", pct: "6 %", val: "6 000 €", bar: "w-[24%]" },
+              { lot: "Imprévus + finitions", pct: "5 %", val: "5 000 €", bar: "w-[20%]" },
+            ].map(row => (
+              <div class="flex items-center gap-3 bg-[#F8F9FC] border border-gray-100 rounded-lg p-3">
+                <div class="w-44 sm:w-56 flex-shrink-0 text-sm font-medium text-[#0E1730]">{row.lot}</div>
+                <div class="flex-1 h-3 rounded-full bg-gray-100 overflow-hidden">
+                  <div class={`h-full bg-[#1B3FA1] rounded-full ${row.bar}`}></div>
+                </div>
+                <div class="w-20 sm:w-24 text-right text-xs font-semibold flex-shrink-0">
+                  <span class="text-[#1B3FA1]">{row.pct}</span>
+                  <span class="text-gray-500 ml-1 hidden sm:inline">· {row.val}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p class="mt-6 text-xs text-gray-500 italic text-center">Ces % varient selon ton scope. La cuisine peut monter à 25 % si haut de gamme. Les modifs structurelles peuvent ajouter 10 %.</p>
+        </div>
+      </section>
+
+      <!-- 4 étapes -->
+      <section class="py-14 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <div class="text-center max-w-2xl mx-auto mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Méthode</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Construire son budget en 4 étapes.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { num: "1", title: "Périmètre précis", desc: "Liste écrite : pièces, lots, niveau finition. 1 page A4 max." },
+              { num: "2", title: "Calcul au m²", desc: "Référence par typologie × m² du logement. Base de départ." },
+              { num: "3", title: "Marge imprévus", desc: "10-20 % selon ancienneté + complexité. Provisionné, pas optionnel." },
+              { num: "4", title: "Devis détaillés", desc: "3 minimum par lot > 5 k€. Analyse marché auto avec GMC." },
+            ].map(step => (
+              <div class="bg-white border border-gray-100 rounded-2xl p-5 text-center">
+                <div class="w-10 h-10 rounded-full bg-[#1B3FA1] text-white font-bold text-base flex items-center justify-center mx-auto mb-3">{step.num}</div>
+                <h3 class="font-bold text-[#0E1730] text-sm mb-2">{step.title}</h3>
+                <p class="text-xs text-gray-600 leading-relaxed">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="py-14 px-6 bg-white border-b border-gray-100">
+        <div class="max-w-[800px] mx-auto">
+          <div class="text-center mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">FAQ</p>
+            <h2 class="font-bold text-[#0E1730] text-3xl sm:text-4xl leading-tight tracking-tight">Questions fréquentes</h2>
+          </div>
+          <div class="space-y-3">
+            {faqs.map(faq => (
+              <details class="group bg-[#F8F9FC] border border-gray-100 rounded-xl overflow-hidden">
+                <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none hover:bg-white transition-colors">
+                  <span class="font-semibold text-[#0E1730] text-sm sm:text-base">{faq.question}</span>
+                  <svg class="h-5 w-5 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                  </svg>
+                </summary>
+                <div class="px-5 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4 bg-white">{faq.answer}</div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Pages connexes -->
+      <section class="py-12 px-6 bg-[#F5F6FA] border-b border-gray-100">
+        <div class="max-w-[1100px] mx-auto">
+          <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-4 text-center">Pages connexes</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { href: "/suivi-budget-travaux", title: "Suivi budget travaux", desc: "Piloter PENDANT" },
+              { href: "/surcout-travaux", title: "Surcoût travaux", desc: "Éviter les dépassements" },
+              { href: "/aides-energetiques", title: "Aides énergétiques", desc: "MaPrimeRénov, CEE…" },
+              { href: "/guide-renovation", title: "Guide rénovation", desc: "Méthode pas à pas" },
+            ].map(link => (
+              <a href={link.href} class="block p-4 rounded-xl bg-white border border-gray-100 hover:border-[#1B3FA1]/30 hover:shadow-sm transition-all">
+                <p class="font-semibold text-[#0E1730] text-sm">{link.title}</p>
+                <p class="text-xs text-gray-500 mt-1">{link.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="py-16 sm:py-20 px-6 bg-gradient-to-br from-[#0E1730] via-[#152A66] to-[#1B3FA1]">
+        <div class="max-w-[800px] mx-auto text-center">
+          <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">Construisez votre budget en 10 minutes.</h2>
+          <p class="text-base sm:text-lg text-white/80 leading-relaxed mb-8 max-w-xl mx-auto">Décris ton projet en français, le Pilote IA construit ton estimation, le planning et les devis types attendus.</p>
+          <a href="/mon-chantier/nouveau" class="inline-flex items-center justify-center gap-2 bg-[#F58A06] hover:bg-[#E47C00] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base shadow-lg">
+            Tester GérerMonChantier
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <p class="text-xs text-white/60 mt-5">15 jours d'essai libre · sans CB</p>
+        </div>
+      </section>
+
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>
