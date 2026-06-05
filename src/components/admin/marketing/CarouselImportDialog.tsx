@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Loader2, UploadCloud } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -77,6 +78,20 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
   };
 
   /**
+   * Récupère un token Supabase frais. Le client supabase-js rafraîchit
+   * automatiquement le token s'il est proche de l'expiration (1 h par
+   * défaut côté Supabase). Évite les 401 "Non autorisé" quand le authToken
+   * passé en prop a été capturé au mount du parent il y a > 1h.
+   */
+  const getFreshToken = async (): Promise<string> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error("Session expirée — recharge la page (Ctrl+R).");
+    }
+    return session.access_token;
+  };
+
+  /**
    * Lance un upload + rendu. Retourne le résultat ou throw une Error.
    * Encapsule les 2 voies (proxy Vercel pour ≤ 4 Mo, direct VPS sinon).
    */
@@ -84,7 +99,8 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
     f: File,
     runMode: Mode,
   ): Promise<{ id: number; kind: string; slideCount: number }> => {
-    if (!authToken) throw new Error("Session expirée, recharge la page.");
+    // Fresh token à chaque tentative — supabase-js auto-refresh si proche expiration.
+    const freshToken = await getFreshToken();
 
     const qs = new URLSearchParams({
       product,
@@ -103,7 +119,7 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
       return new Promise<{ id: number; kind: string; slideCount: number }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", `/api/admin/marketing/import/proxy?${qs.toString()}`);
-        xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+        xhr.setRequestHeader("Authorization", `Bearer ${freshToken}`);
         xhr.setRequestHeader("Content-Type", "text/html");
         xhr.timeout = 6 * 60 * 1000;
         xhr.upload.onprogress = (e) => {
@@ -126,7 +142,7 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
     setPhase("signing");
     const signRes = await fetch("/api/admin/marketing/import/sign", {
       method: "POST",
-      headers: { Authorization: `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${freshToken}` },
     });
     const signData = await signRes.json();
     if (!signRes.ok) throw new Error(signData?.error ?? `Sign ${signRes.status}`);
@@ -159,7 +175,9 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
   };
 
   const submit = async () => {
-    if (!authToken) { toast.error("Session expirée, recharge la page."); return; }
+    // Note : on ne check plus !authToken ici — getFreshToken() refresh
+    // automatiquement la session côté supabase-js. Si vraiment expirée,
+    // getFreshToken throw avec un message clair (capté par le try/catch).
     if (!file) { toast.error("Choisis un fichier HTML."); return; }
     if (!title.trim()) { toast.error("Donne un titre."); return; }
 
