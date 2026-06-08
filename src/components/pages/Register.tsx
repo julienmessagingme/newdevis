@@ -136,7 +136,14 @@ const Register = ({ brand }: Props) => {
         trackPixel('CompleteRegistration', { content_name: signupSource });
 
         toast.success("Compte créé avec succès !");
-        window.location.href = returnTo || "/tableau-de-bord";
+        // Laisser au pixel Meta (requête GET image) le temps de partir AVANT la redirection.
+        // Sans ce délai, la navigation annule la requête en vol et `CompleteRegistration`
+        // n'atteint jamais Meta (contrairement à `Lead`, qui fire sur une page où l'utilisateur
+        // reste). ~400 ms = imperceptible côté UX, suffisant pour que la requête quitte le navigateur.
+        const destination = returnTo || "/tableau-de-bord";
+        window.setTimeout(() => {
+          window.location.href = destination;
+        }, 400);
       }
     } catch (error) {
       toast.error("Une erreur est survenue");
