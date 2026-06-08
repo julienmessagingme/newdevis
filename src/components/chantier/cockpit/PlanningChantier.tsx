@@ -5,10 +5,12 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, Trash2, Loader2,
-  Calendar, Pencil,
+  Calendar, Pencil, Layers, Lock, Sparkles,
 } from 'lucide-react';
 import type { ChantierIAResult } from '@/types/chantier-ia';
 import PlanningTimeline from './planning/PlanningTimeline';
+import SubPlanningView from './planning/SubPlanningView';
+import { useAdvancedPlanningAccess } from '@/hooks/useAdvancedPlanningAccess';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -55,6 +57,9 @@ interface Props {
 
 export default function PlanningChantier({ result, chantierId, token }: Props) {
   const [tab,          setTab]          = useState<'planning' | 'rdv'>('planning');
+  const [planningView, setPlanningView] = useState<'simple' | 'advanced'>('simple');
+  const [showUpsell,   setShowUpsell]   = useState(false);
+  const access = useAdvancedPlanningAccess();
   const [rdvs,         setRdvs]         = useState<Rdv[]>([]);
   const [showAddRdv,   setShowAddRdv]   = useState(false);
   const [newRdv,       setNewRdv]       = useState<Partial<Rdv>>({ type: 'artisan' });
@@ -69,6 +74,23 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
       if (raw) setRdvs(JSON.parse(raw));
     } catch {}
   }, [chantierId]);
+
+  // Vue planning préférée (simple/avancé) persistée par chantier.
+  useEffect(() => {
+    if (!chantierId) return;
+    try {
+      const v = localStorage.getItem(`planning_view_${chantierId}`);
+      if (v === 'advanced' || v === 'simple') setPlanningView(v);
+    } catch {}
+  }, [chantierId]);
+
+  const selectView = (v: 'simple' | 'advanced') => {
+    // Le mode avancé est premium : si non habilité → upsell au lieu de switcher.
+    if (v === 'advanced' && !access.allowed) { setShowUpsell(true); return; }
+    setShowUpsell(false);
+    setPlanningView(v);
+    if (chantierId) { try { localStorage.setItem(`planning_view_${chantierId}`, v); } catch {} }
+  };
 
   const persistRdvs = (list: Rdv[]) => {
     const sorted = [...list].sort((a, b) => a.date.localeCompare(b.date));
@@ -135,8 +157,45 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
 
       {/* ── Tab Planning ───────────────────────────────────────────────── */}
       {tab === 'planning' && (
-        <div className="space-y-6">
-          <PlanningTimeline chantierId={chantierId} token={token} />
+        <div className="space-y-4">
+          {/* Toggle Simplifié / Avancé (avancé = premium) */}
+          {(() => {
+            const advancedActive = planningView === 'advanced' && access.allowed;
+            const tabCls = (active: boolean) =>
+              `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`;
+            return (
+              <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                <button onClick={() => selectView('simple')} className={tabCls(!advancedActive)}>
+                  <Calendar className="h-3.5 w-3.5" aria-hidden="true" />Simplifié
+                </button>
+                <button
+                  onClick={() => selectView('advanced')}
+                  aria-label="Vue avancée (sous-phases) — premium"
+                  className={tabCls(advancedActive)}
+                >
+                  <Layers className="h-3.5 w-3.5" aria-hidden="true" />Avancé
+                  {!access.allowed && !access.isLoading && <Lock className="h-3 w-3 text-amber-500" aria-hidden="true" />}
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* Upsell premium si clic sur Avancé sans habilitation */}
+          {showUpsell && !access.allowed && (
+            <div className="flex items-start gap-3 bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl px-4 py-3">
+              <Sparkles className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="text-sm text-gray-700">
+                <p className="font-semibold text-gray-900">Planning avancé — offre premium</p>
+                <p className="text-xs mt-0.5 text-gray-600">Découpez chaque phase en sous-étapes et chaînez-les, même entre métiers (ex : l'électricité démarre quand la mise en eau du plombier est finie). Disponible avec l'abonnement GérerMonChantier.</p>
+              </div>
+            </div>
+          )}
+
+          {planningView === 'advanced' && access.allowed
+            ? <SubPlanningView chantierId={chantierId} token={token} />
+            : <PlanningTimeline chantierId={chantierId} token={token} />}
         </div>
       )}
 
