@@ -365,6 +365,7 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **Astro 5 `output: 'hybrid'` supprimé** : utiliser `output: 'static'` avec un adapter — les pages avec `export const prerender = false` sont rendues côté serveur automatiquement.
 - **Variables d'env Vercel côté client** : seules les variables préfixées `PUBLIC_` sont exposées au client. `VITE_SUPABASE_URL` ne marche pas → `PUBLIC_SUPABASE_URL` et `PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - **Fire-and-forget sur serverless ne marche pas** : Vercel coupe la fonction dès que la réponse HTTP est envoyée. Pour un side-effect critique (cache invalidation, write DB), `await` est obligatoire — sinon le write peut être perdu en plein vol.
+- **CSP `connect-src` (header global dans `vercel.json`) bloque les fetch/XHR navigateur vers tout host externe non listé** : symptôme `(blocked:csp)` dans Network + `xhr.onerror` générique → on croit à une erreur réseau/CORS ou au navigateur du user, alors que c'est le site qui se bloque lui-même. Lire la **Console** ("violates ... connect-src") pour le host manquant, l'ajouter à `connect-src`, redeploy + **hard-refresh** (la CSP est figée avec le document). Hosts ajoutés pour l'import carrousel marketing : `https://*.backblazeb2.com` (PUT B2 pré-signé) + `https://marketing-render.messagingme.app`. Idem limite Vercel 4,5 Mo body → les gros uploads passent par B2 pré-signé, pas par une route Vercel.
 
 ### Supabase / DB
 
@@ -628,6 +629,10 @@ Tout le tracking vit dans `src/layouts/BaseLayout.astro`, conditionné au consen
 - **`gtag` est exposé en `window.gtag`** par le script inline, donc `loadTrackingScripts()` (script bundlé, déféré) peut l'appeler. Ne pas casser cette exposition.
 - **CAPI gateway stape.de** (`capig.stape.de`) déjà branchée côté config Meta du pixel (vue dans la réponse `signals/config`). Pas dans notre code, à auditer si on ne l'a pas configurée.
 - **Segmentation** : un seul pixel, mais audiences à créer par URL côté Ads Manager (`contient verifiermondevis.fr` vs `gerermonchantier.fr`). Vérif des 2 domaines dans Meta Business : voir `TODO.md`.
+- **Compte publicitaire pour annoncer = GMC `2084133708982860`** (dans le portefeuille Gerermonchantier `4998931600333136`, **relié** au pixel — vérifié Events Manager → pixel GMC VMD → Paramètres → Partage → Comptes publicitaires). Le pixel/ensemble de données s'appelle « **GMC VMD** », créé le 5 juin 2026.
+- **⚠️ Piège compte pub** : il existe un 2e compte pub `1279407743853166` **HORS** du portefeuille Gerermonchantier. Le sélectionner dans Events Manager affiche un écran « Bienvenue / Connecter des données » **vide** — ce n'est PAS un pixel cassé, juste le mauvais compte/portefeuille en haut à droite. **Toujours annoncer depuis GMC `2084133708982860`** (un compte hors-portefeuille ne voit ni le pixel ni ses audiences). Pour retrouver le pixel : sélecteur en haut à droite → portefeuille Gerermonchantier → Ensembles de données → GMC VMD.
+- **Événements câblés** (via helper `src/lib/integrations/metaPixel.ts` : `trackPixel`/`trackPixelOnce`, no-op silencieux sans consentement cookies) : `PageView` auto (`BaseLayout.astro:400`), **`Lead`** (`AnalysisResult.tsx:1272`, `trackPixelOnce` dédupliqué par analyse, `content_name='analyse_devis'`), **`CompleteRegistration`** (`Register.tsx:136`, à l'inscription). Ils n'apparaissent dans Events Manager qu'après une vraie conversion avec consentement (pixel neuf + faible volume = table vide pour ces events, normal).
+- **Event `Prospect`** visible dans Events Manager : **absent du code du site** (grep `fbq`/`trackPixel` → rien) → vient de la **passerelle CAPI stape.de** (events serveur). À auditer/dédupliquer avec le pixel navigateur.
 
 ---
 
