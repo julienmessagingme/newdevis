@@ -14,6 +14,7 @@ import BlogTeaser from '@/components/landing/BlogTeaser';
 import HowItWorksSection from '@/components/landing/HowItWorksSection';
 import WhatYouGetSection from '@/components/landing/WhatYouGetSection';
 import SimulateurAidesCard from '@/components/homepage/SimulateurAidesCard';
+import SocialProofTicker from '@/components/homepage/SocialProofTicker';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
 
 const jsonLd = {
@@ -255,6 +256,11 @@ const jsonLd = {
           </div>
         </div>
       </section>
+
+      <!-- Social proof — widget temps réel sous le Hero pour booster
+           le taux de conversion home → /nouvelle-analyse (mesure GA4 16% en juin,
+           cible 25% après ajout). Données via /api/social-proof (anonymisé, cache 60s). -->
+      <SocialProofTicker client:visible />
 
       <div id="comment-ca-marche"></div>
       <HowItWorksSection client:visible />
