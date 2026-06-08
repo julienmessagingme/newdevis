@@ -80,6 +80,11 @@ export function usePlanning(chantierId: string | null | undefined, token: string
   // optimistique récent (race condition sur D&D rapide).
   const reqSeqRef = useRef(0);
   const pendingRef = useRef(0);
+  // Miroir du state pour lire la valeur courante DANS un event handler sans
+  // mettre de side-effect (patchPlanning) dans un updater setState (règle anti
+  // stale-closure + pas d'effet dans un updater). Mis à jour à chaque render.
+  const stateRef = useRef<PlanningState>(state);
+  stateRef.current = state;
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchPlanning = useCallback(async (opts?: { silent?: boolean }) => {
@@ -284,33 +289,36 @@ export function usePlanning(chantierId: string | null | undefined, token: string
    */
   const updateEndDate = useCallback((endDate: Date) => {
     const endStr = endDate.toISOString().split('T')[0];
-    setState(s => {
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const currentStart = s.startDate;
-      const isChantierStarted = currentStart && currentStart.getTime() < today.getTime();
+    // Lecture du state courant HORS setState (via stateRef) → on calcule, puis
+    // setState pur + patchPlanning séparés (pas de side-effect dans l'updater).
+    const s = stateRef.current;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const isChantierStarted = s.startDate != null && s.startDate.getTime() < today.getTime();
 
-      if (isChantierStarted) {
-        // Garde la date de début réelle, persiste uniquement l'objectif fin.
-        // Les lots ne sont PAS recalculés (déjà aux bonnes dates depuis le vrai start).
-        patchPlanning({ dateFinSouhaitee: endStr });
-        return { ...s, dateFinSouhaitee: endStr };
-      }
+    if (isChantierStarted) {
+      // Garde la date de début réelle, persiste uniquement l'objectif fin.
+      // Les lots ne sont PAS recalculés (déjà aux bonnes dates depuis le vrai start).
+      setState(p => ({ ...p, dateFinSouhaitee: endStr }));
+      patchPlanning({ dateFinSouhaitee: endStr });
+      return;
+    }
 
-      // Chantier pas démarré : recalcule startDate en remontant depuis endDate.
-      // Subphase-aware : le chemin critique peut passer par les sous-phases.
-      const hasSubs = s.subphases.length > 0;
-      const computedStart = hasSubs
-        ? computeAdvancedStartDateFromEnd(s.lots, s.subphases, s.deps, s.subphaseDeps, endDate)
-        : computeStartDateFromEnd(s.lots, endDate, s.deps);
-      const computedStartStr = computedStart.toISOString().split('T')[0];
-      patchPlanning({ dateDebutChantier: computedStartStr, dateFinSouhaitee: endStr });
-      if (hasSubs) {
-        // Dates lots+sous-phases reconciliées par la réponse serveur (subphase-aware).
-        return { ...s, startDate: computedStart, dateFinSouhaitee: endStr };
-      }
+    // Chantier pas démarré : recalcule startDate en remontant depuis endDate.
+    // Subphase-aware : le chemin critique peut passer par les sous-phases.
+    const hasSubs = s.subphases.length > 0;
+    const computedStart = hasSubs
+      ? computeAdvancedStartDateFromEnd(s.lots, s.subphases, s.deps, s.subphaseDeps, endDate)
+      : computeStartDateFromEnd(s.lots, endDate, s.deps);
+    const computedStartStr = computedStart.toISOString().split('T')[0];
+
+    if (hasSubs) {
+      // Dates lots+sous-phases reconciliées par la réponse serveur (subphase-aware).
+      setState(p => ({ ...p, startDate: computedStart, dateFinSouhaitee: endStr }));
+    } else {
       const recomputed = computePlanningDates(s.lots, computedStart, s.deps);
-      return { ...s, startDate: computedStart, dateFinSouhaitee: endStr, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
-    });
+      setState(p => ({ ...p, startDate: computedStart, dateFinSouhaitee: endStr, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) }));
+    }
+    patchPlanning({ dateDebutChantier: computedStartStr, dateFinSouhaitee: endStr });
   }, [patchPlanning]);
 
   /** Remplace la liste complète des prédécesseurs d'un lot. */
@@ -397,6 +405,10 @@ export function usePlanning(chantierId: string | null | undefined, token: string
         return { ok: false, status: res.status, error: msg };
       }
       await fetchPlanning({ silent: true }); // reconcile sans flash de loading
+      // Garantie : fetchPlanning peut court-circuiter son setState si une requête
+      // plus récente a bumpé reqSeqRef → on reset saving inconditionnellement
+      // (sinon le spinner de sauvegarde resterait bloqué).
+      setState(s => ({ ...s, saving: false }));
       window.dispatchEvent(new CustomEvent('chantierPlanningChanged', { detail: { chantierId } }));
       return { ok: true, status: res.status };
     } catch (e: any) {
