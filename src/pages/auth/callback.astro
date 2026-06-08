@@ -20,6 +20,7 @@ export const prerender = false;
     import { createClient } from "@supabase/supabase-js";
     import { detectBrandFromHost } from "@/lib/auth/brand";
     import { performPostLoginRedirect } from "@/lib/auth/postLoginRedirect";
+    import { trackPixel } from "@/lib/integrations/metaPixel";
 
     const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || "";
     const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
@@ -89,6 +90,10 @@ export const prerender = false;
         const signupSource = detectBrandFromHost(window.location.hostname) === "gmc"
           ? "gerermonchantier"
           : "verifiermondevis";
+        // Meta Pixel — conversion "inscription" pour les comptes créés via Google OAuth.
+        // Sans ça, les inscriptions Google n'étaient PAS comptées comme conversion : le pixel
+        // n'existait que dans le flux email (Register.tsx). no-op si cookies refusés.
+        trackPixel('CompleteRegistration', { content_name: signupSource });
         try {
           await fetch("/api/webhook-registration", {
             method: "POST",
@@ -105,6 +110,9 @@ export const prerender = false;
         } catch {
           // Non-blocking
         }
+        // Laisser au pixel (requête GET) le temps de partir avant la redirection
+        // performPostLoginRedirect (hard navigation) — même précaution anti-race que Register.tsx.
+        await new Promise(r => setTimeout(r, 400));
       }
 
       // Set session marker for useSessionGuard
