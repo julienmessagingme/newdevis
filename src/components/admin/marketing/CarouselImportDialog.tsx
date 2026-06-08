@@ -22,18 +22,16 @@ import { toast } from "sonner";
 
 /**
  * Importe un carrousel HTML autoportant (export Claude Code / Claude Design) et
- * le publie comme template. 2 chemins possibles :
+ * le publie comme template. Dans les 2 cas, le navigateur ne parle JAMAIS à
+ * marketing-render.messagingme.app (souvent bloqué par ad-blocker / DNS sécurisé
+ * / antivirus) — il ne touche que verifiermondevis.fr et Backblaze :
  *
- * - **Petit fichier (≤ 4 Mo)** — passe par le proxy Vercel `/import/proxy`
- *   (le navigateur n'envoie qu'à verifiermondevis.fr). Contourne les blocages
- *   navigateur (ad-blocker, DNS sécurisé, antivirus) qui empêchent l'upload
- *   direct vers marketing-render.messagingme.app.
- * - **Gros fichier (> 4 Mo)** — flow direct historique : token signé via
- *   `/import/sign` puis upload XHR direct vers le VPS, qui rend chaque slide
- *   en mp4 (animé) ou PNG (statique), upload B2 et crée la ligne.
- *
- * La plupart des HTML standalone font 1-3 Mo donc passent par le proxy. Le flow
- * direct reste pour les exports lourds (images embed > 5 Mo).
+ * - **Petit fichier (≤ 4 Mo)** — proxy Vercel `/import/proxy` : le navigateur
+ *   POST le HTML à verifiermondevis.fr, qui le relaie au VPS en server-to-server.
+ * - **Gros fichier (> 4 Mo)** — Vercel coupe au-dessus de 4,5 Mo, donc :
+ *   `/import/presign` (URL B2 pré-signée) → PUT direct navigateur → Backblaze →
+ *   `/import/render` (trigger server-to-server : le VPS télécharge le HTML depuis
+ *   B2, rend chaque slide en mp4/PNG, upload B2, crée la ligne).
  */
 const PROXY_MAX_BYTES = 4_000_000;
 
@@ -138,40 +136,49 @@ export default function CarouselImportDialog({ open, authToken, onClose, onImpor
       });
     }
 
-    // ── Gros fichier : signed direct upload navigateur → VPS ────────────
+    // ── Gros fichier : navigateur → B2 (URL pré-signée) → trigger rendu ──
+    // Le navigateur ne parle qu'à Backblaze (l'upload) + verifiermondevis.fr (le
+    // trigger), jamais à messagingme.app → immunisé aux blocages ad-blocker/DNS/AV.
     setPhase("signing");
-    const signRes = await fetch("/api/admin/marketing/import/sign", {
+    const presignRes = await fetch("/api/admin/marketing/import/presign", {
       method: "POST",
       headers: { Authorization: `Bearer ${freshToken}` },
     });
-    const signData = await signRes.json();
-    if (!signRes.ok) throw new Error(signData?.error ?? `Sign ${signRes.status}`);
-    const { uploadUrl, token } = signData as { uploadUrl: string; token: string };
+    const presignData = await presignRes.json();
+    if (!presignRes.ok) throw new Error(presignData?.error ?? `Presign ${presignRes.status}`);
+    const { putUrl, b2Key } = presignData as { putUrl: string; b2Key: string };
 
+    // Upload direct vers B2 (avec progression).
     setPhase("uploading");
     setProgress(0);
-    return new Promise<{ id: number; kind: string; slideCount: number }>((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", `${uploadUrl}?${qs.toString()}`);
-      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-      xhr.setRequestHeader("Content-Type", "text/html");
+      xhr.open("PUT", putUrl);
       xhr.timeout = 5 * 60 * 1000;
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
       };
-      xhr.upload.onload = () => setPhase("rendering");
-      xhr.onload = () => {
-        let body: unknown = null;
-        try { body = JSON.parse(xhr.responseText); } catch { /* noop */ }
-        if (xhr.status === 200) resolve(body as { id: number; kind: string; slideCount: number });
-        else reject(new Error((body as { error?: string })?.error ?? `Rendu ${xhr.status}`));
-      };
-      xhr.onerror = () => reject(new Error(
-        "Service de rendu injoignable (probable blocage navigateur — extension, DNS, antivirus). Réessaie avec un fichier ≤ 4 Mo pour passer par le proxy.",
-      ));
-      xhr.ontimeout = () => reject(new Error("Délai dépassé (rendu trop long)"));
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`Upload Backblaze échoué (${xhr.status})`)));
+      xhr.onerror = () => reject(new Error("Upload vers Backblaze échoué (réseau/CORS)."));
+      xhr.ontimeout = () => reject(new Error("Upload trop long."));
       xhr.send(f);
     });
+
+    // Déclenche le rendu côté VPS (server-to-server, hors navigateur).
+    setPhase("rendering");
+    const renderRes = await fetch(`/api/admin/marketing/import/render?${qs.toString()}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${freshToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ b2Key }),
+    });
+    let renderBody: unknown = null;
+    try { renderBody = await renderRes.json(); } catch { /* noop */ }
+    if (!renderRes.ok) {
+      throw new Error((renderBody as { error?: string })?.error ?? `Rendu ${renderRes.status}`);
+    }
+    return renderBody as { id: number; kind: string; slideCount: number };
   };
 
   const submit = async () => {
