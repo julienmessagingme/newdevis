@@ -96,21 +96,46 @@ export function calculateScore(
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // Acompte cumulé avant réception (V3.1 — 2026-05-11)
+  // Acompte cumulé AVANT PRESTATION (V3.5.9 — 2026-06-08)
   //
-  // BUG corrigé : sur un devis "30% signature + 30% démarrage + 30% revue + 10% solde réception"
-  // la version précédente lisait acompte_pct = 30 (premier versement uniquement) et ne déclenchait
-  // PAS le critère rouge. Pourtant 90% sont versés AVANT réception → c'est exactement
-  // le risque "acompte excessif" qu'on doit détecter (cf. devis Kern Terrassement).
+  // BUG V3.1 corrigé : la version précédente cumulait TOUTES les étapes sauf
+  // "reception" → un échéancier sain "40% démarrage + 40% mi-chantier + 15% fin
+  // + 5% réception" produisait un cumul de 95% pré-réception → hard block ROUGE
+  // alors que la structure est légitime (chaque jalon correspond à de la valeur
+  // délivrée). Cas d'origine : devis Côte Maison Travaux (rénovation SDB 11 871 €).
   //
-  // Nouvelle logique : cumule TOUTES les modalités dont l'étape ≠ "reception".
+  // Nouvelle logique : on ne cumule QUE les étapes "avant prestation" :
+  //   - signature           : 100% avant que l'artisan ait commencé
+  //   - demarrage           : 100% avant que l'artisan ait commencé
+  //   - livraison_materiaux : matériaux livrés mais pas posés (avancement
+  //                            indirect — comptable comme acompte non honoré)
+  //
+  // On EXCLUT du cumul les jalons d'avancement (valeur déjà délivrée) :
+  //   - intermediaire   : milieu de chantier, ~50% déjà fait
+  //   - revue_chantier  : milestone d'avancement validé
+  //   - fin_travaux     : 100% matériellement fini, juste avant PV
+  //   - reception       : retenue de garantie standard 5-10%
+  //
+  // Le seul VRAI risque "acompte excessif" = ce qui est payé AVANT que l'artisan
+  // commence à délivrer de la valeur. Le code conso L121-18 + arrêté 2 mars 1990
+  // encadrent l'acompte initial, pas les paiements progressifs alignés sur
+  // l'avancement (qui sont au contraire RECOMMANDÉS par la FFB/CAPEB).
+  //
+  // Le critère ORANGE "acompte modéré 30-50%" continue de s'appliquer sur le
+  // nouveau cumul pré-prestation : un démarrage à 40% reste un signal à négocier.
   // ──────────────────────────────────────────────────────────────────────────────
+  const PRE_PRESTATION_ETAPES = new Set([
+    "signature",
+    "demarrage",
+    "livraison_materiaux",
+  ]);
+
   const modalites = extracted.paiement.modalites_paiement;
 
   let acompteCumulePreReception: number | null = null;
   if (Array.isArray(modalites) && modalites.length > 0) {
     acompteCumulePreReception = modalites
-      .filter(m => m.etape !== "reception")
+      .filter(m => PRE_PRESTATION_ETAPES.has(m.etape))
       .reduce((sum, m) => sum + (m.pct ?? 0), 0);
   }
 
@@ -124,10 +149,13 @@ export function calculateScore(
   if (acompteAvantTravaux !== null && acompteAvantTravaux > 50) {
     // Wording adapté : si on a le détail, on l'affiche pour transparence
     const detailCumul = Array.isArray(modalites) && modalites.length > 1
-      ? ` (${modalites.filter(m => m.etape !== "reception").map(m => `${m.pct}% à ${m.etape}`).join(" + ")})`
+      ? ` (${modalites
+          .filter(m => PRE_PRESTATION_ETAPES.has(m.etape))
+          .map(m => `${m.pct}% à ${m.etape}`)
+          .join(" + ")})`
       : "";
     rouges.push(
-      `Acompte cumulé supérieur à 50% demandé avant réception des travaux (${acompteAvantTravaux}%${detailCumul}) — ` +
+      `Acompte cumulé supérieur à 50% demandé avant démarrage des travaux (${acompteAvantTravaux}%${detailCumul}) — ` +
       `risque majeur en cas de défaillance de l'entreprise`
     );
   }

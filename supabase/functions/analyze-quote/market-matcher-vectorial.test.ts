@@ -186,10 +186,16 @@ await test("high confidence — similarity 0.92, top-3 candidates", async () => 
 });
 
 await test("low confidence — similarity 0.55", async () => {
+  // V3.5.9 — label doit partager AU MOINS un token significatif avec la
+  // description devis (workItemCarrelage = "Fourniture et pose de carrelage
+  // 60x60 sol") pour passer la garde overlap lexical. Sans ça, la garde
+  // V3.5.9 reclasse en no_match — comportement voulu (cf. bug "échafaudage
+  // sur logistique"). On garde "carrelage" dans le label pour tester la
+  // classification "low" sur une vraie similarité tiède.
   const restore = mockGeminiEmbed(new Array(768).fill(0.1));
   const supabase = mockSupabase({
     data: [
-      { id: 9, job_type: "divers_finition", label: "Finition divers", unit: "u",
+      { id: 9, job_type: "carrelage_finition_divers", label: "Carrelage finition divers", unit: "u",
         price_min_unit_ht: 50, price_avg_unit_ht: 90, price_max_unit_ht: 200,
         fixed_min_ht: 0, fixed_avg_ht: 0, fixed_max_ht: 0, domain: "autre", notes: "", similarity: 0.55 },
     ],
@@ -312,6 +318,104 @@ await test("ligne avec description vide → skip silencieux (pas embeddée)", as
     assertEq(results.length, 1, "seule la 3e ligne (non vide) est traitée");
     assertEq(rpcCalls, 1, "1 seul appel RPC");
   } finally { restore(); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// V3.5.9 — Gardes sémantiques anti-faux-match
+// Issue audit Côte Maison Travaux 2026-06-08 — 3 faux matchs typiques :
+//   - logistique → échafaudage (no lexical overlap)
+//   - fourniture seule → pose seule (antonymes sémantiques)
+//   - chauffe-eau VELIS → groupe sécurité (ratio prix devis >> marché)
+// ─────────────────────────────────────────────────────────────────────────────
+import {
+  hasLexicalOverlap,
+  isSupplyVsLaborMismatch,
+  isImplausiblyHighRatio,
+} from "./market-matcher-vectorial.ts";
+
+console.log("\n[V3.5.9 — gardes sémantiques]");
+
+await test("hasLexicalOverlap — logistique vs échafaudage = false (rejet)", () => {
+  assertEq(
+    hasLexicalOverlap(
+      "Logistique ; Avec livraison du matériel, outillage, nettoyage",
+      "Échafaudage location + montage/démontage",
+    ),
+    false,
+  );
+});
+await test("hasLexicalOverlap — carrelage vs carrelage = true (accept)", () => {
+  assertEq(
+    hasLexicalOverlap(
+      "Fourniture de carrelage de sol à 25€ le m²",
+      "Pose carrelage sol (hors fourniture)",
+    ),
+    true,
+  );
+});
+await test("hasLexicalOverlap — desc vide = true (permissif)", () => {
+  assertEq(hasLexicalOverlap("", "Échafaudage location"), true);
+});
+
+await test("isSupplyVsLaborMismatch — fourniture seule vs pose hors fourniture = true", () => {
+  assertEq(
+    isSupplyVsLaborMismatch(
+      "Fourniture de carrelage de sol à 25€ le m² à l'achat",
+      "Pose carrelage sol (hors fourniture)",
+    ),
+    true,
+  );
+});
+await test("isSupplyVsLaborMismatch — fourniture+pose vs pose+fourniture = false", () => {
+  assertEq(
+    isSupplyVsLaborMismatch(
+      "Fourniture et pose de carrelage 60x60",
+      "Fourniture et pose carrelage sol",
+    ),
+    false,
+  );
+});
+await test("isSupplyVsLaborMismatch — pose seule (hors fourniture) vs fourniture seule = true", () => {
+  // "hors fourniture" force Cas B même si la description mentionne fourniture
+  // entre parenthèses (cas réel : "Pose carrelage 60x60 sol (hors fourniture)")
+  assertEq(
+    isSupplyVsLaborMismatch(
+      "Pose carrelage 60x60 sol (hors fourniture)",
+      "Fourniture matériau carrelage achat",
+    ),
+    true,
+  );
+});
+
+await test("isImplausiblyHighRatio — chauffe-eau 538€/u vs groupe sécurité max 60€/u = true", () => {
+  assertEq(
+    isImplausiblyHighRatio(538, "u", 1, 60, "u"),
+    true,
+  );
+});
+await test("isImplausiblyHighRatio — surcoût classique 1.5× = false", () => {
+  assertEq(
+    isImplausiblyHighRatio(150, "u", 1, 100, "u"),
+    false,
+  );
+});
+await test("isImplausiblyHighRatio — unités incohérentes (m² vs u) = false (garde permissive)", () => {
+  assertEq(
+    isImplausiblyHighRatio(1000, "m2", 5, 50, "u"),
+    false,
+  );
+});
+await test("isImplausiblyHighRatio — devis < 100€ skip", () => {
+  assertEq(
+    isImplausiblyHighRatio(50, "u", 1, 5, "u"),
+    false,
+  );
+});
+await test("isImplausiblyHighRatio — forfait = skip (non comparable)", () => {
+  assertEq(
+    isImplausiblyHighRatio(2000, "forfait", 1, 100, "u"),
+    false,
+  );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

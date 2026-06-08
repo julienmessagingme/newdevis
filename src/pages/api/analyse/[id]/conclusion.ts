@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.5.8";
+const ENGINE_VERSION = "3.5.9";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1

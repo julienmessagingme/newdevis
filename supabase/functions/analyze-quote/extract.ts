@@ -287,6 +287,19 @@ Si détecté (multiple_quotes=true) :
   - Pour les champs racines (entreprise, totaux, travaux) : utilise les données du PREMIER devis uniquement (les segments downstream utilisent devis_list).
   - "devis_list" : extrait TOUS les devis présents dans le PDF, sans en omettre aucun.
 
+RÈGLES STRICTES POUR "quantite" + "unite" DANS "travaux" (V3.5.9 — 2026-06-08) :
+- Lire LIGNE PAR LIGNE la cellule QTÉ (ou Qté, Quantité, U, Unit) du tableau de prestations.
+- Si la cellule QTÉ contient un NOMBRE + UNE UNITÉ FUSIONNÉS (ex: "2,70 m²", "8 m²", "1.5 ml", "12,5 kg") :
+  → extraire le nombre dans "quantite" (ex: 2.70) ET l'unité dans "unite" (ex: "m2").
+- Si la cellule QTÉ contient JUSTE un nombre (ex: "1", "1,00", "8") :
+  → extraire dans "quantite" (ex: 1, 1, 8) ET chercher l'unité dans la colonne adjacente (UNITE, U, Unit).
+  → Si la colonne adjacente affiche "u", "U", "unité" → "unite": "u".
+  → Si la colonne adjacente affiche "m²", "m2" → "unite": "m2".
+  → Si aucune colonne adjacente claire → "unite": null.
+- ⚠️ NE JAMAIS copier l'unité d'une ligne VOISINE pour combler le manque. CHAQUE ligne a sa propre cellule QTÉ — si tu vois "2,70 m²" sur une ligne et "1,00 u" sur la précédente, ce sont 2 unités différentes.
+- Si une ligne du devis a une cellule QTÉ explicitement en "m²", "ml", "kg", "m³", "h", "L" → l'unité DOIT être restituée fidèlement, JAMAIS substituée par "u".
+- En cas d'ambiguïté sur une seule ligne (ex: nombre lisible mais unité illisible) : "unite": null plutôt qu'inventer.
+
 RÈGLE ABSOLUE - "travaux" CONTIENT UNIQUEMENT DES PRESTATIONS, JAMAIS DES TOTAUX :
 - N'INCLUS PAS dans "travaux" les lignes du récapitulatif financier en bas de devis :
   ❌ "Total HT", "Montant Total HT", "Sous-total HT"

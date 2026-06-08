@@ -140,6 +140,150 @@ export function classifyConfidence(similarity: number | null): ConfidenceTier {
   return "high";
 }
 
+// ── V3.5.9 — Gardes sémantiques anti-faux-match ─────────────────────────────
+//
+// Le matcher vectoriel V3.5.0 garde aveuglément le top-1 cosine dès que
+// similarity ≥ 0.50. En pratique, à des seuils medium (0.70-0.85), les
+// embeddings peuvent faire matcher des paires sémantiquement opposées
+// (fourniture vs pose) ou totalement étrangères (logistique vs échafaudage).
+// Ces gardes filtrent ces faux positifs APRÈS le matching vectoriel.
+
+const FRENCH_STOPWORDS = new Set([
+  "de", "du", "des", "le", "la", "les", "un", "une", "et", "ou", "à", "au",
+  "aux", "pour", "par", "sur", "avec", "sans", "dans", "en", "se", "ce", "qui",
+  "que", "dont", "où", "ne", "pas", "plus", "moins", "entre", "vers", "chez",
+  "type", "sorte", "kind", "ml", "ht", "ttc", "tva", "eur", "euro", "euros",
+]);
+
+/** Tokenise + filtre stopwords + garde tokens ≥ 4 lettres. */
+function significantTokens(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "") // accents
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((t) => t.length >= 4 && !FRENCH_STOPWORDS.has(t)),
+  );
+}
+
+/**
+ * Garde 1 — overlap lexical.
+ * Si AUCUN token significatif du label catalogue n'est présent dans la
+ * description devis, le matching est probablement halluciné par cosine pure.
+ *
+ * Cas type : "Logistique livraison matériel nettoyage" matché à "Échafaudage
+ * location + montage/démontage" — 0 token en commun, on rejette.
+ */
+export function hasLexicalOverlap(devisDesc: string, catalogLabel: string): boolean {
+  const descTokens = significantTokens(devisDesc);
+  const labelTokens = significantTokens(catalogLabel);
+  if (descTokens.size === 0 || labelTokens.size === 0) return true; // garde permissive
+  for (const t of labelTokens) {
+    if (descTokens.has(t)) return true;
+  }
+  return false;
+}
+
+const SUPPLY_TOKENS = new Set([
+  "fourniture", "fournitures", "fournir", "materiau", "materiaux",
+  "achat", "approvisionnement", "approvisionnements",
+]);
+const LABOR_ONLY_TOKENS = new Set([
+  "pose", "poser", "installation", "main", "oeuvre", "moeuvre",
+  "manoeuvre", "depose", "deposer",
+]);
+const HORS_FOURNITURE_PATTERN = /hors\s+fourniture/i;
+
+/**
+ * Garde 2 — antonymes fourniture vs pose.
+ *
+ * Si la description devis indique CLAIREMENT "fourniture seule" (matériaux
+ * uniquement, à l'achat) et que le label catalogue indique CLAIREMENT "pose
+ * seule" (hors fourniture, MO uniquement) — ou inversement — c'est un
+ * mismatch sémantique malgré une similarity cosine élevée.
+ *
+ * Cas type : devis "Fourniture de carrelage de sol à 25€ le m² à l'achat"
+ * matché à "Pose carrelage sol (hors fourniture)" — antonymes parfaits.
+ */
+export function isSupplyVsLaborMismatch(
+  devisDesc: string,
+  catalogLabel: string,
+): boolean {
+  const descTokens = significantTokens(devisDesc);
+  const labelTokens = significantTokens(catalogLabel);
+
+  const descHasSupply = [...descTokens].some((t) => SUPPLY_TOKENS.has(t));
+  const descHasLabor = [...descTokens].some((t) => LABOR_ONLY_TOKENS.has(t));
+  const labelHasSupply = [...labelTokens].some((t) => SUPPLY_TOKENS.has(t));
+  const labelHasLabor = [...labelTokens].some((t) => LABOR_ONLY_TOKENS.has(t));
+  const labelHorsFourniture = HORS_FOURNITURE_PATTERN.test(catalogLabel);
+  const descHorsFourniture = HORS_FOURNITURE_PATTERN.test(devisDesc);
+
+  // Cas A : devis = "fourniture seule" + label = "pose seule"
+  // descHasSupply=true, descHasLabor=false, label=labor sans supply (ou hors fourniture)
+  if (descHasSupply && !descHasLabor) {
+    if (labelHasLabor && (!labelHasSupply || labelHorsFourniture)) return true;
+  }
+
+  // Cas B : devis = "pose seule" + label = "fourniture seule"
+  // descHasLabor=true, descHasSupply=false ou descHorsFourniture, label=supply sans labor
+  if ((descHasLabor && !descHasSupply) || descHorsFourniture) {
+    if (labelHasSupply && !labelHasLabor) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Garde 3 — plausibilité prix (devis >> marché_max).
+ *
+ * Si le montant unitaire devis dépasse > 8× le maximum marché du label
+ * catalogue (sur une unité comparable, hors forfait), c'est presque toujours
+ * que le matcher catalogue a accroché un sous-élément accessoire (groupe de
+ * sécurité, raccord, etc.) plutôt que l'équipement principal nommé dans la
+ * description (chauffe-eau complet, PAC, chaudière, etc.).
+ *
+ * Cas type : "Fourniture chauffe-eau VELIS 65L avec groupe de secours" 538€
+ * matché à "Groupe de sécurité chauffe-eau" (marché 30-80€) → ratio ~7-18×.
+ *
+ * Seuil 8× volontairement conservateur (un vrai surcoût atteint 1.5-3×,
+ * jamais 8×). Inspiré de V3.4.24 mais adapté au pipeline vectoriel
+ * (1 ligne = 1 groupe, donc pas de garde `length >= 5`).
+ */
+export function isImplausiblyHighRatio(
+  devisAmountHt: number | null,
+  devisUnit: string | null,
+  devisQuantity: number | null,
+  catalogPriceMaxUnit: number | null,
+  catalogUnit: string | null,
+): boolean {
+  if (!devisAmountHt || devisAmountHt < 100) return false;
+  if (!catalogPriceMaxUnit || catalogPriceMaxUnit <= 0) return false;
+
+  // Garde unité forfait — pas comparable
+  const FORFAIT_RE = /^(forfait|f|ff|fft|ens|ensemble)$/i;
+  if (devisUnit && FORFAIT_RE.test(devisUnit.trim())) return false;
+  if (catalogUnit && FORFAIT_RE.test(catalogUnit.trim())) return false;
+
+  // Prix unitaire devis (amount / quantity)
+  const qty = devisQuantity && devisQuantity > 0 ? devisQuantity : 1;
+  const devisPriceUnit = devisAmountHt / qty;
+
+  // Garde unités cohérentes (au moins même nature) : on évite les false-positive
+  // type "m²" vs "ml" qui n'ont aucune cohérence. On compare uniquement quand
+  // l'unité devis matche celle du catalogue OU les 2 sont en "u/U/unité/pce".
+  const PIECE_RE = /^(u|u\.|pce|pcs|piece|piè?ce|unité|unite|unit)$/i;
+  const devisIsPiece = devisUnit ? PIECE_RE.test(devisUnit.trim()) : false;
+  const catalogIsPiece = catalogUnit ? PIECE_RE.test(catalogUnit.trim()) : false;
+  const sameUnit = devisUnit && catalogUnit &&
+    devisUnit.trim().toLowerCase() === catalogUnit.trim().toLowerCase();
+  if (!sameUnit && !(devisIsPiece && catalogIsPiece)) return false;
+
+  return devisPriceUnit > catalogPriceMaxUnit * 8;
+}
+
 /**
  * Construit le texte à embed pour une ligne devis.
  *
@@ -281,8 +425,64 @@ export async function matchSingleLineVectorial(
     };
   }
 
-  // 3. Top-1 + candidats secondaires
-  const top = rows[0];
+  // 3. V3.5.9 — Gardes sémantiques anti-faux-match
+  //
+  // On parcourt les top-N dans l'ordre et on garde le PREMIER qui passe les 3
+  // gardes. Si AUCUN candidat ne passe, on retourne no_match — meilleur que
+  // d'afficher une "Anomalie marché" rouge sur un match fantôme.
+  //
+  // L'audit (cas Côte Maison Travaux 2026-06-08) montre 4 types de faux match :
+  //   - description "logistique" matché à "échafaudage" (no overlap)
+  //   - description "fourniture seule" matché à "pose seule" (antonyme)
+  //   - description "chauffe-eau complet" matché à "groupe sécurité" (ratio 8×+)
+  //   - description "démolition surface" matché à "démolition unité" (acceptable)
+  let top: SearchRpcRow | null = null;
+  let rejectedReasons: string[] = [];
+
+  for (const candidate of rows) {
+    const reasons: string[] = [];
+
+    // Garde 1 — overlap lexical
+    if (!hasLexicalOverlap(workItem.description, candidate.label)) {
+      reasons.push("no_lexical_overlap");
+    }
+    // Garde 2 — antonymes fourniture vs pose
+    if (isSupplyVsLaborMismatch(workItem.description, candidate.label)) {
+      reasons.push("supply_vs_labor_mismatch");
+    }
+    // Garde 3 — plausibilité prix (devis >> marché_max)
+    if (
+      isImplausiblyHighRatio(
+        workItem.amount_ht,
+        workItem.unit,
+        workItem.quantity,
+        candidate.price_max_unit_ht,
+        candidate.unit,
+      )
+    ) {
+      reasons.push("implausible_high_ratio");
+    }
+
+    if (reasons.length === 0) {
+      top = candidate;
+      break;
+    }
+    rejectedReasons.push(
+      `${candidate.job_type} sim=${candidate.similarity.toFixed(3)} rej=${reasons.join("|")}`,
+    );
+  }
+
+  if (!top) {
+    console.warn(
+      `[Vectorial] V3.5.9 all candidates rejected for "${workItem.description.slice(0, 60)}" — ` +
+      rejectedReasons.slice(0, 3).join(" ; "),
+    );
+    return {
+      workItemIndex,
+      result: buildNoMatchResult(workItem, workItemIndex, "no_candidates"),
+    };
+  }
+
   const confidence = classifyConfidence(top.similarity);
   const allCandidates: VectorialCandidate[] = rows.map((r) => ({
     job_type: r.job_type,
