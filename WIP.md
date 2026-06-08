@@ -19,7 +19,7 @@ Tables `lot_subphases` + `planning_subphase_deps` (RLS durcie). CPM unifié `com
 
 **Option B — Gantt unifié draggable** (plan : `docs/plans/2026-06-08-sous-planning-dnd-option-B.md`) :
 - ✅ **B1 — Rendu unifié + toggle** : `PlanningTimeline` a une prop `advanced` ; en avancé il affiche les sous-phases en **sous-barres sur le vrai Gantt** (axe dates/zoom partagés) + bouton « découper » par lot → `SubphasePanel` sous le Gantt. Mode simplifié byte-identique (tout derrière `advanced`). `SubPlanningView` (vue % séparée) **supprimée**. Build vert. ⚠️ **QA visuelle Julien requise** (alignement gauche/droite, look sous-barres).
-- ⬜ **B2 — Sous-barres draggables** (resize durée + drag délai) via généralisation de `GanttBar` + recompute optimiste.
+- ✅ **B2 — Sous-barres draggables** : composant `SubphaseBar` (resize durée + drag horizontal = délai), action hook `updateSubphaseOptimistic` (recompute local `computeAdvancedPlanning` → feedback immédiat → réconciliation serveur). Build vert. ⚠️ QA feel du drag à faire par Julien.
 - ⬜ **B3 — Drag des dépendances** (création/réécriture, cross-métier) via généralisation de `handleLotMoveWithLane`.
 
 **Reste à faire** :

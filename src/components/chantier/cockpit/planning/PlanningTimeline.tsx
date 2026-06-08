@@ -210,6 +210,82 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
   );
 }
 
+// -- Sous-barre (sous-phase) draggable : resize durée + drag délai (B2) --------
+// Plus simple que GanttBar : pas de changement de lane ni de réécriture de deps
+// (ça, c'est B3). deltaDays renvoyé est en JOURS OUVRÉS (pxPerDay = weekWidth/5).
+function SubphaseBar({ sub, colorBg, left, width, weekWidth, onResize, onMoveDays }: {
+  sub: Subphase;
+  colorBg: string;
+  left: number;
+  width: number;
+  weekWidth: number;
+  onResize: (deltaDays: number) => void;
+  onMoveDays: (deltaDays: number) => void;
+}) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const [interaction, setInteraction] = useState<'left' | 'right' | 'move' | null>(null);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+  const startLeftRef = useRef(0);
+  const pxPerDay = weekWidth / 5;
+
+  const handleResizeStart = useCallback((e: React.PointerEvent, side: 'left' | 'right') => {
+    e.preventDefault(); e.stopPropagation();
+    setInteraction(side);
+    startXRef.current = e.clientX; startWidthRef.current = width; startLeftRef.current = left;
+    const move = (ev: PointerEvent) => {
+      if (!barRef.current) return;
+      const dx = ev.clientX - startXRef.current;
+      if (side === 'right') barRef.current.style.width = `${Math.max(pxPerDay, startWidthRef.current + dx)}px`;
+      else { barRef.current.style.width = `${Math.max(pxPerDay, startWidthRef.current - dx)}px`; barRef.current.style.left = `${startLeftRef.current + dx}px`; }
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      setInteraction(null);
+      const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
+      if (deltaDays !== 0) onResize(side === 'right' ? deltaDays : -deltaDays);
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  }, [width, left, pxPerDay, onResize]);
+
+  const handleMoveStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setInteraction('move');
+    startXRef.current = e.clientX; startLeftRef.current = left;
+    const move = (ev: PointerEvent) => {
+      if (!barRef.current) return;
+      const dx = ev.clientX - startXRef.current;
+      barRef.current.style.left = `${Math.max(0, startLeftRef.current + dx)}px`;
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      setInteraction(null);
+      const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
+      if (deltaDays !== 0) onMoveDays(deltaDays);
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  }, [left, pxPerDay, onMoveDays]);
+
+  const cursorCls = interaction === 'move' ? 'cursor-grabbing' : interaction ? 'cursor-col-resize' : 'cursor-grab';
+
+  return (
+    <div
+      ref={barRef}
+      className={`absolute top-1.5 h-3.5 rounded ${colorBg} opacity-60 group/sub ${interaction ? '' : 'transition-all duration-150'} ${cursorCls}`}
+      style={{ left, width: Math.max(width, 16), minWidth: 16, touchAction: 'none' }}
+      title={`${sub.nom} · ${formatDuration(sub.duree_jours ?? 0)} · glissez pour décaler, bords pour la durée`}
+      onPointerDown={handleMoveStart}
+    >
+      <div className="absolute left-0 top-0 bottom-0 w-2.5 cursor-w-resize opacity-0 group-hover/sub:opacity-100 flex items-center justify-center" style={{ touchAction: 'none' }} onPointerDown={(e) => handleResizeStart(e, 'left')}>
+        <div className="w-0.5 h-2 bg-white/80 rounded" />
+      </div>
+      <div className="absolute right-0 top-0 bottom-0 w-2.5 cursor-e-resize opacity-0 group-hover/sub:opacity-100 flex items-center justify-center" style={{ touchAction: 'none' }} onPointerDown={(e) => handleResizeStart(e, 'right')}>
+        <div className="w-0.5 h-2 bg-white/80 rounded" />
+      </div>
+    </div>
+  );
+}
+
 // -- Row heights (shared constants) -------------------------------------------
 
 const LOT_ROW_HEIGHT = 44;
@@ -373,7 +449,7 @@ export default function PlanningTimeline({ chantierId, token, advanced = false }
   const {
     lots, deps, startDate, dateFinSouhaitee, totalWeeks, loading, saving,
     updateLot, updateStartDate, updateEndDate, applyDragChange, recompactPlanning,
-    subphases, subphaseDeps, addSubphase, updateSubphase, deleteSubphase, addSubphaseDep, removeSubphaseDep,
+    subphases, subphaseDeps, addSubphase, updateSubphase, updateSubphaseOptimistic, deleteSubphase, addSubphaseDep, removeSubphaseDep,
   } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
@@ -1135,7 +1211,7 @@ export default function PlanningTimeline({ chantierId, token, advanced = false }
                       );
                     })}
                   </div>
-                  {/* Sous-barres (mode avancé) — lecture seule en B1 (drag = B2) */}
+                  {/* Sous-barres (mode avancé) — draggables : resize durée + drag délai (B2) */}
                   {laneSubs.map(({ sub, lot }) => {
                     const sStyle = getNodeBarStyle(sub.date_debut, sub.date_fin);
                     const color = getLotColor(lot.id);
@@ -1146,10 +1222,20 @@ export default function PlanningTimeline({ chantierId, token, advanced = false }
                             <div key={i} className="flex-none border-r border-gray-50" style={{ width: WEEK_WIDTH }} />
                           ))}
                         </div>
-                        <div
-                          className={`absolute top-1.5 h-3 rounded ${color.bg} opacity-50`}
-                          style={{ left: sStyle.left, width: Math.max(sStyle.width, 16) }}
-                          title={`${sub.nom} · ${formatDuration(sub.duree_jours ?? 0)}`}
+                        <SubphaseBar
+                          sub={sub}
+                          colorBg={color.bg}
+                          left={sStyle.left}
+                          width={sStyle.width}
+                          weekWidth={WEEK_WIDTH}
+                          onResize={(deltaDays) => {
+                            const newDays = Math.max(1, Math.min(120, (sub.duree_jours ?? 1) + deltaDays));
+                            if (newDays !== sub.duree_jours) updateSubphaseOptimistic(sub.id, { duree_jours: newDays });
+                          }}
+                          onMoveDays={(deltaDays) => {
+                            const newDelai = Math.max(0, (sub.delai_avant_jours ?? 0) + deltaDays);
+                            if (newDelai !== (sub.delai_avant_jours ?? 0)) updateSubphaseOptimistic(sub.id, { delai_avant_jours: newDelai });
+                          }}
                         />
                       </div>
                     );

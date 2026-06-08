@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { LotChantier, Subphase, PlanningEdge, PlanningEdgeRow } from '@/types/chantier-ia';
 import {
   computePlanningDates,
+  computeAdvancedPlanning,
   computeStartDateFromEnd,
   computeAdvancedStartDateFromEnd,
   getTotalWeeks,
@@ -431,6 +432,21 @@ export function usePlanning(chantierId: string | null | undefined, token: string
   ) => subphaseRequest(`/api/chantier/${chantierId}/subphases/${subId}`, 'PATCH', patch),
   [chantierId, subphaseRequest]);
 
+  /** Édite une sous-phase avec recompute optimiste local (pour un drag fluide :
+   *  la sous-barre bouge immédiatement, puis le serveur réconcilie). */
+  const updateSubphaseOptimistic = useCallback((
+    subId: string,
+    patch: { duree_jours?: number; delai_avant_jours?: number },
+  ) => {
+    setState(s => {
+      if (!s.startDate) return s;
+      const newSubs = s.subphases.map(sp => sp.id === subId ? { ...sp, ...patch } : sp);
+      const r = computeAdvancedPlanning(s.lots, newSubs, s.deps, s.subphaseDeps, s.startDate);
+      return { ...s, lots: r.lots, subphases: r.subphases, totalWeeks: getTotalWeeks(r.lots) };
+    });
+    return subphaseRequest(`/api/chantier/${chantierId}/subphases/${subId}`, 'PATCH', patch);
+  }, [chantierId, subphaseRequest]);
+
   /** Supprime une sous-phase (les arêtes sont nettoyées par CASCADE). */
   const deleteSubphase = useCallback((subId: string) =>
     subphaseRequest(`/api/chantier/${chantierId}/subphases/${subId}`, 'DELETE'),
@@ -464,6 +480,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     applyDragChange,
     addSubphase,
     updateSubphase,
+    updateSubphaseOptimistic,
     deleteSubphase,
     addSubphaseDep,
     removeSubphaseDep,
