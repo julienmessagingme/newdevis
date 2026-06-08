@@ -2,7 +2,7 @@
  * Planning utilities — fonctions pures partagées entre frontend et API.
  * Gère le calcul des dates, jours ouvrés, et ordonnancement des lots.
  */
-import type { LotChantier } from '@/types/chantier-ia';
+import type { LotChantier, Subphase, PlanningEdge } from '@/types/chantier-ia';
 
 // ── Estimation automatique pour lots sans données planning ────────────────────
 
@@ -112,47 +112,54 @@ export function businessDaysBetween(start: Date, end: Date): number {
 
 // ── Calcul du planning (CPM : DAG + tri topologique) ─────────────────────────
 
-/** Map des dépendances : lot_id → Set des prédécesseurs */
+/** Map des dépendances : id → Set des prédécesseurs. Le même type sert pour les
+ *  lots (lot_id → preds) et pour le graphe de noeuds avancé (nodeId → preds). */
 export type DependencyMap = Map<string, Set<string>>;
+/** Alias sémantique pour le graphe de noeuds (lot:<id> | sub:<id>). */
+export type NodeDepsMap = Map<string, Set<string>>;
+
+/** Noeud minimal consommé par le forward pass (lot ou sous-phase). */
+interface CpmNode {
+  id: string;
+  duree_jours?: number | null;
+  delai_avant_jours?: number | null;
+}
+
+const toIso = (d: Date): string => d.toISOString().split('T')[0];
 
 /**
- * Recalcule date_debut et date_fin par tri topologique + forward pass.
+ * Coeur CPM : tri topologique (Kahn) + forward pass sur un graphe de noeuds
+ * générique. Partagé par computePlanningDates (lots seuls) et
+ * computeAdvancedPlanning (lots + sous-phases). NE PAS dupliquer cette logique.
  *
- * Algorithme CPM (Critical Path Method, multi-parent) :
- * 1. Pour chaque lot, on calcule ses prédécesseurs depuis depsMap
- * 2. Tri topologique (Kahn) : respecte l'ordre des dépendances
- * 3. Forward pass :
- *    date_debut(L) = max(startDate, max(dep.date_fin pour dep ∈ deps(L))) + delai_avant_jours
- *    date_fin(L)   = date_debut(L) + duree_jours
- *
- * Les lots sans prédécesseurs démarrent à startDate. Les lots avec cycle sont
- * placés à startDate (défaut sûr — cycles devraient être empêchés côté API).
+ * - Filtre les noeuds invalides (duree_jours <= 0 / null) : ils n'obtiennent pas
+ *   de dates (renvoyés tels quels par les appelants).
+ * - Forward pass : debut = max(startDate, max(fin des prédécesseurs)) + delai ;
+ *   fin = debut + duree_jours. Tout en jours ouvrés.
+ * - Cycles : les noeuds restants sont ajoutés en fin de tri (défaut sûr — les
+ *   cycles doivent être empêchés en amont côté API/UI).
  */
-export function computePlanningDates(
-  lots: LotChantier[],
+function forwardPass(
+  nodes: CpmNode[],
+  deps: NodeDepsMap,
   startDate: Date,
-  depsMap?: DependencyMap,
-): LotChantier[] {
-  const deps = depsMap ?? new Map<string, Set<string>>();
+): Map<string, { debut: Date; fin: Date }> {
+  const valid = nodes.filter(n => n.duree_jours != null && n.duree_jours > 0);
+  const nodeById = new Map(valid.map(n => [n.id, n]));
 
-  const valid = lots.filter(l => l.duree_jours != null && l.duree_jours > 0);
-  const invalid = lots.filter(l => l.duree_jours == null || l.duree_jours <= 0);
-  const lotById = new Map(valid.map(l => [l.id, l]));
-
-  // Tri topologique (Kahn). Tracks in-degree of chaque lot parmi les valides.
   const inDegree = new Map<string, number>();
   const successors = new Map<string, string[]>();
-  for (const lot of valid) {
-    inDegree.set(lot.id, 0);
-    successors.set(lot.id, []);
+  for (const n of valid) {
+    inDegree.set(n.id, 0);
+    successors.set(n.id, []);
   }
-  for (const lot of valid) {
-    const lotDeps = deps.get(lot.id);
-    if (!lotDeps) continue;
-    for (const depId of lotDeps) {
-      if (!lotById.has(depId)) continue; // dep invalide (lot inexistant) ignorée
-      inDegree.set(lot.id, (inDegree.get(lot.id) ?? 0) + 1);
-      successors.get(depId)!.push(lot.id);
+  for (const n of valid) {
+    const nDeps = deps.get(n.id);
+    if (!nDeps) continue;
+    for (const depId of nDeps) {
+      if (!nodeById.has(depId)) continue; // prédécesseur invalide/inexistant ignoré
+      inDegree.set(n.id, (inDegree.get(n.id) ?? 0) + 1);
+      successors.get(depId)!.push(n.id);
     }
   }
 
@@ -168,38 +175,171 @@ export function computePlanningDates(
       if (d === 0) queue.push(succ);
     }
   }
-  // Cycles éventuels : lots restants → ajoutés à la fin avec deps ignorées
-  for (const lot of valid) if (!topo.includes(lot.id)) topo.push(lot.id);
+  for (const n of valid) if (!topo.includes(n.id)) topo.push(n.id);
 
-  // Forward pass : calcule date_debut / date_fin
   const dateMap = new Map<string, { debut: Date; fin: Date }>();
   for (const id of topo) {
-    const lot = lotById.get(id)!;
+    const node = nodeById.get(id)!;
     let earliest = new Date(startDate);
-    const lotDeps = deps.get(id);
-    if (lotDeps) {
-      for (const depId of lotDeps) {
+    const nDeps = deps.get(id);
+    if (nDeps) {
+      for (const depId of nDeps) {
         const depDates = dateMap.get(depId);
         if (depDates && depDates.fin > earliest) earliest = depDates.fin;
       }
     }
-    const delay = Math.max(0, lot.delai_avant_jours ?? 0);
+    const delay = Math.max(0, node.delai_avant_jours ?? 0);
     const debut = delay > 0 ? addBusinessDays(earliest, delay) : earliest;
-    const fin = addBusinessDays(debut, lot.duree_jours!);
+    const fin = addBusinessDays(debut, node.duree_jours!);
     dateMap.set(id, { debut, fin });
   }
+  return dateMap;
+}
 
-  // Applique les dates aux lots (préserve l'ordre d'entrée)
-  const result = lots.map(lot => {
+/**
+ * Recalcule date_debut et date_fin des lots par tri topologique + forward pass.
+ *
+ * Algorithme CPM (Critical Path Method, multi-parent) :
+ *    date_debut(L) = max(startDate, max(dep.date_fin pour dep ∈ deps(L))) + delai_avant_jours
+ *    date_fin(L)   = date_debut(L) + duree_jours
+ *
+ * Les lots sans prédécesseurs démarrent à startDate. Les lots avec cycle sont
+ * placés à startDate (défaut sûr — cycles devraient être empêchés côté API).
+ */
+export function computePlanningDates(
+  lots: LotChantier[],
+  startDate: Date,
+  depsMap?: DependencyMap,
+): LotChantier[] {
+  const deps = depsMap ?? new Map<string, Set<string>>();
+  const dateMap = forwardPass(lots, deps, startDate);
+  return lots.map(lot => {
     const dates = dateMap.get(lot.id);
     if (!dates) return lot;
-    return {
-      ...lot,
-      date_debut: dates.debut.toISOString().split('T')[0],
-      date_fin: dates.fin.toISOString().split('T')[0],
-    };
+    return { ...lot, date_debut: toIso(dates.debut), date_fin: toIso(dates.fin) };
   });
-  return result;
+}
+
+/**
+ * CPM avancé : calcule les dates sur un graphe unifié lots + sous-phases.
+ *
+ * - Un lot SANS sous-phase = un noeud `lot:<id>` (comportement identique au CPM simple).
+ * - Un lot AVEC sous-phases = un conteneur : ses sous-phases sont les noeuds `sub:<id>`,
+ *   et les dates du lot sont DÉRIVÉES (date_debut = min des sous-phases, date_fin = max).
+ * - Les arêtes (PlanningEdge, convention from = dépendant / to = prédécesseur) sont
+ *   normalisées en arêtes noeud→noeud. Un endpoint "lot avec sous-phases" est éclaté
+ *   sur ses sous-phases de bord : entrée (sans prédécesseur interne) côté dépendant,
+ *   sortie (sans successeur interne) côté prédécesseur.
+ * - Les lot_dependencies (lot→lot) sont fusionnées dans le même graphe → un lot→lot
+ *   où les deux ont des sous-phases relie sortie(préd) → entrée(succ).
+ *
+ * Sans aucune sous-phase, le résultat est STRICTEMENT identique à computePlanningDates
+ * (cf. test d'équivalence anti-régression).
+ */
+export function computeAdvancedPlanning(
+  lots: LotChantier[],
+  subphases: Subphase[],
+  lotDeps: DependencyMap,
+  edges: PlanningEdge[],
+  startDate: Date,
+): { lots: LotChantier[]; subphases: Subphase[] } {
+  const LOT = (id: string) => `lot:${id}`;
+  const SUB = (id: string) => `sub:${id}`;
+
+  const subsByLot = new Map<string, Subphase[]>();
+  for (const s of subphases) {
+    if (!subsByLot.has(s.lot_id)) subsByLot.set(s.lot_id, []);
+    subsByLot.get(s.lot_id)!.push(s);
+  }
+  const lotHasSubs = (lotId: string) => (subsByLot.get(lotId)?.length ?? 0) > 0;
+  const subById = new Map(subphases.map(s => [s.id, s] as const));
+  const sameLot = (a: string, b: string) => subById.get(a)?.lot_id === subById.get(b)?.lot_id;
+
+  // Noeuds : lots sans sous-phase + toutes les sous-phases.
+  const nodes: CpmNode[] = [];
+  for (const lot of lots) {
+    if (!lotHasSubs(lot.id)) {
+      nodes.push({ id: LOT(lot.id), duree_jours: lot.duree_jours, delai_avant_jours: lot.delai_avant_jours });
+    }
+  }
+  for (const s of subphases) {
+    nodes.push({ id: SUB(s.id), duree_jours: s.duree_jours, delai_avant_jours: s.delai_avant_jours });
+  }
+
+  // Bords internes d'un lot : sous-phase d'entrée = sans prédécesseur DU MÊME LOT ;
+  // sous-phase de sortie = sans successeur DU MÊME LOT.
+  const hasInternalPred = new Set<string>();
+  const hasInternalSucc = new Set<string>();
+  for (const e of edges) {
+    if (e.from_subphase_id && e.to_subphase_id && sameLot(e.from_subphase_id, e.to_subphase_id)) {
+      hasInternalPred.add(e.from_subphase_id); // from dépend de to (même lot)
+      hasInternalSucc.add(e.to_subphase_id);
+    }
+  }
+  const entryNodesOf = (lotId: string): string[] =>
+    lotHasSubs(lotId)
+      ? subsByLot.get(lotId)!.filter(s => !hasInternalPred.has(s.id)).map(s => SUB(s.id))
+      : [LOT(lotId)];
+  const exitNodesOf = (lotId: string): string[] =>
+    lotHasSubs(lotId)
+      ? subsByLot.get(lotId)!.filter(s => !hasInternalSucc.has(s.id)).map(s => SUB(s.id))
+      : [LOT(lotId)];
+
+  // Endpoint -> noeud(s). Côté dépendant un lot s'éclate sur ses entrées ; côté
+  // prédécesseur un lot s'éclate sur ses sorties. Une sous-phase reste elle-même.
+  const dependentNodes = (lotId?: string | null, subId?: string | null): string[] =>
+    subId ? [SUB(subId)] : lotId ? entryNodesOf(lotId) : [];
+  const dependencyNodes = (lotId?: string | null, subId?: string | null): string[] =>
+    subId ? [SUB(subId)] : lotId ? exitNodesOf(lotId) : [];
+
+  const nodeDeps: NodeDepsMap = new Map();
+  const addEdge = (dependent: string, dependency: string) => {
+    if (dependent === dependency) return;
+    if (!nodeDeps.has(dependent)) nodeDeps.set(dependent, new Set());
+    nodeDeps.get(dependent)!.add(dependency);
+  };
+
+  // 1. Arêtes impliquant >= 1 sous-phase
+  for (const e of edges) {
+    const deps = dependencyNodes(e.to_lot_id, e.to_subphase_id);
+    const dependents = dependentNodes(e.from_lot_id, e.from_subphase_id);
+    for (const dn of dependents) for (const pn of deps) addEdge(dn, pn);
+  }
+  // 2. lot_dependencies (lot→lot) fusionnées : lotId dépend de predId
+  for (const [lotId, preds] of lotDeps) {
+    for (const predId of preds) {
+      for (const dn of entryNodesOf(lotId)) for (const pn of exitNodesOf(predId)) addEdge(dn, pn);
+    }
+  }
+
+  const dateMap = forwardPass(nodes, nodeDeps, startDate);
+
+  const outSubphases = subphases.map(s => {
+    const dt = dateMap.get(SUB(s.id));
+    return dt ? { ...s, date_debut: toIso(dt.debut), date_fin: toIso(dt.fin) } : s;
+  });
+
+  // Dérivation des dates conteneur (lot avec sous-phases = min/max de ses sous-phases).
+  const subDatesByLot = new Map<string, { debut: Date; fin: Date }[]>();
+  for (const s of subphases) {
+    const dt = dateMap.get(SUB(s.id));
+    if (!dt) continue;
+    if (!subDatesByLot.has(s.lot_id)) subDatesByLot.set(s.lot_id, []);
+    subDatesByLot.get(s.lot_id)!.push(dt);
+  }
+  const outLots = lots.map(lot => {
+    if (lotHasSubs(lot.id)) {
+      const dts = subDatesByLot.get(lot.id);
+      if (!dts || dts.length === 0) return lot;
+      const debut = new Date(Math.min(...dts.map(d => d.debut.getTime())));
+      const fin = new Date(Math.max(...dts.map(d => d.fin.getTime())));
+      return { ...lot, date_debut: toIso(debut), date_fin: toIso(fin) };
+    }
+    const dt = dateMap.get(LOT(lot.id));
+    return dt ? { ...lot, date_debut: toIso(dt.debut), date_fin: toIso(dt.fin) } : lot;
+  });
+
+  return { lots: outLots, subphases: outSubphases };
 }
 
 /**
@@ -216,6 +356,32 @@ export function computeStartDateFromEnd(
   // plus tardive (= chemin critique). La durée critique = latest_fin - repère.
   const repere = new Date('2000-01-01');
   const computed = computePlanningDates(lots, repere, depsMap);
+  let maxFin = repere;
+  for (const l of computed) {
+    if (l.date_fin) {
+      const f = new Date(l.date_fin);
+      if (f > maxFin) maxFin = f;
+    }
+  }
+  const criticalDays = businessDaysBetween(repere, maxFin);
+  return subtractBusinessDays(endDate, criticalDays);
+}
+
+/**
+ * Variante avancée de computeStartDateFromEnd : remonte la startDate nécessaire en
+ * tenant compte du graphe unifié lots + sous-phases (le chemin critique peut passer
+ * par les sous-phases). Les dates conteneur des lots dérivent du min/max des sous-phases,
+ * donc le max sur `computed.lots` couvre l'ensemble du graphe.
+ */
+export function computeAdvancedStartDateFromEnd(
+  lots: LotChantier[],
+  subphases: Subphase[],
+  lotDeps: DependencyMap,
+  edges: PlanningEdge[],
+  endDate: Date,
+): Date {
+  const repere = new Date('2000-01-01');
+  const { lots: computed } = computeAdvancedPlanning(lots, subphases, lotDeps, edges, repere);
   let maxFin = repere;
   for (const l of computed) {
     if (l.date_fin) {

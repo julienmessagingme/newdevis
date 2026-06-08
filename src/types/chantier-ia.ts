@@ -82,6 +82,36 @@ export interface LotChantier {
   lane_index?:         number | null;  // lane visuelle explicite (NULL = first-fit). Mis à jour au D&D.
 }
 
+/** Sous-phase d'ordonnancement d'un lot (feature premium GMC, table lot_subphases).
+ *  Le lot reste l'unité budget/devis/statut ; la sous-phase n'affine que le planning.
+ *  Les dates sont DÉRIVÉES par le CPM (computeAdvancedPlanning), jamais saisies. */
+export interface Subphase {
+  id: string;
+  lot_id: string;
+  chantier_id?: string;
+  nom: string;
+  ordre?: number;
+  duree_jours?:        number | null;  // jours ouvrés
+  delai_avant_jours?:  number | null;  // jours ouvrés avant la sous-phase
+  date_debut?:         string | null;  // ISO date string (dérivé)
+  date_fin?:           string | null;  // ISO date string (dérivé)
+  statut?:             'a_faire' | 'en_cours' | 'termine';
+  lane_index?:         number | null;
+}
+
+/** Arête du graphe planning AVANCÉ (table planning_subphase_deps).
+ *  CONVENTION DE DIRECTION (piège anti-inversion) : `from_*` = le noeud qui DÉPEND
+ *  (successeur), `to_*` = le noeud DONT on dépend (prédécesseur, qui se termine AVANT).
+ *  C'est l'inverse du sens temporel. Exactement une colonne `from_*` et une `to_*`
+ *  sont renseignées ; au moins un endpoint est une sous-phase (le lot→lot pur vit
+ *  dans lot_dependencies). En clair : "from dépend de to" / "to précède from". */
+export interface PlanningEdge {
+  from_lot_id?:      string | null;
+  from_subphase_id?: string | null;
+  to_lot_id?:        string | null;
+  to_subphase_id?:   string | null;
+}
+
 /** Signaux factuels calculés avant l'appel IA — aucun montant, aucune hallucination */
 export interface EstimationSignaux {
   /** Code postal ou zone géographique connus et utilisés dans la génération */
