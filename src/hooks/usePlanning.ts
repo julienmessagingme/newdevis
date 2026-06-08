@@ -7,7 +7,7 @@
  * - Lanes visuelles = pure présentation (first-fit sur dates calculées dans le composant)
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { LotChantier, Subphase, PlanningEdge } from '@/types/chantier-ia';
+import type { LotChantier, Subphase, PlanningEdge, PlanningEdgeRow } from '@/types/chantier-ia';
 import {
   computePlanningDates,
   computeStartDateFromEnd,
@@ -23,8 +23,9 @@ interface PlanningState {
   deps: DependencyMap;
   /** Sous-phases (plates) du chantier — feature premium GMC. */
   subphases: Subphase[];
-  /** Arêtes du graphe avancé (deps de sous-phases, cross-lot possible). */
-  subphaseDeps: PlanningEdge[];
+  /** Arêtes du graphe avancé (deps de sous-phases, cross-lot possible). Avec `id`
+   *  pour permettre la suppression (removeSubphaseDep). */
+  subphaseDeps: PlanningEdgeRow[];
   startDate: Date | null;
   /** Date de fin souhaitée (objectif) — null si non défini. ISO yyyy-mm-dd. */
   dateFinSouhaitee: string | null;

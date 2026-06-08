@@ -16,11 +16,7 @@ import {
   hasCycleInNodeDeps,
   type DependencyMap,
 } from '@/lib/chantier/planningUtils';
-import type { LotChantier, Subphase, PlanningEdge } from '@/types/chantier-ia';
-
-export interface SubphaseDepRow extends PlanningEdge {
-  id?: string;
-}
+import type { LotChantier, Subphase, PlanningEdge, PlanningEdgeRow } from '@/types/chantier-ia';
 
 const SUBPHASE_SELECT =
   'id, lot_id, chantier_id, nom, ordre, duree_jours, delai_avant_jours, date_debut, date_fin, statut, lane_index';
@@ -46,12 +42,12 @@ export async function loadSubphases(supabase: SupabaseClient, chantierId: string
   return (data ?? []) as Subphase[];
 }
 
-export async function loadSubphaseDeps(supabase: SupabaseClient, chantierId: string): Promise<SubphaseDepRow[]> {
+export async function loadSubphaseDeps(supabase: SupabaseClient, chantierId: string): Promise<PlanningEdgeRow[]> {
   const { data } = await supabase
     .from('planning_subphase_deps')
     .select(DEP_SELECT)
     .eq('chantier_id', chantierId);
-  return (data ?? []) as SubphaseDepRow[];
+  return (data ?? []) as PlanningEdgeRow[];
 }
 
 /** startDate du chantier (date_debut_chantier) ou null si non démarré. */

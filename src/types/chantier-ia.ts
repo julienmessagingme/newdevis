@@ -112,6 +112,12 @@ export interface PlanningEdge {
   to_subphase_id?:   string | null;
 }
 
+/** Arête PERSISTÉE telle que renvoyée par l'API (PlanningEdge + id de ligne).
+ *  Le `id` est requis pour supprimer une dépendance (removeSubphaseDep). */
+export interface PlanningEdgeRow extends PlanningEdge {
+  id: string;
+}
+
 /** Signaux factuels calculés avant l'appel IA — aucun montant, aucune hallucination */
 export interface EstimationSignaux {
   /** Code postal ou zone géographique connus et utilisés dans la génération */
