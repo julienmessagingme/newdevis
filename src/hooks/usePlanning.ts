@@ -7,10 +7,11 @@
  * - Lanes visuelles = pure présentation (first-fit sur dates calculées dans le composant)
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { LotChantier } from '@/types/chantier-ia';
+import type { LotChantier, Subphase, PlanningEdge } from '@/types/chantier-ia';
 import {
   computePlanningDates,
   computeStartDateFromEnd,
+  computeAdvancedStartDateFromEnd,
   getTotalWeeks,
   parseDate,
   type DependencyMap,
@@ -20,6 +21,10 @@ interface PlanningState {
   lots: LotChantier[];
   /** deps : lot_id → Set des prédécesseurs (multi-parent). */
   deps: DependencyMap;
+  /** Sous-phases (plates) du chantier — feature premium GMC. */
+  subphases: Subphase[];
+  /** Arêtes du graphe avancé (deps de sous-phases, cross-lot possible). */
+  subphaseDeps: PlanningEdge[];
   startDate: Date | null;
   /** Date de fin souhaitée (objectif) — null si non défini. ISO yyyy-mm-dd. */
   dateFinSouhaitee: string | null;
@@ -45,10 +50,22 @@ function depsToJson(deps: DependencyMap): Record<string, string[]> {
   return out;
 }
 
+/** Aplatit la réponse GET `subphases: { lot_id: Subphase[] }` en tableau plat. */
+function flattenSubphases(raw: unknown): Subphase[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const out: Subphase[] = [];
+  for (const v of Object.values(raw as Record<string, unknown>)) {
+    if (Array.isArray(v)) out.push(...(v as Subphase[]));
+  }
+  return out;
+}
+
 export function usePlanning(chantierId: string | null | undefined, token: string | null | undefined) {
   const [state, setState] = useState<PlanningState>({
     lots: [],
     deps: new Map(),
+    subphases: [],
+    subphaseDeps: [],
     startDate: null,
     dateFinSouhaitee: null,
     totalWeeks: 0,
@@ -64,14 +81,16 @@ export function usePlanning(chantierId: string | null | undefined, token: string
   const pendingRef = useRef(0);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
-  const fetchPlanning = useCallback(async () => {
+  const fetchPlanning = useCallback(async (opts?: { silent?: boolean }) => {
     if (!chantierId || !token) return;
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     const mySeq = ++reqSeqRef.current;
 
-    setState(s => ({ ...s, loading: true, error: null }));
+    // silent = refetch de reconciliation (après action sous-phase) : on NE met PAS
+    // loading:true pour ne pas faire flasher le Gantt (le state actuel reste affiché).
+    if (!opts?.silent) setState(s => ({ ...s, loading: true, error: null }));
 
     try {
       const res = await fetch(`/api/chantier/${chantierId}/planning`, {
@@ -87,7 +106,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       const deps = parseDepsJson(data.dependencies);
       const tw = getTotalWeeks(lots);
 
-      setState({ lots, deps, startDate: sd, dateFinSouhaitee: data.dateFinSouhaitee ?? null, totalWeeks: tw, loading: false, saving: false, error: null });
+      setState({ lots, deps, subphases: flattenSubphases(data.subphases), subphaseDeps: Array.isArray(data.subphaseDeps) ? data.subphaseDeps : [], startDate: sd, dateFinSouhaitee: data.dateFinSouhaitee ?? null, totalWeeks: tw, loading: false, saving: false, error: null });
     } catch (e: any) {
       if (e.name === 'AbortError') return;
       if (mySeq !== reqSeqRef.current) return;
@@ -125,7 +144,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       const deps = parseDepsJson(data.dependencies);
       const tw = getTotalWeeks(lots);
 
-      setState({ lots, deps, startDate: sd, dateFinSouhaitee: data.dateFinSouhaitee ?? null, totalWeeks: tw, loading: false, saving: false, error: null });
+      setState({ lots, deps, subphases: flattenSubphases(data.subphases), subphaseDeps: Array.isArray(data.subphaseDeps) ? data.subphaseDeps : [], startDate: sd, dateFinSouhaitee: data.dateFinSouhaitee ?? null, totalWeeks: tw, loading: false, saving: false, error: null });
 
       // V3.4.16+ (2026-05-18) — Notifie les autres écrans (DashboardHome, etc.)
       // qui ont cached le planning. Sans ce dispatch, la bulle Planning de
@@ -277,10 +296,18 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       }
 
       // Chantier pas démarré : recalcule startDate en remontant depuis endDate.
-      const computedStart = computeStartDateFromEnd(s.lots, endDate, s.deps);
+      // Subphase-aware : le chemin critique peut passer par les sous-phases.
+      const hasSubs = s.subphases.length > 0;
+      const computedStart = hasSubs
+        ? computeAdvancedStartDateFromEnd(s.lots, s.subphases, s.deps, s.subphaseDeps, endDate)
+        : computeStartDateFromEnd(s.lots, endDate, s.deps);
       const computedStartStr = computedStart.toISOString().split('T')[0];
-      const recomputed = computePlanningDates(s.lots, computedStart, s.deps);
       patchPlanning({ dateDebutChantier: computedStartStr, dateFinSouhaitee: endStr });
+      if (hasSubs) {
+        // Dates lots+sous-phases reconciliées par la réponse serveur (subphase-aware).
+        return { ...s, startDate: computedStart, dateFinSouhaitee: endStr };
+      }
+      const recomputed = computePlanningDates(s.lots, computedStart, s.deps);
       return { ...s, startDate: computedStart, dateFinSouhaitee: endStr, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
   }, [patchPlanning]);
@@ -344,6 +371,68 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     patchPlanning({ dependencies: body });
   }, [patchPlanning, recomputeLocal]);
 
+  // ── Sous-phases (premium) ─────────────────────────────────────────────────
+  // Actions NON-optimistes : appel de l'endpoint dédié puis refetch autoritatif.
+  // Les endpoints recalculent les dates côté serveur (subphase-aware) mais ne
+  // renvoient que l'entité → on refetch pour récupérer dates lots dérivées +
+  // sous-phases. Retourne { ok, error } pour que l'UI affiche les refus (cycle…).
+  const subphaseRequest = useCallback(async (
+    url: string,
+    method: 'POST' | 'PATCH' | 'DELETE',
+    body?: Record<string, unknown>,
+  ): Promise<{ ok: boolean; status: number; error?: string }> => {
+    if (!chantierId || !token) return { ok: false, status: 0, error: 'non authentifié' };
+    setState(s => ({ ...s, saving: true }));
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* ignore */ }
+        setState(s => ({ ...s, saving: false }));
+        return { ok: false, status: res.status, error: msg };
+      }
+      await fetchPlanning({ silent: true }); // reconcile sans flash de loading
+      window.dispatchEvent(new CustomEvent('chantierPlanningChanged', { detail: { chantierId } }));
+      return { ok: true, status: res.status };
+    } catch (e: any) {
+      setState(s => ({ ...s, saving: false }));
+      return { ok: false, status: 0, error: e?.message ?? 'erreur réseau' };
+    }
+  }, [chantierId, token, fetchPlanning]);
+
+  /** Crée une sous-phase dans un lot. */
+  const addSubphase = useCallback((
+    lotId: string,
+    payload: { nom: string; duree_jours?: number; delai_avant_jours?: number },
+  ) => subphaseRequest(`/api/chantier/${chantierId}/lots/${lotId}/subphases`, 'POST', payload),
+  [chantierId, subphaseRequest]);
+
+  /** Édite une sous-phase (nom/durée/délai/statut/lane/ordre). */
+  const updateSubphase = useCallback((
+    subId: string,
+    patch: { nom?: string; duree_jours?: number; delai_avant_jours?: number; statut?: string; lane_index?: number | null; ordre?: number },
+  ) => subphaseRequest(`/api/chantier/${chantierId}/subphases/${subId}`, 'PATCH', patch),
+  [chantierId, subphaseRequest]);
+
+  /** Supprime une sous-phase (les arêtes sont nettoyées par CASCADE). */
+  const deleteSubphase = useCallback((subId: string) =>
+    subphaseRequest(`/api/chantier/${chantierId}/subphases/${subId}`, 'DELETE'),
+  [chantierId, subphaseRequest]);
+
+  /** Ajoute une dépendance avancée (from dépend de to). Refus possible : cycle (409). */
+  const addSubphaseDep = useCallback((edge: PlanningEdge) =>
+    subphaseRequest(`/api/chantier/${chantierId}/subphases/deps`, 'POST', edge as unknown as Record<string, unknown>),
+  [chantierId, subphaseRequest]);
+
+  /** Supprime une dépendance avancée par son id. */
+  const removeSubphaseDep = useCallback((edgeId: string) =>
+    subphaseRequest(`/api/chantier/${chantierId}/subphases/deps?id=${encodeURIComponent(edgeId)}`, 'DELETE'),
+  [chantierId, subphaseRequest]);
+
   /** Force un recompute global (PATCH body vide). */
   const recompactPlanning = useCallback(() => {
     patchPlanning({});
@@ -360,6 +449,11 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     applyDepsBatch,
     applyLotsBatch,
     applyDragChange,
+    addSubphase,
+    updateSubphase,
+    deleteSubphase,
+    addSubphaseDep,
+    removeSubphaseDep,
     recompactPlanning,
     refetch: fetchPlanning,
   };
