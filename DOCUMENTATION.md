@@ -2147,6 +2147,36 @@ State : `lots`, `startDate`, `totalWeeks`, `loading`. Actions : `moveLot()`, `up
 
 L'edge function `chantier-generer` génère `duree_jours_estime`, `ordre_planning`, `parallel_group` pour chaque lot. `sauvegarder.ts` stocke ces valeurs et appelle `computePlanningDates()` si `date_debut_chantier` est disponible. L'agent IA peut modifier le planning via `update_planning`, `shift_lot`, `arrange_lot` (cf. § 26).
 
+### Sous-planning avancé (sous-phases — feature premium, 2026-06-08)
+
+Découpe d'un lot en **sous-phases** ordonnançables, avec dépendances **cross-métier** (ex : l'électricité démarre quand la sous-phase « mise en eau » du plombier est finie). Le lot reste l'unité de budget/devis/statut/intervenant ; la sous-phase n'affine QUE l'ordonnancement.
+
+**Tables** (migrations `20260608_001` + `20260608_002`) :
+- `lot_subphases` (`id, lot_id FK CASCADE, chantier_id FK CASCADE, nom, ordre, duree_jours, delai_avant_jours, date_debut, date_fin, statut a_faire|en_cours|termine, lane_index`). Dates DÉRIVÉES par le CPM.
+- `planning_subphase_deps` — arêtes du graphe avancé, colonnes FK nullables `from_lot_id`/`from_subphase_id`/`to_lot_id`/`to_subphase_id` (exactement une de chaque côté, au moins une sous-phase). Convention : `from` = dépendant, `to` = prédécesseur. `ON DELETE CASCADE` → suppression auto des arêtes.
+- RLS dérivée du `lot_id` (ownership via `lots_chantier → chantiers`) + cohérence `chantier_id` + validation des endpoints à l'écriture.
+
+**CPM avancé** (`planningUtils.ts`) :
+- `buildAdvancedNodeGraph(lots, subphases, lotDeps, edges)` → graphe de noeuds unifié `lot:<id>`/`sub:<id>` (lot avec sous-phases = conteneur, dates dérivées min/max ; éclatement entrée/sortie pour les arêtes lot↔lot).
+- `computeAdvancedPlanning(...)` → dates lots + sous-phases. SANS sous-phase = identique à `computePlanningDates` (test d'équivalence + verrou).
+- `computeAdvancedStartDateFromEnd(...)` — variante node-aware de `computeStartDateFromEnd`.
+- `hasCycleInNodeDeps(nodeDeps, nodeIds)` — Kahn, utilisé par la garde anti-cycle.
+- Tests : `planningUtils.subphases.test.ts` (56 cas).
+
+**Helper serveur** (`src/lib/chantier/planningServer.ts`) : `recomputeChantierDates` (subphase-aware, behavior-preserving sans sous-phase), `loadSubphases`/`loadSubphaseDeps`, `wouldCreateCycle` (même normalisation que le CPM).
+
+**API** (toutes les écritures premium-gated via `requireAdvancedPlanning`) :
+- `GET/PATCH /planning` renvoient en plus `subphases` (groupé par lot) + `subphaseDeps`.
+- `POST /api/chantier/[id]/lots/[lotId]/subphases` (défaut `duree_jours=1`).
+- `PATCH/DELETE /api/chantier/[id]/subphases/[subId]`.
+- `POST/DELETE /api/chantier/[id]/subphases/deps` (gardes : cycle 409, lot↔sa-propre-sous-phase, appartenance chantier, doublon 409).
+
+**Habilitation premium** (`src/lib/auth/advancedPlanningAccess.ts`) : `getAdvancedPlanningAccess`/`canUseAdvancedPlanning`/`requireAdvancedPlanning`. V1 = admin + allowlist GMC ; 1 seul `TODO` pour brancher le tier d'abonnement. Endpoint `GET /api/gmc/advanced-planning-access` + hook `useAdvancedPlanningAccess` (UI uniquement). Tests : `advancedPlanningAccess.test.ts` (10 cas).
+
+**Hook** : `usePlanning` expose `subphases`/`subphaseDeps` (type `PlanningEdgeRow` avec `id`) + actions `addSubphase`/`updateSubphase`/`deleteSubphase`/`addSubphaseDep`/`removeSubphaseDep` (non-optimistes : endpoint + refetch silencieux, retournent `{ok,error}`).
+
+**UI** : toggle Simplifié/Avancé dans `PlanningChantier` (cadenas + upsell si non premium, préférence localStorage). Vue avancée = `planning/SubPlanningView.tsx` (timeline % lots + sous-bandes) + `planning/SubphasePanel.tsx` (CRUD + constructeur de dépendances cross-métier). La vue simplifiée `PlanningTimeline` est inchangée.
+
 ### PVReceptionModal — Pré-remplissage automatique (2026-05-06)
 
 `lots/PVReceptionModal.tsx` — fetch parallèle (`Promise.all`) au mount :

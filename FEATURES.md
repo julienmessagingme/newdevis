@@ -407,6 +407,19 @@ Gantt interactif basé sur la méthode CPM (Critical Path Method).
 - **Recalcul CPM automatique** : après chaque modification, toutes les dates dépendantes se mettent à jour
 - **Dépendances multi-parent** : un lot peut attendre la fin de plusieurs prédécesseurs (ex : "Plaquiste démarre quand Plombier ET Électricien ont fini")
 
+### Vue avancée — sous-phases (premium)
+
+> **Pain résolu** : un lot "Plombier" ou "Électricien" n'est pas monolithique. À l'intérieur il y a des étapes qui s'enchaînent et qui conditionnent d'autres métiers (la mise en eau du plombier doit être finie avant que l'électricien intervienne). Le Gantt au niveau lot ne capture pas ce détail → l'utilisateur ne voit pas ces enchaînements fins.
+
+Un **toggle Simplifié / Avancé** en haut de l'onglet Planning. Le mode **Avancé** fait partie de l'abonnement premium GérerMonChantier (cadenas + invitation à s'abonner pour les autres ; pour l'instant ouvert aux comptes habilités).
+
+En mode avancé :
+- Chaque lot peut être **découpé en sous-phases** (ex : Plombier → « Mise en eau », « Test pression », « Finitions »).
+- On **chaîne les sous-phases**, y compris **entre métiers** : « l'électricité démarre quand la mise en eau du plombier est terminée ». Les dates se recalculent automatiquement.
+- Cliquer un lot ouvre un **panneau en bas** : ajouter/modifier/supprimer les sous-phases (nom, durée, statut) et définir leurs dépendances.
+- **Protection anti-boucle** : impossible de créer une dépendance circulaire (message clair de refus).
+- La **vue simplifiée reste identique** : on bascule entre les deux sans rien perdre. Le budget, les devis et les factures restent gérés au niveau du lot.
+
 ### Vue Rendez-vous
 - Calendrier avec navigation flèches ← →
 - Ajouter un RDV : titre, date, heure, type (Artisan / Visite / Signature / Autre)
