@@ -9,6 +9,7 @@ import type { LotChantier, Subphase } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
 import { formatDuration, getWeekLabels, businessDaysBetween, isoWeekNumber } from '@/lib/chantier/planningUtils';
 import SubphasePanel from './SubphasePanel';
+import { toast } from 'sonner';
 
 // -- Couleurs par lot (cyclique) ----------------------------------------------
 
@@ -213,7 +214,7 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
 // -- Sous-barre (sous-phase) draggable : resize durée + drag délai (B2) --------
 // Plus simple que GanttBar : pas de changement de lane ni de réécriture de deps
 // (ça, c'est B3). deltaDays renvoyé est en JOURS OUVRÉS (pxPerDay = weekWidth/5).
-function SubphaseBar({ sub, colorBg, left, width, weekWidth, onResize, onMoveDays }: {
+function SubphaseBar({ sub, colorBg, left, width, weekWidth, onResize, onMoveDays, onLinkTo }: {
   sub: Subphase;
   colorBg: string;
   left: number;
@@ -221,10 +222,13 @@ function SubphaseBar({ sub, colorBg, left, width, weekWidth, onResize, onMoveDay
   weekWidth: number;
   onResize: (deltaDays: number) => void;
   onMoveDays: (deltaDays: number) => void;
+  /** Drop sur une AUTRE sous-phase → crée la dépendance (B3). */
+  onLinkTo: (targetSubId: string) => void;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [interaction, setInteraction] = useState<'left' | 'right' | 'move' | null>(null);
   const startXRef = useRef(0);
+  const startYRef = useRef(0);
   const startWidthRef = useRef(0);
   const startLeftRef = useRef(0);
   const pxPerDay = weekWidth / 5;
@@ -251,20 +255,52 @@ function SubphaseBar({ sub, colorBg, left, width, weekWidth, onResize, onMoveDay
   const handleMoveStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault(); e.stopPropagation();
     setInteraction('move');
-    startXRef.current = e.clientX; startLeftRef.current = left;
+    startXRef.current = e.clientX; startYRef.current = e.clientY; startLeftRef.current = left;
+    // pointer-events none → elementFromPoint trouve la row sous le curseur, pas la barre.
+    if (barRef.current) barRef.current.style.pointerEvents = 'none';
+
+    // Détection de la sous-phase cible sous le curseur (pour créer une dépendance).
+    let target: { id: string; el: HTMLElement } | null = null;
+    const clearHl = () => { if (target) { target.el.style.backgroundColor = ''; target.el.style.outline = ''; target.el.style.outlineOffset = ''; } };
+    const detect = (cx: number, cy: number) => {
+      const el = document.elementFromPoint(cx, cy);
+      const row = el?.closest('[data-subphase-row]') as HTMLElement | null;
+      const id = row?.getAttribute('data-subphase-id') ?? null;
+      if (!row || !id || id === sub.id) { clearHl(); target = null; return; }
+      if (target?.id === id) return;
+      clearHl();
+      row.style.backgroundColor = 'rgba(79, 70, 229, 0.10)';
+      row.style.outline = '2px solid rgb(99, 102, 241)';
+      row.style.outlineOffset = '-2px';
+      target = { id, el: row };
+    };
+
     const move = (ev: PointerEvent) => {
       if (!barRef.current) return;
       const dx = ev.clientX - startXRef.current;
+      const dy = ev.clientY - startYRef.current;
       barRef.current.style.left = `${Math.max(0, startLeftRef.current + dx)}px`;
+      barRef.current.style.transform = `translateY(${dy}px)`;
+      detect(ev.clientX, ev.clientY);
     };
     const up = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
       setInteraction(null);
-      const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
-      if (deltaDays !== 0) onMoveDays(deltaDays);
+      if (barRef.current) { barRef.current.style.transform = ''; barRef.current.style.pointerEvents = ''; }
+      detect(ev.clientX, ev.clientY);
+      const linkTarget = target?.id ?? null;
+      clearHl();
+      if (linkTarget && linkTarget !== sub.id) {
+        // Drop sur une autre sous-phase → dépendance (vertical = lier).
+        onLinkTo(linkTarget);
+      } else {
+        // Drop sur sa propre row → décalage (horizontal = délai).
+        const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
+        if (deltaDays !== 0) onMoveDays(deltaDays);
+      }
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
-  }, [left, pxPerDay, onMoveDays]);
+  }, [left, pxPerDay, onMoveDays, onLinkTo, sub.id]);
 
   const cursorCls = interaction === 'move' ? 'cursor-grabbing' : interaction ? 'cursor-col-resize' : 'cursor-grab';
 
@@ -1216,7 +1252,7 @@ export default function PlanningTimeline({ chantierId, token, advanced = false }
                     const sStyle = getNodeBarStyle(sub.date_debut, sub.date_fin);
                     const color = getLotColor(lot.id);
                     return (
-                      <div key={sub.id} data-subphase-row="" className="border-b border-gray-50 bg-gray-50/30 relative" style={{ height: SUBPHASE_ROW_HEIGHT }}>
+                      <div key={sub.id} data-subphase-row="" data-subphase-id={sub.id} className="border-b border-gray-50 bg-gray-50/30 relative" style={{ height: SUBPHASE_ROW_HEIGHT }}>
                         <div className="absolute inset-0 flex pointer-events-none">
                           {weeks.map((_, i) => (
                             <div key={i} className="flex-none border-r border-gray-50" style={{ width: WEEK_WIDTH }} />
@@ -1235,6 +1271,13 @@ export default function PlanningTimeline({ chantierId, token, advanced = false }
                           onMoveDays={(deltaDays) => {
                             const newDelai = Math.max(0, (sub.delai_avant_jours ?? 0) + deltaDays);
                             if (newDelai !== (sub.delai_avant_jours ?? 0)) updateSubphaseOptimistic(sub.id, { delai_avant_jours: newDelai });
+                          }}
+                          onLinkTo={(targetSubId) => {
+                            // Drag d'une sous-phase sur une autre → dépendance (from dépend de to).
+                            addSubphaseDep({ from_subphase_id: sub.id, to_subphase_id: targetSubId }).then(r => {
+                              if (!r.ok) toast.error(r.error ?? 'Dépendance refusée');
+                              else toast.success('Dépendance ajoutée');
+                            });
                           }}
                         />
                       </div>
