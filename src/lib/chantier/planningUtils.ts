@@ -243,6 +243,59 @@ export function computeAdvancedPlanning(
   edges: PlanningEdge[],
   startDate: Date,
 ): { lots: LotChantier[]; subphases: Subphase[] } {
+  const { nodes, nodeDeps } = buildAdvancedNodeGraph(lots, subphases, lotDeps, edges);
+
+  const LOT = (id: string) => `lot:${id}`;
+  const SUB = (id: string) => `sub:${id}`;
+  const subsByLot = new Map<string, Subphase[]>();
+  for (const s of subphases) {
+    if (!subsByLot.has(s.lot_id)) subsByLot.set(s.lot_id, []);
+    subsByLot.get(s.lot_id)!.push(s);
+  }
+  const lotHasSubs = (lotId: string) => (subsByLot.get(lotId)?.length ?? 0) > 0;
+
+  const dateMap = forwardPass(nodes, nodeDeps, startDate);
+
+  const outSubphases = subphases.map(s => {
+    const dt = dateMap.get(SUB(s.id));
+    return dt ? { ...s, date_debut: toIso(dt.debut), date_fin: toIso(dt.fin) } : s;
+  });
+
+  // Dérivation des dates conteneur (lot avec sous-phases = min/max de ses sous-phases).
+  const subDatesByLot = new Map<string, { debut: Date; fin: Date }[]>();
+  for (const s of subphases) {
+    const dt = dateMap.get(SUB(s.id));
+    if (!dt) continue;
+    if (!subDatesByLot.has(s.lot_id)) subDatesByLot.set(s.lot_id, []);
+    subDatesByLot.get(s.lot_id)!.push(dt);
+  }
+  const outLots = lots.map(lot => {
+    if (lotHasSubs(lot.id)) {
+      const dts = subDatesByLot.get(lot.id);
+      if (!dts || dts.length === 0) return lot;
+      const debut = new Date(Math.min(...dts.map(d => d.debut.getTime())));
+      const fin = new Date(Math.max(...dts.map(d => d.fin.getTime())));
+      return { ...lot, date_debut: toIso(debut), date_fin: toIso(fin) };
+    }
+    const dt = dateMap.get(LOT(lot.id));
+    return dt ? { ...lot, date_debut: toIso(dt.debut), date_fin: toIso(dt.fin) } : lot;
+  });
+
+  return { lots: outLots, subphases: outSubphases };
+}
+
+/**
+ * Construit le graphe de noeuds unifié (lot:<id> / sub:<id>) + la map de
+ * dépendances noeud→noeud. Partagé par computeAdvancedPlanning (calcul des dates)
+ * et hasCycleInNodeDeps (garde anti-cycle de l'API) → une seule source de vérité
+ * pour l'éclatement entrée/sortie d'un lot avec sous-phases.
+ */
+export function buildAdvancedNodeGraph(
+  lots: LotChantier[],
+  subphases: Subphase[],
+  lotDeps: DependencyMap,
+  edges: PlanningEdge[],
+): { nodes: CpmNode[]; nodeDeps: NodeDepsMap } {
   const LOT = (id: string) => `lot:${id}`;
   const SUB = (id: string) => `sub:${id}`;
 
@@ -266,8 +319,8 @@ export function computeAdvancedPlanning(
     nodes.push({ id: SUB(s.id), duree_jours: s.duree_jours, delai_avant_jours: s.delai_avant_jours });
   }
 
-  // Bords internes d'un lot : sous-phase d'entrée = sans prédécesseur DU MÊME LOT ;
-  // sous-phase de sortie = sans successeur DU MÊME LOT.
+  // Bords internes d'un lot : entrée = sans prédécesseur DU MÊME LOT ;
+  // sortie = sans successeur DU MÊME LOT.
   const hasInternalPred = new Set<string>();
   const hasInternalSucc = new Set<string>();
   for (const e of edges) {
@@ -298,7 +351,6 @@ export function computeAdvancedPlanning(
     if (!nodeDeps.has(dependent)) nodeDeps.set(dependent, new Set());
     nodeDeps.get(dependent)!.add(dependency);
   };
-
   // 1. Arêtes impliquant >= 1 sous-phase
   for (const e of edges) {
     const deps = dependencyNodes(e.to_lot_id, e.to_subphase_id);
@@ -311,35 +363,40 @@ export function computeAdvancedPlanning(
       for (const dn of entryNodesOf(lotId)) for (const pn of exitNodesOf(predId)) addEdge(dn, pn);
     }
   }
+  return { nodes, nodeDeps };
+}
 
-  const dateMap = forwardPass(nodes, nodeDeps, startDate);
-
-  const outSubphases = subphases.map(s => {
-    const dt = dateMap.get(SUB(s.id));
-    return dt ? { ...s, date_debut: toIso(dt.debut), date_fin: toIso(dt.fin) } : s;
-  });
-
-  // Dérivation des dates conteneur (lot avec sous-phases = min/max de ses sous-phases).
-  const subDatesByLot = new Map<string, { debut: Date; fin: Date }[]>();
-  for (const s of subphases) {
-    const dt = dateMap.get(SUB(s.id));
-    if (!dt) continue;
-    if (!subDatesByLot.has(s.lot_id)) subDatesByLot.set(s.lot_id, []);
-    subDatesByLot.get(s.lot_id)!.push(dt);
-  }
-  const outLots = lots.map(lot => {
-    if (lotHasSubs(lot.id)) {
-      const dts = subDatesByLot.get(lot.id);
-      if (!dts || dts.length === 0) return lot;
-      const debut = new Date(Math.min(...dts.map(d => d.debut.getTime())));
-      const fin = new Date(Math.max(...dts.map(d => d.fin.getTime())));
-      return { ...lot, date_debut: toIso(debut), date_fin: toIso(fin) };
+/**
+ * Détecte un cycle dans le graphe de noeuds (Kahn : si le tri topologique ne
+ * consomme pas tous les noeuds → cycle). Utilisé par la garde anti-cycle de l'API
+ * avant d'enregistrer une nouvelle dépendance de sous-phase.
+ */
+export function hasCycleInNodeDeps(nodeDeps: NodeDepsMap, nodeIds: string[]): boolean {
+  const idSet = new Set(nodeIds);
+  const inDeg = new Map<string, number>();
+  const succ = new Map<string, string[]>();
+  for (const id of nodeIds) { inDeg.set(id, 0); succ.set(id, []); }
+  for (const id of nodeIds) {
+    const preds = nodeDeps.get(id);
+    if (!preds) continue;
+    for (const p of preds) {
+      if (!idSet.has(p)) continue;
+      inDeg.set(id, (inDeg.get(id) ?? 0) + 1);
+      succ.get(p)!.push(id);
     }
-    const dt = dateMap.get(LOT(lot.id));
-    return dt ? { ...lot, date_debut: toIso(dt.debut), date_fin: toIso(dt.fin) } : lot;
-  });
-
-  return { lots: outLots, subphases: outSubphases };
+  }
+  const queue: string[] = nodeIds.filter(id => (inDeg.get(id) ?? 0) === 0);
+  let visited = 0;
+  while (queue.length) {
+    const id = queue.shift()!;
+    visited++;
+    for (const s of succ.get(id) ?? []) {
+      const d = (inDeg.get(s) ?? 0) - 1;
+      inDeg.set(s, d);
+      if (d === 0) queue.push(s);
+    }
+  }
+  return visited < nodeIds.length;
 }
 
 /**

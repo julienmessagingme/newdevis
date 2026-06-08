@@ -11,6 +11,8 @@ import {
   computeAdvancedPlanning,
   computeStartDateFromEnd,
   computeAdvancedStartDateFromEnd,
+  buildAdvancedNodeGraph,
+  hasCycleInNodeDeps,
   businessDaysBetween,
   type DependencyMap,
 } from './planningUtils';
@@ -157,6 +159,25 @@ const findLot = (r: { lots: LotChantier[] }, id: string) => r.lots.find(l => l.i
   // C dépend de A sans délai : debut = A.fin
   eq(C.date_debut, A.date_fin, '[J] C démarre à la fin de A (FtS, parallèle à B)');
   eq(businessDaysBetween(new Date(C.date_debut!), new Date(C.date_fin!)), 4, '[J] C dure 4 j ouvrés');
+}
+
+// ── K. Détection de cycle (garde API) ─────────────────────────────────────────
+{
+  const cyc = (lots: LotChantier[], subs: Subphase[], d: DependencyMap, edges: PlanningEdge[]) => {
+    const g = buildAdvancedNodeGraph(lots, subs, d, edges);
+    return hasCycleInNodeDeps(g.nodeDeps, g.nodes.map(n => n.id));
+  };
+  // pas de cycle : chaîne sub→sub
+  assert(!cyc([lot('P', null)], [sub('me', 'P', 3), sub('tp', 'P', 2)], NODEPS, [eSub('tp', 'me')]), '[K] chaîne sans cycle');
+  // cycle direct sub↔sub
+  assert(cyc([lot('X', null)], [sub('s1', 'X', 2), sub('s2', 'X', 2)], NODEPS, [eSub('s1', 's2'), eSub('s2', 's1')]), '[K] cycle direct détecté');
+  // cycle CROSS-NIVEAU : a1 dépend de b1 (edge) ET lot B dépend de lot A (lotDep) → b1 dépend de a1
+  assert(
+    cyc([lot('A', null), lot('B', null)], [sub('a1', 'A', 2), sub('b1', 'B', 2)], deps([['B', ['A']]]), [eSub('a1', 'b1')]),
+    '[K] cycle cross-niveau (edge + lotDep) détecté',
+  );
+  // pas de cycle : lots simples sans sous-phase, chaîne lot→lot
+  assert(!cyc([lot('A', 3), lot('B', 2)], [], deps([['B', ['A']]]), []), '[K] lot→lot simple sans cycle');
 }
 
 // ── résumé ──────────────────────────────────────────────────────────────────────

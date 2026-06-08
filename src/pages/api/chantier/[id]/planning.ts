@@ -2,7 +2,9 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent, logChantierActivity } from '@/lib/api/apiHelpers';
-import { estimateMissingPlanningData, computePlanningDates, type DependencyMap } from '@/lib/chantier/planningUtils';
+import type { DependencyMap } from '@/lib/chantier/planningUtils';
+import type { Subphase } from '@/types/chantier-ia';
+import { recomputeChantierDates, loadSubphases, loadSubphaseDeps } from '@/lib/chantier/planningServer';
 
 type LotRow = {
   id: string;
@@ -51,6 +53,12 @@ function depsToJSON(deps: DependencyMap): Record<string, string[]> {
   return out;
 }
 
+function groupSubphasesByLot(subs: Subphase[]): Record<string, Subphase[]> {
+  const out: Record<string, Subphase[]> = {};
+  for (const s of subs) (out[s.lot_id] ??= []).push(s);
+  return out;
+}
+
 /**
  * GET /api/chantier/[id]/planning
  * Retourne les lots + leur graphe de dépendances + date_debut_chantier.
@@ -79,13 +87,19 @@ export const GET: APIRoute = async ({ request, params }) => {
 
   const chantier = chantierRes.data;
   const lots = (lotsRes.data ?? []) as LotRow[];
-  const deps = await loadDependencies(ctx.supabase, lots.map(l => l.id));
+  const [deps, subphases, subphaseDeps] = await Promise.all([
+    loadDependencies(ctx.supabase, lots.map(l => l.id)),
+    loadSubphases(ctx.supabase, params.id!),
+    loadSubphaseDeps(ctx.supabase, params.id!),
+  ]);
 
   return jsonOk({
     dateDebutChantier: chantier?.date_debut_chantier ?? null,
     dateFinSouhaitee: chantier?.date_fin_souhaitee ?? null,
     lots,
     dependencies: depsToJSON(deps),
+    subphases: groupSubphasesByLot(subphases),
+    subphaseDeps,
   });
 };
 
@@ -313,49 +327,9 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     || (lotUpdates.length === 0 && !depsInput); // PATCH vide = "recompact"
 
   if (needsGlobalRecalc && startDateStr) {
-    const { data: allLotsRaw } = await ctx.supabase
-      .from('lots_chantier')
-      .select('id, nom, emoji, role, job_type, duree_jours, delai_avant_jours, ordre')
-      .eq('chantier_id', chantierId)
-      .order('ordre', { ascending: true });
-
-    const allLots = (allLotsRaw ?? []) as LotRow[];
-
-    if (allLots.length > 0) {
-      // Auto-remplir duree_jours manquantes
-      const needDurationEstimate = allLots.some(l => l.duree_jours == null || (l.duree_jours as number) <= 0);
-      if (needDurationEstimate) {
-        const estimated = estimateMissingPlanningData(allLots as any);
-        const estimateUpdates = estimated
-          .filter(lot => {
-            const orig = allLots.find(l => l.id === lot.id);
-            return orig && (orig.duree_jours == null || (orig.duree_jours as number) <= 0);
-          })
-          .map(lot => ctx.supabase.from('lots_chantier').update({
-            duree_jours: lot.duree_jours,
-          }).eq('id', lot.id));
-        await Promise.all(estimateUpdates);
-        for (const lot of estimated) {
-          const orig = allLots.find(l => l.id === lot.id);
-          if (orig && (orig.duree_jours == null || (orig.duree_jours as number) <= 0)) {
-            orig.duree_jours = lot.duree_jours ?? null;
-          }
-        }
-      }
-
-      // Charge les dépendances de TOUS les lots du chantier
-      const depsMap = await loadDependencies(ctx.supabase, allLots.map(l => l.id));
-
-      const computed = computePlanningDates(allLots as any, new Date(startDateStr), depsMap);
-
-      // Persiste les dates
-      const dateUpdates = computed
-        .filter(lot => lot.date_debut && lot.date_fin)
-        .map(lot => ctx.supabase.from('lots_chantier')
-          .update({ date_debut: lot.date_debut, date_fin: lot.date_fin })
-          .eq('id', lot.id));
-      await Promise.all(dateUpdates);
-    }
+    // Recompute subphase-aware : CPM simple si aucune sous-phase (comportement
+    // historique identique), CPM avancé + persistance des dates sous-phases sinon.
+    await recomputeChantierDates(ctx.supabase, chantierId, new Date(startDateStr));
   }
 
   // 6. Retourne l'état final
@@ -365,7 +339,11 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     .eq('chantier_id', chantierId)
     .order('ordre', { ascending: true });
 
-  const finalDeps = await loadDependencies(ctx.supabase, (finalLots ?? []).map((l: LotRow) => l.id));
+  const [finalDeps, finalSubphases, finalSubphaseDeps] = await Promise.all([
+    loadDependencies(ctx.supabase, (finalLots ?? []).map((l: LotRow) => l.id)),
+    loadSubphases(ctx.supabase, chantierId),
+    loadSubphaseDeps(ctx.supabase, chantierId),
+  ]);
 
   // Invalidate agent context cache — AWAITED pour que l'invalidation soit
   // committée AVANT que la fonction Vercel se termine. Fire-and-forget peut
@@ -420,6 +398,8 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     dateFinSouhaitee: finSouhaitee,
     lots: finalLots ?? [],
     dependencies: depsToJSON(finalDeps),
+    subphases: groupSubphasesByLot(finalSubphases),
+    subphaseDeps: finalSubphaseDeps,
   });
 };
 
