@@ -24,8 +24,9 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 - [ ] **Vérifier les 2 domaines dans Meta Business** : Events Manager → Sécurité de la marque → Domaines (ou Business Settings → Domaines). Ajouter `verifiermondevis.fr` ET `gerermonchantier.fr`. Obligatoire pour l'Aggregated Event Measurement (iOS 14.5+) et la priorisation d'événements. Méthode balise meta : Claude ajoute les 2 `<meta name="facebook-domain-verification">` au `BaseLayout` en 2 min (les fournir). Sinon méthode DNS chez OVH.
 - [ ] **Créer les Custom Audiences segmentées par URL** : `contient verifiermondevis.fr` vs `contient gerermonchantier.fr` (un seul pixel mutualisé, on segmente côté Ads Manager).
-- [ ] **Événements de conversion au-delà du PageView** : `Lead` en fin d'analyse VMD, `StartTrial` / `Subscribe` côté GMC (à câbler via `fbq('track', ...)`), pour mesurer les conversions et pas juste le trafic.
-- [ ] **Auditer la passerelle CAPI stape.de** (`capig.stape.de`) branchée côté config du pixel : confirmer qui l'a configurée et si on la garde.
+- [ ] **Événements de conversion GMC restants** : `Lead` (fin d'analyse VMD, `AnalysisResult.tsx:1272`) et `CompleteRegistration` (inscription, `Register.tsx:136`) sont **déjà câblés** via le helper `src/lib/integrations/metaPixel.ts`. Reste à câbler **côté GMC** : `StartTrial` (démarrage du trial 15 j) et `Subscribe` (passage payant Stripe). Note : les events déjà câblés n'apparaissent pas encore dans Events Manager faute de volume (pixel créé le 5 juin, ~85 visites) — c'est normal, pas un bug.
+- [ ] **Auditer la passerelle CAPI stape.de** (`capig.stape.de`) : confirmer qui l'a configurée, si on la garde, et quels events elle envoie côté serveur (le tag « Multiple » sur PageView dans Events Manager = pixel navigateur + CAPI serveur). Vérifier la déduplication navigateur↔serveur quand le volume sera suffisant (au 8 juin, Meta affiche « analyse de dédup en cours », pas assez de données).
+- [ ] **Identifier l'event `Prospect`** (Events Manager → source « Site web », navigateur, 1 event, hors code VMD, hors GTM/stape/conversion-perso). Inspection live 2026-06-08 : très probablement déclenché par le **widget chat MessagingMe** (`ai.messagingme.app/widget/...`, partage le `fbq` de la page). À confirmer en capturant le réseau pendant une interaction chat, puis décider si on le garde / le renomme.
 
 ---
 
