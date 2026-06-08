@@ -78,6 +78,9 @@ const Register = ({ brand }: Props) => {
       return;
     }
 
+    // `redirecting` garde le spinner actif pendant le délai de 400 ms avant la redirection :
+    // sinon le `finally` réactive le bouton et un double-clic relancerait signUp().
+    let redirecting = false;
     setLoading(true);
 
     try {
@@ -141,6 +144,7 @@ const Register = ({ brand }: Props) => {
         // n'atteint jamais Meta (contrairement à `Lead`, qui fire sur une page où l'utilisateur
         // reste). ~400 ms = imperceptible côté UX, suffisant pour que la requête quitte le navigateur.
         const destination = returnTo || "/tableau-de-bord";
+        redirecting = true;
         window.setTimeout(() => {
           window.location.href = destination;
         }, 400);
@@ -148,7 +152,7 @@ const Register = ({ brand }: Props) => {
     } catch (error) {
       toast.error("Une erreur est survenue");
     } finally {
-      setLoading(false);
+      if (!redirecting) setLoading(false);
     }
   };
 
