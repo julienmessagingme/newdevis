@@ -4,10 +4,11 @@
  * Split layout: left column (lot names) is sticky, right area (Gantt bars) scrolls horizontally.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Calendar, Loader2, AlertCircle, Users, AlignLeft, Plus, AlertTriangle } from 'lucide-react';
-import type { LotChantier } from '@/types/chantier-ia';
+import { Calendar, Loader2, AlertCircle, Users, AlignLeft, Plus, AlertTriangle, Layers } from 'lucide-react';
+import type { LotChantier, Subphase } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
 import { formatDuration, getWeekLabels, businessDaysBetween, isoWeekNumber } from '@/lib/chantier/planningUtils';
+import SubphasePanel from './SubphasePanel';
 
 // -- Couleurs par lot (cyclique) ----------------------------------------------
 
@@ -212,6 +213,9 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
 // -- Row heights (shared constants) -------------------------------------------
 
 const LOT_ROW_HEIGHT = 44;
+// Hauteur d'un sous-rang (sous-phase) en mode avancé. Doit être IDENTIQUE entre
+// la colonne gauche (noms) et la zone droite (barres) sinon désalignement vertical.
+const SUBPHASE_ROW_HEIGHT = 30;
 // Ghost row ("drop here") : plus haute pour un drop plus forgiving. Ne rentre
 // pas dans le calcul de laneDelta côté drag (qui utilise LOT_ROW_HEIGHT), mais
 // offre plus d'espace visuel pour atteindre le seuil laneDelta >= lanes.length.
@@ -222,6 +226,9 @@ const GHOST_ROW_HEIGHT = 56;
 interface Props {
   chantierId: string | null | undefined;
   token: string | null | undefined;
+  /** Mode avancé (premium) : affiche les sous-phases en sous-barres + panneau de
+   *  découpage. false = Gantt simplifié strictement inchangé. */
+  advanced?: boolean;
 }
 
 // Niveaux de zoom — du plus fin (jour) au plus large (année).
@@ -362,10 +369,16 @@ function renderTimelineHeader(
   );
 }
 
-export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, deps, startDate, dateFinSouhaitee, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, applyDragChange, recompactPlanning } = usePlanning(chantierId, token);
+export default function PlanningTimeline({ chantierId, token, advanced = false }: Props) {
+  const {
+    lots, deps, startDate, dateFinSouhaitee, totalWeeks, loading, saving,
+    updateLot, updateStartDate, updateEndDate, applyDragChange, recompactPlanning,
+    subphases, subphaseDeps, addSubphase, updateSubphase, deleteSubphase, addSubphaseDep, removeSubphaseDep,
+  } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
+  // Mode avancé : lot sélectionné pour le panneau de découpage (sous le Gantt).
+  const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
   // V3.4.16+ (2026-05-18) — Pick avec validation explicite (bouton Valider).
   // Avant : input type="date" auto-submit on blur → 2 bugs : (a) erreur de
   // saisie 2025 au lieu de 2026 enregistrée sans alerte ; (b) pas de feedback
@@ -433,6 +446,40 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     // au changement de niveau (bug observé : barre 9 semaines en Semaine reste à
     // 9 colonnes en Jour, donc visuellement 9 jours seulement).
   }, [startDate, WEEK_WIDTH]);
+
+  // -- Mode avancé : sous-phases ---------------------------------------------
+
+  // Position d'une barre à partir de dates ISO (réutilisé pour les sous-phases).
+  const getNodeBarStyle = useCallback((debut?: string | null, fin?: string | null) => {
+    if (!startDate || !debut || !fin) return { left: 0, width: WEEK_WIDTH };
+    const start = new Date(debut);
+    const end = new Date(fin);
+    const startOffset = (start.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000);
+    const duration = (end.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000);
+    return { left: startOffset * WEEK_WIDTH, width: Math.max(duration * WEEK_WIDTH, WEEK_WIDTH * 0.5) };
+  }, [startDate, WEEK_WIDTH]);
+
+  const subsByLot = useMemo(() => {
+    const m = new Map<string, Subphase[]>();
+    if (!advanced) return m;
+    for (const s of subphases) {
+      const arr = m.get(s.lot_id);
+      if (arr) arr.push(s); else m.set(s.lot_id, [s]);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+    return m;
+  }, [advanced, subphases]);
+
+  // Pour une lane, la liste ordonnée { sub, lot } de ses sous-phases (mode avancé).
+  // L'ordre DOIT être identique entre colonne gauche et zone droite (alignement).
+  const laneSubphases = useCallback((lane: LotChantier[]): Array<{ sub: Subphase; lot: LotChantier }> => {
+    if (!advanced) return [];
+    const out: Array<{ sub: Subphase; lot: LotChantier }> = [];
+    for (const lot of lane) for (const sub of (subsByLot.get(lot.id) ?? [])) out.push({ sub, lot });
+    return out;
+  }, [advanced, subsByLot]);
+
+  const selectedLot = useMemo(() => lots.find(l => l.id === selectedLotId) ?? null, [lots, selectedLotId]);
 
   // -- Lanes (first-fit interval scheduling) ---------------------------------
   // Regroupe les lots qui se chaînent dans le temps sur une MÊME ligne visuelle.
@@ -969,35 +1016,55 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
             {/* Lane label rows — 1 ligne par lane (chaînée) */}
             {lanes.map((lane, laneIdx) => {
               const isParallelLane = laneIdx > 0; // lanes 2+ sont forcément des lots // en parallèle de la lane 1
+              const laneSubs = laneSubphases(lane);
               return (
-                <div
-                  key={laneIdx}
-                  data-gantt-row=""
-                  data-lane-idx={laneIdx}
-                  className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
-                  style={{ height: LOT_ROW_HEIGHT }}
-                >
-                  <div className="px-3 py-2 flex items-center gap-2 h-full">
-                    {isParallelLane && (
-                      <span title="Interventions parallèles" className="shrink-0">
-                        <Users className="h-3 w-3 text-violet-400" />
-                      </span>
-                    )}
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
-                      {lane.map((lot, i) => (
-                        <div key={lot.id} className="flex items-center gap-1 shrink-0 min-w-0">
-                          <span className="text-sm shrink-0">{lot.emoji}</span>
-                          <span
-                            className="text-xs font-semibold text-gray-800 truncate max-w-[90px]"
-                            title={`${lot.nom} (${formatDuration(lot.duree_jours ?? 0)})`}
-                          >
-                            {lot.nom}
-                          </span>
-                          {i < lane.length - 1 && <span className="text-gray-300 text-[10px]">→</span>}
-                        </div>
-                      ))}
+                <div key={laneIdx}>
+                  <div
+                    data-gantt-row=""
+                    data-lane-idx={laneIdx}
+                    className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                    style={{ height: LOT_ROW_HEIGHT }}
+                  >
+                    <div className="px-3 py-2 flex items-center gap-2 h-full">
+                      {isParallelLane && (
+                        <span title="Interventions parallèles" className="shrink-0">
+                          <Users className="h-3 w-3 text-violet-400" />
+                        </span>
+                      )}
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+                        {lane.map((lot, i) => (
+                          <div key={lot.id} className="flex items-center gap-1 shrink-0 min-w-0">
+                            <span className="text-sm shrink-0">{lot.emoji}</span>
+                            <span
+                              className="text-xs font-semibold text-gray-800 truncate max-w-[90px]"
+                              title={`${lot.nom} (${formatDuration(lot.duree_jours ?? 0)})`}
+                            >
+                              {lot.nom}
+                            </span>
+                            {advanced && (
+                              <button
+                                onClick={() => setSelectedLotId(selectedLotId === lot.id ? null : lot.id)}
+                                title="Découper en sous-phases"
+                                aria-label={`Découper ${lot.nom} en sous-phases`}
+                                className={`shrink-0 p-0.5 rounded ${selectedLotId === lot.id ? 'text-indigo-600 bg-indigo-50' : 'text-gray-300 hover:text-indigo-500 hover:bg-indigo-50'}`}
+                              >
+                                <Layers className="h-3 w-3" aria-hidden="true" />
+                              </button>
+                            )}
+                            {i < lane.length - 1 && <span className="text-gray-300 text-[10px]">→</span>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
+                  {laneSubs.map(({ sub, lot }) => (
+                    <div key={sub.id} className="border-b border-gray-50 bg-gray-50/30 flex items-center" style={{ height: SUBPHASE_ROW_HEIGHT }}>
+                      <div className="pl-7 pr-3 flex items-center gap-1 min-w-0 w-full">
+                        <span className="text-gray-300 text-[10px] shrink-0">↳</span>
+                        <span className="text-[11px] text-gray-500 truncate" title={`${sub.nom} (${lot.nom})`}>{sub.nom}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               );
             })}
@@ -1026,47 +1093,70 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
               {renderTimelineHeader(weeks, startDate, zoom, WEEK_WIDTH)}
 
               {/* Gantt bar rows — 1 ligne par lane, toutes les barres d'une lane côte à côte */}
-              {lanes.map((lane, laneIdx) => (
-                <div
-                  key={laneIdx}
-                  data-gantt-row=""
-                  data-lane-idx={laneIdx}
-                  className="border-b border-gray-50 relative hover:bg-gray-50 transition-colors"
-                  style={{ height: LOT_ROW_HEIGHT }}
-                >
-                  {/* Week grid lines */}
-                  <div className="absolute inset-0 flex pointer-events-none">
-                    {weeks.map((_, i) => (
-                      <div key={i} className="flex-none border-r border-gray-50" style={{ width: WEEK_WIDTH }} />
-                    ))}
-                  </div>
+              {lanes.map((lane, laneIdx) => {
+                const laneSubs = laneSubphases(lane);
+                return (
+                <div key={laneIdx}>
+                  <div
+                    data-gantt-row=""
+                    data-lane-idx={laneIdx}
+                    className="border-b border-gray-50 relative hover:bg-gray-50 transition-colors"
+                    style={{ height: LOT_ROW_HEIGHT }}
+                  >
+                    {/* Week grid lines */}
+                    <div className="absolute inset-0 flex pointer-events-none">
+                      {weeks.map((_, i) => (
+                        <div key={i} className="flex-none border-r border-gray-50" style={{ width: WEEK_WIDTH }} />
+                      ))}
+                    </div>
 
-                  {/* Toutes les barres de cette lane */}
-                  {lane.map((lot) => {
+                    {/* Toutes les barres de cette lane */}
+                    {lane.map((lot) => {
+                      const color = getLotColor(lot.id);
+                      const barStyle = getBarStyle(lot);
+                      return (
+                        <GanttBar
+                          key={lot.id}
+                          lot={lot}
+                          color={color}
+                          left={barStyle.left}
+                          width={barStyle.width}
+                          weekWidth={WEEK_WIDTH}
+                          laneHeight={LOT_ROW_HEIGHT}
+                          onResize={(deltaDays) => {
+                            const newDays = Math.max(1, Math.min(120, (lot.duree_jours ?? 5) + deltaDays));
+                            if (newDays !== lot.duree_jours) updateLot(lot.id, { duree_jours: newDays });
+                          }}
+                          onMove={(deltaDays, targetLaneIdx) => {
+                            if (!lot.date_debut) return;
+                            handleLotMoveWithLane(lot, laneIdx, deltaDays, targetLaneIdx);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  {/* Sous-barres (mode avancé) — lecture seule en B1 (drag = B2) */}
+                  {laneSubs.map(({ sub, lot }) => {
+                    const sStyle = getNodeBarStyle(sub.date_debut, sub.date_fin);
                     const color = getLotColor(lot.id);
-                    const barStyle = getBarStyle(lot);
                     return (
-                      <GanttBar
-                        key={lot.id}
-                        lot={lot}
-                        color={color}
-                        left={barStyle.left}
-                        width={barStyle.width}
-                        weekWidth={WEEK_WIDTH}
-                        laneHeight={LOT_ROW_HEIGHT}
-                        onResize={(deltaDays) => {
-                          const newDays = Math.max(1, Math.min(120, (lot.duree_jours ?? 5) + deltaDays));
-                          if (newDays !== lot.duree_jours) updateLot(lot.id, { duree_jours: newDays });
-                        }}
-                        onMove={(deltaDays, targetLaneIdx) => {
-                          if (!lot.date_debut) return;
-                          handleLotMoveWithLane(lot, laneIdx, deltaDays, targetLaneIdx);
-                        }}
-                      />
+                      <div key={sub.id} data-subphase-row="" className="border-b border-gray-50 bg-gray-50/30 relative" style={{ height: SUBPHASE_ROW_HEIGHT }}>
+                        <div className="absolute inset-0 flex pointer-events-none">
+                          {weeks.map((_, i) => (
+                            <div key={i} className="flex-none border-r border-gray-50" style={{ width: WEEK_WIDTH }} />
+                          ))}
+                        </div>
+                        <div
+                          className={`absolute top-1.5 h-3 rounded ${color.bg} opacity-50`}
+                          style={{ left: sStyle.left, width: Math.max(sStyle.width, 16) }}
+                          title={`${sub.nom} · ${formatDuration(sub.duree_jours ?? 0)}`}
+                        />
+                      </div>
                     );
                   })}
                 </div>
-              ))}
+                );
+              })}
 
               {/* Ghost row Gantt : zone de drop pour créer une nouvelle side lane */}
               <div
@@ -1102,6 +1192,23 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
           )}
         </div>
       </div>
+
+      {/* Mode avancé : panneau de découpage du lot sélectionné (sous le Gantt) */}
+      {advanced && selectedLot && (
+        <SubphasePanel
+          lot={selectedLot}
+          lots={lots}
+          subphases={subphases}
+          subphaseDeps={subphaseDeps}
+          saving={saving}
+          onAdd={addSubphase}
+          onUpdate={updateSubphase}
+          onDelete={deleteSubphase}
+          onAddDep={addSubphaseDep}
+          onRemoveDep={removeSubphaseDep}
+          onClose={() => setSelectedLotId(null)}
+        />
+      )}
     </div>
   );
 }

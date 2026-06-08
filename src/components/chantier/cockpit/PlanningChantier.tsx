@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import type { ChantierIAResult } from '@/types/chantier-ia';
 import PlanningTimeline from './planning/PlanningTimeline';
-import SubPlanningView from './planning/SubPlanningView';
 import { useAdvancedPlanningAccess } from '@/hooks/useAdvancedPlanningAccess';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -193,9 +192,11 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
             </div>
           )}
 
-          {planningView === 'advanced' && access.allowed
-            ? <SubPlanningView chantierId={chantierId} token={token} />
-            : <PlanningTimeline chantierId={chantierId} token={token} />}
+          <PlanningTimeline
+            chantierId={chantierId}
+            token={token}
+            advanced={planningView === 'advanced' && access.allowed}
+          />
         </div>
       )}
 

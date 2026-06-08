@@ -15,12 +15,16 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 Découpe d'un lot en **sous-phases** ordonnançables + dépendances **cross-métier** + **toggle simplifié/avancé**. Réservé premium (V1 : admin + allowlist). **Étapes 0→5 livrées, reviewées, en prod.** Doc : `DOCUMENTATION.md` § 22, `FEATURES.md` § 5, plan `docs/plans/2026-06-08-sous-planning-PLAN.md`.
 
-Tables `lot_subphases` + `planning_subphase_deps` (RLS durcie). CPM unifié `computeAdvancedPlanning` (56 tests). Seam premium `requireAdvancedPlanning` (10 tests). API CRUD premium-gated. Hook `usePlanning` étendu. UI `SubPlanningView` + `SubphasePanel` (toggle dans `PlanningChantier`, `PlanningTimeline` inchangé).
+Tables `lot_subphases` + `planning_subphase_deps` (RLS durcie). CPM unifié `computeAdvancedPlanning` (56 tests). Seam premium `requireAdvancedPlanning` (10 tests). API CRUD premium-gated. Hook `usePlanning` étendu. Revue adversariale faite (2 bugs hook corrigés).
+
+**Option B — Gantt unifié draggable** (plan : `docs/plans/2026-06-08-sous-planning-dnd-option-B.md`) :
+- ✅ **B1 — Rendu unifié + toggle** : `PlanningTimeline` a une prop `advanced` ; en avancé il affiche les sous-phases en **sous-barres sur le vrai Gantt** (axe dates/zoom partagés) + bouton « découper » par lot → `SubphasePanel` sous le Gantt. Mode simplifié byte-identique (tout derrière `advanced`). `SubPlanningView` (vue % séparée) **supprimée**. Build vert. ⚠️ **QA visuelle Julien requise** (alignement gauche/droite, look sous-barres).
+- ⬜ **B2 — Sous-barres draggables** (resize durée + drag délai) via généralisation de `GanttBar` + recompute optimiste.
+- ⬜ **B3 — Drag des dépendances** (création/réécriture, cross-métier) via généralisation de `handleLotMoveWithLane`.
 
 **Reste à faire** :
-- 🟢 **QA navigateur par Julien** (premium-gated à son compte) : toggle Avancé → découper un lot → dépendance cross-métier → test cycle (refus) → vérifier vue Simplifié inchangée.
-- 🟠 **Polish / refinements V1** (selon retour QA) : D&D des sous-phases (aujourd'hui gestion par panneau), axe de dates dans la vue avancée, optimisation mobile.
-- 🟠 **Phase 2 (différée)** : exposer les sous-phases à l'agent IA (contexte + tools) ; aujourd'hui l'agent pilote au niveau lot uniquement.
+- 🟢 **QA navigateur par Julien** (premium-gated) : toggle Avancé → découper un lot (bouton Layers) → sous-barres visibles + alignées → dépendance cross-métier → test cycle (refus) → vérifier Simplifié inchangé.
+- 🟠 **Phase 2 (différée)** : exposer les sous-phases à l'agent IA.
 
 ---
 
