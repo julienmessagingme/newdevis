@@ -20,7 +20,7 @@ Découper un lot (phase d'intervenant) en **sous-phases** ordonnançables, avec 
 - **Cross-métier** : table `planning_subphase_deps` (FK nullables lot/sous-phase, CASCADE auto). CPM fusionne lots + sous-phases en un graphe de noeuds au calcul ; `lot.date_fin` reste dérivé (max sous-phases) → accueil/bulle planning inchangés.
 
 **Avancement** :
-- ✅ **Étape 0** — migration `20260608_001_lot_subphases.sql` appliquée en prod (via MCP, drift de migrations donc PAS de `db push`). Tables `lot_subphases` + `planning_subphase_deps` créées, RLS ON.
+- ✅ **Étape 0** — migrations `20260608_001_lot_subphases.sql` + `20260608_002_lot_subphases_rls_hardening.sql` appliquées en prod (via MCP, drift de migrations donc PAS de `db push`). Tables `lot_subphases` + `planning_subphase_deps` créées, RLS ON. **Revue faite** : durcissement RLS (ownership dérivé du lot + cohérence chantier_id + validation endpoints à l'écriture) + index FK. À traiter dans le code : convention `from`/`to` = dependent/dependsOn (nommage clair étape 1) + interdire lot↔sa propre sous-phase (étape 2). Advisor sécu : seul le WARN générique "anonymous access" (tout le projet), policies bien scopées par `auth.uid()`.
 - ⬜ Étape 1 — CPM généralisé (+ `computeStartDateFromEnd`) + tests
 - ⬜ Étape 1bis — seam d'habilitation premium (`canUseAdvancedPlanning` + `requireAdvancedPlanning` + endpoint/hook)
 - ⬜ Étape 2 — API CRUD sous-phases + recompute unifié
