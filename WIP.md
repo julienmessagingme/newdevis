@@ -11,6 +11,25 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🟡 Sous-planning intra-phase + toggle simplifié/avancé (premium GMC) — démarré 2026-06-08
+
+Découper un lot (phase d'intervenant) en **sous-phases** ordonnançables, avec dépendances **cross-métier** (ex : "Électricité démarre quand la Mise en eau du Plombier est finie") + un **toggle planning simplifié/avancé**. Feature **réservée au premium GMC** (habilités V1 : admin + allowlist ; demain : abonnés + essai).
+
+- **Recherche + plan détaillés** : `docs/plans/2026-06-08-sous-planning-intra-phase.md` (recherche, blast radius) + `docs/plans/2026-06-08-sous-planning-PLAN.md` (plan 7 étapes + revue).
+- **Décision archi** : table séparée `lot_subphases` (PAS de `parent_id` sur lots) → blast radius nul sur budget/trésorerie/documents/accueil/agent (ils restent au niveau lot). Le lot reste l'unité budget/devis/statut.
+- **Cross-métier** : table `planning_subphase_deps` (FK nullables lot/sous-phase, CASCADE auto). CPM fusionne lots + sous-phases en un graphe de noeuds au calcul ; `lot.date_fin` reste dérivé (max sous-phases) → accueil/bulle planning inchangés.
+
+**Avancement** :
+- ✅ **Étape 0** — migration `20260608_001_lot_subphases.sql` appliquée en prod (via MCP, drift de migrations donc PAS de `db push`). Tables `lot_subphases` + `planning_subphase_deps` créées, RLS ON.
+- ⬜ Étape 1 — CPM généralisé (+ `computeStartDateFromEnd`) + tests
+- ⬜ Étape 1bis — seam d'habilitation premium (`canUseAdvancedPlanning` + `requireAdvancedPlanning` + endpoint/hook)
+- ⬜ Étape 2 — API CRUD sous-phases + recompute unifié
+- ⬜ Étape 3 — hook `usePlanning`
+- ⬜ Étape 4 — UI toggle + vue avancée + panneau de découpage + D&D
+- ⬜ Étape 5 — polish + doc · Phase 2 (différée) — agent IA
+
+---
+
 ## 🚧 Snapshot 2026-06-02 — chantiers actifs
 
 ### ✅ Audit GMC — 4 priorités livrées sur 8 (état au 2026-06-02)
