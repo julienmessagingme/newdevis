@@ -300,6 +300,23 @@ RÈGLES STRICTES POUR "quantite" + "unite" DANS "travaux" (V3.5.9 — 2026-06-08
 - Si une ligne du devis a une cellule QTÉ explicitement en "m²", "ml", "kg", "m³", "h", "L" → l'unité DOIT être restituée fidèlement, JAMAIS substituée par "u".
 - En cas d'ambiguïté sur une seule ligne (ex: nombre lisible mais unité illisible) : "unite": null plutôt qu'inventer.
 
+RÈGLES STRICTES POUR "travaux" — EXCLURE LES TITRES DE SECTION (V3.5.10 — 2026-06-09) :
+Les devis BTP utilisent souvent une numérotation hiérarchique (1 / 1.1 / 1.2 / 2 / 2.1 / 3 / 3.1).
+- Les lignes de NIVEAU N (numéro entier seul "1", "2", "3") sont des **titres de section** affichant le SOUS-TOTAL de la section.
+- Les lignes de NIVEAU N.M ("1.1", "1.2", "2.1") sont les **vraies prestations** détaillées (avec QTÉ + PRIX UNIT + TOTAL).
+- ⚠️ **Ne PAS inclure les lignes titres de section** (niveau N) dans "travaux" — leur montant est juste la SOMME de leurs sous-lignes N.M déjà extraites.
+- Signaux pour reconnaître une ligne titre de section :
+  (a) Le numéro est un ENTIER seul ("1", "2", "3") sans sous-décimale
+  (b) Pas de colonne QTÉ remplie OU QTÉ vide
+  (c) Pas de colonne PRIX U. remplie OU PRIX U. vide
+  (d) Le montant TOTAL HT = somme exacte des sous-lignes 1.1, 1.2... qui suivent
+  (e) Souvent affiché en GRAS ou avec un fond coloré dans le devis
+- Exemple devis Florian Miranda :
+  Ligne "1 Pose de carrelage" = 3 230,00 € → c'est le sous-total de 1.1 + 1.2 → NE PAS extraire dans travaux
+  Ligne "1.1 Préparation + pose carrelage 85 m² × 30 €" = 2 550 € → EXTRAIRE
+  Ligne "1.2 Dépose plinthes 85 m² × 8 €" = 680 € → EXTRAIRE
+- Si TOUTES les lignes sont au format niveau N (pas de N.M détaillé), alors le devis est un RÉSUMÉ par lot — extraire chaque lot comme une ligne, c'est le seul niveau dispo.
+
 RÈGLE ABSOLUE - "travaux" CONTIENT UNIQUEMENT DES PRESTATIONS, JAMAIS DES TOTAUX :
 - N'INCLUS PAS dans "travaux" les lignes du récapitulatif financier en bas de devis :
   ❌ "Total HT", "Montant Total HT", "Sous-total HT"
@@ -670,7 +687,89 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
           return true;
         });
 
-        return filtered.map((t: any) => ({
+        // ──────────────────────────────────────────────────────────────────
+        // V3.5.10 (2026-06-09) — Garde structurelle "ligne titre de section"
+        //
+        // Cas d'origine devis Florian Miranda (3 710 € HT, 7 lignes extraites) :
+        // structure hiérarchique du devis :
+        //   1     Pose de carrelage                            3 230 €  ← titre section
+        //   1.1     Préparation + pose carrelage    85m² × 30€ 2 550 €  ← détail
+        //   1.2     Dépose/repose plinthes          85m² × 8€    680 €  ← détail
+        //   2     Modifications élec et plomberie               280 €   ← titre section
+        //   2.1     Suppression prises               1u × 280€   280 €  ← détail
+        //   3     Camouflage tuyaux                             200 €   ← titre section
+        //   3.1     Mise en place cache placo        1u × 200€   200 €  ← détail
+        //
+        // Gemini extrait les 7 lignes y compris les titres de section. Avec V3.5.0
+        // vectoriel (1 ligne = 1 groupe), la ligne titre "Pose de carrelage" 3230€
+        // est traitée comme un poste avec qty=1, unit="m²" (héritée des sous-lignes)
+        // → matche "Pose carrelage sol" du catalogue à 25-80 €/m² → ratio 40×
+        // → anomalie rouge "+3 150€" totalement fausse.
+        //
+        // V3.4.25 avait un filtre similaire mais opérait sur le groupement V3.6
+        // (parent + N enfants dans le MÊME groupe). Depuis V3.5.0 vectoriel,
+        // chaque ligne devis = 1 groupe → V3.4.25 ne kicke plus.
+        //
+        // Heuristique : pour chaque ligne L à l'index i, si Σ(L_{i+1}..L_{i+K})
+        // ≈ L.montant (tolérance 5€ ou 2%) avec K ∈ [2, 6] enfants ET L est
+        // "synthétique" (qty=1/null ET pas d'unité physique légitime ou cohérente
+        // avec les enfants), alors L est un titre de section → DROP.
+        //
+        // Anti-régression : un poste légitime "Pose 5 portes 1000€ qty=5 u"
+        // suivi de 5 lignes "Porte chambre 200€" garde la ligne parent car
+        // qty=5 ≠ 1 (et l'unité u est physique). Mais "Pose carrelage 3230€
+        // qty=1 m²" suivi de 2 lignes qui somment à 3230€ est droppé.
+        // ──────────────────────────────────────────────────────────────────
+        const PARENT_DELTA_ABS = 5;       // €
+        const PARENT_DELTA_REL = 0.02;    // 2 %
+        const MIN_PARENT_AMOUNT = 100;    // €  — éviter d'écraser micro-totaux
+        const MIN_CHILDREN = 2;           // au moins 2 enfants
+        const MAX_CHILDREN_LOOKAHEAD = 6; // garde pratique
+
+        const isSyntheticQty = (t: { quantite: number | null }): boolean => {
+          const q = t.quantite;
+          return q === null || q === undefined || q === 1 || q === 0;
+        };
+
+        const toDropIndexes = new Set<number>();
+        for (let i = 0; i < filtered.length; i++) {
+          const parent = filtered[i];
+          const parentAmt = typeof parent.montant === "number" ? parent.montant : 0;
+          if (parentAmt < MIN_PARENT_AMOUNT) continue;
+          if (!isSyntheticQty(parent)) continue;
+
+          // Cherche le nombre minimal d'enfants consécutifs dont la somme matche
+          let sum = 0;
+          for (let k = 1; k <= MAX_CHILDREN_LOOKAHEAD && i + k < filtered.length; k++) {
+            const child = filtered[i + k];
+            // Skip si déjà droppé en tant que parent d'un précédent groupe
+            if (toDropIndexes.has(i + k)) break;
+            const childAmt = typeof child.montant === "number" ? child.montant : 0;
+            if (childAmt <= 0) break;
+            sum += childAmt;
+
+            // Match si k ≥ MIN_CHILDREN et |sum - parentAmt| ≤ max(5€, 2% × parentAmt)
+            if (k >= MIN_CHILDREN) {
+              const delta = Math.abs(sum - parentAmt);
+              const tolerance = Math.max(PARENT_DELTA_ABS, parentAmt * PARENT_DELTA_REL);
+              if (delta <= tolerance) {
+                toDropIndexes.add(i);
+                console.log(
+                  `[extract] V3.5.10 drop section-title line "${parent.libelle}" ` +
+                  `(${parentAmt}€ = Σ ${k} enfants ${sum.toFixed(2)}€, ` +
+                  `qty=${parent.quantite ?? "null"} unite=${parent.unite ?? "null"})`,
+                );
+                break;
+              }
+              // Continue si sum > parent (peut-être on additionne trop) — break
+              if (sum > parentAmt + tolerance) break;
+            }
+          }
+        }
+
+        const structurallyFiltered = filtered.filter((_: unknown, i: number) => !toDropIndexes.has(i));
+
+        return structurallyFiltered.map((t: any) => ({
           libelle: t.libelle || "",
           categorie: t.categorie || "autre",
           montant: typeof t.montant === "number" ? t.montant : null,

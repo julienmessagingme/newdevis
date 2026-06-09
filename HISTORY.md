@@ -11,6 +11,39 @@ Format : chronologie inversée (récent → ancien). Chaque entrée = bug observ
 
 ---
 
+## V3.5.10 (2026-06-09) — Garde structurelle lignes titre de section
+
+Audit utilisateur sur "devis ano analyse.pdf" (Florian Miranda, 3 710 € HT). Devis avec structure hiérarchique :
+
+```
+1     Pose de carrelage                                3 230 €  ← titre section
+1.1     Préparation + pose carrelage  85m² × 30€      2 550 €  ← détail
+1.2     Dépose/repose plinthes        85m² × 8€         680 €  ← détail
+2     Modifications élec et plomberie                   280 €  ← titre section
+2.1     Suppression prises             1u × 280€        280 €  ← détail
+3     Camouflage tuyaux                                 200 €  ← titre section
+3.1     Mise en place cache placo      1u × 200€        200 €  ← détail
+```
+
+**Bug observé** : Gemini extrait les **7 lignes** y compris les titres de section (1, 2, 3). La ligne titre "Pose de carrelage" 3 230 € est extraite avec qty=1 et unit="m²" (héritée des sous-lignes). Le matcher vectoriel V3.5.0 (1 ligne = 1 groupe) la traite comme un poste isolé → 3 230 €/m² comparé au catalogue "Pose carrelage sol" 25-80 €/m² → **anomalie ROUGE "+3 150€" totalement fausse**.
+
+**Cause racine** : V3.4.25 avait un filtre `parent.amt ≈ Σ(enfants)` mais il opérait sur le **groupement V3.6** (1 groupe = N lignes). Depuis V3.5.0 vectoriel (1 ligne = 1 groupe), V3.4.25 ne kicke plus — la ligne titre passe directement au matcher sans aucun garde-fou.
+
+**Fix — Garde structurelle dans `extract.ts`** (avant la propagation au pipeline vectoriel) : pour chaque ligne L à l'index i, si Σ(L_{i+1}..L_{i+K}) ≈ L.montant (tolérance 5€ OU 2%) avec K ∈ [2, 6] enfants ET L est "synthétique" (qty=1/null), alors L est un titre de section → **DROP silencieux + log**.
+
+```
+[extract] V3.5.10 drop section-title line "Pose de carrelage" 
+  (3230€ = Σ 2 enfants 3230.00€, qty=1 unite=m2)
+```
+
+**Anti-régression** : un poste légitime "Pose 5 portes 1000€ qty=5" suivi de 5 lignes "Porte chambre 200€" garde la ligne parent car qty=5 ≠ 1. Seules les lignes parent avec qty=1/null (héritée du titre de section sans QTÉ réelle) sont droppées. Tests 39/39 verdictEngine + 34/34 vectorial inchangés.
+
+**Défense en profondeur — Renforcement prompt Gemini** : nouvelle section "EXCLURE LES TITRES DE SECTION" qui explicite la hiérarchie N / N.M et donne l'exemple devis Florian Miranda. Évite que les titres de section soient extraits du tout. Le filtre post-extraction reste actif comme filet de sécurité.
+
+**⚠️ Action manuelle requise après push** : `git pull origin main && npx supabase functions deploy analyze-quote --project-ref vhrhgsqxwvouswjaiczn`. Bump ENGINE_VERSION 3.5.9 → 3.5.10 invalide le cache.
+
+---
+
 ## V3.5.9 (2026-06-08) — 5 fixes audit devis Côte Maison Travaux
 
 Audit utilisateur sur "devis combiné.pdf" (Côte Maison Travaux, rénovation SDB 11 871 € TTC).
