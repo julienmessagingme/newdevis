@@ -17,38 +17,60 @@ import SimulateurAidesCard from '@/components/homepage/SimulateurAidesCard';
 import SocialProofTicker from '@/components/homepage/SocialProofTicker';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "VerifierMonDevis.fr",
-  "description": "Service gratuit de vérification et d'analyse de devis d'artisans pour les particuliers. Score de fiabilité, vérification SIRET, comparaison prix marché.",
-  "url": "https://www.verifiermondevis.fr",
-  "applicationCategory": "BusinessApplication",
-  "operatingSystem": "Web",
-  "inLanguage": "fr-FR",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "EUR",
-    "description": "Analyse gratuite de devis artisan"
+// JSON-LD VMD home (2026-06-09) — 2 schemas combinés :
+//   - SoftwareApplication : décrit le service (analyse de devis)
+//   - Organization        : décrit l'entité officielle qui le publie
+//                           (référencée par publisher.@id du SoftwareApplication)
+//
+// L'Organization est le schema le plus fort pour le Knowledge Panel Google.
+// Il porte aussi les sameAs comptes sociaux officiels (consolidation E-E-A-T).
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "VerifierMonDevis.fr",
+    "description": "Service gratuit de vérification et d'analyse de devis d'artisans pour les particuliers. Score de fiabilité, vérification SIRET, comparaison prix marché.",
+    "url": "https://www.verifiermondevis.fr",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "inLanguage": "fr-FR",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "EUR",
+      "description": "Analyse gratuite de devis artisan"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.7",
+      "reviewCount": "24",
+      "bestRating": "5",
+      "worstRating": "1"
+    },
+    "publisher": {
+      "@id": "https://www.verifiermondevis.fr/#organization"
+    },
+    "sameAs": [
+      "https://www.instagram.com/verifiermondevis/",
+      "https://www.facebook.com/profile.php?id=61590412092738"
+    ]
   },
-  "aggregateRating": {
-    "@type": "AggregateRating",
-    "ratingValue": "4.7",
-    "reviewCount": "24",
-    "bestRating": "5",
-    "worstRating": "1"
-  },
-  "publisher": {
-    "@id": "https://www.verifiermondevis.fr/#organization"
-  },
-  // sameAs (2026-06-09) — comptes sociaux officiels VMD. Aide Google à
-  // associer le domaine aux comptes pour le Knowledge Panel + boost E-E-A-T.
-  "sameAs": [
-    "https://www.instagram.com/verifiermondevis/",
-    "https://www.facebook.com/profile.php?id=61590412092738"
-  ]
-};
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": "https://www.verifiermondevis.fr/#organization",
+    "name": "VerifierMonDevis.fr",
+    "url": "https://www.verifiermondevis.fr",
+    "logo": "https://www.verifiermondevis.fr/images/logo.webp",
+    "description": "VerifierMonDevis.fr accompagne les particuliers dans la vérification et l'analyse de leurs devis d'artisans avant signature.",
+    "areaServed": "FR",
+    "inLanguage": "fr-FR",
+    "sameAs": [
+      "https://www.instagram.com/verifiermondevis/",
+      "https://www.facebook.com/profile.php?id=61590412092738"
+    ]
+  }
+];
 ---
 
 <BaseLayout
