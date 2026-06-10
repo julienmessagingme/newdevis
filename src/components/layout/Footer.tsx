@@ -37,7 +37,7 @@ const Footer = () => {
                 <Instagram className="h-5 w-5" aria-hidden="true" />
               </a>
               <a
-                href="https://www.facebook.com/profile.php?id=61567601962826"
+                href="https://www.facebook.com/profile.php?id=61590412092738"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Facebook VerifierMonDevis"
