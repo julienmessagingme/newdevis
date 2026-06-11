@@ -9,54 +9,51 @@ import Pricing from '@/components/gmc-landing/Pricing.astro';
 import FinalCTA from '@/components/gmc-landing/FinalCTA.astro';
 import Footer from '@/components/gmc-landing/Footer.astro';
 
-// JSON-LD GMC home (2026-06-09) — 2 schemas combinés :
-//   - SoftwareApplication : décrit le produit GMC (copilote chantier)
-//   - Organization        : décrit l'entité officielle GérerMonChantier
-//
-// L'Organization est le schema le plus fort pour le Knowledge Panel Google.
-// sameAs présent sur les 2 — Google les agrège.
-const GMC_SAME_AS = [
-  'https://www.instagram.com/gerermonchantier.fr/',
-  'https://www.facebook.com/profile.php?id=61590412092738',
-  'https://www.tiktok.com/@gerermonchantier',
-];
-
-const jsonLd = [
-  {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'GérerMonChantier',
-    description:
-      'Le copilote IA des chantiers — planning, messagerie WhatsApp, devis, trésorerie, rappels. Vous arbitrez, le Pilote exécute.',
-    url: 'https://gerermonchantier.fr',
-    applicationCategory: 'BusinessApplication',
-    operatingSystem: 'Web',
-    inLanguage: 'fr-FR',
-    offers: [
-      { '@type': 'Offer', price: '12', priceCurrency: 'EUR', name: 'Essentiel · mensuel' },
-      { '@type': 'Offer', price: '120', priceCurrency: 'EUR', name: 'Essentiel · annuel' },
-      { '@type': 'Offer', price: '25', priceCurrency: 'EUR', name: 'Multi-chantiers · mensuel' },
-      { '@type': 'Offer', price: '210', priceCurrency: 'EUR', name: 'Multi-chantiers · annuel' },
-    ],
-    publisher: {
-      '@id': 'https://gerermonchantier.fr/#organization',
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'GérerMonChantier',
+  description:
+    'Le copilote IA des chantiers — planning, messagerie WhatsApp, devis, trésorerie, rappels. Vous arbitrez, le Pilote exécute.',
+  url: 'https://gerermonchantier.fr',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  inLanguage: 'fr-FR',
+  offers: [
+    {
+      '@type': 'Offer',
+      price: '12',
+      priceCurrency: 'EUR',
+      name: 'Essentiel · mensuel',
     },
-    sameAs: GMC_SAME_AS,
-  },
-  {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    '@id': 'https://gerermonchantier.fr/#organization',
-    name: 'GérerMonChantier',
-    url: 'https://gerermonchantier.fr',
-    logo: 'https://gerermonchantier.fr/images/gmc/logo.png',
-    description:
-      'GérerMonChantier accompagne les particuliers dans la gestion de leurs travaux de rénovation : planning, budget, artisans, documents, messagerie unifiée.',
-    areaServed: 'FR',
-    inLanguage: 'fr-FR',
-    sameAs: GMC_SAME_AS,
-  },
-];
+    {
+      '@type': 'Offer',
+      price: '120',
+      priceCurrency: 'EUR',
+      name: 'Essentiel · annuel',
+    },
+    {
+      '@type': 'Offer',
+      price: '25',
+      priceCurrency: 'EUR',
+      name: 'Multi-chantiers · mensuel',
+    },
+    {
+      '@type': 'Offer',
+      price: '210',
+      priceCurrency: 'EUR',
+      name: 'Multi-chantiers · annuel',
+    },
+  ],
+  // sameAs (2026-06-09) — comptes sociaux officiels GMC. Aide Google à
+  // associer le domaine aux comptes pour le Knowledge Panel + boost E-E-A-T.
+  // Le compte Facebook est mutualisé VMD+GMC (cf. CLAUDE.md "Tracking / Pixels").
+  sameAs: [
+    'https://www.instagram.com/gerermonchantier.fr/',
+    'https://www.facebook.com/profile.php?id=61590412092738',
+    'https://www.tiktok.com/@gerermonchantier',
+  ],
+};
 ---
 
 <BaseLayout
