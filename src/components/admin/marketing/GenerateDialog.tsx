@@ -77,8 +77,10 @@ export default function GenerateDialog({ open, template, onClose }: GenerateDial
         idx++;
         // Via le proxy CDN : pas d'appel B2 direct (quota préservé).
         const res = await fetch(proxyImg(url));
-        if (!res.ok) throw new Error(`Image ${idx} indisponible (HTTP ${res.status})`);
-        zip.file(`${String(idx).padStart(2, "0")}.png`, await res.blob());
+        if (!res.ok) throw new Error(`Slide ${idx} indisponible (HTTP ${res.status})`);
+        // Extension réelle : un carrousel vidéo a des aperçus .mp4 (pas .png).
+        const ext = /\.mp4(\?|$)/i.test(url) ? "mp4" : "png";
+        zip.file(`${String(idx).padStart(2, "0")}.${ext}`, await res.blob());
       }
       const blob = await zip.generateAsync({ type: "blob" });
       const href = URL.createObjectURL(blob);
