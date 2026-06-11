@@ -187,13 +187,15 @@ input[type='range']:focus::-webkit-slider-thumb {
   }
 
   html {
-    overflow-x: hidden;
+    /* `clip` (et non `hidden`) : empêche le scroll horizontal SANS créer de
+       conteneur de défilement, ce qui casserait `position: sticky` (header). */
+    overflow-x: clip;
   }
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'DM Sans', system-ui, sans-serif;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   h1, h2, h3, h4, h5, h6 {

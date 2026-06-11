@@ -1,0 +1,505 @@
+---
+// Landing page d'acquisition (trafic pub) pour GérerMonChantier
+// Design source : handoff Claude Design « 14_landing_gmc_v2.html ».
+// Nav + footer réutilisent les composants du site (Header / Footer).
+// Destination des CTA : le flux de création de chantier (/mon-chantier/nouveau).
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+const START = '/mon-chantier/nouveau';
+const DEMO = '/demo/';
+---
+
+<BaseLayout
+  title="GérerMonChantier : essayez gratuitement pendant 1 mois"
+  description="Tout votre chantier sur un seul écran : planning, devis, aides, trésorerie. Le Pilote IA agit, vous gardez la main. Essai gratuit 1 mois, sans carte bancaire."
+  canonical="https://gerermonchantier.fr/beta"
+  ogImage="https://gerermonchantier.fr/images/gmc/beta/cockpit_capture.png"
+  siteName="GérerMonChantier"
+  noindex={true}
+>
+  <div class="min-h-screen flex flex-col bg-white">
+    <Header />
+    <main class="flex-1">
+      <div class="gmc-beta">
+
+        <!-- BANDEAU CTA (bleu) -->
+        <section class="final" id="essai">
+          <div class="wrap">
+            <h2>Essayez gratuitement<br />pendant <span class="or">1 mois</span>.</h2>
+            <p>Créez votre chantier en 3 minutes. Sans carte bancaire, sans engagement.</p>
+            <div class="row">
+              <a class="btn btn-orange cta-lg" href={START}>
+                Démarrer mon chantier
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M13 5l7 7-7 7" /></svg>
+              </a>
+              <a class="btn btn-ghost cta-lg cta-ghost-dark" href={DEMO}>Voir une démo</a>
+            </div>
+            <div class="micro">✓ 1 mois offert · ✓ sans carte bancaire · ✓ résiliable en 1 clic</div>
+          </div>
+        </section>
+
+        <!-- HERO -->
+        <section class="hero">
+          <div class="wrap hero-grid">
+            <div class="copy">
+              <h1 class="hero-title">Tout votre chantier<br />en un seul coup d'œil.</h1>
+              <p class="lead">Un retard, un devis à comparer, une facture à régler, une aide à récupérer ? <b>Tout atterrit sur un seul écran</b>, et le Pilote IA agit pendant que vous gardez la main.</p>
+              <div class="hero-cta">
+                <a class="btn btn-orange" href={START}>
+                  Essayer gratuitement 1 mois
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M13 5l7 7-7 7" /></svg>
+                </a>
+              </div>
+            </div>
+            <div class="hero-vis">
+              <div class="win">
+                <div class="bar"><span class="d d1"></span><span class="d d2"></span><span class="d d3"></span><span class="u">🔒 app.gerermonchantier.fr/chantier</span></div>
+                <img src="/images/gmc/beta/cockpit_capture.png" width="1425" height="827" alt="Cockpit GérerMonChantier : vue d'ensemble du chantier" loading="eager" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- FEATURE 1 · Planning IA -->
+        <section class="feat">
+          <div class="wrap feat-grid rev">
+            <div class="copy">
+              <span class="eyebrow">Planning IA</span>
+              <h2>Un retard ? L'IA recale tout en 60 secondes.</h2>
+              <p class="lead">Le plombier annonce +5 jours. L'IA détecte l'impact, décale les lots aval, notifie les artisans et recalcule la réception. Vous validez sur WhatsApp.</p>
+              <a class="btn btn-orange feat-cta" href={START}>
+                Essayer gratuitement 1 mois
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M13 5l7 7-7 7" /></svg>
+              </a>
+            </div>
+            <div class="shot">
+              <div class="win"><div class="bar"><span class="d d1"></span><span class="d d2"></span><span class="d d3"></span><span class="u">🔒 app.gerermonchantier.fr/chantier/planning</span></div><img src="/images/gmc/beta/planning_capture.png" width="1920" height="1080" alt="Planning IA : recalage automatique des lots" loading="lazy" /></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- FEATURE 2 · Comparateur de devis -->
+        <section class="feat alt">
+          <div class="wrap feat-grid">
+            <div class="copy">
+              <span class="eyebrow">Comparateur de devis</span>
+              <h2>Comparez vos devis. Choisissez le bon.</h2>
+              <p class="lead">L'IA score vos devis côte à côte et repère le bon, pas le moins cher. Garanties, délais, références : tout est comparé, pas seulement le montant.</p>
+              <a class="btn btn-orange feat-cta" href={START}>
+                Essayer gratuitement 1 mois
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M13 5l7 7-7 7" /></svg>
+              </a>
+            </div>
+            <div class="shot">
+              <div class="win"><div class="bar"><span class="d d1"></span><span class="d d2"></span><span class="d d3"></span><span class="u">🔒 app.gerermonchantier.fr/devis/comparer</span></div><img src="/images/gmc/beta/devis_capture.png" width="1920" height="1080" alt="Comparateur de devis : 3 devis scorés côte à côte" loading="lazy" /></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- FEATURE 3 · Simulateur d'aides -->
+        <section class="feat">
+          <div class="wrap feat-grid rev">
+            <div class="copy">
+              <span class="eyebrow">Simulateur d'aides</span>
+              <h2>Récupérez l'argent qu'on vous doit.</h2>
+              <p class="lead">MaPrimeRénov' + CEE + Éco-PTZ, cumulés automatiquement et importés direct dans votre plan de financement.</p>
+              <a class="btn btn-orange feat-cta" href={START}>
+                Essayer gratuitement 1 mois
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M13 5l7 7-7 7" /></svg>
+              </a>
+            </div>
+            <div class="shot">
+              <div class="win"><div class="bar"><span class="d d1"></span><span class="d d2"></span><span class="d d3"></span><span class="u">🔒 app.gerermonchantier.fr/aides/simulateur</span></div><img src="/images/gmc/beta/aides_capture.png" width="1920" height="1080" alt="Simulateur d'aides : MaPrimeRénov, CEE et Éco-PTZ cumulés" loading="lazy" /></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- FEATURE 4 · Journal IA -->
+        <section class="feat alt">
+          <div class="wrap feat-grid">
+            <div class="copy">
+              <span class="eyebrow">Journal IA</span>
+              <h2>Chaque décision, tracée à la seconde.</h2>
+              <p class="lead">Qui a dit quoi, quand, et combien. Retards, validations, paiements, aides versées : le Pilote consigne tout, horodaté et infalsifiable. Plus jamais d'engueulade en bas du chantier.</p>
+              <a class="btn btn-orange feat-cta" href={START}>
+                Essayer gratuitement 1 mois
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M13 5l7 7-7 7" /></svg>
+              </a>
+            </div>
+            <div class="shot">
+              <div class="win"><div class="bar"><span class="d d1"></span><span class="d d2"></span><span class="d d3"></span><span class="u">🔒 app.gerermonchantier.fr/chantier/journal</span></div><img src="/images/gmc/beta/journal_capture.png" width="1920" height="1080" alt="Journal IA : timeline horodatée des décisions du chantier" loading="lazy" /></div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>
+
+<style>
+  .gmc-beta {
+    --navy: #1b3fa1;
+    --navy-ink: #1a2233;
+    --navy-deep: #0f2a6b;
+    --orange: #f58a06;
+    --orange-deep: #d9760a;
+    --bg-soft: #f5f7fb;
+    --line: #e6e9f0;
+    --muted: #6b7484;
+    --body: #3b4456;
+    --ink: #1a2233;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    color: var(--body);
+  }
+  .gmc-beta h1,
+  .gmc-beta h2,
+  .gmc-beta h3 {
+    margin: 0;
+    color: var(--ink);
+    letter-spacing: -0.025em;
+    font-weight: 700;
+  }
+  .gmc-beta .wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 56px;
+  }
+  .gmc-beta .eyebrow {
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 13px;
+  }
+
+  /* Boutons */
+  .gmc-beta .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 15px 26px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+    transition:
+      transform 0.14s,
+      box-shadow 0.14s;
+  }
+  .gmc-beta .btn:hover {
+    transform: translateY(-2px);
+  }
+  .gmc-beta .btn svg {
+    width: 18px;
+    height: 18px;
+  }
+  .gmc-beta .btn-orange {
+    background: var(--orange);
+    color: #fff;
+    box-shadow: 0 10px 26px rgba(245, 138, 6, 0.34);
+  }
+  .gmc-beta .btn-orange:hover {
+    box-shadow: 0 16px 34px rgba(245, 138, 6, 0.42);
+  }
+  .gmc-beta .btn-ghost {
+    background: #fff;
+    color: var(--navy);
+    border: 1.5px solid var(--line);
+  }
+  .gmc-beta .cta-lg {
+    font-size: 19px;
+    padding: 19px 34px;
+  }
+  .gmc-beta .cta-ghost-dark {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+  .gmc-beta .feat-cta {
+    margin-top: 32px;
+  }
+
+  /* Bandeau CTA (bleu) */
+  .gmc-beta .final {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-deep) 100%);
+    padding: 92px 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .gmc-beta .final::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(60% 70% at 82% 18%, rgba(245, 138, 6, 0.26), transparent 60%);
+  }
+  .gmc-beta .final .wrap {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+  }
+  .gmc-beta .final h2 {
+    color: #fff;
+    font-size: 58px;
+    line-height: 1.02;
+  }
+  .gmc-beta .final h2 .or {
+    color: var(--orange);
+  }
+  .gmc-beta .final p {
+    font-size: 21px;
+    color: rgba(255, 255, 255, 0.82);
+    margin: 20px auto 0;
+    max-width: 600px;
+    line-height: 1.5;
+  }
+  .gmc-beta .final .row {
+    margin-top: 38px;
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .gmc-beta .final .micro {
+    margin-top: 22px;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.04em;
+  }
+
+  /* HERO */
+  .gmc-beta .hero {
+    padding: 78px 0 90px;
+    position: relative;
+    overflow: hidden;
+  }
+  .gmc-beta .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.05fr;
+    gap: 60px;
+    align-items: center;
+  }
+  .gmc-beta h1.hero-title {
+    font-size: 46px;
+    line-height: 1.04;
+    color: var(--navy-ink);
+  }
+  .gmc-beta .hero .lead {
+    font-size: 21px;
+    line-height: 1.55;
+    color: var(--body);
+    margin: 28px 0 0;
+    max-width: 560px;
+  }
+  .gmc-beta .hero .lead b {
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .gmc-beta .hero-cta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 34px;
+    flex-wrap: wrap;
+  }
+  .gmc-beta .hero-vis {
+    position: relative;
+  }
+  .gmc-beta .hero-vis .win {
+    border-radius: 18px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid var(--line);
+    box-shadow: 0 40px 90px -26px rgba(26, 40, 80, 0.34);
+  }
+  .gmc-beta .hero-vis .bar {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .gmc-beta .hero-vis .bar .d {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+  .gmc-beta .hero-vis .bar .u {
+    flex: 1;
+    margin-left: 12px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .gmc-beta .hero-vis .win img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* FEATURES */
+  .gmc-beta section.feat {
+    padding: 104px 0;
+  }
+  .gmc-beta .feat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+  .gmc-beta .feat-grid.rev .copy {
+    order: 2;
+  }
+  .gmc-beta .feat .eyebrow {
+    color: var(--orange-deep);
+  }
+  .gmc-beta .feat h2 {
+    font-size: 46px;
+    line-height: 1.04;
+    margin: 14px 0 0;
+    color: var(--navy-ink);
+  }
+  .gmc-beta .feat p.lead {
+    font-size: 20px;
+    line-height: 1.55;
+    color: var(--body);
+    margin: 20px 0 0;
+    max-width: 500px;
+  }
+  .gmc-beta .feat .shot .win {
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid var(--line);
+    box-shadow: 0 36px 76px -28px rgba(26, 40, 80, 0.28);
+  }
+  .gmc-beta .feat .shot .bar {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .gmc-beta .feat .shot .bar .d {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .gmc-beta .feat .shot .bar .u {
+    flex: 1;
+    margin-left: 12px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .gmc-beta .feat .shot .win img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .gmc-beta .feat.alt {
+    background: var(--bg-soft);
+  }
+  .gmc-beta .d1 {
+    background: #ff5f57;
+  }
+  .gmc-beta .d2 {
+    background: #febc2e;
+  }
+  .gmc-beta .d3 {
+    background: #28c840;
+  }
+
+  /* ── Responsive (le trafic pub est majoritairement mobile) ───────────── */
+  @media (max-width: 980px) {
+    .gmc-beta .wrap {
+      padding: 0 24px;
+    }
+    .gmc-beta .hero {
+      padding: 48px 0 56px;
+    }
+    .gmc-beta .hero-grid {
+      grid-template-columns: 1fr;
+      gap: 36px;
+    }
+    .gmc-beta h1.hero-title {
+      font-size: 34px;
+    }
+    .gmc-beta .hero .lead {
+      font-size: 18px;
+      max-width: none;
+    }
+    .gmc-beta section.feat {
+      padding: 60px 0;
+    }
+    .gmc-beta .feat-grid {
+      grid-template-columns: 1fr;
+      gap: 30px;
+    }
+    .gmc-beta .feat-grid.rev .copy {
+      order: 0;
+    }
+    .gmc-beta .feat h2 {
+      font-size: 32px;
+    }
+    .gmc-beta .feat p.lead {
+      font-size: 17.5px;
+      max-width: none;
+    }
+    .gmc-beta .final {
+      padding: 56px 0;
+    }
+    .gmc-beta .final h2 {
+      font-size: 38px;
+    }
+    .gmc-beta .final p {
+      font-size: 18px;
+    }
+  }
+  @media (max-width: 560px) {
+    .gmc-beta .final h2 {
+      font-size: 31px;
+    }
+    .gmc-beta .final .row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .gmc-beta .final .row .btn {
+      justify-content: center;
+    }
+    .gmc-beta .cta-lg {
+      font-size: 17px;
+      padding: 16px 24px;
+    }
+    .gmc-beta h1.hero-title {
+      font-size: 29px;
+    }
+    .gmc-beta .hero-cta .btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+</style>

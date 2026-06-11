@@ -68,9 +68,10 @@ const jsonLd = {
     <Header />
     <main class="flex-1">
       <Hero />
-      <HowItWorks />
+      {/* Bandes de fond alternées + filets pour démarquer visuellement les sections */}
+      <div class="bg-[#EEF3FC] border-y border-[#1B3FA1]/12"><HowItWorks /></div>
       <Features />
-      <PiloteSection />
+      <div class="bg-[#F5F7FB] border-y border-gray-200"><PiloteSection /></div>
       <Pricing />
 
       <!-- Maillage interne SEO vers les landing pages GMC -->
