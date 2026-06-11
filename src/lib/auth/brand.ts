@@ -57,8 +57,8 @@ export const GMC_CONFIG: BrandConfig = {
   loginSubtitle: 'Reprenez votre chantier là où vous en étiez',
   registerTitle: 'Créer votre compte GérerMonChantier',
   registerSubtitle: 'Démarrez votre chantier piloté en 2 minutes',
-  heroPanelTitle: 'Le copilote des chantiers',
-  heroPanelText: 'Planning, artisans, devis, trésorerie — le Pilote IA orchestre tout. Vous arbitrez, il exécute.',
+  heroPanelTitle: 'Le copilote de vos chantiers',
+  heroPanelText: 'Planning, artisans, devis, trésorerie : le Pilote IA orchestre tout. Vous arbitrez, il exécute.',
   defaultRedirect: '/mon-chantier',
   homeUrl: '/',
 };
