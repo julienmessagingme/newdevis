@@ -6,6 +6,7 @@ import {
   normalizeCompanyStatus,
   computeVerdict,
   extractCompanyStatusFromCriteria,
+  extractFlagsFromCriteria,
   type VerdictFlags,
 } from "./verdictEngine";
 
@@ -194,6 +195,51 @@ const flagsRadieeOnly = computeVerdict({
 });
 check("flags.entreprise_radiee=true → refuser",                   flagsRadieeOnly.verdict, "refuser");
 check("flags.entreprise_radiee=true → is_hard_block",             flagsRadieeOnly.is_hard_block, true);
+
+// ── V3.5.12 — bug devis Dubillot Environnement : iban_suspect lit `join` ──────
+// (rouges + oranges) au lieu de `rouge` uniquement → faux hard block ROUGE
+// quand score.ts pousse en ORANGE un "IBAN étranger" ou "Format IBAN invalide".
+console.log("\n[V3.5.12 — iban_suspect ne lit QUE les criteres_rouges]");
+
+const flagsIbanOrangeOnly = extractFlagsFromCriteria(
+  [],
+  ["IBAN étranger (Belgique) - à confirmer si attendu"],
+);
+check(
+  "IBAN étranger en ORANGE seul → iban_suspect=false (pas de hard block)",
+  flagsIbanOrangeOnly.iban_suspect,
+  false,
+);
+
+const flagsIbanInvalidOrangeOnly = extractFlagsFromCriteria(
+  [],
+  ["Format IBAN invalide (erreur de saisie probable)"],
+);
+check(
+  "Format IBAN invalide en ORANGE seul → iban_suspect=false",
+  flagsIbanInvalidOrangeOnly.iban_suspect,
+  false,
+);
+
+const flagsIbanRedActual = extractFlagsFromCriteria(
+  ["IBAN frauduleux détecté — étranger confirmé après vérification"],
+  [],
+);
+check(
+  "IBAN étranger en ROUGE explicite → iban_suspect=true (hard block légitime)",
+  flagsIbanRedActual.iban_suspect,
+  true,
+);
+
+const flagsIbanRedInvalid = extractFlagsFromCriteria(
+  ["IBAN invalide (format erroné confirmé)"],
+  [],
+);
+check(
+  "IBAN invalide en ROUGE → iban_suspect=true",
+  flagsIbanRedInvalid.iban_suspect,
+  true,
+);
 
 // ── Résumé ────────────────────────────────────────────────────────────────────
 console.log(`\n${"─".repeat(40)}`);

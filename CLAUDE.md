@@ -296,7 +296,7 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
   **ENGINE_VERSION + cache invalidation automatique** : `conclusion_ia.engine_version` stocké à chaque génération. Au cache hit, si version DB ≠ `ENGINE_VERSION` constante du code → régénération forcée automatique (pas besoin de bouton "Régénérer"). À **incrémenter à chaque changement de logique scoring** (ex: 3.3 → 3.3.1).
 
-  État courant : **`ENGINE_VERSION = "3.5.11"`** (`src/pages/api/analyse/[id]/conclusion.ts`). Historique complet des versions V3.4.17 → V3.5.11 (cause racine + fix + anti-régression de chaque bump) dans [`HISTORY.md`](HISTORY.md).
+  État courant : **`ENGINE_VERSION = "3.5.12"`** (`src/pages/api/analyse/[id]/conclusion.ts`). Historique complet des versions V3.4.17 → V3.5.12 (cause racine + fix + anti-régression de chaque bump) dans [`HISTORY.md`](HISTORY.md).
 
   **Invariants ACTIFS** que toute modif scoring doit respecter (= les gardes en place qu'il ne faut PAS supprimer) :
   - **Bypass précoces dans `conclusion.ts`** (avant verdictEngine + matching catalogue), tous suivant le même pattern : `is_foreign_quote` (V3.4.14), `estimation_courtier` (V3.4.20), `hors_scope_categorie` (V3.4.28), `is_incomplete_quote` (V3.5.1). Génèrent un `ConclusionData` synthétique + bannière UI dédiée + masquage `BlockPrixMarche`.

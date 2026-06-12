@@ -625,7 +625,18 @@ export function extractFlagsFromCriteria(
     siret_invalide:              rouge.includes("siret") && (rouge.includes("invalid") || rouge.includes("inconnu")),
     absence_assurance:           rouge.includes("assurance") && rouge.includes("absente"),
     paiement_cash_suspect:       rouge.includes("espèces") || rouge.includes("especes") || rouge.includes("cash"),
-    iban_suspect:                join.includes("iban") && (join.includes("étranger") || join.includes("invalide")),
+    // V3.5.12 (2026-06-09) — Bug observé devis Dubillot Environnement : verdict
+    // ROUGE faux "IBAN étranger ou invalide" alors que le devis a 2 IBAN FR76
+    // valides. Cause : la version précédente lisait `join` (rouges + oranges)
+    // au lieu de `rouge`. score.ts (lignes 164-170) pousse en ORANGE
+    // "IBAN étranger (XX)" et "Format IBAN invalide" — comportement correct
+    // (l'IBAN étranger n'est pas un hard block, c'est juste un signal à
+    // confirmer). Mais cette ligne transformait ces oranges en hard block ROUGE.
+    // Fix : lire `rouge` UNIQUEMENT, comme tous les autres flags hard block.
+    // Anti-régression : un vrai critère rouge "IBAN frauduleux confirmé" ou
+    // équivalent reste détecté. Les oranges restent informatifs (verdict
+    // a_negocier au pire, jamais refuser).
+    iban_suspect:                rouge.includes("iban") && (rouge.includes("étranger") || rouge.includes("invalide")),
     mentions_legales_manquantes: join.includes("mentions légales") || join.includes("mentions legales"),
     acompte_excessif:            join.includes("acompte") && (join.includes("50%") || join.includes("excessif") || join.includes("30%")),
     // V3.5.6 — détection acompte CUMULÉ excessif (vs simple acompte initial).

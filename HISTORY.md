@@ -11,6 +11,30 @@ Format : chronologie inversée (récent → ancien). Chaque entrée = bug observ
 
 ---
 
+## V3.5.12 (2026-06-09) — Bug critique iban_suspect : ORANGE remontait en HARD BLOCK ROUGE
+
+**Bug observé** : devis Dubillot Environnement (CMC Des Sorinières + BPGO, 2 IBAN FR76 visibles dans le bloc "Informations de compte bancaire") — verdict ROUGE "Ce devis présente un risque élevé — ne signez pas / IBAN étranger ou invalide — risque de fraude" alors que :
+- Les 2 IBAN sont français (FR76) parfaitement valides
+- L'UI Conditions de paiement affichait paradoxalement "Aucun IBAN n'a été détecté dans le devis" — bug d'extraction OCR Gemini sur photo, séparé
+
+**Cause racine** : `verdictEngine.ts:extractFlagsFromCriteria` ligne 628 lisait `join` (= concaténation `[...criteres_rouges, ...criteres_oranges]`) au lieu de `rouge` (= criteres_rouges uniquement) pour calculer `iban_suspect`. Tous les autres flags hard block (entreprise_radiee, siret_invalide, absence_assurance, paiement_cash_suspect, acompte_cumule_excessif) lisent `rouge` correctement.
+
+Conséquence : `score.ts` lignes 164-170 pousse en ORANGE 2 critères légitimes — "IBAN étranger (Belgique) - à confirmer" et "Format IBAN invalide (erreur de saisie probable)" — sans intention de déclencher un hard block (un IBAN étranger n'est PAS frauduleux par nature, c'est juste à confirmer). Mais à cause du bug join, ces oranges devenaient des hard block ROUGE.
+
+Cas Dubillot probable : Gemini a extrait un IBAN malformé (ou aucun) depuis la photo, OpenIBAN a renvoyé `iban_valide=false` → score.ts a poussé "Format IBAN invalide" en ORANGE → verdictEngine a déclenché `iban_suspect=true` (parce que join contenait "iban" + "invalide") → hard block ROUGE.
+
+**Fix** (`verdictEngine.ts:628`) : remplacer `join.includes(...)` par `rouge.includes(...)` pour `iban_suspect`. Les autres flags `mentions_legales_manquantes` et `acompte_excessif` peuvent légitimement lire `join` car ils déclenchent `a_negocier` (pas hard block) — comportement conservé.
+
+**Anti-régression** : un vrai critère rouge explicite "IBAN frauduleux confirmé" ou "IBAN invalide (format erroné confirmé)" reste détecté. 4 nouveaux tests ajoutés dans verdictEngine.test.ts couvrant les 4 cas (orange seul ne déclenche pas / rouge déclenche).
+
+**Bug #2 non corrigé ici (extraction IBAN ratée)** : ne nécessite pas de fix code car le pipeline V3.5.12 est correctement défensif — pas d'IBAN extrait + pas de critère rouge = pas de hard block. Si Gemini OCR a foiré sur photo, on accepte la limite. Le prompt extract.ts ligne ~313 est déjà détaillé sur l'extraction IBAN multi-pages. Améliorer demanderait un retry OCR ou un fallback vision — hors scope de ce fix.
+
+Tests : 43/43 ✓ verdictEngine.test.ts (39 anciens + 4 nouveaux V3.5.12).
+
+**⚠️ Action manuelle requise après push** : redéployer la edge function. Bump ENGINE_VERSION 3.5.11 → 3.5.12 invalide le cache. Au prochain F5 sur le devis Dubillot, le verdict bascule de ROUGE à VERT/ORANGE selon les autres critères.
+
+---
+
 ## V3.5.11 (2026-06-09) — Phase 1 anti-hallucination : confidence-aware classification + audit log
 
 **Contexte** : suite à un brief utilisateur "Politique anti-hallucination pour VerifierMonDevis", audit critique du pipeline V3.5.x. La proposition initiale (taxonomie hiérarchique famille → sous-type → job type) est validée comme direction long terme mais ne résout que ~1.5 bug sur 5 parmi les bugs observés ces 10 derniers jours. La majorité des faux positifs viennent de la zone "medium confidence" (similarity 0.70-0.85) qui passe les gardes V3.5.9 mais reste sémantiquement bancale.
