@@ -77,11 +77,12 @@ Faire **un layout maître** (header logo + carte + composant bouton + footer) pu
    - Corps : annoncer la fin approche ; présenter l'offre Essentiel (12 €) ; sans engagement, résiliable en 1 clic.
    - CTA : Choisir mon offre
 
-7. **`gmc_trial_j3`** (J-3)
-   - Objet : Votre essai se termine dans 3 jours
-   - Preheader : 12 € par mois, sans engagement, résiliable quand vous voulez.
-   - Corps : urgence douce ; lever les objections (prix d'un café par semaine, sans engagement) ; rappeler ce qui est en jeu.
-   - CTA : S'abonner
+7. **`gmc_trial_j3`** (J-3) — OFFRE -50%
+   - Objet : -50% sur votre 1er mois (offre qui expire dans 3 jours)
+   - Preheader : 6 € au lieu de 12 € pour garder votre chantier, sans engagement.
+   - Corps : urgence (3 jours), l'offre **-50% sur le 1er mois** avec le prix barré **12 € → 6 €** (bien visible), sans engagement, résiliable en 1 clic ; rappeler ce qui est en jeu (lecture seule à la fin).
+   - CTA : Profiter de -50%
+   - Note dev : nécessite un coupon Stripe "1er mois -50%" + un lien de checkout qui l'applique (câblé côté Stripe en Phase 2).
 
 8. **`gmc_trial_j1`** (J-1)
    - Objet : Dernier jour : gardez votre chantier actif
