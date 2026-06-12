@@ -5,10 +5,8 @@ interface Props {
 const { compact = false } = Astro.props;
 const beacons = [
   { cx: 152, cy: 350, delay: 0 },
-  { cx: 530, cy: 360, delay: 0.5 },
-  { cx: 240, cy: 470, delay: 1.0 },
-  { cx: 200, cy: 595, delay: 1.5 },
-  { cx: 488, cy: 555, delay: 2.0 },
+  { cx: 530, cy: 360, delay: 0.6 },
+  { cx: 240, cy: 470, delay: 1.2 },
 ];
 const dots = [
   { x: 80, y: 720, d: 0.2 },
@@ -43,7 +41,7 @@ const dots = [
       fetchpriority="high"
       decoding="async"
       class="absolute inset-0 w-full h-full object-contain"
-      style="filter: contrast(1.04) saturate(1.06)"
+      style="filter: contrast(1.02) saturate(0.97)"
     />
   </picture>
 
@@ -58,7 +56,7 @@ const dots = [
         <stop offset="1" stop-color="#2563EB" />
       </linearGradient>
       <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="2" result="blur" />
+        <feGaussianBlur stdDeviation="1.3" result="blur" />
         <feMerge>
           <feMergeNode in="blur" />
           <feMergeNode in="SourceGraphic" />
@@ -162,8 +160,8 @@ const dots = [
     animation: house-ping 2.6s ease-out infinite;
   }
   @keyframes house-ping {
-    0%   { r: 7;  opacity: .9; stroke-width: 1.5; }
-    80%  { r: 26; opacity: 0;  stroke-width: 0.5; }
-    100% { r: 26; opacity: 0; }
+    0%   { r: 7;  opacity: .6; stroke-width: 1.5; }
+    80%  { r: 20; opacity: 0;  stroke-width: 0.5; }
+    100% { r: 20; opacity: 0; }
   }
 </style>

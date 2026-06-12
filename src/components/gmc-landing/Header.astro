@@ -5,7 +5,7 @@ import Logo from './Logo.astro';
 <header class="sticky top-0 z-40 backdrop-blur-md bg-white/85 border-b border-gray-100">
   <div class="max-w-[1240px] mx-auto px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-8">
     <a href="/" class="cursor-pointer shrink-0" aria-label="Gérer Mon Chantier — accueil">
-      <span class="sm:hidden"><Logo size="md" wordmark={false} /></span>
+      <span class="sm:hidden"><Logo size="sm" /></span>
       <span class="hidden sm:inline-flex"><Logo size="md" /></span>
     </a>
     <nav class="hidden md:flex items-center gap-7 text-sm font-medium text-gray-600">
@@ -20,7 +20,7 @@ import Logo from './Logo.astro';
     <a
       id="gmc-login-btn"
       href="/connexion"
-      class="inline-flex shrink-0 items-center text-sm font-semibold cursor-pointer text-gray-700 hover:text-gray-900"
+      class="hidden md:inline-flex shrink-0 items-center text-sm font-semibold cursor-pointer text-gray-700 hover:text-gray-900"
     >
       Connexion
     </a>
@@ -50,7 +50,7 @@ import Logo from './Logo.astro';
     {/* CTA principal — toujours visible */}
     <a
       href="/mon-chantier/nouveau"
-      class="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold px-3 sm:px-4 h-10 rounded-xl shadow-sm cursor-pointer transition-colors bg-[#1B3FA1] hover:bg-[#16348A] text-white whitespace-nowrap"
+      class="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold px-3 sm:px-4 h-10 rounded-xl cursor-pointer transition-colors border border-[#1B3FA1] text-[#1B3FA1] bg-white hover:bg-[#1B3FA1] hover:text-white whitespace-nowrap"
     >
       <span class="sm:hidden">Démarrer</span>
       <span class="hidden sm:inline">Démarrer mon chantier</span>
@@ -58,6 +58,29 @@ import Logo from './Logo.astro';
         <path d="M5 12h14M13 5l7 7-7 7" />
       </svg>
     </a>
+
+    <button
+      id="gmc-mobile-menu-btn"
+      type="button"
+      class="md:hidden inline-flex shrink-0 items-center justify-center w-10 h-10 -mr-1 rounded-lg text-gray-700 hover:bg-gray-100 cursor-pointer"
+      aria-label="Ouvrir le menu"
+      aria-expanded="false"
+      aria-controls="gmc-mobile-menu"
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16" />
+      </svg>
+    </button>
+  </div>
+
+  <div id="gmc-mobile-menu" class="md:hidden hidden border-t border-gray-100 bg-white/95 backdrop-blur-md">
+    <nav class="max-w-[1240px] mx-auto px-4 py-2 flex flex-col text-[15px] font-medium text-gray-700">
+      <a href="/#fonctionnalites" class="py-2.5 cursor-pointer hover:text-[#1B3FA1]">Fonctionnalités</a>
+      <a href="/#pilote" class="py-2.5 cursor-pointer hover:text-[#1B3FA1]">Pilote IA</a>
+      <a href="/#tarifs" class="py-2.5 cursor-pointer hover:text-[#1B3FA1]">Tarifs</a>
+      <a href="https://www.verifiermondevis.fr" class="py-2.5 cursor-pointer hover:text-[#1B3FA1]">VerifierMonDevis</a>
+      <a id="gmc-mobile-login" href="/connexion" class="py-2.5 cursor-pointer hover:text-[#1B3FA1] border-t border-gray-100 mt-1 pt-3">Connexion</a>
+    </nav>
   </div>
 </header>
 
@@ -77,6 +100,7 @@ import Logo from './Logo.astro';
     if (user) {
       // Hide login button, show user dropdown
       document.getElementById('gmc-login-btn')?.classList.add('hidden');
+      document.getElementById('gmc-mobile-login')?.classList.add('hidden');
       const dropdown = document.getElementById('gmc-user-dropdown');
       dropdown?.classList.remove('hidden');
 
@@ -126,5 +150,19 @@ import Logo from './Logo.astro';
   document.getElementById('gmc-signout-btn')?.addEventListener('click', async () => {
     const { signOutCrossDomain } = await import('@/lib/auth/signOut');
     await signOutCrossDomain('/');
+  });
+
+  // ── Menu mobile ──────────────────────────────────────────────────────────
+  const mobileBtn = document.getElementById('gmc-mobile-menu-btn');
+  const mobileMenu = document.getElementById('gmc-mobile-menu');
+  mobileBtn?.addEventListener('click', () => {
+    const isOpen = mobileMenu?.classList.toggle('hidden') === false;
+    mobileBtn.setAttribute('aria-expanded', String(isOpen));
+  });
+  mobileMenu?.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', () => {
+      mobileMenu.classList.add('hidden');
+      mobileBtn?.setAttribute('aria-expanded', 'false');
+    });
   });
 </script>
