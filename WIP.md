@@ -11,6 +11,28 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🟡 Activation GMC (essai 1 mois + emails) : fondation EN PROD 2026-06-12, suite à coder
+
+Parcours signup → essai → conversion. **Fondation construite, déployée, testée de bout en bout.**
+Source de vérité : [`docs/plans/2026-06-12-activation-gmc.md`](docs/plans/2026-06-12-activation-gmc.md) +
+brief emails [`docs/plans/2026-06-12-brief-emails-claude-design.md`](docs/plans/2026-06-12-brief-emails-claude-design.md).
+
+**✅ Livré / déployé :**
+- Table dédiée `gmc_subscriptions` (séparée de VMD, RLS lecture-seule user, écriture service_role) + `trial_started_at`.
+- Trigger `auth.users → gmc_create_trial_on_signup` (essai 30 j si `signup_source=gerermonchantier`, **durci EXCEPTION handler** pour ne jamais bloquer un signup) + CHECK status.
+- Edge function `gmc-on-signup` (Database Webhook sur INSERT `gmc_subscriptions`) → Resend : welcome user + notif admin (toi+Johan). HTML échappé, secret webhook optionnel `GMC_SIGNUP_SECRET`.
+- `Register.tsx` pose `signup_source` en metadata + retrait webhook MessagingMe (non fonctionnel, endpoint en no-op).
+- **Resend** : domaine `gerermonchantier.fr` vérifié (DNS OVH : DKIM `resend._domainkey`, MX/SPF sur `send`, DMARC). Expéditeur `bonjour@gerermonchantier.fr`. `RESEND_API_KEY` déjà sur le projet.
+- Pipeline testé live : signup email → ligne trial + 2 mails reçus. ✅
+
+**🔴 Bug connu (gros taf) :** flow tunnel ↔ auth cassé (3 questions posées 2×, atterrit sur login pas signup). Détail : `TODO.md` § GMC Monétisation.
+
+**🟠 Reste à coder :** `getGmcStatus` + compteur visible (bandeau + Settings) ; Stripe + coupon -50% + gates (lecture seule J30, gate 2e chantier) ; scheduler séquence emails (attend HTML Claude Design) ; `signup_source` OAuth (`callback.astro`) ; swap welcome placeholder.
+
+**⚠️ Actions manuelles cette session :** migrations appliquées via SQL Editor (table + trigger + hardening), edge function déployée (CLI), Database Webhook configuré. Historique CLI désynchronisé → `npx supabase migration repair --status applied 20260612120000 20260612130000 20260612140000` avant tout futur `db push`.
+
+---
+
 ## 🟢 Sous-planning intra-phase (premium GMC) — livré 2026-06-08, QA en attente
 
 Découpe d'un lot en **sous-phases** ordonnançables + dépendances **cross-métier** + **toggle simplifié/avancé**. Réservé premium (V1 : admin + allowlist). **Étapes 0→5 livrées, reviewées, en prod.** Doc : `DOCUMENTATION.md` § 22, `FEATURES.md` § 5, plan `docs/plans/2026-06-08-sous-planning-PLAN.md`.

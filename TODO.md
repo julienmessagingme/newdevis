@@ -342,9 +342,36 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 
 ---
 
-## GMC — Monétisation : essai gratuit 15 j + gate paywall
+## GMC — Monétisation : essai gratuit 1 mois + gate paywall
 
-> Plan d'implémentation **figé Phase 2 (2026-05-20)** — décisions ci-dessous validées par Johan, à confirmer par Julien avant attaque code (cf. message en bas du document).
+> ⚠️ **MAJ 2026-06-12 : l'implémentation a DIVERGÉ du plan figé ci-dessous.** Fondation
+> activation construite, déployée, testée de bout en bout. Source de vérité à jour =
+> [`docs/plans/2026-06-12-activation-gmc.md`](docs/plans/2026-06-12-activation-gmc.md) +
+> brief emails [`docs/plans/2026-06-12-brief-emails-claude-design.md`](docs/plans/2026-06-12-brief-emails-claude-design.md).
+> Décisions qui SUPERSÈDENT le plan figé : essai = **1 mois (30 j)** ; **table dédiée
+> `gmc_subscriptions`** (séparée de `subscriptions` VMD, avec `trial_started_at`) ; **trigger**
+> `auth.users → gmc_create_trial_on_signup` (essai créé au signup si `signup_source=gerermonchantier`) ;
+> **edge function `gmc-on-signup`** (Resend : welcome + notif admin) ; domaine `gerermonchantier.fr`
+> **vérifié sur Resend** (`bonjour@`). Le plan figé (15 j, ancre `created_at`) est obsolète pour
+> l'archi essai/trigger ; les **SKU Stripe + le paywall** restent valides.
+>
+> ### 🔴 GROS TODO À NE PAS LOUPER (2026-06-12)
+> 1. **BUG FLOW TUNNEL ↔ AUTH** (gros taf) : en cliquant "Tester gratuitement" (logged-out), on a les
+>    3 questions du tunnel AVANT auth, puis on atterrit sur l'écran **"Se connecter"** (login, PAS signup —
+>    il faut cliquer un petit lien en bas pour créer un compte), puis APRÈS création du compte le tunnel
+>    **REPOSE les 3 questions** (réponses perdues). À repenser : sans doute **auth/signup AVANT le tunnel**
+>    (signup → trigger crée l'essai → puis onboarding chantier), OU persister les réponses à travers la
+>    redirection + router vers signup (pas login).
+> 2. **STRIPE -50% (1er mois : 6 € au lieu de 12 €)** : trancher l'implémentation. Reco = **coupon Stripe
+>    `duration: once`** appliqué via la checkout (même prix 12 €/mois + coupon, PAS un produit séparé).
+>    Julien penche pour un **code réduction sur le produit** (à évaluer : plus simple ?). L'offre -50% est
+>    portée par les emails J-3, J-1, trial_ended + relance J+60 (cf. brief Claude Design).
+> 3. **Reste activation** : `getGmcStatus` + compteur essai visible (bandeau + Settings) ; Stripe complet +
+>    gates (lecture seule J30, gate 2e chantier) ; scheduler séquence emails (attend HTML Claude Design) ;
+>    `signup_source` pour Google OAuth (`callback.astro`) ; swap welcome placeholder par template Claude
+>    Design ; nettoyer endpoint `webhook-registration` no-op + `migration repair` pour l'historique CLI.
+
+> Plan d'implémentation **figé Phase 2 (2026-05-20)** — décisions ci-dessous validées par Johan, à confirmer par Julien avant attaque code (cf. message en bas du document). ⚠️ Voir MAJ ci-dessus : archi essai/trigger superseded, SKU/paywall encore valides.
 
 ### Décisions Phase 2 — non-négociables sans validation explicite
 
