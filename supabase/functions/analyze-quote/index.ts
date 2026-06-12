@@ -741,6 +741,12 @@ serve(async (req) => {
     }
 
     // Build n8n_price_data for frontend — new hierarchical format per job type
+    // V3.5.13 (2026-06-12) — propage `vectorial` (méta confidence V3.5.0) pour
+    // que conclusion.ts puisse filtrer les groupes low/no_match confidence
+    // AVANT de les envoyer à Gemini pour la génération du verdict expert.
+    // Sans ça, Gemini reçoit les groupes incertains, génère des anomalies
+    // dessus (parfois à 0€ après low_confidence_match V3.5.11) → cards
+    // résiduelles + verdict bancal. Détecté sur l'analyse Dubillot 2026-06-12.
     const n8nPriceDataForFrontend = jobTypePrices.map((jt) => ({
       job_type_label: jt.job_type_label,
       catalog_job_types: jt.catalog_job_types,
@@ -749,6 +755,10 @@ serve(async (req) => {
       devis_lines: jt.devis_lines,
       devis_total_ht: jt.devis_total_ht,
       prices: jt.prices,
+      // VectorialJobTypePriceResult ajoute optionnellement `vectorial` —
+      // cast safe : jt est typé JobTypePriceResult mais peut avoir le champ
+      // étendu en mode vectoriel (MARKET_MATCHER_VECTORIAL=on).
+      vectorial: (jt as unknown as { vectorial?: unknown }).vectorial ?? undefined,
     }));
 
     // ============ PHASE 2.5: ANALYSE PAR SEGMENT (multi-devis) ============

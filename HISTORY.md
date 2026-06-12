@@ -11,6 +11,53 @@ Format : chronologie inversée (récent → ancien). Chaque entrée = bug observ
 
 ---
 
+## V3.5.13 (2026-06-12) — Filtre confidence dans le verdict expert (anomalies à 0€)
+
+**Bug observé** : audit des 8 derniers devis a montré 3 analyses avec des anomalies affichées à 0€ dans le verdict expert :
+- DUBILLOT : "Terrassement spécifique ANC (fouilles cuve + tranchées épandage) [0€]"
+- BURGAUD : "Dépose et évacuation clôture existante [0€]"
+- GRIFFATON : 3× "Lessivage / nettoyage murs [0€]" (doublons)
+
+Ces anomalies surfaient malgré la garde V3.5.11 (`low_confidence_match`) qui downgradait visuellement les badges UI mais ne nettoyait pas les anomalies du JSON `conclusion_ia.anomalies`.
+
+**Cause architecturale** : 2 bugs en cascade.
+
+1. `index.ts:744` mappe `jobTypePrices` → `n8nPriceDataForFrontend` **sans propager le champ `vectorial`**. La méta vectorielle (confidence/top_similarity) arrivait bien côté front via `useMarketPriceAPI.processJobTypes` (autre voie) mais était perdue côté serveur dans le `priceData` consommé par `conclusion.ts`. Impossible de filtrer par confidence.
+
+2. `conclusion.ts` envoyait à Gemini le `priceData` complet (y compris les groupes en `low`/`medium`/`no_match` confidence). Gemini générait des anomalies sur ces groupes incertains. La garde V3.5.11 downgrade ensuite ces anomalies en `surcout_estime = 0` côté client, mais elles restent affichées dans la liste "Anomalies détectées" → UX bancale.
+
+**Fix en 2 étapes** :
+
+1. **Propagation `vectorial`** dans `index.ts:744` :
+```ts
+const n8nPriceDataForFrontend = jobTypePrices.map((jt) => ({
+  ...
+  vectorial: (jt as unknown as { vectorial?: unknown }).vectorial ?? undefined,
+}));
+```
+
+2. **Filtre dans `conclusion.ts`** juste après V3.4.24/V3.4.28 :
+```ts
+priceData = priceData.filter((g) => {
+  const vect = (g as any).vectorial as { confidence?: string } | undefined;
+  if (!vect) return true; // V3.6 legacy → permissif
+  return vect.confidence === "high";
+});
+```
+
+Conséquences en cascade :
+- `computeServerSurcout` ne voit plus les groupes faibles → pas de surcoût artificiel
+- Gemini ne reçoit pas ces groupes dans le prompt → ne génère pas d'anomalies dessus
+- L'UI `VectorialPriceList` continue d'afficher la card "Comparaison incertaine" via `n8n_price_data` complet (côté client, pas filtré) — cohérence préservée
+
+**Anti-régression** : pas de méta `vectorial` (mode V3.6 legacy) → garde permissive, pas de filtrage → comportement inchangé. Tests : 43/43 verdictEngine + 34/34 vectorial inchangés.
+
+**Mode dégradé** : si plus aucun groupe `high` ne reste mais que priceData était non-vide, le verdict bascule en `comparison_indicative=true` plus bas (déjà géré par les gardes existantes V3.4.17 unitMissingRatio).
+
+**⚠️ Action manuelle requise après push** : redéployer la edge function `analyze-quote`. Bump ENGINE_VERSION 3.5.12 → 3.5.13 invalide le cache. Au prochain F5 sur DUBILLOT/BURGAUD/GRIFFATON, les anomalies à 0€ disparaissent.
+
+---
+
 ## V3.5.12 (2026-06-09) — Bug critique iban_suspect : ORANGE remontait en HARD BLOCK ROUGE
 
 **Bug observé** : devis Dubillot Environnement (CMC Des Sorinières + BPGO, 2 IBAN FR76 visibles dans le bloc "Informations de compte bancaire") — verdict ROUGE "Ce devis présente un risque élevé — ne signez pas / IBAN étranger ou invalide — risque de fraude" alors que :

@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.5.12";
+const ENGINE_VERSION = "3.5.13";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -768,6 +768,64 @@ export const POST: APIRoute = async ({ params, request }) => {
     });
     if (priceData.length !== before) {
       console.log(`[conclusion] V3.4.24 — ${before - priceData.length} groupe(s) filtré(s) sur ${before}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // V3.5.13 (2026-06-12) — Filtre des groupes en faible confiance vectorielle
+  // pour la génération du verdict expert.
+  //
+  // Bug observé sur l'audit des 8 derniers devis : la garde V3.5.11
+  // (low_confidence_match) downgrade visuellement les badges UI ("⚪
+  // Comparaison incertaine" au lieu de "🔴 Anomalie marché") MAIS les
+  // anomalies restent dans `conclusion_ia.anomalies` à 0€ — typique :
+  //   - DUBILLOT : "Terrassement spécifique ANC ... [0€]"
+  //   - BURGAUD : "Dépose et évacuation clôture existante [0€]"
+  //   - GRIFFATON : 3× "Lessivage / nettoyage murs [0€]"
+  //
+  // Cause : Gemini reçoit le priceData dans le prompt verdict expert. Sur
+  // un groupe en `medium`/`low` confidence, le ratio devis/marché peut
+  // sembler aberrant (matching imprécis) → Gemini génère une "anomalie"
+  // affichée à 0€ ensuite (surcout_estime nul car le serveur a downgradé).
+  //
+  // Fix : retirer du priceData TOUT groupe dont `vectorial.confidence` ne
+  // matche pas "high". Conséquence en cascade :
+  //   - computeServerSurcout ne le voit pas → pas de surcoût artificiel
+  //   - Gemini ne le voit pas dans le prompt → pas d'anomalie générée
+  //   - L'UI continue d'afficher la card "Comparaison incertaine" via
+  //     VectorialPriceList (lit directement n8n_price_data via le client),
+  //     ce qui est cohérent et honnête.
+  //
+  // Mode dégradé : si plus aucun groupe high ne reste mais que priceData
+  // était non-vide avant, on bascule en `comparison_indicative=true` plus
+  // bas dans le flow — déjà géré par la garde V3.4.17 unitMissingRatio
+  // et les bypass précoces existants.
+  //
+  // Anti-régression : pas de méta `vectorial` (mode V3.6 legacy ou
+  // pipelines plus anciens) → garde permissive (on garde le groupe).
+  if (Array.isArray(priceData) && priceData.length > 0) {
+    const beforeConfidenceFilter = priceData.length;
+    priceData = priceData.filter((g) => {
+      if (!g || typeof g !== "object") return true;
+      const group = g as Record<string, unknown>;
+      const vect = group.vectorial as { confidence?: string } | undefined;
+      // Pas de méta vectorielle → V3.6 legacy → permissif
+      if (!vect || typeof vect !== "object") return true;
+      // Garde uniquement les matches `high` (similarity ≥ 0.85, cf. V3.5.0
+      // PHASE C thresholds). medium / low / no_match → retirés du prompt
+      // Gemini.
+      if (vect.confidence === "high") return true;
+      console.log(
+        `[conclusion] V3.5.13 groupe confidence=${vect.confidence ?? "?"} ` +
+        `retiré du verdict expert : "${group.job_type_label ?? "?"}"`,
+      );
+      return false;
+    });
+    if (priceData.length !== beforeConfidenceFilter) {
+      console.log(
+        `[conclusion] V3.5.13 — ${beforeConfidenceFilter - priceData.length} groupe(s) ` +
+        `low/medium confidence retiré(s) sur ${beforeConfidenceFilter} (verdict expert)`,
+      );
     }
   }
 
