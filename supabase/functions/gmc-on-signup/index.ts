@@ -1,12 +1,14 @@
 // ============================================================
 // GMC — gmc-on-signup
 // Declenchee par un Database Webhook Supabase sur INSERT de gmc_subscriptions.
-// Envoie via Resend : (1) la notif admin a nous, (2) le welcome au nouvel inscrit.
+// Envoie via Resend : (1) la notif admin a nous, (2) le welcome au nouvel inscrit
+// (template Claude Design `gmc_welcome` via _shared/gmc-emails.ts).
 // Resend : RESEND_API_KEY deja configuree (cf. system-alerts). Domaine
 // gerermonchantier.fr verifie => expediteur bonjour@gerermonchantier.fr.
 // ============================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { renderGmcEmail } from "../_shared/gmc-emails.ts";
 
 const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPABASE_URL    = Deno.env.get("SUPABASE_URL")!;
@@ -88,20 +90,17 @@ Deno.serve(async (req: Request) => {
        </div>`,
     );
 
-    // 2) Welcome utilisateur
-    // TODO : remplacer le HTML ci-dessous par le template `gmc_welcome` de Claude Design.
+    // 2) Welcome utilisateur — template Claude Design `gmc_welcome`.
+    // Le chantier n'est en general pas encore cree au signup => nom_chantier vide
+    // => le template retombe sur "votre chantier".
     if (email) {
-      await sendEmail(
-        [email],
-        "Bienvenue sur GererMonChantier, votre mois offert demarre",
-        `<div style="font-family:Arial,sans-serif;font-size:15px;color:#0E1730;line-height:1.6">
-           <p>Bonjour ${esc(prenom)},</p>
-           <p>Bienvenue ! Votre <b>mois d'essai gratuit</b> (sans carte bancaire) vient de demarrer.
-              Decrivez votre chantier, et votre Pilote IA structure les lots, le planning et le budget.</p>
-           <p><a href="${APP_URL}" style="display:inline-block;background:#F58A06;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:12px">Acceder a mon chantier</a></p>
-           <p style="color:#677084;font-size:13px">A tout moment, vous gardez le dernier mot.</p>
-         </div>`,
-      );
+      const { subject, html } = renderGmcEmail("gmc_welcome", {
+        prenom,
+        nom_chantier: meta.nom_chantier ?? "",
+        lien_cta: APP_URL,
+        lien_desinscription: "mailto:contact@gerermonchantier.fr?subject=Désinscription",
+      });
+      await sendEmail([email], subject, html);
     }
 
     return new Response("ok", { status: 200 });
