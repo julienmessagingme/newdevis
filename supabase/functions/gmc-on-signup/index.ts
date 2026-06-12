@@ -11,10 +11,23 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPABASE_URL    = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE    = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// Secret partage optionnel : si pose (env GMC_SIGNUP_SECRET) + header x-gmc-secret
+// configure sur la webhook, on rejette les appels non signes. Tant qu'il n'est pas
+// pose, la fonction reste ouverte (= comportement actuel, non bloquant).
+const SIGNUP_SECRET   = Deno.env.get("GMC_SIGNUP_SECRET") ?? "";
 
 const ADMIN_EMAILS = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
 const FROM         = "GererMonChantier <bonjour@gerermonchantier.fr>";
 const APP_URL      = "https://gerermonchantier.fr/mon-chantier";
+
+// Echappe les entrees utilisateur avant injection dans le HTML des emails.
+function esc(s: unknown): string {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
 
 async function sendEmail(to: string[], subject: string, html: string): Promise<void> {
   if (!RESEND_API_KEY) {
@@ -35,6 +48,11 @@ async function sendEmail(to: string[], subject: string, html: string): Promise<v
 }
 
 Deno.serve(async (req: Request) => {
+  // Auth optionnelle par secret partage (cf. SIGNUP_SECRET).
+  if (SIGNUP_SECRET && req.headers.get("x-gmc-secret") !== SIGNUP_SECRET) {
+    return new Response("unauthorized", { status: 401 });
+  }
+
   try {
     const payload = await req.json();
     // Database Webhook payload : { type:'INSERT', table:'gmc_subscriptions', record:{...} }
@@ -54,17 +72,17 @@ Deno.serve(async (req: Request) => {
     const nom    = meta.last_name ?? "";
     const source = meta.signup_source ?? payload?.record?.signup_source ?? "";
 
-    // 1) Notif admin (HTML simple, pas besoin de template design)
+    // 1) Notif admin (HTML simple, entrees user echappees)
     await sendEmail(
       ADMIN_EMAILS,
       `Nouvelle inscription GMC : ${email || "(email inconnu)"}`,
       `<div style="font-family:Arial,sans-serif;font-size:14px;color:#0E1730">
          <h2 style="margin:0 0 12px">Nouvelle inscription GererMonChantier</h2>
          <ul style="line-height:1.7;padding-left:18px">
-           <li><b>Email</b> : ${email}</li>
-           <li><b>Nom</b> : ${prenom} ${nom}</li>
-           <li><b>Telephone</b> : ${meta.phone ?? ""}</li>
-           <li><b>Source</b> : ${source}</li>
+           <li><b>Email</b> : ${esc(email)}</li>
+           <li><b>Nom</b> : ${esc(prenom)} ${esc(nom)}</li>
+           <li><b>Telephone</b> : ${esc(meta.phone)}</li>
+           <li><b>Source</b> : ${esc(source)}</li>
            <li><b>Date</b> : ${new Date().toISOString()}</li>
          </ul>
        </div>`,
@@ -77,7 +95,7 @@ Deno.serve(async (req: Request) => {
         [email],
         "Bienvenue sur GererMonChantier, votre mois offert demarre",
         `<div style="font-family:Arial,sans-serif;font-size:15px;color:#0E1730;line-height:1.6">
-           <p>Bonjour ${prenom || ""},</p>
+           <p>Bonjour ${esc(prenom)},</p>
            <p>Bienvenue ! Votre <b>mois d'essai gratuit</b> (sans carte bancaire) vient de demarrer.
               Decrivez votre chantier, et votre Pilote IA structure les lots, le planning et le budget.</p>
            <p><a href="${APP_URL}" style="display:inline-block;background:#F58A06;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:12px">Acceder a mon chantier</a></p>
