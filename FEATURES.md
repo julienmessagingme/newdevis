@@ -145,6 +145,10 @@ Tout signup envoie un champ `signup_source` (`verifiermondevis` ou `gerermonchan
 
 L'accès GMC est aujourd'hui **par allowlist hardcodée** (`src/lib/gmcAccess.ts` : julien + Johan). Quand Stripe sera prêt, sera remplacé par lecture DB (colonne `subscriptions.has_gmc_access`) avec proposition d'onboarding 15 jours gratuits.
 
+### Landing publicitaire `/beta` (acquisition pub) — live 2026-06-11
+
+Page d'atterrissage dédiée au **trafic pub** (Meta/Insta, cible particuliers travaux), servie sur `gerermonchantier.fr/beta` (`src/pages/beta.astro`). Offre « Essayez gratuitement pendant 1 mois, sans carte bancaire ». Structure : bandeau CTA navy en haut + hero « Tout votre chantier en un seul coup d'œil » + 4 sections produit (Planning IA, Comparateur de devis, Simulateur d'aides, Journal IA) avec captures, + bandeau CTA de clôture. Tous les CTA → `/mon-chantier/nouveau`. **`noindex`** (évite le duplicate avec gmc-home). Réutilise les composants `gmc-landing` (Header/Footer) ; design issu du handoff Claude Design `14_landing_gmc_v2`. Captures dans `public/images/gmc/beta/`.
+
 ---
 
 ## 1. Création d'un chantier — phase Conception
