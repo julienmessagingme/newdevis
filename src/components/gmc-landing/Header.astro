@@ -29,14 +29,14 @@ const featureMenu = [
       <span class="hidden sm:inline-flex"><Logo size="md" /></span>
     </a>
     <nav class="hidden md:flex items-center gap-7 text-sm font-medium text-gray-600">
-      <div class="relative group">
-        <a href="/#fonctionnalites" class="inline-flex items-center gap-1 cursor-pointer hover:text-gray-900">
+      <div class="relative group" id="gmc-feat-dd">
+        <a href="/#fonctionnalites" id="gmc-feat-trigger" aria-haspopup="true" aria-expanded="false" class="inline-flex items-center gap-1 cursor-pointer hover:text-gray-900">
           Fonctionnalités
-          <svg class="w-3.5 h-3.5 text-gray-400 transition-transform group-hover:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg class="w-3.5 h-3.5 text-gray-400 transition-transform group-hover:rotate-180 group-[.is-open]:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
           </svg>
         </a>
-        <div class="absolute left-1/2 -translate-x-1/2 top-full pt-3 hidden group-hover:block z-50">
+        <div class="absolute left-1/2 -translate-x-1/2 top-full pt-3 hidden group-hover:block group-[.is-open]:block z-50">
           <div class="w-[680px] bg-white rounded-2xl border border-gray-100 shadow-xl p-5 grid grid-cols-3 gap-x-6 gap-y-1">
             {featureMenu.map((col) => (
               <div>
@@ -132,6 +132,21 @@ const featureMenu = [
 </header>
 
 <script>
+  // ── Dropdown Fonctionnalités : clic = ouverture (tactile + accessibilité) ──
+  const featTrigger = document.getElementById('gmc-feat-trigger');
+  const featDd = document.getElementById('gmc-feat-dd');
+  featTrigger?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const open = featDd?.classList.toggle('is-open') === true;
+    featTrigger.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', (e) => {
+    if (featDd && !featDd.contains(e.target as Node)) {
+      featDd.classList.remove('is-open');
+      featTrigger?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
   // ── Détection user connecté + bascule UI Connexion / Espace ─────────────
   // Lit localStorage Supabase (clé `sb-*-auth-token`) au load. Si user trouvé,
   // remplace le bouton "Connexion" par le menu user (Mes chantiers + Déconnexion).

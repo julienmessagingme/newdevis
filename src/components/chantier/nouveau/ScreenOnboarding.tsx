@@ -189,7 +189,7 @@ export default function ScreenOnboarding({ onComplete, onBack }: Props) {
                   <input
                     type="date"
                     value={dateValue}
-                    min={dateMode === 'debut' ? today : undefined}
+                    min={today}
                     onChange={(e) => setDateValue(e.target.value)}
                     className="w-full bg-white/[0.05] border border-white/15 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500/60 [color-scheme:dark]"
                   />
