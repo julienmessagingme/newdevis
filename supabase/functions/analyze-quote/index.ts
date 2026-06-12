@@ -683,7 +683,10 @@ serve(async (req) => {
     // Call verifyData and market price lookup in parallel
     const [verifyResult, marketPriceResult] = await Promise.allSettled([
       verifyData(extracted, supabase),
-      lookupMarketPrices(supabase, priceWorkItems, googleApiKey, domainConfig),
+      lookupMarketPrices(supabase, priceWorkItems, googleApiKey, domainConfig, {
+        analysis_id: analysisId,
+        engine_version: "3.5.11",
+      }),
     ]);
 
     // If verifyData failed, re-throw (preserve current behavior)

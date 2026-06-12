@@ -375,6 +375,71 @@ interface LineMatchResult {
 }
 
 /**
+ * V3.5.11 Phase 1 (2026-06-09) — Contexte pour le fire-and-forget audit log.
+ *
+ * Permet d'enrichir l'écriture dans `match_audit_log` avec l'analysis_id
+ * (pour rétrocrosser les matchs d'une analyse précise) et la version du
+ * moteur (pour ne pas mélanger les calibrations entre 2 versions).
+ *
+ * Optionnel — si non fourni, on logue quand même mais avec NULL.
+ */
+export interface MatchAuditContext {
+  analysis_id?: string;
+  engine_version?: string;
+}
+
+/**
+ * Fire-and-forget write dans `match_audit_log`. Aucune Promise retournée —
+ * si l'insert échoue, on ne bloque pas le pipeline d'analyse (l'audit est
+ * du nice-to-have, pas critique).
+ *
+ * Edge functions Supabase : `EdgeRuntime.waitUntil` garantit que la promesse
+ * tourne jusqu'à terminaison même si la response a déjà été envoyée. Sans
+ * ça, Deno coupe le worker dès le `return new Response(...)`.
+ */
+function logMatchAudit(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  workItem: WorkItemFull,
+  workItemIndex: number,
+  top: SearchRpcRow | null,
+  confidence: ConfidenceTier,
+  allCandidates: VectorialCandidate[],
+  rejectedReasons: string[],
+  auditCtx?: MatchAuditContext,
+): void {
+  // deno-lint-ignore no-explicit-any
+  const globalAny = globalThis as any;
+  // Garde tests : mocks unitaires fournissent uniquement `rpc`, pas `from`.
+  // En prod le client Supabase a toujours `from` — pas de risque silencieux.
+  if (typeof supabase?.from !== "function") return;
+  const promise = supabase
+    .from("match_audit_log")
+    .insert({
+      analysis_id: auditCtx?.analysis_id ?? null,
+      line_index: workItemIndex,
+      description: workItem.description.slice(0, 500),
+      unit: workItem.unit ?? null,
+      quantity: workItem.quantity ?? null,
+      amount_ht: workItem.amount_ht ?? null,
+      top_job_type: top?.job_type ?? null,
+      top_label: top?.label ?? null,
+      top_similarity: top?.similarity ?? null,
+      confidence,
+      all_candidates: allCandidates.slice(0, 5),
+      rejected_reasons: rejectedReasons.length > 0 ? rejectedReasons : null,
+      engine_version: auditCtx?.engine_version ?? null,
+    })
+    .then(({ error }: { error: { message: string } | null }) => {
+      if (error) console.warn(`[Vectorial] audit log insert failed: ${error.message}`);
+    });
+  // Laisse Supabase tourner en arrière-plan sans bloquer la response
+  if (typeof globalAny.EdgeRuntime?.waitUntil === "function") {
+    globalAny.EdgeRuntime.waitUntil(promise);
+  }
+}
+
+/**
  * Match une ligne devis individuelle au catalogue via similarity search.
  *
  * Exporté pour les tests unitaires (mocking embed + RPC). N'a pas vocation à
@@ -386,6 +451,7 @@ export async function matchSingleLineVectorial(
   workItem: WorkItemFull,
   workItemIndex: number,
   googleApiKey: string,
+  auditCtx?: MatchAuditContext,
 ): Promise<LineMatchResult> {
   const text = buildQueryEmbeddingText(workItem);
 
@@ -477,6 +543,14 @@ export async function matchSingleLineVectorial(
       `[Vectorial] V3.5.9 all candidates rejected for "${workItem.description.slice(0, 60)}" — ` +
       rejectedReasons.slice(0, 3).join(" ; "),
     );
+    // V3.5.11 Phase 1 — logger aussi les rejets pour pouvoir mesurer la
+    // distribution des causes en prod (Phase 2 calibration des gardes)
+    logMatchAudit(
+      supabase, workItem, workItemIndex,
+      null, "no_match",
+      rows.map((r) => ({ job_type: r.job_type, label: r.label, similarity: r.similarity })),
+      rejectedReasons, auditCtx,
+    );
     return {
       workItemIndex,
       result: buildNoMatchResult(workItem, workItemIndex, "no_candidates"),
@@ -530,6 +604,9 @@ export async function matchSingleLineVectorial(
       all_candidates: allCandidates,
     },
   };
+
+  // V3.5.11 Phase 1 — fire-and-forget audit log pour analyse ex-post + Phase 2
+  logMatchAudit(supabase, workItem, workItemIndex, top, confidence, allCandidates, rejectedReasons, auditCtx);
 
   return { workItemIndex, result };
 }
@@ -587,6 +664,7 @@ export async function lookupMarketPricesVectorial(
   supabase: any,
   workItems: WorkItemFull[],
   googleApiKey: string,
+  auditCtx?: MatchAuditContext,
 ): Promise<VectorialJobTypePriceResult[]> {
   if (!workItems || workItems.length === 0) {
     return [];
@@ -612,7 +690,7 @@ export async function lookupMarketPricesVectorial(
       continue;
     }
 
-    const { result, error } = await matchSingleLineVectorial(supabase, item, i, googleApiKey);
+    const { result, error } = await matchSingleLineVectorial(supabase, item, i, googleApiKey, auditCtx);
     results.push(result);
 
     const tier = result.vectorial?.confidence ?? "no_match";

@@ -41,7 +41,25 @@ function rowToHomogeneityInput(row: JobTypeDisplayRow): HomogeneityGroupInput {
  * Cette classification a priorité sur "anomalie"/"survalue" : un poste avec
  * surface_mismatch ne peut PAS être classé en anomalie (on n'est pas comparable).
  */
-export type ItemClassification = "normal" | "legerement_eleve" | "survalue" | "anomalie" | "surface_mismatch";
+export type ItemClassification = "normal" | "legerement_eleve" | "survalue" | "anomalie" | "surface_mismatch" | "low_confidence_match";
+
+/**
+ * V3.5.11 (2026-06-09) — Seuils de confidence pour la garde anti-faux-positif.
+ *
+ * Au-dessus de HIGH (0.85), un match est considéré fiable — anomalie acceptée.
+ * Entre MEDIUM (0.70) et HIGH (0.85), c'est tiède : seules les anomalies
+ * franches (ratio > 2× max marché) restent, le reste est downgradé en
+ * `low_confidence_match` (UI : badge gris "Comparaison incertaine").
+ * Sous MEDIUM, le matcher vectoriel V3.5.0 retourne déjà `no_match` (pas de
+ * card prix marché du tout) ou `low` (déjà downgradé par les gardes V3.5.9).
+ *
+ * Cas d'origine : devis Côte Maison Travaux + Florian Miranda où les fausses
+ * anomalies "+3 150€" et "+220€" étaient toutes sur des matches similarity
+ * 0.70-0.85 que la garde lexicale V3.5.9 laissait passer mais qui restaient
+ * sémantiquement bancals.
+ */
+const CONFIDENCE_THRESHOLD_HIGH = 0.85;
+const STRONG_ANOMALY_RATIO_OVERRIDE = 2.0;
 
 /** Verdict global sur l'ensemble du devis */
 export type GlobalStatus = "correct" | "a_negocier" | "risque_eleve";
@@ -199,6 +217,13 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
         // n'est pas fiable au €/m²) mais visible dans la répartition.
         nbSurfaceMismatch++;
         break;
+      case "low_confidence_match":
+        // V3.5.11 — anomalie/survalue downgradée car match vectoriel <0.85
+        // (zone medium). Ni "normal" (pour ne pas masquer la réserve), ni
+        // "anomalie" (pour ne pas hurler sur un match incertain). Compté
+        // dans nbNormal pour ne pas polluer le verdict global.
+        nbNormal++;
+        break;
     }
   }
 
@@ -298,7 +323,44 @@ export function classifyRowEnriched(
   }
   const wasDowngradedHeterogeneous = isHeterogeneous;
 
-  // ── Garde 3 — Upgrade ligne (V3.3.2) ──────────────────────────────────────
+  // ── Garde 4 — Confidence vectorielle (V3.5.11 — 2026-06-09) ──────────────
+  //
+  // Le matcher vectoriel V3.5.0 garde aveuglément le top-1 cosine dès que
+  // similarity ≥ 0.50 (puis filtré par les gardes lexicales V3.5.9). Mais sur
+  // la zone tiède 0.70-0.85 (confidence="medium"), même après les gardes V3.5.9
+  // certains matchs restent sémantiquement bancals.
+  //
+  // Politique anti-hallucination conservatrice : on n'affiche une anomalie
+  // ROUGE que si le match est `high` (similarity ≥ 0.85) OU si le ratio prix
+  // est franchement aberrant (devis > 2× max marché — signal fort qui résiste
+  // à un match imparfait).
+  //
+  // Pour les matches `medium` ou `low` avec un ratio modéré, on bascule en
+  // `low_confidence_match` → badge UI gris "Comparaison incertaine" au lieu
+  // de "🔴 Anomalie marché". Le user voit qu'il y a une réserve, on n'invente
+  // pas d'alerte franche sur un match qu'on n'est pas sûr.
+  //
+  // Cas d'origine : devis Côte Maison Travaux + Florian Miranda où des cards
+  // rouges fausses étaient affichées sur des matchs cosine ~0.74-0.82.
+  const vectorialConfidence = row.vectorial?.confidence;
+  const topSimilarity = row.vectorial?.top_similarity ?? null;
+  const isHighConfidence =
+    vectorialConfidence === "high" ||
+    (topSimilarity !== null && topSimilarity >= CONFIDENCE_THRESHOLD_HIGH) ||
+    // Pas de méta vectorielle → pipeline legacy V3.6, on n'applique pas la garde
+    vectorialConfidence === undefined;
+
+  if (!isHighConfidence && (classification === "anomalie" || classification === "survalue")) {
+    const ratio = marketMax > 0 ? price / marketMax : 1;
+    const isStrongAnomaly = ratio >= STRONG_ANOMALY_RATIO_OVERRIDE;
+    if (!isStrongAnomaly) {
+      return "low_confidence_match";
+    }
+    // Ratio ≥ 2× max marché → l'anomalie est trop évidente pour être rejetée
+    // par le seul argument de confidence. On garde "anomalie".
+  }
+
+  // ── Garde 5 — Upgrade ligne (V3.3.2) ──────────────────────────────────────
   // Si une ligne individuelle du groupe dépasse > 1.5× le prix unitaire max
   // marché, on upgrade le groupe en "anomalie" même si le total semble normal.
   // (Pas appliqué si downgrade hétérogène — la comparaison serait fausse pour

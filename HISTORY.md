@@ -11,6 +11,48 @@ Format : chronologie inversée (récent → ancien). Chaque entrée = bug observ
 
 ---
 
+## V3.5.11 (2026-06-09) — Phase 1 anti-hallucination : confidence-aware classification + audit log
+
+**Contexte** : suite à un brief utilisateur "Politique anti-hallucination pour VerifierMonDevis", audit critique du pipeline V3.5.x. La proposition initiale (taxonomie hiérarchique famille → sous-type → job type) est validée comme direction long terme mais ne résout que ~1.5 bug sur 5 parmi les bugs observés ces 10 derniers jours. La majorité des faux positifs viennent de la zone "medium confidence" (similarity 0.70-0.85) qui passe les gardes V3.5.9 mais reste sémantiquement bancale.
+
+**Phase 1 livrée** (ce commit) — Quick wins déterministes :
+
+1. **Nouveau type de classification `low_confidence_match`** dans `quoteGlobalAnalysis.ts` (`ItemClassification`). Une anomalie/survalue est downgradée vers ce statut si :
+   - `vectorial.confidence !== "high"` (similarity < 0.85)
+   - ET le ratio prix devis/marché_max < 2.0 (sinon "anomalie franche" → conservée)
+   - Seuils : `CONFIDENCE_THRESHOLD_HIGH=0.85`, `STRONG_ANOMALY_RATIO_OVERRIDE=2.0`
+
+2. **Affichage UI badge gris "⚪ Comparaison incertaine"** dans `BlockPrixMarche.tsx` avec tooltip "Le matching avec notre catalogue n'est pas suffisamment précis pour qualifier l'écart d'anomalie. Comparaison à interpréter avec réserve." Compté dans `nbNormal` pour ne pas polluer le verdict global.
+
+3. **Nouvelle table `match_audit_log`** (`supabase/migrations/20260609_001_match_audit_log.sql`). Capture chaque match (high/medium/low/no_match) avec :
+   - description, unit, quantity, amount_ht de la ligne devis
+   - top_job_type, top_label, top_similarity du match retenu
+   - confidence tier final
+   - top-5 candidats (transparence pour rétro-analyse)
+   - rejected_reasons (si gardes V3.5.9 ont rejeté)
+   - engine_version
+
+4. **Écriture fire-and-forget** dans `matchSingleLineVectorial` via `EdgeRuntime.waitUntil`. Aucun blocage du pipeline d'analyse si l'insert échoue (audit = nice-to-have). Garde tolérance test : `if (typeof supabase?.from !== "function") return` pour ne pas casser les mocks unitaires existants.
+
+5. **Propagation `analysis_id` + `engine_version`** depuis `index.ts` → `lookupMarketPrices` → `lookupMarketPricesVectorial` → `matchSingleLineVectorial`. Permet de rétrocrosser les matchs d'une analyse précise.
+
+**Tests** : 39/39 verdictEngine + 34/34 vectorial inchangés. Mock supabase rendu tolérant aux call `from()` (matcher) pour ne pas casser les 5 cas de test qui ne mockaient que `rpc()`.
+
+**Effet sur les bugs observés** :
+- Côte Maison Travaux (carrelage fourniture matché à pose) : ancien match similarity ~0.78 (medium) → désormais `low_confidence_match` → badge gris au lieu de rouge ✓
+- Florian Miranda (échafaudage halluciné sur logistique) : déjà résolu V3.5.9 garde lexical, badge inchangé ✓
+- Faux positifs résiduels zone medium : tous downgradés → 0 fausse alerte rouge
+
+**Phase 2 — Taxonomie hiérarchique** : plan dormant écrit dans `docs/plans/2026-06-09-taxonomie-hierarchique-anti-hallucination.md`. À déclencher après 2-3 semaines de prod (≥ 2000 entrées dans `match_audit_log`) si ≥ 5 faux positifs nouveaux signalés par utilisateur. 7 sous-phases identifiées (A→G), 12-15 jours-homme total. Critères de gate documentés.
+
+**⚠️ Action manuelle requise après push** :
+1. Appliquer migration : `npx supabase db push --linked`
+2. Redéployer edge function : `git pull origin main && npx supabase functions deploy analyze-quote --project-ref vhrhgsqxwvouswjaiczn`
+
+Bump ENGINE_VERSION 3.5.10 → 3.5.11 invalide le cache `conclusion_ia` → au prochain F5 sur analyses existantes, les anomalies sur zone medium passent en "Comparaison incertaine".
+
+---
+
 ## V3.5.10 (2026-06-09) — Garde structurelle lignes titre de section
 
 Audit utilisateur sur "devis ano analyse.pdf" (Florian Miranda, 3 710 € HT). Devis avec structure hiérarchique :

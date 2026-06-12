@@ -899,6 +899,7 @@ export async function lookupMarketPrices(
   workItems: WorkItemFull[],
   googleApiKey: string,
   config: DomainConfig,
+  auditCtx?: { analysis_id?: string; engine_version?: string },
 ): Promise<JobTypePriceResult[]> {
   if (!workItems || workItems.length === 0) {
     return [];
@@ -915,6 +916,7 @@ export async function lookupMarketPrices(
         supabase,
         workItems,
         googleApiKey,
+        auditCtx,
       );
       // Le shape VectorialJobTypePriceResult étend JobTypePriceResult avec `vectorial`
       // — cast safe puisqu'il ajoute uniquement un champ optionnel.

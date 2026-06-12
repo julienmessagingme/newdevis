@@ -214,7 +214,7 @@ interface AnalysisCardProps {
    * u/forfait sur prestation surfacique sans surface précisée → badge JAUNE
    * "Surface à vérifier" au lieu d'accuser "Anomalie marché" sans fondement.
    */
-  globalBadge?: "anomalie" | "survalue" | "surface_mismatch" | null;
+  globalBadge?: "anomalie" | "survalue" | "surface_mismatch" | "low_confidence_match" | null;
 }
 
 const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
@@ -260,6 +260,18 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
                 title="Facturé en unité/forfait sans surface précisée — la comparaison au prix marché n'est pas fiable. Demandez la surface en m² à l'artisan pour valider."
               >
                 🟡 Surface à vérifier
+              </span>
+            )}
+            {/* V3.5.11 — low confidence match : badge gris neutre. Le matching
+                catalogue n'est pas suffisamment certain (similarity 0.70-0.85)
+                pour qualifier l'écart prix d'anomalie franche. On affiche la
+                réserve plutôt que de fabriquer une fausse alerte rouge. */}
+            {globalBadge === "low_confidence_match" && (
+              <span
+                className="inline-block px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap text-slate-600 bg-slate-100 border border-slate-200 dark:text-slate-300 dark:bg-slate-800/40 dark:border-slate-700"
+                title="Le matching avec notre catalogue marché n'est pas suffisamment précis pour qualifier l'écart d'anomalie. Comparaison à interpréter avec réserve."
+              >
+                ⚪ Comparaison incertaine
               </span>
             )}
           </div>
@@ -691,6 +703,7 @@ const BlockPrixMarche = ({
               const cls = classifyRow(row);
               const globalBadge =
                 cls === "surface_mismatch" ? "surface_mismatch"
+                : cls === "low_confidence_match" ? "low_confidence_match"
                 : cls === "anomalie" ? "anomalie"
                 : cls === "survalue" ? "survalue"
                 : null;
