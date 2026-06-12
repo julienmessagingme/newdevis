@@ -91,11 +91,12 @@ Faire **un layout maître** (header logo + carte + composant bouton + footer) pu
    - CTA : Profiter de -50%
    - Note dev : même coupon Stripe "1er mois -50%" que `gmc_trial_j3` (offre cohérente J-3 → J-1).
 
-9. **`gmc_trial_ended`** (J0 de fin / J30)
-   - Objet : Votre essai est terminé, réactivez en 1 clic
-   - Preheader : Vos données sont conservées, votre chantier vous attend.
-   - Corps : ton non culpabilisant ; chantier en lecture seule, tout est sauvegardé ; réactivation immédiate.
-   - CTA : Réactiver mon chantier
+9. **`gmc_trial_ended`** (J0 de fin / J30) — OFFRE -50%
+   - Objet : Votre essai est terminé, reprenez à -50% sur le 1er mois
+   - Preheader : Vos données sont conservées. 6 € au lieu de 12 € pour réactiver.
+   - Corps : ton non culpabilisant ; chantier en lecture seule, tout est sauvegardé ; **offre -50% sur le 1er mois** (prix barré **12 € → 6 €**) pour réactiver maintenant ; réactivation immédiate.
+   - CTA : Réactiver à -50%
+   - Note dev : même coupon Stripe "1er mois -50%".
 
 10. **`gmc_winback_1`** (J+3)
     - Objet : Votre chantier vous attend
@@ -103,11 +104,18 @@ Faire **un layout maître** (header logo + carte + composant bouton + footer) pu
     - Corps : relance légère ; rappeler la valeur ; réactivation simple.
     - CTA : Réactiver
 
-11. **`gmc_winback_2`** (J+7, dernier)
+11. **`gmc_winback_2`** (J+7)
     - Objet : On garde votre chantier encore un peu
-    - Preheader : Dernière occasion de reprendre votre suivi.
-    - Corps : dernière relance honnête ; éventuellement demander un retour (pourquoi pas convaincu).
+    - Preheader : Reprenez votre suivi quand vous voulez.
+    - Corps : relance honnête ; éventuellement demander un retour (pourquoi pas convaincu).
     - CTA : Réactiver / Donner mon avis
+
+11bis. **`gmc_winback_offer`** (≈ J+60, ~1 mois après la fin d'essai) — OFFRE -50%
+    - Objet : On vous remet -50% sur votre 1er mois
+    - Preheader : Votre chantier est toujours là. 6 € au lieu de 12 €.
+    - Corps : relance espacée (~1 mois après le non-renouvellement) ; re-proposer l'offre **-50% sur le 1er mois** (prix barré **12 € → 6 €**) ; rappeler la valeur ; réactivation simple. Dernière relance commerciale de la séquence.
+    - CTA : Reprendre à -50%
+    - Note dev : même coupon Stripe "1er mois -50%". Programmé par le scheduler sur les users dont l'essai s'est terminé sans conversion il y a ~30 jours.
 
 **Comportementaux (événementiels) :**
 

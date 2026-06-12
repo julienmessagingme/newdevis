@@ -83,9 +83,10 @@ Le **welcome (J0)** et les emails **événementiels** (confirmation paiement, é
 | J23 (J-7) | `gmc_trial_j7` | Plus que 7 jours d'essai gratuit | Annoncer la fin, montrer l'offre (12 €) | Choisir mon offre |
 | J27 (J-3) | `gmc_trial_j3` | Votre essai se termine dans 3 jours | Pousser la conversion, lever les objections (sans engagement, résiliable) | S'abonner |
 | J29 (J-1) | `gmc_trial_j1` | Dernier jour : gardez votre chantier actif | Rappeler ce qu'il perd (lecture seule) | S'abonner |
-| J30 | `gmc_trial_ended` | Votre essai est terminé, réactivez en 1 clic | Convertir à l'expiration | Réactiver |
+| J30 | `gmc_trial_ended` | Votre essai est terminé, reprenez à -50% | Convertir à l'expiration (offre -50%) | Réactiver à -50% |
 | J33 (J+3) | `gmc_winback_1` | Votre chantier vous attend | Récupérer | Réactiver |
-| J37 (J+7) | `gmc_winback_2` | On garde votre chantier encore un peu | Dernière relance, puis stop | Réactiver |
+| J37 (J+7) | `gmc_winback_2` | On garde votre chantier encore un peu | Relance | Réactiver |
+| J60 (~1 mois apres fin d'essai) | `gmc_winback_offer` | On vous remet -50% sur votre 1er mois | Derniere relance commerciale (offre -50%) | Reprendre a -50% |
 
 **Triggers comportementaux (en plus du calendrier, événementiels) :**
 - 2e chantier tenté → `gmc_upsell_multi` : "Pilotez tous vos chantiers avec l'offre Multi" (25 €).
