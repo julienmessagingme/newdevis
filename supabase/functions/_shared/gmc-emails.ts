@@ -12,7 +12,7 @@
 // images bloquees (contrainte du brief).
 // ============================================================
 
-const LOGO_ICON_URL = "https://gerermonchantier.fr/email/logo-gmc-icon.png";
+const LOGO_ICON_URL = "https://www.gerermonchantier.fr/email/logo-gmc-icon.png";
 
 // ─── Variables disponibles ────────────────────────────────────────────────────
 export interface GmcEmailVars {
@@ -485,9 +485,9 @@ export function renderGmcEmail(
     date_fin_essai: escText(vars.date_fin_essai ?? "bientôt"),
     date_renouvellement: escText(vars.date_renouvellement ?? "prochainement"),
     montant: escText(vars.montant ?? "12 €"),
-    lien_cta: escAttr(vars.lien_cta ?? "https://gerermonchantier.fr/mon-chantier"),
+    lien_cta: escAttr(vars.lien_cta ?? "https://www.gerermonchantier.fr/mon-chantier"),
     lien_desinscription: escAttr(vars.lien_desinscription ?? "mailto:contact@gerermonchantier.fr?subject=Désinscription"),
-    lien_mentions: escAttr(vars.lien_mentions ?? "https://gerermonchantier.fr/mentions-legales"),
+    lien_mentions: escAttr(vars.lien_mentions ?? "https://www.gerermonchantier.fr/mentions-legales"),
     lien_avis: escAttr(vars.lien_avis ?? "mailto:contact@gerermonchantier.fr?subject=Mon%20avis%20GMC"),
   };
 

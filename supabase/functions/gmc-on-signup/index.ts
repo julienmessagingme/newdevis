@@ -20,7 +20,7 @@ const SIGNUP_SECRET   = Deno.env.get("GMC_SIGNUP_SECRET") ?? "";
 
 const ADMIN_EMAILS = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
 const FROM         = "GererMonChantier <bonjour@gerermonchantier.fr>";
-const APP_URL      = "https://gerermonchantier.fr/mon-chantier";
+const APP_URL      = "https://www.gerermonchantier.fr/mon-chantier";
 
 // Echappe les entrees utilisateur avant injection dans le HTML des emails.
 function esc(s: unknown): string {
