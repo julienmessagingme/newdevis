@@ -36,6 +36,8 @@ Table `subscriptions` existante : `user_id, status ('active'|'inactive'|'trial')
 
 Gating côté front via `usePremium` + un garde serveur sur les routes d'action (`requireActiveOrTrial`).
 
+**Offre de conversion -50% (emails J-3 et J-1)** : on pousse une réduction de 50% sur le 1er mois (6 € au lieu de 12 €). Côté Stripe, le plus propre = **un seul prix récurrent (12 €/mois) + un coupon "1er mois -50%"** (`duration: once`, appliqué sur la facture initiale via la checkout session), PAS un produit/prix séparé. Donc ce n'est pas "des produits Stripe différents" : c'est le même prix + un coupon. Le CTA des emails J-3/J-1 pointe vers une checkout qui applique ce coupon. À câbler dans la partie Stripe.
+
 ## 4. Tunnel d'onboarding (refactor)
 
 Aujourd'hui : 1 seul écran (`ScreenOnboarding.tsx`) avec 3 questions, et la réponse mono/multi est **collectée mais jamais utilisée**. Flux réel : Onboarding → Prompt (description + budget) → Generating → Cockpit.

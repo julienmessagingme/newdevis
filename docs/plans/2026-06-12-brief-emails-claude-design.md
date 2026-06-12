@@ -84,11 +84,12 @@ Faire **un layout maître** (header logo + carte + composant bouton + footer) pu
    - CTA : Profiter de -50%
    - Note dev : nécessite un coupon Stripe "1er mois -50%" + un lien de checkout qui l'applique (câblé côté Stripe en Phase 2).
 
-8. **`gmc_trial_j1`** (J-1)
-   - Objet : Dernier jour : gardez votre chantier actif
-   - Preheader : Demain, votre chantier passe en lecture seule.
-   - Corps : dernier rappel ; expliquer factuellement ce qui se passe demain (lecture seule, données conservées).
-   - CTA : S'abonner maintenant
+8. **`gmc_trial_j1`** (J-1) — OFFRE -50% (dernier rappel)
+   - Objet : Dernier jour pour -50% sur votre 1er mois
+   - Preheader : Demain, votre chantier passe en lecture seule. 6 € au lieu de 12 €.
+   - Corps : dernière chance ; rappeler l'offre **-50% sur le 1er mois** (prix barré **12 € → 6 €**) qui expire avec l'essai ; expliquer factuellement ce qui se passe demain (lecture seule, données conservées) ; sans engagement.
+   - CTA : Profiter de -50%
+   - Note dev : même coupon Stripe "1er mois -50%" que `gmc_trial_j3` (offre cohérente J-3 → J-1).
 
 9. **`gmc_trial_ended`** (J0 de fin / J30)
    - Objet : Votre essai est terminé, réactivez en 1 clic
