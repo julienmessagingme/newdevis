@@ -44,29 +44,12 @@ export const POST: APIRoute = async ({ request }) => {
     ? body.signup_source
     : 'verifiermondevis';
 
-  try {
-    const res = await fetch("https://ai.messagingme.app/api/iwh/25a2bb855e30cf49b1fc2aac9697478c", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: "user_registered",
-        email,
-        phone: body.phone || "",
-        first_name: body.first_name || "",
-        last_name: body.last_name || "",
-        accept_commercial: body.accept_commercial ?? false,
-        source: "inscription",
-        signup_source: signupSource,
-        registered_at: new Date().toISOString(),
-      }),
-    });
-
-    if (!res.ok) {
-      console.error('[webhook-registration] MessagingMe responded:', res.status);
-    }
-  } catch (e) {
-    console.error('[webhook-registration] Webhook error:', (e as Error).message);
-  }
+  // 2026-06-12 — Webhook MessagingMe RETIRÉ (bricolage initial non fonctionnel).
+  // Les side-effects d'inscription (essai GMC + emails welcome / notif admin) passent
+  // désormais côté serveur : trigger DB sur auth.users + edge function Resend.
+  // Endpoint conservé en no-op pour ne pas casser l'appel encore présent dans
+  // callback.astro (à nettoyer une fois le flux serveur en place).
+  void email; void signupSource;
 
   return new Response(
     JSON.stringify({ success: true }),

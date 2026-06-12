@@ -83,6 +83,7 @@ const Register = ({ brand }: Props) => {
     let redirecting = false;
     setLoading(true);
 
+    const signupSource = config.brand === "gmc" ? "gerermonchantier" : "verifiermondevis";
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -93,6 +94,9 @@ const Register = ({ brand }: Props) => {
             last_name: lastName,
             phone: countryCode + phoneLocal,
             accept_commercial_offers: acceptCommercial,
+            // Persisté dans les metadata user : lu par le trigger DB pour créer
+            // l'essai GMC et router les emails (welcome / notif admin) côté serveur.
+            signup_source: signupSource,
           },
         },
       });
@@ -104,25 +108,8 @@ const Register = ({ brand }: Props) => {
           toast.error(error.message);
         }
       } else {
-        // Send webhook via server-side API route (await to ensure it fires before redirect)
-        const phoneFormatted = countryCode + phoneLocal;
-        const signupSource = config.brand === "gmc" ? "gerermonchantier" : "verifiermondevis";
-        try {
-          await fetch("/api/webhook-registration", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email,
-              phone: phoneFormatted,
-              first_name: firstName,
-              last_name: lastName,
-              accept_commercial: acceptCommercial,
-              signup_source: signupSource,
-            }),
-          });
-        } catch {
-          // Non-blocking: don't prevent redirect if webhook fails
-        }
+        // Side-effects d'inscription (essai GMC + emails welcome/admin) gérés côté
+        // serveur : trigger DB sur auth.users + Resend. Webhook MessagingMe retiré 2026-06-12.
 
         // V3.4.3 — tracking event critique pour mesurer la conversion top of funnel.
         // Comparé à `redirect_to_inscription` dans GA4/Amplitude, on obtient le ratio
