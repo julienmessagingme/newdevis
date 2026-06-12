@@ -488,7 +488,7 @@ export function renderGmcEmail(
     lien_cta: escAttr(vars.lien_cta ?? "https://www.gerermonchantier.fr/mon-chantier"),
     lien_desinscription: escAttr(vars.lien_desinscription ?? "mailto:contact@gerermonchantier.fr?subject=Désinscription"),
     lien_mentions: escAttr(vars.lien_mentions ?? "https://www.gerermonchantier.fr/mentions-legales"),
-    lien_avis: escAttr(vars.lien_avis ?? "mailto:contact@gerermonchantier.fr?subject=Mon%20avis%20GMC"),
+    lien_avis: escAttr(vars.lien_avis ?? "https://www.gerermonchantier.fr/avis"),
   };
 
   const sub = (tpl: string): string =>

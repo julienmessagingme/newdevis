@@ -1,0 +1,152 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Logo from '@/components/gmc-landing/Logo.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+const reasons = [
+  "C'était trop cher",
+  "Je n'ai pas eu le temps de tester",
+  "Il manquait des fonctionnalités",
+  "Trop compliqué à prendre en main",
+  "Mon chantier est terminé ou annulé",
+  "Autre",
+];
+---
+
+<BaseLayout
+  title="Votre avis sur GérerMonChantier"
+  description="Deux questions, 30 secondes. Votre retour nous aide à améliorer GérerMonChantier."
+  noindex={true}
+  noChatWidget={true}
+>
+  <main class="min-h-screen bg-[#F5F7FB] flex flex-col">
+    <div class="flex-1 w-full max-w-xl mx-auto px-4 py-10 sm:py-16">
+      <a href="/" class="inline-flex mb-8" aria-label="Gérer Mon Chantier, accueil"><Logo size="md" /></a>
+
+      <div id="avis-card" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8">
+        <span class="inline-block text-[11px] font-bold uppercase tracking-[0.14em] text-[#F58A06] mb-2">Votre avis</span>
+        <h1 class="text-2xl sm:text-3xl font-bold text-[#0E1730] tracking-tight">Aidez-nous à progresser</h1>
+        <p class="text-gray-500 mt-2 text-[15px] leading-relaxed">Deux questions, 30 secondes. Votre retour compte vraiment, qu'il soit bon ou mauvais.</p>
+
+        <form id="avis-form" class="mt-7 space-y-7">
+          <fieldset class="border-0 p-0 m-0">
+            <legend class="text-sm font-semibold text-[#0E1730] mb-3">Qu'est-ce qui vous a fait hésiter&nbsp;?</legend>
+            <div class="flex flex-col gap-2">
+              {reasons.map((r) => (
+                <button
+                  type="button"
+                  data-reason={r}
+                  class="reason-chip text-left rounded-xl border border-gray-200 px-4 py-3 text-[14px] text-gray-700 hover:border-[#1B3FA1]/40 hover:bg-[#F5F7FB] transition-colors cursor-pointer"
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <div>
+            <label for="avis-comment" class="block text-sm font-semibold text-[#0E1730] mb-2">Qu'est-ce qui vous aurait convaincu&nbsp;?</label>
+            <textarea
+              id="avis-comment"
+              rows="4"
+              maxlength="2000"
+              placeholder="Votre réponse (facultatif)"
+              class="w-full rounded-xl border border-gray-200 px-4 py-3 text-[14px] text-gray-800 outline-none focus:border-[#1B3FA1]/60 resize-none"
+            ></textarea>
+          </div>
+
+          <div>
+            <label for="avis-email" class="block text-sm font-semibold text-[#0E1730] mb-2">
+              Votre email <span class="font-normal text-gray-400">(si vous acceptez qu'on vous recontacte)</span>
+            </label>
+            <input
+              id="avis-email"
+              type="email"
+              inputmode="email"
+              autocomplete="email"
+              placeholder="votre@email.com"
+              class="w-full rounded-xl border border-gray-200 px-4 py-3 text-[14px] text-gray-800 outline-none focus:border-[#1B3FA1]/60"
+            />
+          </div>
+
+          <button
+            type="submit"
+            id="avis-submit"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#F58A06] hover:bg-[#E47C00] text-white font-semibold h-12 text-[15px] transition-colors disabled:opacity-60"
+          >
+            Envoyer mon avis
+          </button>
+          <p id="avis-error" class="hidden text-sm text-red-600 text-center"></p>
+        </form>
+      </div>
+
+      <div id="avis-success" class="hidden bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[#1FB664]/12 mb-4">
+          <svg class="w-7 h-7 text-[#1FB664]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        </div>
+        <h2 class="text-xl font-bold text-[#0E1730]">Merci, c'est noté.</h2>
+        <p class="text-gray-500 mt-2 text-[15px]">Votre retour nous aide vraiment à améliorer GérerMonChantier.</p>
+        <a href="https://www.gerermonchantier.fr/" class="inline-flex mt-6 text-[#1B3FA1] font-semibold text-sm hover:underline">Retour à l'accueil</a>
+      </div>
+    </div>
+    <Footer />
+  </main>
+
+  <script>
+    (function () {
+      const form = document.getElementById('avis-form');
+      const chips = Array.prototype.slice.call(document.querySelectorAll('.reason-chip'));
+      let selected: string | null = null;
+      const params = new URLSearchParams(window.location.search);
+      const src = params.get('src') || 'page';
+
+      const SEL = ['border-[#1B3FA1]', 'bg-[#EFF4FF]', 'text-[#1B3FA1]', 'font-semibold'];
+      const IDLE = ['border-gray-200', 'text-gray-700'];
+
+      chips.forEach((c: Element) => {
+        c.addEventListener('click', () => {
+          selected = c.getAttribute('data-reason');
+          chips.forEach((x: Element) => { x.classList.remove(...SEL); x.classList.add(...IDLE); });
+          c.classList.remove(...IDLE);
+          c.classList.add(...SEL);
+        });
+      });
+
+      form?.addEventListener('submit', (e: Event) => {
+        e.preventDefault();
+        const comment = (document.getElementById('avis-comment') as HTMLTextAreaElement).value.trim();
+        const email = (document.getElementById('avis-email') as HTMLInputElement).value.trim();
+        const errEl = document.getElementById('avis-error') as HTMLElement;
+        if (!selected && !comment) {
+          errEl.textContent = 'Choisissez une raison ou laissez un commentaire.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        errEl.classList.add('hidden');
+        const btn = document.getElementById('avis-submit') as HTMLButtonElement;
+        btn.disabled = true;
+        btn.textContent = 'Envoi…';
+
+        fetch('/api/gmc-feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: src, reason: selected, comment: comment, email: email }),
+        })
+          .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
+          .then(() => {
+            (document.getElementById('avis-card') as HTMLElement).style.display = 'none';
+            document.getElementById('avis-success')?.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          })
+          .catch(() => {
+            btn.disabled = false;
+            btn.textContent = 'Envoyer mon avis';
+            errEl.textContent = 'Une erreur est survenue. Réessayez dans un instant.';
+            errEl.classList.remove('hidden');
+          });
+      });
+    })();
+  </script>
+</BaseLayout>
