@@ -85,33 +85,33 @@ export const prerender = false;
       const isNewUser = Math.abs(lastSignIn - created) < 30_000;
 
       if (isNewUser) {
-        // Fire webhook for new Google signups
-        const meta = user.user_metadata || {};
-        const signupSource = detectBrandFromHost(window.location.hostname) === "gmc"
-          ? "gerermonchantier"
-          : "verifiermondevis";
+        const brand = detectBrandFromHost(window.location.hostname);
+        const signupSource = brand === "gmc" ? "gerermonchantier" : "verifiermondevis";
+
         // Meta Pixel — conversion "inscription" pour les comptes créés via Google OAuth.
         // Sans ça, les inscriptions Google n'étaient PAS comptées comme conversion : le pixel
         // n'existait que dans le flux email (Register.tsx). no-op si cookies refusés.
         trackPixel('CompleteRegistration', { content_name: signupSource });
-        try {
-          await fetch("/api/webhook-registration", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: user.email,
-              phone: "",
-              first_name: meta.full_name?.split(" ")[0] || meta.name || "",
-              last_name: meta.full_name?.split(" ").slice(1).join(" ") || "",
-              accept_commercial: false,
-              signup_source: signupSource,
-            }),
-          });
-        } catch {
-          // Non-blocking
+
+        // GMC : l'inscription Google ne passe PAS par le trigger SQL d'essai (signup_source
+        // est absent des métadonnées OAuth, fournies par Google). On crée donc l'essai côté
+        // serveur ici → l'INSERT déclenche le webhook welcome + l'entrée dans la séquence.
+        if (brand === "gmc") {
+          try {
+            await fetch("/api/gmc-ensure-trial", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+          } catch {
+            // Non bloquant : la connexion aboutit même si la création d'essai échoue.
+          }
         }
-        // Laisser au pixel (requête GET) le temps de partir avant la redirection
-        // performPostLoginRedirect (hard navigation) — même précaution anti-race que Register.tsx.
+
+        // Laisser au pixel (requête GET) le temps de partir avant la redirection dure
+        // performPostLoginRedirect — même précaution anti-race que Register.tsx.
         await new Promise(r => setTimeout(r, 400));
       }
 

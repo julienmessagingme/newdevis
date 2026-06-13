@@ -103,7 +103,8 @@ Deno.serve(async (req: Request) => {
 
     const { data: ud } = await sb.auth.admin.getUserById(s.user_id as string);
     const email = ud?.user?.email ?? "";
-    const prenom = (ud?.user?.user_metadata?.first_name as string) ?? "";
+    const um = (ud?.user?.user_metadata ?? {}) as Record<string, string>;
+    const prenom = (um.first_name || (um.full_name || um.name || "").split(" ")[0] || "").trim();
 
     let nomChantier = "";
     const { data: ch } = await sb

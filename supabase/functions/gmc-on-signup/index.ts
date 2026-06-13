@@ -70,7 +70,7 @@ Deno.serve(async (req: Request) => {
     const user   = data.user;
     const email  = user.email ?? "";
     const meta   = (user.user_metadata ?? {}) as Record<string, string>;
-    const prenom = meta.first_name ?? "";
+    const prenom = (meta.first_name || (meta.full_name || meta.name || "").split(" ")[0] || "").trim();
     const nom    = meta.last_name ?? "";
     const source = meta.signup_source ?? payload?.record?.signup_source ?? "";
 
