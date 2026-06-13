@@ -130,7 +130,8 @@ const Register = ({ brand }: Props) => {
         // Sans ce délai, la navigation annule la requête en vol et `CompleteRegistration`
         // n'atteint jamais Meta (contrairement à `Lead`, qui fire sur une page où l'utilisateur
         // reste). ~400 ms = imperceptible côté UX, suffisant pour que la requête quitte le navigateur.
-        const destination = returnTo || "/tableau-de-bord";
+        // returnTo validé en chemin local uniquement (anti open-redirect).
+        const destination = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/tableau-de-bord";
         redirecting = true;
         window.setTimeout(() => {
           window.location.href = destination;
@@ -204,7 +205,11 @@ const Register = ({ brand }: Props) => {
           })()}
 
           <div className="mb-6">
-            <GoogleSignInButton />
+            <GoogleSignInButton redirectAfter={(() => {
+              if (typeof window === "undefined") return undefined;
+              const rt = new URLSearchParams(window.location.search).get("returnTo");
+              return rt && rt.startsWith("/") && !rt.startsWith("//") ? rt : undefined;
+            })()} />
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border" />
