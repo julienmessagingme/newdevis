@@ -107,7 +107,7 @@ function getRelevantSuggestions(description: string): SuggestionRule[] {
 interface ScreenPromptProps {
   onGenerate: (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm, budgetCible?: number | null) => void;
   isLoading?: boolean;
-  /** Decision budget prise au tunnel : 'has_budget' (montant demande) ou 'estimate'
+  /** Décision budget prise au tunnel : 'has_budget' (montant demandé) ou 'estimate'
    *  (le Pilote estime). Quand fournie, on n'affiche plus le choix budget ici. */
   initialBudgetMode?: 'has_budget' | 'estimate';
   /** Retour vers les questions du tunnel (au lieu de quitter vers /mon-chantier). */
@@ -291,8 +291,8 @@ export default function ScreenPrompt({ onGenerate, isLoading = false, initialBud
                 </div>
                 <p className="text-[12px] text-gray-500 mt-1 ml-6">
                   {budgetMode === 'estimate'
-                    ? 'Fourchette indicative, a affiner avec vos devis.'
-                    : "Sans repere chiffre, l'IA ne peut pas s'aligner sur votre realite."}
+                    ? 'Fourchette indicative, à affiner avec vos devis.'
+                    : "Sans repère chiffré, l'IA ne peut pas s'aligner sur votre réalité."}
                 </p>
               </div>
               <div className="px-5 py-4 space-y-3">
