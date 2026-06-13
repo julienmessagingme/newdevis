@@ -301,7 +301,7 @@ function PlanningBubble({
 // ── DashboardHome ─────────────────────────────────────────────────────────────
 
 function DashboardHome({
-  lots, documents, docsByLot, displayMin, displayMax, budgetReel, refinedBreakdown, onAffineBudget,
+  lots, documents, docsByLot, displayMin, displayMax, budgetReel, contactsCount, refinedBreakdown, onAffineBudget,
   onGoToLot, onAddDoc, onGoToAssistant, onGoToTresorerie, onGoToDocuments, onGoToPlanning,
   onAddIntervenant, chantierId, token, urgentActions, budget,
 }: {
@@ -314,6 +314,7 @@ function DashboardHome({
   displayMin: number;
   displayMax: number;
   budgetReel?: number | null;
+  contactsCount?: number;
   refinedBreakdown: BreakdownItem[];
   onAffineBudget: () => void;
   onAddDevisForLot: (lotId: string) => void;
@@ -535,9 +536,9 @@ function DashboardHome({
   const hasBudget = !!(budgetReel && budgetReel > 0);
   const setupSteps = [
     { label: 'Chantier créé', done: true,            cta: '',                    onCta: () => {} },
-    { label: 'Saisir les artisans',   done: lots.length > 0, cta: 'Ajouter un artisan',  onCta: onAddIntervenant },
+    { label: 'Saisir les artisans',   done: (contactsCount ?? 0) > 0, cta: 'Ajouter un artisan',  onCta: onAddIntervenant },
     { label: 'Ajouter les devis',     done: hasDevis,        cta: 'Importer un devis',   onCta: onAddDoc },
-    { label: 'Valider le budget', done: hasBudget,       cta: 'Définir le budget',   onCta: onAffineBudget },
+    { label: 'Valider le budget', done: hasBudget || refinedBreakdown.length > 0, cta: 'Définir le budget',   onCta: onAffineBudget },
   ];
   const doneCount  = setupSteps.filter(s => s.done).length;
   const activeIdx  = setupSteps.findIndex(s => !s.done);

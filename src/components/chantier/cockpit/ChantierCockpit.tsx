@@ -144,6 +144,20 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
 
+  // ── Contacts (carnet) — signal "Saisir les artisans" du stepper de démarrage ──
+  // Vide à la création (les lots IA ne comptent pas) ; > 0 dès qu'un vrai artisan
+  // est ajouté (contact manuel) ou extrait d'un devis uploadé.
+  const [contactsCount, setContactsCount] = useState(0);
+  useEffect(() => {
+    if (!chantierId || !token) return;
+    let cancelled = false;
+    fetch('/api/chantier/' + chantierId + '/contacts', { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d) setContactsCount((d.contacts ?? []).length); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [chantierId, token, documents.length]);
+
   // ── Budget réconcilié (API) — source unique des compteurs "à régler" ──────
   // L'API budget déduit les paiements Échéancier : une facture 'recue' soldée
   // via l'échéancier a a_payer = 0. Évite l'incohérence accueil ↔ Trésorerie.
@@ -391,6 +405,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
             displayMin={displayMin}
             displayMax={displayMax}
             budgetReel={budgetReel}
+            contactsCount={contactsCount}
             refinedBreakdown={refinedBreakdown}
             onAffineBudget={() => { setShowBudgetDetail(true); setAffineBudgetModal(true); }}
             onAddDevisForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'devis' })}
