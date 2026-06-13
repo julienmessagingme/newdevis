@@ -60,6 +60,9 @@ export const POST: APIRoute = async ({ request }) => {
     estimationSignaux: result.estimationSignaux  ?? null,
     // True = l'utilisateur a fixé son enveloppe cible ; false = estimation IA à affiner.
     budgetUserDefined: result.budgetUserDefined === true,
+    // Estimation top-line de l'IA : affichée comme fourchette indicative quand
+    // l'utilisateur n'a pas fixé de budget cible (la colonne budget reste null).
+    budgetTotal: result.budgetTotal ?? 0,
   });
 
   // Créer le chantier.

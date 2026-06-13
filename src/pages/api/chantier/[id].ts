@@ -226,7 +226,8 @@ export const GET: APIRoute = async ({ params, request }) => {
     nom: String(chantier.nom ?? ''),
     emoji: String(chantier.emoji ?? '🏗️'),
     typeProjet: (chantier.type_projet as ChantierIAResult['typeProjet']) ?? 'autre',
-    budgetTotal: budget,
+    // Cible utilisateur si fixée (colonne budget), sinon estimation IA (metadonnees).
+    budgetTotal: budget > 0 ? budget : safeNumber(meta.budgetTotal),
     mensualite: chantier.mensualite ? safeNumber(chantier.mensualite) : undefined,
     dureeCredit: chantier.duree_credit ? safeNumber(chantier.duree_credit) : undefined,
     // Metadonnees avec fallbacks
