@@ -106,6 +106,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
   const [refinedBreakdown, setRefinedBreakdown] = useState<BreakdownItem[]>((initialBudgetAffine?.breakdown ?? []) as BreakdownItem[]);
   const [affineBudgetModal, setAffineBudgetModal] = useState(false);
   const [showAddIntervenant, setShowAddIntervenant] = useState(false);
+  const [contactsAutoOpen, setContactsAutoOpen] = useState(false);
   const displayMin = refinedRangeMin ?? baseRangeMin;
   const displayMax = refinedRangeMax ?? baseRangeMax;
 
@@ -417,7 +418,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
             onGoToAssistant={() => navigateTo('assistant')}
             onGoToTresorerie={() => navigateTo('tresorerie')}
             onGoToDocuments={() => navigateTo('documents')}
-            onAddIntervenant={() => setShowAddIntervenant(true)}
+            onAddIntervenant={() => { setContactsAutoOpen(true); navigateTo('contacts'); }}
             onDeleteLot={deleteLot}
             onDeleteDoc={handleDeleteDoc}
             onGoToDiy={() => navigateTo('diy')}
@@ -476,7 +477,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
       case 'contacts':
         return chantierId && token ? (
-          <ContactsSection chantierId={chantierId} token={token} />
+          <ContactsSection chantierId={chantierId} token={token} autoOpenAdd={contactsAutoOpen} onAutoOpenConsumed={() => setContactsAutoOpen(false)} />
         ) : null;
 
       case 'messagerie':

@@ -45,6 +45,9 @@ interface Lot {
 interface Props {
   chantierId: string;
   token: string;
+  /** Ouvre directement le formulaire "Nouveau contact" au montage (depuis "Ajouter un artisan"). */
+  autoOpenAdd?: boolean;
+  onAutoOpenConsumed?: () => void;
 }
 
 // ── Unified contact row ─────────────────────────────────────────────────────
@@ -66,7 +69,7 @@ interface UnifiedContact {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-export default function ContactsSection({ chantierId, token }: Props) {
+export default function ContactsSection({ chantierId, token, autoOpenAdd, onAutoOpenConsumed }: Props) {
   const [contacts, setContacts]               = useState<Contact[]>([]);
   const [analyseArtisans, setAnalyseArtisans] = useState<AnalyseArtisan[]>([]);
   const [lots, setLots]                       = useState<Lot[]>([]);
@@ -91,6 +94,11 @@ export default function ContactsSection({ chantierId, token }: Props) {
   }, [chantierId, token]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
+
+  // Ouverture directe du formulaire depuis "Ajouter un artisan" (dashboard).
+  useEffect(() => {
+    if (autoOpenAdd) { setEditContact(null); setShowForm(true); onAutoOpenConsumed?.(); }
+  }, [autoOpenAdd, onAutoOpenConsumed]);
 
   // Auto-persist : quand des contacts DB ont email/tél enrichis depuis l'analyse, les sauvegarder
   useEffect(() => {
@@ -223,11 +231,26 @@ export default function ContactsSection({ chantierId, token }: Props) {
   async function handleSave(form: {
     nom: string; email: string; telephone: string; siret: string;
     role: string; contact_category?: string; lot_id: string; notes: string;
+    newLotName?: string;
     contactId?: string; source?: string; devis_id?: string; analyse_id?: string;
   }) {
     setSaving(true);
     let lotId = form.lot_id;
     const cat = form.contact_category ?? 'artisan';
+
+    // Création d'un lot à la volée (option "+ Créer un nouveau lot" du sélecteur).
+    if (lotId === '__new__') {
+      const name = (form.newLotName ?? '').trim();
+      lotId = '';
+      if (name) {
+        const r = await fetch('/api/chantier/' + chantierId + '/lots', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nom: name }),
+        });
+        if (r.ok) { const nl = await r.json(); lotId = nl.lot?.id ?? nl.id ?? ''; }
+      }
+    }
 
     // Auto-create virtual lot for architecte/MOE/BET if no lot selected
     if (['architecte', 'maitre_oeuvre', 'bureau_etudes'].includes(cat) && !lotId) {
@@ -592,6 +615,7 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
   onSave: (form: {
     nom: string; email: string; telephone: string; siret: string;
     role: string; contact_category?: string; lot_id: string; notes: string;
+    newLotName?: string;
     contactId?: string; source?: string; devis_id?: string; analyse_id?: string;
   }) => void;
   onClose: () => void;
@@ -606,12 +630,14 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
     contact?.dbContact?.contact_category ?? (contact as any)?.contact_category ?? 'artisan'
   );
   const [lotId, setLotId]         = useState(contact?.lotId ?? '');
+  const [newLotName, setNewLotName] = useState('');
   const [notes, setNotes]         = useState(contact?.dbContact?.notes ?? '');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     onSave({
       nom, email, telephone, siret, role, contact_category: category, lot_id: lotId, notes,
+      newLotName: lotId === '__new__' ? newLotName : undefined,
       ...(isEdit ? { contactId: contact!.id } : {}),
       // If creating from a devis-sourced contact, link it
       ...(!isEdit && contact?.devisId ? {
@@ -735,6 +761,7 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
                     <span className="ml-auto text-[10px] text-gray-400 italic">défini par le devis</span>
                   </div>
                 ) : (
+                  <>
                   <select
                     value={lotId} onChange={e => setLotId(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 bg-white"
@@ -743,7 +770,16 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
                     {lots.map(l => (
                       <option key={l.id} value={l.id}>{l.nom}</option>
                     ))}
+                    <option value="__new__">+ Créer un nouveau lot…</option>
                   </select>
+                  {lotId === '__new__' && (
+                    <input
+                      type="text" value={newLotName} onChange={e => setNewLotName(e.target.value)}
+                      autoFocus placeholder="Nom du nouveau lot (ex: Terrassement)"
+                      className="mt-2 w-full border border-blue-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                    />
+                  )}
+                  </>
                 )}
                 {linkedToDevis && (
                   <p className="text-[11px] text-gray-400 mt-1">
@@ -771,7 +807,7 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
               className="px-4 py-3 sm:py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors touch-manipulation min-h-[44px]">
               Annuler
             </button>
-            <button type="submit" disabled={saving || !nom.trim()}
+            <button type="submit" disabled={saving || !nom.trim() || (lotId === '__new__' && !newLotName.trim())}
               className="px-5 py-3 sm:py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors flex items-center justify-center gap-2 touch-manipulation min-h-[44px]">
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isEdit ? 'Enregistrer' : 'Ajouter'}
