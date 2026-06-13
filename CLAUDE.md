@@ -385,6 +385,8 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 ### Edge functions
 
+- **GMC activation (2026-06-12/13)** : `gmc-on-signup` (Database Webhook sur INSERT `gmc_subscriptions` → welcome + notif admin via Resend), `gmc-ensure-trial` (API route, crée l'essai des inscrits Google OAuth), `gmc-email-scheduler` (cron pg_cron **08:00 UTC, jobid 31** → emails d'engagement essai J1/J3/J7/J14, dédup `gmc_email_log`). Templates email dans `supabase/functions/_shared/gmc-emails.ts`. ⚠️ Migrations GMC appliquées en SQL direct → `migration repair` requis avant tout `db push` (cf. `WIP.md`).
+
 - **Logs — fuites de secrets** : les `catch` blocks peuvent logger des objets Error contenant des clés API ou Bearer tokens. Solution : toujours `error.message` (pas l'objet complet) + masquer avec regex `Bearer\s+[a-zA-Z0-9_.-]+` → `Bearer ***`.
 
 - **Helper partagé `_shared/gemini-fetch.ts` (2026-05-09)** : tout nouveau call Gemini doit passer par `fetchGeminiWithRetry()` (retry 429/5xx + backoff exponentiel + jitter + timeout dur) ou `fetchWithTimeout()` (timeout sans retry). Ne pas faire de `fetch()` brut sur `generativelanguage.googleapis.com` — un 429 transitoire fait abandonner silencieusement. Exception documentée : `extract.ts` utilise un AbortController custom car chaque tentative ~40s vs budget Supabase 60s. Quand on étend l'agent-orchestrator (5 fetchs Gemini), utiliser `maxAttempts: 2` max pour respecter le budget time par tour.

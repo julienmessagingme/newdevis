@@ -11,27 +11,23 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
-## 🟡 Activation GMC (essai 1 mois + emails) : fondation EN PROD 2026-06-12, suite à coder
+## 🟡 Activation GMC (essai 1 mois + emails + tunnel) : fondation + engagement + tunnel EN PROD, conversion à venir (Stripe)
 
-Parcours signup → essai → conversion. **Fondation construite, déployée, testée de bout en bout.**
-Source de vérité : [`docs/plans/2026-06-12-activation-gmc.md`](docs/plans/2026-06-12-activation-gmc.md) +
-brief emails [`docs/plans/2026-06-12-brief-emails-claude-design.md`](docs/plans/2026-06-12-brief-emails-claude-design.md).
+Parcours "Tester gratuitement" → inscription → tunnel → cockpit → essai → emails. **Fondation, séquence d'engagement et tunnel auth-first EN PROD.** Source de vérité : [`docs/plans/2026-06-12-activation-gmc.md`](docs/plans/2026-06-12-activation-gmc.md) + brief emails [`docs/plans/2026-06-12-brief-emails-claude-design.md`](docs/plans/2026-06-12-brief-emails-claude-design.md).
 
-**✅ Livré / déployé :**
-- Table dédiée `gmc_subscriptions` (séparée de VMD, RLS lecture-seule user, écriture service_role) + `trial_started_at`.
-- Trigger `auth.users → gmc_create_trial_on_signup` (essai 30 j si `signup_source=gerermonchantier`, **durci EXCEPTION handler** pour ne jamais bloquer un signup) + CHECK status.
-- Edge function `gmc-on-signup` (Database Webhook sur INSERT `gmc_subscriptions`) → Resend : welcome user + notif admin (toi+Johan). HTML échappé, secret webhook optionnel `GMC_SIGNUP_SECRET`.
-- `Register.tsx` pose `signup_source` en metadata + retrait webhook MessagingMe (non fonctionnel, endpoint en no-op).
-- **Resend** : domaine `gerermonchantier.fr` vérifié (DNS OVH : DKIM `resend._domainkey`, MX/SPF sur `send`, DMARC). Expéditeur `bonjour@gerermonchantier.fr`. `RESEND_API_KEY` déjà sur le projet.
-- Pipeline testé live : signup email → ligne trial + 2 mails reçus. ✅
-- **21 templates email** Claude Design portés dans `supabase/functions/_shared/gmc-emails.ts` (layout maître email-safe + substitution `{{vars}}` + défauts). Welcome (`gmc_welcome`) câblé sur `gmc-on-signup`, EN PROD. Logo GMC hébergé (`public/email/logo-gmc-icon.png`).
-- **Enquête "votre avis"** : page `/avis` + `POST /api/gmc-feedback` + table `gmc_feedback`, live et testée. CTA "Donner mon avis" des emails (winback_2, goodbye) branchés dessus.
+**✅ Livré / EN PROD :**
+- Table `gmc_subscriptions` (RLS lecture-seule user) + trigger `auth.users → gmc_create_trial_on_signup` (essai 30 j si `signup_source=gerermonchantier`, durci EXCEPTION).
+- **Emails** : 21 templates Claude Design dans `supabase/functions/_shared/gmc-emails.ts` (module Deno pur, email-safe, substitution `{{vars}}`, logo GMC hébergé `public/email/logo-gmc-icon.png`). Welcome (`gmc_welcome`) câblé sur `gmc-on-signup`. Resend domaine `gerermonchantier.fr` vérifié, expéditeur `bonjour@`.
+- **Scheduler engagement** : edge function `gmc-email-scheduler` + cron pg_cron quotidien 08:00 UTC (jobid 31) + table `gmc_email_log` (dédup log-first). Envoie J1 `gmc_activate` / J3 `gmc_value_features` / J7 `gmc_trust` / J14 `gmc_midtrial`, vers le cockpit, **sans Stripe**.
+- **OAuth Google** : `/auth/callback` crée l'essai via `/api/gmc-ensure-trial` (service_role, vérifie le JWT, INSERT idempotent → webhook welcome + séquence). `webhook-registration` (no-op MessagingMe) supprimé. Fallback prénom depuis `full_name`.
+- **Tunnel auth-first** : `NouveauChantier` gate la session au montage → non-connecté → `/inscription?returnTo=…` (inscription, PAS connexion) → revient au tunnel une seule fois. CTA header "Tester gratuitement" → `/mon-chantier/nouveau`. `Register` honore `returnTo` (email + Google) + garde anti open-redirect (chemin local only).
+- **Tunnel cohérent** : budget = 1 seule question (Q2 `hasBudget` pilote `ScreenPrompt`) ; retour écran description → revient aux questions en préservant les réponses (prop `initial`) ; estimation IA persistée (`metadonnees.budgetTotal`, lue en repli) + affichée ; stepper sur de vraies actions (Saisir les artisans = carnet de contacts non vide ; Valider le budget = budget défini ou affiné).
+- **"Ajouter un artisan"** ouvre le formulaire contact (rattacher à un lot + créer un lot à la volée). `AddIntervenantModal` devient dormant.
+- **Enquête "votre avis"** : page `/avis` + `POST /api/gmc-feedback` + table `gmc_feedback`. CTA "Donner mon avis" des emails branchés.
 
-**🔴 Bug connu (gros taf) :** flow tunnel ↔ auth cassé (3 questions posées 2×, atterrit sur login pas signup). Détail : `TODO.md` § GMC Monétisation.
+**🟠 Reste (Phase B, avec Stripe) :** intégration Stripe (coupon -50% `duration:once` OU code promo, à trancher) + **emails conversion/winback/payant** (J-7/J-3/J-1/fin, winback, paid_welcome/renewal/dunning/goodbye) déclenchés par le scheduler/webhooks Stripe + **gates** (lecture seule J30, **gate 2e chantier** = bloquer/rediriger en gratuit) + `getGmcStatus` + compteur essai visible. Voir `TODO.md` § GMC Monétisation.
 
-**🟠 Reste à coder :** `getGmcStatus` + compteur visible (bandeau + Settings) ; Stripe + coupon -50% + gates (lecture seule J30, gate 2e chantier) ; **scheduler séquence emails** (les 21 templates sont prêts, reste l'ENVOI programmé : cron essai J1/J3/J7/J14/J-7/J-3/J-1/J30 + dédup, webhooks Stripe pour la série payant, déclencheurs comportementaux) ; `signup_source` OAuth (`callback.astro`, sinon les inscrits Google n'ont ni essai ni welcome).
-
-**⚠️ Actions manuelles cette session :** migrations appliquées via SQL Editor (table + trigger + hardening), edge function déployée (CLI), Database Webhook configuré. Historique CLI désynchronisé → `npx supabase migration repair --status applied 20260612120000 20260612130000 20260612140000 20260612150000` avant tout futur `db push`. Table `gmc_feedback` créée en SQL direct (rejoint ce lot à réparer). Notif admin de `/avis` : dépend de `RESEND_API_KEY` côté Vercel (à confirmer ; sinon les avis restent quand même stockés en base).
+**⚠️ Ops :** `RESEND_API_KEY` à ajouter côté **Vercel** pour la notif `/avis` (présente sur Supabase, absente sur Vercel → notif muette, avis quand même stockés). Migrations GMC en SQL direct → `npx supabase migration repair --status applied 20260612120000 20260612130000 20260612140000 20260612150000 20260613090000` avant tout `db push`. Nettoyer `AddIntervenantModal` (dormant).
 
 ---
 

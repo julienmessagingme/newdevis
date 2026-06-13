@@ -358,21 +358,20 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 > ### 🔴 GROS TODO À NE PAS LOUPER (2026-06-12)
 >
 > 🔴 **GATE MULTI-CHANTIER (confirmé 2026-06-13)** : en version gratuite (essai = 1 chantier), créer un **2e chantier** doit être **bloqué**, OU rediriger vers une page d'abonnement à l'option payante "multi-chantier". **Aujourd'hui ce n'est PAS bloqué** (un user gratuit peut créer plusieurs chantiers). À câbler avec Stripe (gate basé sur `gmc_subscriptions` : status/plan). La Q1 du tunnel (mono/multi) sert de signal d'intention + message "gratuit = 1 chantier" (on garde la question pour ça, on ne la retire pas).
-> 1. **BUG FLOW TUNNEL ↔ AUTH** (gros taf) : en cliquant "Tester gratuitement" (logged-out), on a les
->    3 questions du tunnel AVANT auth, puis on atterrit sur l'écran **"Se connecter"** (login, PAS signup —
->    il faut cliquer un petit lien en bas pour créer un compte), puis APRÈS création du compte le tunnel
->    **REPOSE les 3 questions** (réponses perdues). À repenser : sans doute **auth/signup AVANT le tunnel**
->    (signup → trigger crée l'essai → puis onboarding chantier), OU persister les réponses à travers la
->    redirection + router vers signup (pas login).
+> 1. ✅ **FAIT (2026-06-13)** : tunnel **auth-first**. Au clic "Tester gratuitement" (déconnecté) → écran
+>    **inscription** (plus connexion) → après création du compte, les 3 questions du tunnel s'affichent
+>    **une seule fois** (réponses préservées au retour). CTA header → `/mon-chantier/nouveau`. Inscriptions
+>    Google embarquées aussi (essai + welcome). Détail : `WIP.md` § Activation GMC.
 > 2. **STRIPE -50% (1er mois : 6 € au lieu de 12 €)** : trancher l'implémentation. Reco = **coupon Stripe
 >    `duration: once`** appliqué via la checkout (même prix 12 €/mois + coupon, PAS un produit séparé).
 >    Julien penche pour un **code réduction sur le produit** (à évaluer : plus simple ?). L'offre -50% est
 >    portée par les emails J-3, J-1, trial_ended + relance J+60 (cf. brief Claude Design).
-> 3. **Reste activation** : `getGmcStatus` + compteur essai visible (bandeau + Settings) ; Stripe complet +
->    gates (lecture seule J30, gate 2e chantier) ; **scheduler séquence emails** (les 21 templates Claude Design
->    sont FAITS dans `_shared/gmc-emails.ts`, welcome live ; reste l'ENVOI : cron essai J1→J30 + dédup, webhooks
->    Stripe série payant, déclencheurs comportementaux) ; `signup_source` Google OAuth (`callback.astro`) ;
->    nettoyer endpoint `webhook-registration` no-op + `migration repair` (lot 12/13/14/15) pour l'historique CLI.
+> 3. **Reste activation (Phase B, Stripe)** : intégration **Stripe** + **gates** (lecture seule J30, gate 2e
+>    chantier) ; **emails conversion/winback/payant** (J-7/J-3/J-1/fin, winback, paid_welcome/renewal/dunning/
+>    goodbye) déclenchés par le scheduler/webhooks Stripe ; `getGmcStatus` + compteur essai visible ;
+>    `RESEND_API_KEY` sur **Vercel** (notif /avis) ; nettoyer `AddIntervenantModal` + `migration repair`
+>    (lot 12/13/14/15 + 0613090000). ✅ FAIT cette session : scheduler engagement (J1/J3/J7/J14) live, OAuth
+>    Google, tunnel auth-first + cohérent, budget estimation affiché, enquête /avis.
 
 > Plan d'implémentation **figé Phase 2 (2026-05-20)** — décisions ci-dessous validées par Johan, à confirmer par Julien avant attaque code (cf. message en bas du document). ⚠️ Voir MAJ ci-dessus : archi essai/trigger superseded, SKU/paywall encore valides.
 
