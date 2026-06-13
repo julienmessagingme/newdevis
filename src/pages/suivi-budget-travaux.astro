@@ -23,7 +23,7 @@ const faqs = [
 ];
 
 const jsonLd = [
-  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Suivi budget travaux — GérerMonChantier", "description": "Logiciel de suivi budget travaux pour particuliers. Prévu vs engagé vs décaissé en temps réel, trésorerie projetée 14 semaines, alertes dépassement.", "applicationCategory": "FinanceApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/suivi-budget-travaux", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Suivi budget travaux — GérerMonChantier", "description": "Logiciel de suivi budget travaux pour particuliers. Prévu vs engagé vs décaissé en temps réel, trésorerie projetée 14 semaines, alertes dépassement.", "applicationCategory": "FinanceApplication", "operatingSystem": "Web", "url": "https://www.gerermonchantier.fr/suivi-budget-travaux", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
   { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
 ];
 ---
@@ -31,11 +31,11 @@ const jsonLd = [
 <BaseLayout
   title="Suivi budget travaux : maîtrisez chaque euro de votre chantier"
   description="Logiciel de suivi budget travaux. Prévu vs engagé vs décaissé temps réel, trésorerie projetée, alertes dépassement. 15 jours d'essai libre."
-  canonical="https://gerermonchantier.fr/suivi-budget-travaux"
+  canonical="https://www.gerermonchantier.fr/suivi-budget-travaux"
   ogType="website"
   siteName="GérerMonChantier"
   jsonLd={jsonLd}
-  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Suivi budget travaux", url: "https://gerermonchantier.fr/suivi-budget-travaux" }]}
+  breadcrumbs={[{ name: "Accueil", url: "https://www.gerermonchantier.fr/" }, { name: "Suivi budget travaux", url: "https://www.gerermonchantier.fr/suivi-budget-travaux" }]}
 >
   <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
     <Header />

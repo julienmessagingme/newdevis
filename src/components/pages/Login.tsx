@@ -72,7 +72,7 @@ const Login = ({ brand }: Props) => {
         description={`Connectez-vous à votre compte ${config.name}.`}
         canonical={
           config.brand === "gmc"
-            ? "https://gerermonchantier.fr/connexion"
+            ? "https://www.gerermonchantier.fr/connexion"
             : "https://www.verifiermondevis.fr/connexion"
         }
       />

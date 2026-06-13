@@ -373,7 +373,7 @@ const AnalysisResult = () => {
   // Le backHref pointe vers gmc.fr en absolu pour le cas chantier (fallback si
   // JS désactivé). Le onClick fait le SSO handoff propre via navigateToGmc.
   const backHref = fromChantier && chantierId
-    ? `https://gerermonchantier.fr/mon-chantier/${chantierId}`
+    ? `https://www.gerermonchantier.fr/mon-chantier/${chantierId}`
     : isPermanent ? "/tableau-de-bord" : "/";
   const backLabel = fromChantier && chantierId
     ? "Retour au chantier"

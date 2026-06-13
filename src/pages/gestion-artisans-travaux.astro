@@ -23,7 +23,7 @@ const faqs = [
 ];
 
 const jsonLd = [
-  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Gestion artisans travaux — GérerMonChantier", "description": "Logiciel pour gérer artisans, devis et coordination de chantier. Vérification fiabilité auto + messagerie centralisée + planning partagé.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/gestion-artisans-travaux", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Gestion artisans travaux — GérerMonChantier", "description": "Logiciel pour gérer artisans, devis et coordination de chantier. Vérification fiabilité auto + messagerie centralisée + planning partagé.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://www.gerermonchantier.fr/gestion-artisans-travaux", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
   { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
 ];
 ---
@@ -31,11 +31,11 @@ const jsonLd = [
 <BaseLayout
   title="Gestion artisans travaux : coordonnez tout sans stress"
   description="Logiciel de gestion artisans pour chantier rénovation. Vérification fiabilité, messagerie centralisée, planning partagé. 15 jours d'essai libre."
-  canonical="https://gerermonchantier.fr/gestion-artisans-travaux"
+  canonical="https://www.gerermonchantier.fr/gestion-artisans-travaux"
   ogType="website"
   siteName="GérerMonChantier"
   jsonLd={jsonLd}
-  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Gestion artisans travaux", url: "https://gerermonchantier.fr/gestion-artisans-travaux" }]}
+  breadcrumbs={[{ name: "Accueil", url: "https://www.gerermonchantier.fr/" }, { name: "Gestion artisans travaux", url: "https://www.gerermonchantier.fr/gestion-artisans-travaux" }]}
 >
   <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
     <Header />

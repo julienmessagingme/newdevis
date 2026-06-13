@@ -99,7 +99,7 @@ const Header = () => {
           <div className="flex items-center gap-3">
             {isAdmin && (
               <a
-                href="https://gerermonchantier.fr/mon-chantier"
+                href="https://www.gerermonchantier.fr/mon-chantier"
                 onClick={async (e) => {
                   e.preventDefault();
                   const lastId = typeof window !== 'undefined' ? localStorage.getItem('lastChantierId') : null;
@@ -201,7 +201,7 @@ const Header = () => {
             </a>
             {isAdmin && (
               <a
-                href="https://gerermonchantier.fr/mon-chantier"
+                href="https://www.gerermonchantier.fr/mon-chantier"
                 onClick={async (e) => {
                   e.preventDefault();
                   setMobileMenuOpen(false);

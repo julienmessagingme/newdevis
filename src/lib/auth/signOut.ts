@@ -45,7 +45,7 @@ export async function signOutCrossDomain(redirectTo: string = '/'): Promise<void
   const isGmcOrigin = GMC_HOST_RE.test(window.location.hostname);
   const otherOrigin = isGmcOrigin
     ? 'https://www.verifiermondevis.fr'
-    : 'https://gerermonchantier.fr';
+    : 'https://www.gerermonchantier.fr';
   const returnUrl = `${window.location.origin}${redirectTo}`;
   window.location.href = `${otherOrigin}/auth/clear-session?return=${encodeURIComponent(returnUrl)}`;
 }

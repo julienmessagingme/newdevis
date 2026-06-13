@@ -174,7 +174,7 @@ const Dashboard = () => {
         {/* Mon Chantier CTA — SSO handoff vers gerermonchantier.fr pour les
             utilisateurs allowlistés ; fallback "bientôt" pour les autres. */}
         <a
-          href={hasGmcAccess(user?.email) ? "https://gerermonchantier.fr/mon-chantier" : "/mon-chantier/bientot"}
+          href={hasGmcAccess(user?.email) ? "https://www.gerermonchantier.fr/mon-chantier" : "/mon-chantier/bientot"}
           onClick={async (e) => {
             if (!hasGmcAccess(user?.email)) return;
             e.preventDefault();

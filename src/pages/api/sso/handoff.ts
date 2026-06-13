@@ -32,7 +32,7 @@ const CORS: Record<string, string> = {
 
 const ORIGIN_BY_BRAND = {
   vmd: 'https://www.verifiermondevis.fr',
-  gmc: 'https://gerermonchantier.fr',
+  gmc: 'https://www.gerermonchantier.fr',
 } as const;
 
 function jsonError(message: string, status: number) {

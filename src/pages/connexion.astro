@@ -8,7 +8,7 @@ export const prerender = false;
 const brand = detectBrandFromHost(Astro.request.headers.get('host'));
 const config = getConfigForBrand(brand);
 const canonicalBase = brand === 'gmc'
-  ? 'https://gerermonchantier.fr'
+  ? 'https://www.gerermonchantier.fr'
   : 'https://www.verifiermondevis.fr';
 ---
 

@@ -43,7 +43,7 @@ const pathname = Astro.url.pathname;
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <a id="mon-chantier-desktop" href="https://gerermonchantier.fr/mon-chantier" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
+        <a id="mon-chantier-desktop" href="https://www.gerermonchantier.fr/mon-chantier" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
           <span>🏗️</span>
           Mon Chantier
         </a>
@@ -119,7 +119,7 @@ const pathname = Astro.url.pathname;
           <a href="/contact" class="text-sm text-muted-foreground py-3 block">Contact</a>
         </div>
       </div>
-      <a id="mon-chantier-mobile" href="https://gerermonchantier.fr/mon-chantier" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
+      <a id="mon-chantier-mobile" href="https://www.gerermonchantier.fr/mon-chantier" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
         <span>🏗️</span>
         Mon Chantier
       </a>
@@ -236,7 +236,7 @@ const pathname = Astro.url.pathname;
   } catch {}
 
   // ── Bouton "Mon Chantier" (toujours visible) — SSO handoff cross-domaine ──
-  // - Visiteur non connecté → href par défaut = https://gerermonchantier.fr/mon-chantier
+  // - Visiteur non connecté → href par défaut = https://www.gerermonchantier.fr/mon-chantier
   //   (l'user devra se connecter sur gmc.fr)
   // - Connecté (peu importe l'allowlist) → SSO handoff vers gmc.fr/mon-chantier
   //   Note : allowlist supprimée ici. Le contrôle d'accès GMC est géré côté
@@ -269,7 +269,7 @@ const pathname = Astro.url.pathname;
         }
       } catch {}
       // Fallback : redirect hard cross-domain (forcera re-login sur gmc.fr si SSO HS)
-      window.location.href = `https://gerermonchantier.fr${targetPath}`;
+      window.location.href = `https://www.gerermonchantier.fr${targetPath}`;
     });
   });
 

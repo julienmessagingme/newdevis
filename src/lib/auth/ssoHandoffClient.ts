@@ -8,7 +8,7 @@
  * et pas sur `verifiermondevis.fr/mon-chantier/...`.
  *
  * Logique :
- * - Pas connecté → navigation vers `https://gerermonchantier.fr/` (landing GMC).
+ * - Pas connecté → navigation vers `https://www.gerermonchantier.fr/` (landing GMC).
  * - Connecté NON-allowlisté → idem (landing pour découverte / futur upsell Stripe).
  * - Connecté allowlisté → SSO handoff via `/api/sso/handoff` qui retourne
  *   une URL Supabase magic-link. Le navigateur navigue dessus → atterit sur
@@ -18,7 +18,7 @@
  *
  * Usage typique :
  * ```tsx
- * <a href="https://gerermonchantier.fr/" onClick={(e) => {
+ * <a href="https://www.gerermonchantier.fr/" onClick={(e) => {
  *   e.preventDefault();
  *   navigateToGmc('/mon-chantier/' + chantierId);
  * }}>Voir mon chantier</a>
@@ -26,7 +26,7 @@
  */
 import { hasGmcAccess } from '@/lib/auth/gmcAccess';
 
-const GMC_LANDING = 'https://gerermonchantier.fr/';
+const GMC_LANDING = 'https://www.gerermonchantier.fr/';
 
 export async function navigateToGmc(targetPath: string): Promise<void> {
   // Sécurité : `targetPath` doit être un path absolu sur gmc.fr (pas une URL externe).
@@ -78,5 +78,5 @@ export async function navigateToGmc(targetPath: string): Promise<void> {
   }
 
   // 4. Fallback : redirect hard cross-domain (forcera re-login sur gmc.fr si SSO HS)
-  window.location.href = `https://gerermonchantier.fr${safePath}`;
+  window.location.href = `https://www.gerermonchantier.fr${safePath}`;
 }

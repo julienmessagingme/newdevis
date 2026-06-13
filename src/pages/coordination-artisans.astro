@@ -24,7 +24,7 @@ const faqs = [
 ];
 
 const jsonLd = [
-  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Coordination artisans — GérerMonChantier", "description": "Outils pour coordonner plusieurs artisans : messagerie unifiée, planning partagé, rituels coordination, PV de réception.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/coordination-artisans", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Coordination artisans — GérerMonChantier", "description": "Outils pour coordonner plusieurs artisans : messagerie unifiée, planning partagé, rituels coordination, PV de réception.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://www.gerermonchantier.fr/coordination-artisans", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
   { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
 ];
 ---
@@ -32,11 +32,11 @@ const jsonLd = [
 <BaseLayout
   title="Coordination artisans : alignez tous les corps de métier"
   description="Comment coordonner plusieurs artisans sur un chantier : rituels, séquence type, messagerie unifiée. Outils GérerMonChantier inclus."
-  canonical="https://gerermonchantier.fr/coordination-artisans"
+  canonical="https://www.gerermonchantier.fr/coordination-artisans"
   ogType="website"
   siteName="GérerMonChantier"
   jsonLd={jsonLd}
-  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Coordination artisans", url: "https://gerermonchantier.fr/coordination-artisans" }]}
+  breadcrumbs={[{ name: "Accueil", url: "https://www.gerermonchantier.fr/" }, { name: "Coordination artisans", url: "https://www.gerermonchantier.fr/coordination-artisans" }]}
 >
   <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
     <Header />

@@ -25,7 +25,7 @@ const faqs = [
 ];
 
 const jsonLd = [
-  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "GérerMonChantier — Application de gestion de chantier", "description": "Application complète de gestion de chantier pour particuliers : devis, budget, planning, artisans et documents.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/application-gestion-chantier", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }, { "@type": "Offer", "price": "25", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "GérerMonChantier — Application de gestion de chantier", "description": "Application complète de gestion de chantier pour particuliers : devis, budget, planning, artisans et documents.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://www.gerermonchantier.fr/application-gestion-chantier", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }, { "@type": "Offer", "price": "25", "priceCurrency": "EUR" }] },
   { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
 ];
 ---
@@ -33,11 +33,11 @@ const jsonLd = [
 <BaseLayout
   title="Application gestion chantier : tout votre projet dans une appli"
   description="Application de gestion de chantier pour particuliers. Devis, budget, planning, artisans, documents : tout votre projet de rénovation au même endroit."
-  canonical="https://gerermonchantier.fr/application-gestion-chantier"
+  canonical="https://www.gerermonchantier.fr/application-gestion-chantier"
   ogType="website"
   siteName="GérerMonChantier"
   jsonLd={jsonLd}
-  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Application de gestion de chantier", url: "https://gerermonchantier.fr/application-gestion-chantier" }]}
+  breadcrumbs={[{ name: "Accueil", url: "https://www.gerermonchantier.fr/" }, { name: "Application de gestion de chantier", url: "https://www.gerermonchantier.fr/application-gestion-chantier" }]}
 >
   <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
     <Header />

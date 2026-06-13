@@ -150,7 +150,7 @@ const Register = ({ brand }: Props) => {
         description={`Inscrivez-vous gratuitement sur ${config.name}.`}
         canonical={
           config.brand === "gmc"
-            ? "https://gerermonchantier.fr/inscription"
+            ? "https://www.gerermonchantier.fr/inscription"
             : "https://www.verifiermondevis.fr/inscription"
         }
       />

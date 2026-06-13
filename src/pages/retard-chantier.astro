@@ -24,7 +24,7 @@ const faqs = [
 ];
 
 const jsonLd = [
-  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Suivi retards chantier — GérerMonChantier", "description": "Logiciel pour suivre les échéances, identifier les blocages et documenter les retards de chantier rénovation.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://gerermonchantier.fr/retard-chantier", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Suivi retards chantier — GérerMonChantier", "description": "Logiciel pour suivre les échéances, identifier les blocages et documenter les retards de chantier rénovation.", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://www.gerermonchantier.fr/retard-chantier", "offers": [{ "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai 15 jours sans CB" }, { "@type": "Offer", "price": "12", "priceCurrency": "EUR" }] },
   { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faqs.map(f => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.answer } })) }
 ];
 ---
@@ -32,11 +32,11 @@ const jsonLd = [
 <BaseLayout
   title="Retard chantier : comment réagir et documenter le préjudice"
   description="Chantier en retard ? Causes, coûts, démarches pour réagir et preuves à constituer. Suivi automatique avec GérerMonChantier. Essai libre 15 jours."
-  canonical="https://gerermonchantier.fr/retard-chantier"
+  canonical="https://www.gerermonchantier.fr/retard-chantier"
   ogType="website"
   siteName="GérerMonChantier"
   jsonLd={jsonLd}
-  breadcrumbs={[{ name: "Accueil", url: "https://gerermonchantier.fr/" }, { name: "Retard chantier", url: "https://gerermonchantier.fr/retard-chantier" }]}
+  breadcrumbs={[{ name: "Accueil", url: "https://www.gerermonchantier.fr/" }, { name: "Retard chantier", url: "https://www.gerermonchantier.fr/retard-chantier" }]}
 >
   <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
     <Header />
