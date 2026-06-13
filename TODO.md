@@ -367,9 +367,10 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 >    Julien penche pour un **code réduction sur le produit** (à évaluer : plus simple ?). L'offre -50% est
 >    portée par les emails J-3, J-1, trial_ended + relance J+60 (cf. brief Claude Design).
 > 3. **Reste activation** : `getGmcStatus` + compteur essai visible (bandeau + Settings) ; Stripe complet +
->    gates (lecture seule J30, gate 2e chantier) ; scheduler séquence emails (attend HTML Claude Design) ;
->    `signup_source` pour Google OAuth (`callback.astro`) ; swap welcome placeholder par template Claude
->    Design ; nettoyer endpoint `webhook-registration` no-op + `migration repair` pour l'historique CLI.
+>    gates (lecture seule J30, gate 2e chantier) ; **scheduler séquence emails** (les 21 templates Claude Design
+>    sont FAITS dans `_shared/gmc-emails.ts`, welcome live ; reste l'ENVOI : cron essai J1→J30 + dédup, webhooks
+>    Stripe série payant, déclencheurs comportementaux) ; `signup_source` Google OAuth (`callback.astro`) ;
+>    nettoyer endpoint `webhook-registration` no-op + `migration repair` (lot 12/13/14/15) pour l'historique CLI.
 
 > Plan d'implémentation **figé Phase 2 (2026-05-20)** — décisions ci-dessous validées par Johan, à confirmer par Julien avant attaque code (cf. message en bas du document). ⚠️ Voir MAJ ci-dessus : archi essai/trigger superseded, SKU/paywall encore valides.
 

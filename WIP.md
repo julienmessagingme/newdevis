@@ -24,12 +24,14 @@ brief emails [`docs/plans/2026-06-12-brief-emails-claude-design.md`](docs/plans/
 - `Register.tsx` pose `signup_source` en metadata + retrait webhook MessagingMe (non fonctionnel, endpoint en no-op).
 - **Resend** : domaine `gerermonchantier.fr` vérifié (DNS OVH : DKIM `resend._domainkey`, MX/SPF sur `send`, DMARC). Expéditeur `bonjour@gerermonchantier.fr`. `RESEND_API_KEY` déjà sur le projet.
 - Pipeline testé live : signup email → ligne trial + 2 mails reçus. ✅
+- **21 templates email** Claude Design portés dans `supabase/functions/_shared/gmc-emails.ts` (layout maître email-safe + substitution `{{vars}}` + défauts). Welcome (`gmc_welcome`) câblé sur `gmc-on-signup`, EN PROD. Logo GMC hébergé (`public/email/logo-gmc-icon.png`).
+- **Enquête "votre avis"** : page `/avis` + `POST /api/gmc-feedback` + table `gmc_feedback`, live et testée. CTA "Donner mon avis" des emails (winback_2, goodbye) branchés dessus.
 
 **🔴 Bug connu (gros taf) :** flow tunnel ↔ auth cassé (3 questions posées 2×, atterrit sur login pas signup). Détail : `TODO.md` § GMC Monétisation.
 
-**🟠 Reste à coder :** `getGmcStatus` + compteur visible (bandeau + Settings) ; Stripe + coupon -50% + gates (lecture seule J30, gate 2e chantier) ; scheduler séquence emails (attend HTML Claude Design) ; `signup_source` OAuth (`callback.astro`) ; swap welcome placeholder.
+**🟠 Reste à coder :** `getGmcStatus` + compteur visible (bandeau + Settings) ; Stripe + coupon -50% + gates (lecture seule J30, gate 2e chantier) ; **scheduler séquence emails** (les 21 templates sont prêts, reste l'ENVOI programmé : cron essai J1/J3/J7/J14/J-7/J-3/J-1/J30 + dédup, webhooks Stripe pour la série payant, déclencheurs comportementaux) ; `signup_source` OAuth (`callback.astro`, sinon les inscrits Google n'ont ni essai ni welcome).
 
-**⚠️ Actions manuelles cette session :** migrations appliquées via SQL Editor (table + trigger + hardening), edge function déployée (CLI), Database Webhook configuré. Historique CLI désynchronisé → `npx supabase migration repair --status applied 20260612120000 20260612130000 20260612140000` avant tout futur `db push`.
+**⚠️ Actions manuelles cette session :** migrations appliquées via SQL Editor (table + trigger + hardening), edge function déployée (CLI), Database Webhook configuré. Historique CLI désynchronisé → `npx supabase migration repair --status applied 20260612120000 20260612130000 20260612140000 20260612150000` avant tout futur `db push`. Table `gmc_feedback` créée en SQL direct (rejoint ce lot à réparer). Notif admin de `/avis` : dépend de `RESEND_API_KEY` côté Vercel (à confirmer ; sinon les avis restent quand même stockés en base).
 
 ---
 
