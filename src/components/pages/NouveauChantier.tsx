@@ -118,8 +118,7 @@ export default function NouveauChantier() {
         const data = await res.json();
         const id = data.chantierId;
         if (id) {
-          // "Déjà des devis" → on ouvre directement l'upload de documents sur le cockpit.
-          const suffix = onboarding?.hasDevis ? '?upload=1' : '';
+          const suffix = '';
           window.location.href = `/mon-chantier/${id}${suffix}`;
           return;
         }
@@ -155,12 +154,20 @@ export default function NouveauChantier() {
       <ScreenOnboarding
         onComplete={handleOnboarding}
         onBack={() => { window.location.href = '/mon-chantier'; }}
+        initial={onboarding ?? undefined}
       />
     );
   }
 
   if (ecran === 'prompt') {
-    return <ScreenPrompt onGenerate={handleGenerate} isLoading={isLoading} />;
+    return (
+      <ScreenPrompt
+        onGenerate={handleGenerate}
+        isLoading={isLoading}
+        initialBudgetMode={onboarding?.hasBudget ? 'has_budget' : 'estimate'}
+        onBack={() => setEcran('onboarding')}
+      />
+    );
   }
 
   if (ecran === 'generating') {

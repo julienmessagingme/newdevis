@@ -535,9 +535,9 @@ function DashboardHome({
   const hasBudget = !!(budgetReel && budgetReel > 0);
   const setupSteps = [
     { label: 'Chantier créé', done: true,            cta: '',                    onCta: () => {} },
-    { label: '1er artisan',   done: lots.length > 0, cta: 'Ajouter un artisan',  onCta: onAddIntervenant },
-    { label: '1er devis',     done: hasDevis,        cta: 'Importer un devis',   onCta: onAddDoc },
-    { label: 'Budget défini', done: hasBudget,       cta: 'Définir le budget',   onCta: onAffineBudget },
+    { label: 'Saisir les artisans',   done: lots.length > 0, cta: 'Ajouter un artisan',  onCta: onAddIntervenant },
+    { label: 'Ajouter les devis',     done: hasDevis,        cta: 'Importer un devis',   onCta: onAddDoc },
+    { label: 'Valider le budget', done: hasBudget,       cta: 'Définir le budget',   onCta: onAffineBudget },
   ];
   const doneCount  = setupSteps.filter(s => s.done).length;
   const activeIdx  = setupSteps.findIndex(s => !s.done);

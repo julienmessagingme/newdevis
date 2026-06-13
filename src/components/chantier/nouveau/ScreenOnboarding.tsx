@@ -11,13 +11,17 @@ export interface OnboardingAnswers {
   dateMode: 'debut' | 'fin' | 'inconnu';
   /** Date ISO yyyy-mm-dd si dateMode = debut|fin, sinon null. */
   dateValue: string | null;
-  /** Budget déjà défini / a des devis (true) vs à estimer par le Pilote (false). */
-  hasDevis: boolean;
+  /** A déjà un budget défini (true) → on lui demande le montant à l'étape suivante ;
+   *  sinon (false) → le Pilote estime le budget. Pilote l'écran de description. */
+  hasBudget: boolean;
 }
 
 interface Props {
   onComplete: (answers: OnboardingAnswers) => void;
   onBack: () => void;
+  /** Réponses déjà saisies (retour depuis l'écran de description) → on les pré-remplit
+   *  et on reprend à la dernière question, pour ne pas re-poser le tunnel. */
+  initial?: OnboardingAnswers | null;
 }
 
 const TOTAL_STEPS = 3;
@@ -59,19 +63,21 @@ function Opt({
 
 // ── Écran principal (assistant une-question-par-écran) ──────────────────────────
 
-export default function ScreenOnboarding({ onComplete, onBack }: Props) {
-  const [step, setStep]           = useState(0);
-  const [scope, setScope]         = useState<'mono' | 'multi' | null>(null);
-  const [hasDevis, setHasDevis]   = useState<boolean | null>(null);
-  const [dateMode, setDateMode]   = useState<'debut' | 'fin' | 'inconnu' | null>(null);
-  const [dateValue, setDateValue] = useState('');
+export default function ScreenOnboarding({ onComplete, onBack, initial }: Props) {
+  // Si on revient depuis l'écran de description, on reprend à la dernière question
+  // avec les réponses déjà données (pas de re-questionnement).
+  const [step, setStep]           = useState(initial ? TOTAL_STEPS - 1 : 0);
+  const [scope, setScope]         = useState<'mono' | 'multi' | null>(initial?.chantiersScope ?? null);
+  const [hasBudget, setHasBudget] = useState<boolean | null>(initial ? initial.hasBudget : null);
+  const [dateMode, setDateMode]   = useState<'debut' | 'fin' | 'inconnu' | null>(initial?.dateMode ?? null);
+  const [dateValue, setDateValue] = useState(initial?.dateValue ?? '');
 
   const today = new Date().toISOString().slice(0, 10);
   const needsDate = dateMode === 'debut' || dateMode === 'fin';
 
   const stepValid =
     step === 0 ? scope !== null :
-    step === 1 ? hasDevis !== null :
+    step === 1 ? hasBudget !== null :
     dateMode !== null && (!needsDate || !!dateValue);
 
   const goBack = () => {
@@ -87,7 +93,7 @@ export default function ScreenOnboarding({ onComplete, onBack }: Props) {
     }
     onComplete({
       chantiersScope: scope!,
-      hasDevis: hasDevis!,
+      hasBudget: hasBudget!,
       dateMode: dateMode!,
       dateValue: needsDate ? dateValue : null,
     });
@@ -95,7 +101,7 @@ export default function ScreenOnboarding({ onComplete, onBack }: Props) {
 
   const headings = [
     { kicker: 'Question 1 / 3', title: 'Vous gérez un seul chantier ou plusieurs ?', sub: 'Pour adapter votre espace.' },
-    { kicker: 'Question 2 / 3', title: 'Avez-vous déjà un budget pour votre chantier ?', sub: 'Pour démarrer au bon endroit.' },
+    { kicker: 'Question 2 / 3', title: 'Avez-vous déjà un budget défini pour votre chantier ?', sub: 'Pour démarrer au bon endroit.' },
     { kicker: 'Question 3 / 3', title: 'Où en êtes-vous du démarrage ?', sub: 'Pour caler votre planning.' },
   ];
   const h = headings[step];
@@ -159,13 +165,13 @@ export default function ScreenOnboarding({ onComplete, onBack }: Props) {
             </div>
           )}
 
-          {/* Étape 2 — budget */}
+          {/* Étape 2 — budget (pilote l'écran de description : montant vs estimation IA) */}
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Opt selected={hasDevis === true} onClick={() => setHasDevis(true)}
-                emoji="📄" title="Oui, le budget est défini" sub="Vous avez vos devis, ajoutez-les ensuite" />
-              <Opt selected={hasDevis === false} onClick={() => setHasDevis(false)}
-                emoji="✨" title="Non, pas encore défini" sub="Le Pilote estime un budget de départ" />
+              <Opt selected={hasBudget === true} onClick={() => setHasBudget(true)}
+                emoji="💶" title="Oui, j'ai un budget défini" sub="Vous saisirez le montant juste après" />
+              <Opt selected={hasBudget === false} onClick={() => setHasBudget(false)}
+                emoji="✨" title="Non, pas encore" sub="Le Pilote estime un budget de départ" />
             </div>
           )}
 

@@ -107,17 +107,22 @@ function getRelevantSuggestions(description: string): SuggestionRule[] {
 interface ScreenPromptProps {
   onGenerate: (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm, budgetCible?: number | null) => void;
   isLoading?: boolean;
+  /** Decision budget prise au tunnel : 'has_budget' (montant demande) ou 'estimate'
+   *  (le Pilote estime). Quand fournie, on n'affiche plus le choix budget ici. */
+  initialBudgetMode?: 'has_budget' | 'estimate';
+  /** Retour vers les questions du tunnel (au lieu de quitter vers /mon-chantier). */
+  onBack?: () => void;
 }
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
 type BudgetMode = 'idle' | 'has_budget' | 'estimate';
 
-export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPromptProps) {
+export default function ScreenPrompt({ onGenerate, isLoading = false, initialBudgetMode, onBack }: ScreenPromptProps) {
   const [description, setDescription]           = useState('');
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set());
   // Budget — question fondamentale pour éviter les chiffres au doigt mouillé côté IA.
-  const [budgetMode, setBudgetMode]   = useState<BudgetMode>('idle');
+  const [budgetMode, setBudgetMode]   = useState<BudgetMode>(initialBudgetMode ?? 'idle');
   const [budgetValue, setBudgetValue] = useState<string>('');
   const parsedBudget = useMemo(() => {
     const n = parseInt(budgetValue.replace(/[^0-9]/g, ''), 10);
@@ -203,11 +208,13 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="relative z-10 flex items-center justify-between px-4 sm:px-6 py-4">
-        <a href="/mon-chantier"
+        <button
+          type="button"
+          onClick={() => { if (onBack) onBack(); else window.location.href = '/mon-chantier'; }}
           className="inline-flex items-center gap-1.5 text-sm text-white/70 hover:text-white transition-colors group">
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
-          Mes chantiers
-        </a>
+          {onBack ? 'Retour aux questions' : 'Mes chantiers'}
+        </button>
         {/* Déconnexion cross-domain — helper partagé */}
         <button
           type="button"
@@ -276,13 +283,20 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
               <div className="px-5 py-4 border-b border-gray-100">
                 <div className="flex items-center gap-2">
                   <Wallet className="h-4 w-4 text-blue-600 shrink-0" />
-                  <p className="text-sm font-bold text-gray-900">Avez-vous une idée de budget pour votre projet ?</p>
+                  <p className="text-sm font-bold text-gray-900">
+                    {budgetMode === 'has_budget' ? 'Quel est votre budget ?'
+                      : budgetMode === 'estimate' ? 'Le Pilote estimera votre budget'
+                      : 'Avez-vous une idée de budget pour votre projet ?'}
+                  </p>
                 </div>
                 <p className="text-[12px] text-gray-500 mt-1 ml-6">
-                  Important — sans repère, l'IA invente un chiffre arbitraire qui ne reflète pas votre réalité.
+                  {budgetMode === 'estimate'
+                    ? 'Fourchette indicative, a affiner avec vos devis.'
+                    : "Sans repere chiffre, l'IA ne peut pas s'aligner sur votre realite."}
                 </p>
               </div>
               <div className="px-5 py-4 space-y-3">
+                {!initialBudgetMode && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <button
                     type="button"
@@ -313,6 +327,7 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
                     <p className="text-[11px] text-gray-500 mt-0.5">Fourchette honnête, affinée au fil des devis</p>
                   </button>
                 </div>
+                )}
                 {budgetMode === 'has_budget' && (
                   <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                     <div className="relative flex-1">
