@@ -94,7 +94,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
   // ── Budget — source unique de vérité ──────────────────────────────────────
   const hasLotBudget   = lots.some(l => (l.budget_min_ht ?? 0) > 0 || (l.budget_max_ht ?? 0) > 0);
-  const hasBudgetTotal = (result.budgetTotal ?? 0) > 5000;
+  const hasBudgetTotal = (result.budgetTotal ?? 0) > 0;
   const baseRangeMin = hasLotBudget
     ? lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0)
     : hasBudgetTotal ? Math.round(result.budgetTotal * 0.88) : 0;

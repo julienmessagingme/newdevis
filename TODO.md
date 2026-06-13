@@ -356,6 +356,8 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 > l'archi essai/trigger ; les **SKU Stripe + le paywall** restent valides.
 >
 > ### 🔴 GROS TODO À NE PAS LOUPER (2026-06-12)
+>
+> 🔴 **GATE MULTI-CHANTIER (confirmé 2026-06-13)** : en version gratuite (essai = 1 chantier), créer un **2e chantier** doit être **bloqué**, OU rediriger vers une page d'abonnement à l'option payante "multi-chantier". **Aujourd'hui ce n'est PAS bloqué** (un user gratuit peut créer plusieurs chantiers). À câbler avec Stripe (gate basé sur `gmc_subscriptions` : status/plan). La Q1 du tunnel (mono/multi) sert de signal d'intention + message "gratuit = 1 chantier" (on garde la question pour ça, on ne la retire pas).
 > 1. **BUG FLOW TUNNEL ↔ AUTH** (gros taf) : en cliquant "Tester gratuitement" (logged-out), on a les
 >    3 questions du tunnel AVANT auth, puis on atterrit sur l'écran **"Se connecter"** (login, PAS signup —
 >    il faut cliquer un petit lien en bas pour créer un compte), puis APRÈS création du compte le tunnel
