@@ -15,11 +15,32 @@ const supabase = createClient(
 type Ecran = 'onboarding' | 'prompt' | 'generating' | 'saving';
 
 export default function NouveauChantier() {
+  // Auth AVANT le tunnel : on ne pose les questions qu'une fois connecté. Un
+  // visiteur non connecté part vers l'INSCRIPTION (pas la connexion), puis revient
+  // ici une fois le compte créé → le tunnel ne s'affiche qu'une seule fois, après
+  // auth. Corrige : questions posées avant l'auth + re-posées après + atterrissage
+  // sur l'écran de connexion au lieu de l'inscription.
+  const [authChecked, setAuthChecked] = useState(false);
+
   const [ecran, setEcran]             = useState<Ecran>('onboarding');
   const [onboarding, setOnboarding]   = useState<OnboardingAnswers | null>(null);
   const [requestBody, setRequestBody] = useState('');
   const [isLoading, setIsLoading]     = useState(false);
   const startTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      if (!session) {
+        const returnTo = window.location.pathname + window.location.search;
+        window.location.href = '/inscription?returnTo=' + encodeURIComponent(returnTo);
+        return;
+      }
+      setAuthChecked(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const getToken = useCallback(async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -39,7 +60,10 @@ export default function NouveauChantier() {
     async (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm, userBudget?: number | null) => {
       const token = await getToken();
       if (!token) {
-        toast.error('Vous devez être connecté pour créer un chantier');
+        // Garde-fou en cas d'expiration de session en cours de tunnel (l'auth est
+        // déjà vérifiée au montage). L'utilisateur avait un compte → on le renvoie
+        // vers la connexion, pas l'inscription.
+        toast.error('Votre session a expiré, reconnectez-vous');
         window.location.href = '/connexion?redirect=/mon-chantier/nouveau';
         return;
       }
@@ -115,6 +139,17 @@ export default function NouveauChantier() {
   }, []);
 
   // ── Rendu ──────────────────────────────────────────────────────────────────
+
+  // Vérification d'auth en cours (avant tout affichage du tunnel) — évite le flash
+  // des questions à un visiteur qui va être redirigé vers l'inscription.
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="h-7 w-7 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
   if (ecran === 'onboarding') {
     return (
       <ScreenOnboarding
