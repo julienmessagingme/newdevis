@@ -32,6 +32,7 @@ import AssistantTriPane from './assistant/AssistantTriPane';
 import JournalChantierSection from './assistant/JournalChantierSection';
 import UserCoordonnees from './UserCoordonnees';
 import OwnerChannelToggle from './OwnerChannelToggle';
+import GmcSubscriptionCard from './GmcSubscriptionCard';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 import '@/styles/cockpit-refonte.css';
@@ -594,6 +595,9 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
                 ))}
               </div>
             </div>
+
+            {/* Mon abonnement GMC */}
+            {token && <GmcSubscriptionCard token={token} />}
 
             {/* Notifications WhatsApp IA — canal owner privé */}
             {chantierId && token && (
