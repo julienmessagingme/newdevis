@@ -884,7 +884,7 @@ Si jamais une migration cron est supprimée pour cleanup, **TOUJOURS** créer un
 
 ## GMC trial + paywall — plan figé Phase 2 (2026-05-20)
 
-> ⚠️ **MAJ 2026-06-14 : monétisation GMC LIVE en prod** (Stripe checkout/portail/webhook routé `metadata.product`, `/api/gmc/status`, page `/gmc-abonnement`, gate 2e chantier via `GMC_PAYMENTS_LIVE`, coupon -50% `Nb2ITi2O`, Phase B emails dans `gmc-email-scheduler`). Ce plan figé est **superseded pour la partie Stripe/SKU** ; sa partie **read-only post-trial + quota IA reste la réf pour la lecture seule J30** (pas encore câblée). État : `WIP.md` § Monétisation GMC.
+> ⚠️ **MAJ 2026-06-14 : monétisation GMC LIVE en prod** (Stripe checkout/portail/webhook routé `metadata.product`, `/api/gmc/status`, page `/gmc-abonnement`, gate 2e chantier via `GMC_PAYMENTS_LIVE`, coupon -50% `Nb2ITi2O`, Phase B emails dans `gmc-email-scheduler`). **Lecture seule J30 câblée** : `hasGmcWriteAccess` + gate dans `requireChantierAuth`/`requireChantierAuthOrAgent` + `sauvegarder`/`generer`/`ameliorer` (method-aware, GET libres, bypass agent) → 403 `gmc_access_expired` après essai expiré. **Comptes offerts** : `gmc_subscriptions.signup_source='comp'` (Julien + Johan en Multi). **Timeline de suivi** : table `gmc_subscription_events`. Ce plan figé est **superseded pour Stripe/SKU/read-only** ; son **quota IA** reste à câbler (hors scope V1). État : `WIP.md` § Monétisation GMC.
 
 > Plan de monétisation GMC validé conjointement (audit + décisions Johan, à confirmer par Julien avant attaque code Phase 3). Cf. `TODO.md` section "GMC — Monétisation" pour le détail granulaire et `wip.md` pour l'état d'avancement.
 
