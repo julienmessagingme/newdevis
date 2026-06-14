@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type Stripe from 'stripe';
-import { subPeriodEndISO, gmcStatusFromStripe, planFromPriceId } from './stripe-webhook-helpers';
+import { subPeriodEndISO, gmcStatusFromStripe, planFromPriceId, invoiceSubscriptionId } from './stripe-webhook-helpers';
 
 const PRICES = {
   essentielMonth: 'price_ess_m',
@@ -80,5 +80,34 @@ describe('planFromPriceId', () => {
   it('ne matche pas quand le mapping est vide (price env absent)', () => {
     expect(planFromPriceId('price_ess_m', {})).toBeNull();
     expect(planFromPriceId(undefined, {})).toBeNull();
+  });
+});
+
+describe('invoiceSubscriptionId', () => {
+  const id = (o: unknown) => invoiceSubscriptionId(o as Stripe.Invoice);
+
+  it('ancien emplacement : invoice.subscription string', () => {
+    expect(id({ subscription: 'sub_123' })).toBe('sub_123');
+  });
+
+  it('ancien emplacement : invoice.subscription objet', () => {
+    expect(id({ subscription: { id: 'sub_123' } })).toBe('sub_123');
+  });
+
+  it('nouvel emplacement (API 2025+) : parent.subscription_details.subscription', () => {
+    expect(id({ parent: { subscription_details: { subscription: 'sub_456' } } })).toBe('sub_456');
+  });
+
+  it('repli sur les lignes : lines.data[0].parent.subscription_item_details.subscription', () => {
+    expect(id({ lines: { data: [{ parent: { subscription_item_details: { subscription: 'sub_789' } } }] } })).toBe('sub_789');
+  });
+
+  it('privilegie l\'ancien emplacement si present', () => {
+    expect(id({ subscription: 'sub_old', parent: { subscription_details: { subscription: 'sub_new' } } })).toBe('sub_old');
+  });
+
+  it('renvoie null si aucun emplacement (facture hors abonnement)', () => {
+    expect(id({})).toBeNull();
+    expect(id({ subscription: null, lines: { data: [] } })).toBeNull();
   });
 });

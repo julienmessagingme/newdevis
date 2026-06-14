@@ -35,13 +35,13 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ### P0 — Frein produit majeur
 
-- [ ] **I3 — Surface persistante Assistant IA** : aujourd'hui les alertes IA (`agent_insights`) ne sont visibles que dans l'onglet "Assistant" + badge sidebar + toasts < 5 min. Un user qui n'ouvre jamais cet onglet ne voit jamais une alerte. À faire : bandeau discret (amber, lien vers onglet) sur DashboardHome si `agentInsights.unreadCount > 0` ; idem en haut du BudgetTab si insights financiers non lus ; rouge si `hasCriticalInsight`. Décision UX préalable : où placer (Dashboard seul ? toutes les pages ?), quel wording, quel comportement de fermeture.
+- [x] ~~**I3 — Surface persistante Assistant IA**~~ — fait 2026-06-14 (commit `87bed3a`). `InsightsBanner` monté au niveau cockpit (au-dessus du contenu, visible sur toutes les pages sauf l'onglet Assistant), ambre si `agentInsights.unreadCount > 0`, rouge si `hasCriticalInsight`, clic → onglet Assistant. Desktop (`lg:`) ; mobile garde la bannière basse existante au-dessus du BottomNav. Décision de placement : cockpit-level (toutes pages) plutôt que Dashboard+Budget séparés, plus simple et plus large.
 
 ### P0 — Mobile
 
-- [ ] **N5b — IntervenantsListView en cards mobile** : actuellement tableau 6 colonnes `min-w-[760px]` qui force scroll-X sur 375px (font 10px illisible). À faire : variant cartes empilées sous breakpoint `sm`, comme déjà appliqué dans `BudgetTab` (`sm:hidden` / `hidden sm:flex`). Fichier : `src/components/chantier/cockpit/lots/IntervenantsListView.tsx:185`.
+- [x] ~~**N5b — IntervenantsListView en cards mobile**~~ — fait 2026-06-14 (commit `87bed3a`). Cartes empilées sous `sm` (`sm:hidden`), tableau en `hidden sm:block`. Logique de prix extraite dans `lotPricing()` partagée table + cartes. `src/components/chantier/cockpit/lots/IntervenantsListView.tsx`.
 
-- [ ] **N5c — Touch events Planning Gantt** : `PlanningTimeline` écoute uniquement `MouseEvent` (`onMouseDown/Move/Up`). Aucun `onTouchStart/Move/End` → drag/resize impossible sur mobile. Poignées de resize en `opacity-0 group-hover/bar:opacity-100` → invisibles sur touch. À faire : ajouter touch events (ou `pointerdown` qui couvre les deux), forcer poignées visibles sous `lg:hidden`, ou afficher une vue list-mode alternative sur mobile. Fichier : `src/components/chantier/cockpit/planning/PlanningTimeline.tsx:60-160`. Effort estimé : 1 j.
+- [x] ~~**N5c — Touch events Planning Gantt**~~ — déjà fait (Vague A1, antérieur). `GanttBar` + `SubphaseBar` utilisent `PointerEvent` (`onPointerDown` + `pointermove/up/cancel`), `touchAction:'none'`, poignées visibles sur tactile (`opacity-60 sm:opacity-0 sm:group-hover/bar:opacity-100`). Zéro handler `onMouse*` restant (vérifié 2026-06-14). TODO périmé.
 
 ### P1 — UX moyens
 
@@ -366,8 +366,17 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 >
 > ✅ **MAJ 2026-06-14 (suite)** : **lecture seule J30 FAITE** (écritures bloquées via `hasGmcWriteAccess`
 > + bandeau cockpit), **timeline de suivi** (`gmc_subscription_events` + carte « Mon abonnement »),
-> **comptes offerts** Julien + Johan en Multi. Reste : confirmer prix Multi annuel 210, `RESEND_API_KEY`
-> sur Vercel (emails payants temps réel via webhook), test webhook auto du gate, cron `trial→expired`.
+> **comptes offerts** Julien + Johan en Multi.
+>
+> ✅ **MAJ 2026-06-14 (clôture monétisation)** : **cron `gmc-trial-expire-daily`** (07:50, flip trial→expired
+> à J30, jobid 32) ; **test webhook auto** (Vitest, helpers purs `subPeriodEndISO`/`gmcStatusFromStripe`/
+> `planFromPriceId`, 12 tests verts, `npm test`) ; **upgrade Essentiel→Multi en place** (`/api/gmc/change-plan`
+> via `stripe.subscriptions.update` + proration, câblé sur `/gmc-abonnement`, pas de config portail Stripe) ;
+> **portail masqué pour comptes offerts** (`/api/gmc/status` expose `isComp` + `hasStripeCustomer`) ; **reengage**
+> sur `auth.users.last_sign_in_at` (vrai last-seen). **Prix Multi annuel 210 € CONFIRMÉ** par Julien.
+> **Reste** : (1) `RESEND_API_KEY` sur **Vercel** (clé fournie 2026-06-14, à coller par Julien → emails payants
+> temps réel via webhook + notif /avis) ; (2) corriger `invoice.subscription` dans `stripe-webhook.ts` (types
+> Stripe v20, branche past_due/dunning — voir revue, 🔴).
 
 ### 🟠 Paramètres agent : auto-réponse artisans + activation OpenClaw (gros TODO, 2026-06-14)
 

@@ -39,6 +39,31 @@ export function gmcStatusFromStripe(
   }
 }
 
+// L'ID d'abonnement d'une facture a change d'emplacement selon la version d'API Stripe.
+// Ancien : invoice.subscription (string|objet). Recent (2025+) : invoice.subscription a ete
+// retire -> on lit invoice.parent.subscription_details.subscription, puis les lignes. On lit
+// TOUS les emplacements connus pour rester robuste quelle que soit la version du compte
+// (sinon la branche invoice.payment_failed ne trouve plus l'abonnement -> past_due/dunning KO).
+export function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const inv = invoice as unknown as {
+    subscription?: string | { id?: string } | null;
+    parent?: { subscription_details?: { subscription?: string | { id?: string } | null } | null } | null;
+    lines?: { data?: Array<{
+      subscription?: string | { id?: string } | null;
+      parent?: { subscription_item_details?: { subscription?: string | { id?: string } | null } | null } | null;
+    }> } | null;
+  };
+  const pick = (v: string | { id?: string } | null | undefined): string | null =>
+    typeof v === 'string' ? v : (v?.id ?? null);
+  return (
+    pick(inv.subscription) ??
+    pick(inv.parent?.subscription_details?.subscription) ??
+    pick(inv.lines?.data?.[0]?.parent?.subscription_item_details?.subscription) ??
+    pick(inv.lines?.data?.[0]?.subscription) ??
+    null
+  );
+}
+
 export interface GmcPriceMap {
   essentielMonth?: string | null;
   essentielYear?: string | null;

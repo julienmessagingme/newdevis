@@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
 import Stripe from 'stripe';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { gmcPlanFromPriceId } from '@/lib/integrations/gmc-stripe-config';
-import { subPeriodEndISO, gmcStatusFromStripe } from '@/lib/integrations/stripe-webhook-helpers';
+import { subPeriodEndISO, gmcStatusFromStripe, invoiceSubscriptionId } from '@/lib/integrations/stripe-webhook-helpers';
 
 const stripeSecretKey = import.meta.env.STRIPE_SECRET_KEY;
 const webhookSecret = import.meta.env.STRIPE_WEBHOOK_SECRET;
@@ -183,9 +183,7 @@ export const POST: APIRoute = async ({ request }) => {
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
-        const subId = typeof invoice.subscription === 'string'
-          ? invoice.subscription
-          : (invoice.subscription as Stripe.Subscription)?.id;
+        const subId = invoiceSubscriptionId(invoice);
 
         if (subId) {
           // Mises a jour scopees par stripe_subscription_id : seule la table qui
