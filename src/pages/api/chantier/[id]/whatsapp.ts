@@ -49,7 +49,20 @@ async function getClientPhoneByUserId(userId: string): Promise<string | null> {
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 
-export const OPTIONS: APIRoute = () => optionsResponse('POST,PATCH,OPTIONS');
+export const OPTIONS: APIRoute = () => optionsResponse('GET,POST,PATCH,OPTIONS');
+
+/** GET — état du canal owner (existe-t-il déjà ?), pour que l'UI reflète l'activation. */
+export const GET: APIRoute = async ({ params, request }) => {
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
+  const { data } = await ctx.supabase
+    .from('chantier_whatsapp_groups')
+    .select('id, name, invite_link')
+    .eq('chantier_id', params.id!)
+    .eq('is_owner_channel', true)
+    .maybeSingle();
+  return jsonOk({ ownerChannel: data ?? null });
+};
 
 export const POST: APIRoute = async ({ params, request }) => {
   const token = request.headers.get('Authorization')?.slice(7) ?? '';

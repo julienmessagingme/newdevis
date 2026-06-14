@@ -364,6 +364,19 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 > Vercel, test webhook auto, cron trial→expired. Le « plan figé Phase 2 » ci-dessous est **superseded** pour la
 > partie Stripe/SKU ; sa partie **read-only/quota reste la réf pour la lecture seule J30**.
 >
+> ✅ **MAJ 2026-06-14 (suite)** : **lecture seule J30 FAITE** (écritures bloquées via `hasGmcWriteAccess`
+> + bandeau cockpit), **timeline de suivi** (`gmc_subscription_events` + carte « Mon abonnement »),
+> **comptes offerts** Julien + Johan en Multi. Reste : confirmer prix Multi annuel 210, `RESEND_API_KEY`
+> sur Vercel (emails payants temps réel via webhook), test webhook auto du gate, cron `trial→expired`.
+
+### 🟠 Paramètres agent : auto-réponse artisans + activation OpenClaw (gros TODO, 2026-06-14)
+
+Donner à l'utilisateur, dans les Paramètres du cockpit, le contrôle de l'agent IA :
+- [ ] **Toggle « L'IA répond toute seule aux artisans sur WhatsApp »** — états à définir (off / suggère seulement / répond auto). Le mode vit dans `agent_config.agent_mode` (`edge` cron vs `openclaw`) ; prévoir le réglage user-facing + l'impact sur le webhook whapi (répondre auto ou non) + un opt-in clair (réponse auto = risqué).
+- [ ] **Activer OpenClaw depuis là** + afficher le **mode d'emploi** : l'utilisateur branche son instance (`openclaw_url`, `openclaw_token`, `openclaw_agent_id` dans `agent_config` ; cf. `triggerAgentIfOpenClaw` dans `apiHelpers`).
+- Design à faire : emplacement (onglet « Agent » dans les paramètres ?), états du toggle, garde-fous.
+- ✅ FAIT 2026-06-14 : bug du toggle « Canal WhatsApp IA » (ne reflétait pas l'état actif au montage) corrigé — GET sur la route whatsapp + lecture de l'état au montage.
+>
 > ### 🔴 GROS TODO À NE PAS LOUPER (2026-06-12)
 >
 > ✅ **GATE MULTI-CHANTIER — FAIT + LIVE (2026-06-14)** : gratuit/essai/Essentiel = 1 chantier, Multi payant = illimité. 3 couches (garde backend `sauvegarder.ts` → 403 `code:multi_required` ; carte `AddChantierCard` verrouillée → `/gmc-abonnement?plan=multi` ; garde au montage `NouveauChantier` ; `/api/gmc/status` expose `isMulti`+`paymentsLive`). Conditionné à `GMC_PAYMENTS_LIVE` (présence des price env vars) → actif depuis le go-live. Q1 tunnel (mono/multi) gardée comme signal d'intention.

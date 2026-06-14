@@ -7,11 +7,10 @@
  * programmés. Sans canal owner, `schedule_reminder` et `notify_owner_for_decision`
  * échouent silencieusement côté agent.
  *
- * Aujourd'hui le canal peut aussi être créé via l'agent qui appelle
- * `create_owner_whatsapp_channel`. Ce composant expose la même action via UI pour les
- * users qui ne passent pas par le chat.
+ * Au montage, on LIT l'état réel (GET) : si le canal existe déjà, on affiche "déjà
+ * actif" au lieu du bouton "Activer" (sinon on reproposait l'activation à chaque visite).
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, Check, AlertCircle, MessageCircle } from 'lucide-react';
 
 interface OwnerChannelToggleProps {
@@ -20,13 +19,31 @@ interface OwnerChannelToggleProps {
 }
 
 type Status =
+  | { kind: 'checking' }
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'success'; alreadyExisted: boolean; inviteLink?: string }
   | { kind: 'error'; message: string };
 
 export default function OwnerChannelToggle({ chantierId, token }: OwnerChannelToggleProps) {
-  const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const [status, setStatus] = useState<Status>({ kind: 'checking' });
+
+  // Au montage : reflète l'état réel du canal (déjà actif ou non).
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/chantier/${chantierId}/whatsapp`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return;
+        if (d?.ownerChannel) {
+          setStatus({ kind: 'success', alreadyExisted: true, inviteLink: d.ownerChannel.invite_link });
+        } else {
+          setStatus({ kind: 'idle' });
+        }
+      })
+      .catch(() => { if (!cancelled) setStatus({ kind: 'idle' }); });
+    return () => { cancelled = true; };
+  }, [chantierId, token]);
 
   async function activate() {
     setStatus({ kind: 'loading' });
@@ -72,6 +89,13 @@ export default function OwnerChannelToggle({ chantierId, token }: OwnerChannelTo
           </div>
         </div>
 
+        {status.kind === 'checking' && (
+          <div className="w-full min-h-[44px] flex items-center justify-center gap-2 text-sm text-gray-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Vérification…
+          </div>
+        )}
+
         {status.kind === 'idle' && (
           <button
             onClick={activate}
@@ -96,11 +120,11 @@ export default function OwnerChannelToggle({ chantierId, token }: OwnerChannelTo
             <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
             <div className="flex-1 text-[12px]">
               <p className="font-semibold text-emerald-800">
-                {status.alreadyExisted ? 'Canal déjà actif' : 'Canal activé !'}
+                {status.alreadyExisted ? 'Canal WhatsApp IA actif' : 'Canal activé !'}
               </p>
               <p className="text-emerald-700 mt-0.5">
                 {status.alreadyExisted
-                  ? 'Vous receviez déjà les notifications IA dans ce groupe.'
+                  ? 'Vous recevez les notifications de l\'assistant dans ce groupe WhatsApp.'
                   : 'Vérifiez WhatsApp — un message de bienvenue arrive.'}
               </p>
               {status.inviteLink && (
