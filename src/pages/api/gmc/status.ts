@@ -15,11 +15,23 @@ export const GET: APIRoute = async ({ request }) => {
 
   const { data } = await supabase
     .from('gmc_subscriptions')
-    .select('status, plan, trial_ends_at, current_period_end')
+    .select('status, plan, trial_started_at, trial_ends_at, current_period_end')
     .eq('user_id', user.id)
     .maybeSingle();
 
-  return jsonOk({ ...computeGmcInfo(data, Date.now()), paymentsLive: GMC_PAYMENTS_LIVE });
+  // Historique des passages de statut (timeline "Mon abonnement").
+  const { data: events } = await supabase
+    .from('gmc_subscription_events')
+    .select('event, detail, at')
+    .eq('user_id', user.id)
+    .order('at', { ascending: true });
+
+  return jsonOk({
+    ...computeGmcInfo(data, Date.now()),
+    paymentsLive: GMC_PAYMENTS_LIVE,
+    trialStartedAt: data?.trial_started_at ?? null,
+    events: events ?? [],
+  });
 };
 
 export const OPTIONS: APIRoute = () => optionsResponse('GET,OPTIONS');

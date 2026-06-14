@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { gmcPlanFromPriceId } from '@/lib/integrations/gmc-stripe-config';
 
 const stripeSecretKey = import.meta.env.STRIPE_SECRET_KEY;
@@ -37,6 +37,19 @@ function subPeriodEndISO(sub: Stripe.Subscription): string | null {
   };
   const ts = s.current_period_end ?? s.items?.data?.[0]?.current_period_end;
   return typeof ts === 'number' ? new Date(ts * 1000).toISOString() : null;
+}
+
+// Trace un passage de statut dans la timeline "Mon abonnement". Best-effort, jamais bloquant.
+async function logGmcEvent(
+  supabase: SupabaseClient,
+  userId: string | null | undefined,
+  event: string,
+  detail: string | null,
+): Promise<void> {
+  if (!userId) return;
+  try {
+    await supabase.from('gmc_subscription_events').insert({ user_id: userId, event, detail });
+  } catch { /* non bloquant */ }
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -110,6 +123,7 @@ export const POST: APIRoute = async ({ request }) => {
               },
               { onConflict: 'user_id' },
             );
+          await logGmcEvent(supabase, userId, 'subscribed', plan === 'gmc_multi' ? 'Multi-chantiers' : 'Essentiel');
           console.log('[stripe-webhook] GMC subscription activated for user:', userId, 'plan:', plan);
           break;
         }
@@ -181,6 +195,7 @@ export const POST: APIRoute = async ({ request }) => {
             .from('gmc_subscriptions')
             .update({ status: 'expired', updated_at: new Date().toISOString() })
             .eq('user_id', userId);
+          await logGmcEvent(supabase, userId, 'canceled', null);
           console.log('[stripe-webhook] GMC subscription canceled for user:', userId);
           break;
         }
@@ -211,6 +226,12 @@ export const POST: APIRoute = async ({ request }) => {
             .from('gmc_subscriptions')
             .update({ status: 'past_due', updated_at: new Date().toISOString() })
             .eq('stripe_subscription_id', subId);
+          const { data: gmcRow } = await supabase
+            .from('gmc_subscriptions')
+            .select('user_id')
+            .eq('stripe_subscription_id', subId)
+            .maybeSingle();
+          await logGmcEvent(supabase, gmcRow?.user_id as string | undefined, 'payment_failed', null);
         }
 
         console.log('[stripe-webhook] Payment failed for subscription:', subId);
