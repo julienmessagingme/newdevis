@@ -28,6 +28,17 @@ function gmcStatusFromStripe(s: Stripe.Subscription.Status): 'active' | 'past_du
   }
 }
 
+// current_period_end a migre de l'abonnement vers l'item dans les versions recentes
+// de l'API Stripe (2025+). On lit les deux pour rester robuste selon la version du compte.
+function subPeriodEndISO(sub: Stripe.Subscription): string | null {
+  const s = sub as unknown as {
+    current_period_end?: number;
+    items?: { data?: Array<{ current_period_end?: number }> };
+  };
+  const ts = s.current_period_end ?? s.items?.data?.[0]?.current_period_end;
+  return typeof ts === 'number' ? new Date(ts * 1000).toISOString() : null;
+}
+
 export const POST: APIRoute = async ({ request }) => {
   if (!stripeSecretKey || !supabaseUrl || !supabaseServiceKey) {
     return new Response('Configuration serveur manquante', { status: 500 });
@@ -74,7 +85,7 @@ export const POST: APIRoute = async ({ request }) => {
         let priceId: string | null = null;
         if (subscriptionId) {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
-          periodEnd = new Date(sub.current_period_end * 1000).toISOString();
+          periodEnd = subPeriodEndISO(sub);
           priceId = sub.items.data[0]?.price?.id ?? null;
         }
 
@@ -127,7 +138,7 @@ export const POST: APIRoute = async ({ request }) => {
         const userId = subscription.metadata?.supabase_user_id;
         if (!userId) break;
 
-        const periodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        const periodEnd = subPeriodEndISO(subscription);
 
         if (subscription.metadata?.product === 'gmc') {
           const plan = gmcPlanFromPriceId(subscription.items.data[0]?.price?.id);
