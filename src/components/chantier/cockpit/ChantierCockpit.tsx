@@ -34,6 +34,7 @@ import UserCoordonnees from './UserCoordonnees';
 import OwnerChannelToggle from './OwnerChannelToggle';
 import GmcSubscriptionCard from './GmcSubscriptionCard';
 import GmcTrialBanner from '@/components/chantier/shared/GmcTrialBanner';
+import InsightsBanner from '@/components/chantier/shared/InsightsBanner';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 import '@/styles/cockpit-refonte.css';
@@ -699,6 +700,18 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
         {token && (
           <div className="shrink-0 px-4 sm:px-6 pt-3">
             <GmcTrialBanner token={token} />
+          </div>
+        )}
+
+        {/* Bandeau persistant alertes IA (desktop) — surface l'agent_insights non lu sur
+            toutes les pages. Mobile : la bannière basse au-dessus du BottomNav s'en charge. */}
+        {activeSection !== 'assistant' && agentInsights.unreadCount > 0 && (
+          <div className="hidden lg:block shrink-0 px-4 sm:px-6 pt-3">
+            <InsightsBanner
+              unreadCount={agentInsights.unreadCount}
+              hasCritical={hasCriticalInsight}
+              onOpen={() => navigateTo('assistant')}
+            />
           </div>
         )}
 

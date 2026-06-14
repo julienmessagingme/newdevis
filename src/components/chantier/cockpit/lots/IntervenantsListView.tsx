@@ -48,6 +48,31 @@ const LOT_STATUS_CFG: Record<LotListStatus, {
 // Grille partagée par toutes les lignes — une seule source de vérité
 const GRID = 'grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_116px_132px_minmax(0,1.1fr)_104px]';
 
+// Devis "signé" (validé ou en attente de facture) — compte dans le total du lot.
+function isSignedDoc(d: DocumentChantier): boolean {
+  return d.devis_statut === 'valide' || d.devis_statut === 'attente_facture';
+}
+
+// Prix d'un lot : somme des devis signés (cohérent avec Budget) ; sinon prix min des
+// devis en cours. Partagé table desktop + cartes mobile pour rester cohérent.
+function lotPricing(devisDocs: DocumentChantier[], analysisData: Record<string, { ttc?: number | null } | undefined>) {
+  const getTtc = (d: DocumentChantier) => analysisData[d.id]?.ttc ?? (d.montant && d.montant > 0 ? d.montant : 0);
+  const signedDocs = devisDocs.filter(isSignedDoc);
+  const lotPrice = signedDocs.length > 0
+    ? signedDocs.reduce((s, d) => s + getTtc(d), 0)
+    : (() => {
+        const prices = devisDocs.map(getTtc).filter(p => p > 0);
+        return prices.length ? Math.min(...prices) : 0;
+      })();
+  return {
+    signedDocs,
+    lotPrice,
+    validated: signedDocs.length > 0 ? signedDocs[0] : undefined,
+    hasMultiplePrices: signedDocs.length === 0 && devisDocs.filter(d => getTtc(d) > 0).length > 1,
+    isMultiSigned: signedDocs.length > 1,
+  };
+}
+
 type SortKey = 'none' | 'prix_asc' | 'prix_desc';
 type FilterStatus = 'all' | LotListStatus;
 
@@ -198,8 +223,118 @@ export default function IntervenantsListView({
         </div>
       </div>
 
-      {/* Tableau */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto overscroll-x-contain">
+      {/* ── Vue mobile : cartes empilées (le tableau 6 colonnes scrolle en X sinon, 10px illisible) ── */}
+      <div className="sm:hidden space-y-2.5">
+        {/* Devis non affectés (orphelins) */}
+        {unassignedDevis.length > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/40 overflow-hidden">
+            <div className="px-3 py-2 border-l-4 border-l-amber-400 bg-amber-50/70">
+              <p className="font-extrabold text-[13px] text-amber-900">
+                📎 {unassignedDevis.length} devis non affecté{unassignedDevis.length > 1 ? 's' : ''}
+              </p>
+              <p className="text-[11px] text-amber-700 italic mt-0.5">Rattache-les à un intervenant pour les voir sur l'Accueil.</p>
+            </div>
+            {unassignedDevis.map(doc => {
+              const ttc = analysisData[doc.id]?.ttc ?? (doc.montant && doc.montant > 0 ? doc.montant : null);
+              return (
+                <div key={doc.id} className="px-3 py-2 border-t border-amber-100 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-semibold text-gray-800 truncate flex-1">{doc.nom}</span>
+                    {ttc != null && ttc > 0 && <span className="text-[13px] tabular-nums font-medium text-gray-700">{fmtEur(ttc)}</span>}
+                    <button onClick={() => onDeleteDoc(doc.id)} aria-label="Supprimer le document" className="text-gray-300 hover:text-red-500 p-1 -mr-1">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <select defaultValue="" onChange={e => { if (e.target.value) moveDocToLot(doc.id, e.target.value); }}
+                    className="w-full text-[12px] border border-amber-300 bg-white text-amber-900 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                    <option value="" disabled>→ Rattacher à un intervenant…</option>
+                    {realLots.map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {sorted.length === 0 ? (
+          <div className="py-10 text-center text-sm text-gray-400 bg-white rounded-xl border border-gray-100">Aucun intervenant dans ce filtre</div>
+        ) : sorted.map(({ lot, devisDocs, fraisDocs, fraisTotal, status }) => {
+          const cfg = LOT_STATUS_CFG[status];
+          const { signedDocs, lotPrice, validated, hasMultiplePrices, isMultiSigned } = lotPricing(devisDocs, analysisData);
+          const getTtc = (d: DocumentChantier) => analysisData[d.id]?.ttc ?? (d.montant && d.montant > 0 ? d.montant : null);
+          return (
+            <div key={lot.id} className={`rounded-xl border border-gray-100 bg-white overflow-hidden border-l-4 ${cfg.leftBorder}`}>
+              {/* En-tête lot */}
+              <div className={`flex items-center gap-2 px-3 py-2.5 ${cfg.rowBg}`}>
+                <span className="text-base shrink-0">{lot.emoji ?? '🔧'}</span>
+                <span className="font-extrabold text-sm text-gray-900 truncate flex-1">{lot.nom}</span>
+                {lotPrice > 0 ? (
+                  <div className="text-right shrink-0">
+                    <span className="text-sm font-extrabold tabular-nums text-gray-900">{fmtEur(lotPrice)}</span>
+                    {hasMultiplePrices && <p className="text-[9px] text-gray-400 leading-none">prix min</p>}
+                    {validated && <p className="text-[9px] text-emerald-600 leading-none font-semibold">{isMultiSigned ? `${signedDocs.length} signés` : 'signé'}</p>}
+                  </div>
+                ) : <span className="text-sm text-gray-300">—</span>}
+              </div>
+              {/* Statut + compteurs */}
+              <div className="flex items-center gap-2 px-3 py-1.5 border-t border-gray-50 text-[11px]">
+                <span className={`px-1.5 py-0.5 rounded border font-semibold ${cfg.badge}`}>{cfg.label}</span>
+                <span className="text-gray-400">{devisDocs.length} devis</span>
+                {fraisDocs.length > 0 && <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">📝 {fmtEur(fraisTotal)}</span>}
+              </div>
+              {/* Devis */}
+              {devisDocs.length === 0 ? (
+                <div className="px-3 py-2 border-t border-gray-50 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-red-400 italic">Aucun devis pour cet intervenant</span>
+                  <button onClick={() => onAddDevisForLot(lot.id)} className="shrink-0 text-[11px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-lg">+ Ajouter</button>
+                </div>
+              ) : devisDocs.map(doc => {
+                const ttc = getTtc(doc);
+                const isSelected = doc.devis_statut === 'valide';
+                const data = analysisData[doc.id];
+                return (
+                  <div key={doc.id} className={`px-3 py-2 border-t border-gray-50 space-y-1.5 ${isSelected ? 'bg-emerald-50/30' : ''}`}>
+                    <div className="flex items-center gap-2">
+                      {isSelected && <span className="text-emerald-500 text-[10px] font-bold shrink-0">✓</span>}
+                      {doc.signedUrl ? (
+                        <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="text-[13px] text-blue-700 hover:underline truncate flex-1 flex items-center gap-1">{doc.nom}<ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-50" /></a>
+                      ) : doc.analyse_id ? (
+                        <a href={`/analyse/${doc.analyse_id}`} target="_blank" rel="noreferrer" className="text-[13px] text-blue-700 hover:underline truncate flex-1 flex items-center gap-1">{doc.nom}<ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-50" /></a>
+                      ) : (
+                        <span className="text-[13px] text-gray-700 truncate flex-1">{doc.nom}</span>
+                      )}
+                      {ttc != null && ttc > 0 && <span className={`text-[13px] tabular-nums shrink-0 ${isSelected ? 'font-bold text-emerald-700' : 'font-medium text-gray-700'}`}>{fmtEur(ttc)}</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0"><DocStatusSelect doc={doc} chantierId={chantierId} token={token!} onUpdated={onDocStatutUpdated} compact /></div>
+                      <DocScoreCell doc={doc} chantierId={chantierId} token={token} score={data?.score} variant="dot" />
+                      <button onClick={() => onDeleteDoc(doc.id)} aria-label="Supprimer le document" className="text-gray-300 hover:text-red-500 p-1"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Actions lot */}
+              <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100 bg-gray-50/60">
+                {devisDocs.length >= 2 && (
+                  <button onClick={() => setComparingLot({ lot, docs: devisDocs })} className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg"><Scale className="h-3 w-3" /> Comparer</button>
+                )}
+                <button onClick={() => { if (window.confirm(`Supprimer l'intervenant "${lot.nom}" ?`)) onDeleteLot(lot.id); }} aria-label="Supprimer l'intervenant" className="text-gray-300 hover:text-red-500 p-1.5"><Trash2 className="h-4 w-4" /></button>
+                <button onClick={() => onGoToLot(lot.id)} className="ml-auto text-[11px] font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg">Voir →</button>
+              </div>
+            </div>
+          );
+        })}
+
+        {totalEstimated > 0 && (
+          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-2.5">
+            <span className="text-[11px] text-gray-400">Total TTC estimé</span>
+            <span className="text-base font-extrabold text-gray-900 tabular-nums">{fmtEur(totalEstimated)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Tableau (desktop ≥ sm — sur mobile on bascule en cartes ci-dessus) */}
+      <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto overscroll-x-contain">
         <div className="min-w-[760px]">
 
         {/* En-tête colonnes */}
@@ -281,23 +416,8 @@ export default function IntervenantsListView({
           </div>
         ) : (
           sorted.map(({ lot, devisDocs, fraisDocs, fraisTotal, status }) => {
-            const cfg      = LOT_STATUS_CFG[status];
-            // Total du lot : SOMME de tous les devis signés (cohérent avec Budget).
-            // Si rien de signé → fallback prix MIN des devis en cours (badge "prix min").
-            const isSigned = (d: DocumentChantier) =>
-              d.devis_statut === 'valide' || d.devis_statut === 'attente_facture';
-            const signedDocs = devisDocs.filter(isSigned);
-            const getTtc = (d: DocumentChantier) =>
-              analysisData[d.id]?.ttc ?? (d.montant && d.montant > 0 ? d.montant : 0);
-            const validated = signedDocs.length > 0 ? signedDocs[0] : undefined; // pour le badge "signé"
-            const lotPrice = signedDocs.length > 0
-              ? signedDocs.reduce((s, d) => s + getTtc(d), 0)
-              : (() => {
-                  const prices = devisDocs.map(getTtc).filter(p => p > 0);
-                  return prices.length ? Math.min(...prices) : 0;
-                })();
-            const hasMultiplePrices = signedDocs.length === 0 && devisDocs.filter(d => getTtc(d) > 0).length > 1;
-            const isMultiSigned = signedDocs.length > 1;
+            const cfg = LOT_STATUS_CFG[status];
+            const { signedDocs, lotPrice, validated, hasMultiplePrices, isMultiSigned } = lotPricing(devisDocs, analysisData);
 
             return (
               <div key={lot.id} className="border-b border-gray-100 last:border-0">
