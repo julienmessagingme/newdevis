@@ -884,6 +884,8 @@ Si jamais une migration cron est supprimée pour cleanup, **TOUJOURS** créer un
 
 ## GMC trial + paywall — plan figé Phase 2 (2026-05-20)
 
+> ⚠️ **MAJ 2026-06-14 : monétisation GMC LIVE en prod** (Stripe checkout/portail/webhook routé `metadata.product`, `/api/gmc/status`, page `/gmc-abonnement`, gate 2e chantier via `GMC_PAYMENTS_LIVE`, coupon -50% `Nb2ITi2O`, Phase B emails dans `gmc-email-scheduler`). Ce plan figé est **superseded pour la partie Stripe/SKU** ; sa partie **read-only post-trial + quota IA reste la réf pour la lecture seule J30** (pas encore câblée). État : `WIP.md` § Monétisation GMC.
+
 > Plan de monétisation GMC validé conjointement (audit + décisions Johan, à confirmer par Julien avant attaque code Phase 3). Cf. `TODO.md` section "GMC — Monétisation" pour le détail granulaire et `wip.md` pour l'état d'avancement.
 
 **Modèle commercial** :
@@ -952,6 +954,8 @@ Si jamais une migration cron est supprimée pour cleanup, **TOUJOURS** créer un
 |---|---|
 | `STRIPE_SECRET_KEY` | API Stripe server-side |
 | `STRIPE_WEBHOOK_SECRET` | Vérification signature webhook (obligatoire prod) |
+| `STRIPE_PRICE_GMC_ESSENTIEL_{MONTH,YEAR}`, `STRIPE_PRICE_GMC_MULTI_{MONTH,YEAR}` | Prix GMC Live (12/120 · 25/210). Leur présence ⇒ `GMC_PAYMENTS_LIVE=true` (active checkout GMC + gate 2e chantier). |
+| `STRIPE_COUPON_GMC_FIRST_MONTH` | Coupon -50% 1er mois GMC (Live `Nb2ITi2O`, `duration:once`, mensuel) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Bypass RLS dans les API routes |
 | `GOOGLE_API_KEY` | Gemini (extraction, groupement, résumé, agent) |
 | `GOOGLE_PLACES_API_KEY` | Notes et avis Google Places |

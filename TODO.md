@@ -355,9 +355,18 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 > **vérifié sur Resend** (`bonjour@`). Le plan figé (15 j, ancre `created_at`) est obsolète pour
 > l'archi essai/trigger ; les **SKU Stripe + le paywall** restent valides.
 >
+> ⚠️ **MAJ 2026-06-14 : MONÉTISATION LIVRÉE + LIVE EN PROD** (commits cfa3845..bb708fa). Stripe complet
+> (checkout/portail/webhook routé `metadata.product`/`/api/gmc/status`), **coupon -50% retenu** (`duration:once`,
+> Live `Nb2ITi2O`, mensuel via `?offer=1` — PAS code promo), page `/gmc-abonnement`, **gate 2e chantier** (3
+> couches, flag `GMC_PAYMENTS_LIVE` = présence des price env vars), bloc « Mon abonnement » + bandeau essai,
+> **Phase B emails** (scheduler cycle de vie : conversion/winback/payant). `paymentsLive:true` confirmé. E2E
+> sandbox OK. **Reste** : lecture seule J30 (mutations), confirmer prix Multi annuel 210, `RESEND_API_KEY`
+> Vercel, test webhook auto, cron trial→expired. Le « plan figé Phase 2 » ci-dessous est **superseded** pour la
+> partie Stripe/SKU ; sa partie **read-only/quota reste la réf pour la lecture seule J30**.
+>
 > ### 🔴 GROS TODO À NE PAS LOUPER (2026-06-12)
 >
-> 🔴 **GATE MULTI-CHANTIER (confirmé 2026-06-13)** : en version gratuite (essai = 1 chantier), créer un **2e chantier** doit être **bloqué**, OU rediriger vers une page d'abonnement à l'option payante "multi-chantier". **Aujourd'hui ce n'est PAS bloqué** (un user gratuit peut créer plusieurs chantiers). À câbler avec Stripe (gate basé sur `gmc_subscriptions` : status/plan). La Q1 du tunnel (mono/multi) sert de signal d'intention + message "gratuit = 1 chantier" (on garde la question pour ça, on ne la retire pas).
+> ✅ **GATE MULTI-CHANTIER — FAIT + LIVE (2026-06-14)** : gratuit/essai/Essentiel = 1 chantier, Multi payant = illimité. 3 couches (garde backend `sauvegarder.ts` → 403 `code:multi_required` ; carte `AddChantierCard` verrouillée → `/gmc-abonnement?plan=multi` ; garde au montage `NouveauChantier` ; `/api/gmc/status` expose `isMulti`+`paymentsLive`). Conditionné à `GMC_PAYMENTS_LIVE` (présence des price env vars) → actif depuis le go-live. Q1 tunnel (mono/multi) gardée comme signal d'intention.
 > 1. ✅ **FAIT (2026-06-13)** : tunnel **auth-first**. Au clic "Tester gratuitement" (déconnecté) → écran
 >    **inscription** (plus connexion) → après création du compte, les 3 questions du tunnel s'affichent
 >    **une seule fois** (réponses préservées au retour). CTA header → `/mon-chantier/nouveau`. Inscriptions

@@ -11,7 +11,7 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
-## 🟡 Activation GMC (essai 1 mois + emails + tunnel) : fondation + engagement + tunnel EN PROD, conversion à venir (Stripe)
+## 🟢 Activation + Monétisation GMC : EN PROD (Stripe Live + Phase B emails, 2026-06-14)
 
 Parcours "Tester gratuitement" → inscription → tunnel → cockpit → essai → emails. **Fondation, séquence d'engagement et tunnel auth-first EN PROD.** Source de vérité : [`docs/plans/2026-06-12-activation-gmc.md`](docs/plans/2026-06-12-activation-gmc.md) + brief emails [`docs/plans/2026-06-12-brief-emails-claude-design.md`](docs/plans/2026-06-12-brief-emails-claude-design.md).
 
@@ -25,7 +25,9 @@ Parcours "Tester gratuitement" → inscription → tunnel → cockpit → essai 
 - **"Ajouter un artisan"** ouvre le formulaire contact (rattacher à un lot + créer un lot à la volée). `AddIntervenantModal` devient dormant.
 - **Enquête "votre avis"** : page `/avis` + `POST /api/gmc-feedback` + table `gmc_feedback`. CTA "Donner mon avis" des emails branchés.
 
-**🟠 Reste (Phase B, avec Stripe) :** intégration Stripe (coupon -50% `duration:once` OU code promo, à trancher) + **emails conversion/winback/payant** (J-7/J-3/J-1/fin, winback, paid_welcome/renewal/dunning/goodbye) déclenchés par le scheduler/webhooks Stripe + **gates** (lecture seule J30, **gate 2e chantier** = bloquer/rediriger en gratuit) + `getGmcStatus` + compteur essai visible. Voir `TODO.md` § GMC Monétisation.
+**✅ Monétisation LIVE (2026-06-14, commits cfa3845..bb708fa) :** Stripe complet (`/api/gmc/create-checkout-session` mode subscription + coupon -50% 1er mois `duration:once` mensuel only, `/api/gmc/create-portal-session`, `/api/gmc/status` autoritaire serveur exposant `paymentsLive`, `stripe-webhook` routé par `metadata.product` → `gmc_subscriptions` branche VMD préservée, libs `gmc-stripe-config`/`gmc-status-compute`/`gmc-subscription`=`getGmcStatus`, migration `past_due`). **Page de vente `/gmc-abonnement`** (mensuel/annuel 12/120·25/210, déjà-abonné→portail, noindex). **Gate 2e chantier** (gratuit/essai/Essentiel=1, Multi payant=illimité ; 3 couches : garde backend `sauvegarder.ts` 403 `multi_required`, carte `AddChantierCard` verrouillée, garde montage `NouveauChantier` ; **conditionné à `GMC_PAYMENTS_LIVE`** = présence des price env vars, donc zéro régression avant go-live). **Bloc « Mon abonnement »** (paramètres cockpit) + **bandeau d'essai** (hub). **Phase B emails** : `gmc-email-scheduler` étendu en cycle de vie complet par statut+dates (conversion J-7/J-3/J-1/fin -50%, winback J+3/10/21, paid_welcome/dunning/goodbye). **Go-live fait** : produits+4 prix+coupon `Nb2ITi2O` en Live Stripe, env vars sur Vercel, `paymentsLive:true` confirmé prod. **E2E sandbox OK** (Stripe CLI), a attrapé+corrigé le bug `current_period_end` (API Stripe 2025+ : champ déplacé sur l'item → 500 webhook).
+
+**🟠 Reste :** **lecture seule J30** (bloquer les mutations, pas juste le bandeau — avant l'expiration des 1ers essais ~juillet ; le « plan figé Phase 2 » du TODO reste la réf) ; confirmer **prix Multi annuel = 210 €** (pas 250) dans Stripe Live ; `RESEND_API_KEY` sur **Vercel** → emails payants temps réel via webhook au lieu du cron ≤24h (+ notif /avis) ; **test webhook auto** (`subPeriodEndISO` + routage) ; cron `trial→expired` à J30 ; `paid_onboard`/`paid_checkin`/`renewal_notice` (templates prêts, non branchés). Voir `TODO.md` § GMC Monétisation.
 
 **⚠️ Ops :** `RESEND_API_KEY` à ajouter côté **Vercel** pour la notif `/avis` (présente sur Supabase, absente sur Vercel → notif muette, avis quand même stockés). Migrations GMC en SQL direct → `npx supabase migration repair --status applied 20260612120000 20260612130000 20260612140000 20260612150000 20260613090000` avant tout `db push`. Nettoyer `AddIntervenantModal` (dormant).
 
