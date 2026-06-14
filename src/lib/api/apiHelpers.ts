@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { computeGmcInfo } from '@/lib/integrations/gmc-status-compute';
+import { GMC_PAYMENTS_LIVE } from '@/lib/integrations/gmc-stripe-config';
 
 // ── CORS ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +28,32 @@ export function jsonOk<T>(data: T, status = 200) {
 
 export function jsonError(error: string, status = 400) {
   return new Response(JSON.stringify({ error }), { status, headers: CORS });
+}
+
+// ── Gate d'acces GMC (lecture seule apres essai expire / non paye) ───────────
+
+/** Acces en ECRITURE GMC : essai en cours OU abonnement actif/past_due. Inactif
+ *  tant que les paiements ne sont pas configures (GMC_PAYMENTS_LIVE = price env vars). */
+export async function hasGmcWriteAccess(supabase: SupabaseClient, userId: string): Promise<boolean> {
+  if (!GMC_PAYMENTS_LIVE) return true;
+  const { data } = await supabase
+    .from('gmc_subscriptions')
+    .select('status, plan, trial_ends_at, current_period_end')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return computeGmcInfo(data, Date.now()).hasAccess;
+}
+
+/** Reponse 403 paywall : essai termine, abonnement requis pour ecrire. */
+export function gmcPaywallResponse() {
+  return new Response(
+    JSON.stringify({
+      error: 'Votre essai gratuit est terminé. Réabonnez-vous pour modifier votre chantier.',
+      code: 'gmc_access_expired',
+      upgrade_url: '/gmc-abonnement',
+    }),
+    { status: 403, headers: CORS },
+  );
 }
 
 // ── Supabase client (service role) ──────────────────────────────────────────
@@ -136,6 +164,10 @@ export async function requireChantierAuth(
   if (ctx instanceof Response) return ctx;
   const owns = await verifyChantierOwnership(ctx.supabase, chantierId, ctx.user.id);
   if (!owns) return jsonError('Chantier introuvable', 404);
+  // Lecture seule : bloque les ecritures user si l'acces GMC a expire.
+  if (request.method !== 'GET' && !(await hasGmcWriteAccess(ctx.supabase, ctx.user.id))) {
+    return gmcPaywallResponse();
+  }
   return ctx;
 }
 
@@ -205,6 +237,10 @@ export async function requireChantierAuthOrAgent(
   if (ctx instanceof Response) return ctx;
   const owns = await verifyChantierOwnership(ctx.supabase, chantierId, ctx.user.id);
   if (!owns) return jsonError('Chantier introuvable', 404);
+  // Lecture seule : bloque les ecritures user (jamais l'agent) si l'acces GMC a expire.
+  if (request.method !== 'GET' && !(await hasGmcWriteAccess(ctx.supabase, ctx.user.id))) {
+    return gmcPaywallResponse();
+  }
   return { ...ctx, isAgent: false };
 }
 

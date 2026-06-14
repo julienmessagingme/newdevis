@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody, CORS } from '@/lib/api/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody, CORS, hasGmcWriteAccess, gmcPaywallResponse } from '@/lib/api/apiHelpers';
 import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
 import { getSemanticEmoji } from '@/lib/chantier/lotUtils';
 import { GMC_PAYMENTS_LIVE } from '@/lib/integrations/gmc-stripe-config';
@@ -23,6 +23,9 @@ export const POST: APIRoute = async ({ request }) => {
   const ctx = await requireAuth(request);
   if (ctx instanceof Response) return ctx;
   const { user, supabase } = ctx;
+
+  // Lecture seule : essai expiré / non payé → pas de création de chantier.
+  if (!(await hasGmcWriteAccess(supabase, user.id))) return gmcPaywallResponse();
 
   const rawBody = await parseJsonBody<{ result: ChantierIAResult }>(request);
   if (rawBody instanceof Response) return rawBody;

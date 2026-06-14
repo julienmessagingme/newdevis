@@ -33,6 +33,7 @@ import JournalChantierSection from './assistant/JournalChantierSection';
 import UserCoordonnees from './UserCoordonnees';
 import OwnerChannelToggle from './OwnerChannelToggle';
 import GmcSubscriptionCard from './GmcSubscriptionCard';
+import GmcTrialBanner from '@/components/chantier/shared/GmcTrialBanner';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 import '@/styles/cockpit-refonte.css';
@@ -693,6 +694,13 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
             </h1>
           </div>
         </div>
+
+        {/* Bandeau essai / lecture seule (essai terminé = écritures bloquées) */}
+        {token && (
+          <div className="shrink-0 px-4 sm:px-6 pt-3">
+            <GmcTrialBanner token={token} />
+          </div>
+        )}
 
         {/* pb-32 : zone tampon en bas pour que le FAB Assistant (fixed bottom-24)
             n'intercepte plus les clics sur les éléments en bas de page (accordéons,

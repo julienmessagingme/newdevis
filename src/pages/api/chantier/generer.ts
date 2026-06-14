@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { requireAuth, parseJsonBody } from '@/lib/api/apiHelpers';
+import { requireAuth, parseJsonBody, hasGmcWriteAccess, gmcPaywallResponse } from '@/lib/api/apiHelpers';
 import { SYSTEM_PROMPT_CHANTIER } from '@/lib/prompts/chantier-ia';
 import type { ChantierIAResult, SseEvent } from '@/types/chantier-ia';
 
@@ -26,6 +26,9 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 export const POST: APIRoute = async ({ request }) => {
   const ctx = await requireAuth(request);
   if (ctx instanceof Response) return ctx;
+
+  // Lecture seule : essai expiré / non payé → pas de génération IA.
+  if (!(await hasGmcWriteAccess(ctx.supabase, ctx.user.id))) return gmcPaywallResponse();
 
   if (!googleApiKey) {
     return new Response(JSON.stringify({ error: 'Clé API Google AI non configurée' }), { status: 500 });
