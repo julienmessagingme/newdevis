@@ -4,14 +4,21 @@
 // + les dates de gmc_subscriptions (aucun appel Stripe ici ; l'edge function a la
 // cle Resend, contrairement a Vercel ou le webhook ne peut pas envoyer).
 //
-//   trial    : engagement (J1/3/7/14) + reengage (chantier inactif >5j, hors conversion)
+//   trial    : engagement (J1/3/7/14) + reengage (pas connecte >5j, hors conversion)
 //              + conversion (J-7/J-3/J-1/fin, -50% des J-3) + winback (J+3/10/21)
 //   active   : paid_welcome (immediat) -> paid_onboard (J+2) -> paid_checkin (J+14)
 //              -> multi_nudge (Essentiel, J+30) ; renewal_notice (annuels, J-3, par periode)
-//   past_due : dunning   ·   expired : goodbye
+//   past_due : dunning   ·   expired : winback (essai expire) OU goodbye (abonne resilie)
 //   tous     : upsell_multi sur tentative de 2e chantier (flag multi_intent_at pose par le gate)
 //
+// Le cron `gmc-trial-expire-daily` flippe trial -> expired a J30 (statut propre). La
+// suite winback (POST_TRIAL) est pilotee par `l` (jours avant trial_ends_at) et rejouable
+// que la ligne soit encore 'trial' ou deja 'expired' : le flip ne casse jamais la sequence.
+// goodbye ne part QUE pour un abonne payant resilie (stripe_subscription_id present),
+// jamais pour un essai expire.
+//
 // Ancres temporelles "payant" = sent_at du gmc_paid_welcome (pas de colonne dediee).
+// Activite "reengage" = auth.users.last_sign_in_at (vraie derniere connexion).
 // Anti-doublon : gmc_email_log (unique user_id+template_id), reservation log-first.
 // Le renewal_notice se dedup PAR PERIODE via un logId suffixe par la date d'echeance.
 // 1 email/user/run. Dry-run : POST {"dry":true}.
@@ -32,9 +39,9 @@ const MULTI_URL      = `${BASE}/gmc-abonnement?plan=multi`;
 const OFFER_URL      = `${BASE}/gmc-abonnement?plan=essentiel&interval=month&offer=1`;
 const DAY_MS         = 86_400_000;
 
-// Jalons de l'essai (status='trial'), du plus tot au plus tard.
-// e = jours depuis trial_started_at ; l = jours avant trial_ends_at (negatif = depasse).
-const TRIAL_MILESTONES: { id: GmcEmailId; due: (e: number, l: number) => boolean }[] = [
+// Jalons de l'essai AVANT echeance (status='trial').
+// e = jours depuis trial_started_at ; l = jours avant trial_ends_at.
+const PRE_TRIAL: { id: GmcEmailId; due: (e: number, l: number) => boolean }[] = [
   { id: "gmc_activate",       due: (e) => e >= 1 },
   { id: "gmc_value_features", due: (e) => e >= 3 },
   { id: "gmc_trust",          due: (e) => e >= 7 },
@@ -42,10 +49,15 @@ const TRIAL_MILESTONES: { id: GmcEmailId; due: (e: number, l: number) => boolean
   { id: "gmc_trial_j7",       due: (_e, l) => l <= 7 },
   { id: "gmc_trial_j3",       due: (_e, l) => l <= 3 },
   { id: "gmc_trial_j1",       due: (_e, l) => l <= 1 },
-  { id: "gmc_trial_ended",    due: (_e, l) => l <= 0 },
-  { id: "gmc_winback_1",      due: (_e, l) => l <= -3 },
-  { id: "gmc_winback_2",      due: (_e, l) => l <= -10 },
-  { id: "gmc_winback_offer",  due: (_e, l) => l <= -21 },
+];
+
+// Jalons APRES echeance de l'essai. Pilotes par `l` seul (jours avant trial_ends_at, negatif)
+// donc rejouables que la ligne soit encore 'trial' (cron pas encore passe) ou deja 'expired'.
+const POST_TRIAL: { id: GmcEmailId; due: (l: number) => boolean }[] = [
+  { id: "gmc_trial_ended",   due: (l) => l <= 0 },
+  { id: "gmc_winback_1",     due: (l) => l <= -3 },
+  { id: "gmc_winback_2",     due: (l) => l <= -10 },
+  { id: "gmc_winback_offer", due: (l) => l <= -21 },
 ];
 
 function ctaFor(id: GmcEmailId): string {
@@ -78,9 +90,10 @@ type Sub = {
   trial_ends_at: string | null;
   current_period_end: string | null;
   multi_intent_at: string | null;
+  stripe_subscription_id: string | null;
 };
 
-type Ctx = { hasChantier: boolean; chantierUpdatedMs: number | null; paidWelcomeSentMs: number | null };
+type Ctx = { hasChantier: boolean; lastSeenMs: number | null; paidWelcomeSentMs: number | null };
 type Pick = { id: GmcEmailId; logId: string; vars?: Record<string, string> };
 
 // Choisit l'email du non envoye pour un abonnement, selon statut + dates + contexte.
@@ -92,20 +105,27 @@ function pickTemplate(sub: Sub, already: Set<string>, now: number, ctx: Ctx): Pi
     return { id: "gmc_upsell_multi", logId: "gmc_upsell_multi" };
   }
 
+  // Jours avant la fin d'essai (negatif = depasse). Sert au trial ET au winback post-essai.
+  const l = sub.trial_ends_at ? Math.ceil((new Date(sub.trial_ends_at).getTime() - now) / DAY_MS) : 999;
+
   switch (sub.status) {
     case "trial": {
       if (!sub.trial_started_at) return null;
       const e = Math.floor((now - new Date(sub.trial_started_at).getTime()) / DAY_MS);
-      const l = sub.trial_ends_at ? Math.ceil((new Date(sub.trial_ends_at).getTime() - now) / DAY_MS) : 999;
 
-      // Reengage : un chantier existe mais n'a pas bouge depuis >5j, hors phase conversion (l>7), une fois.
-      if (ctx.hasChantier && ctx.chantierUpdatedMs && now - ctx.chantierUpdatedMs > 5 * DAY_MS
+      // Reengage : un chantier existe mais l'utilisateur ne s'est pas connecte depuis >5j,
+      // hors phase conversion (l>7), une seule fois.
+      if (ctx.hasChantier && ctx.lastSeenMs && now - ctx.lastSeenMs > 5 * DAY_MS
           && e >= 5 && l > 7 && !already.has("gmc_reengage")) {
         return { id: "gmc_reengage", logId: "gmc_reengage" };
       }
 
-      const next = TRIAL_MILESTONES.filter((m) => m.due(e, l)).find((m) => !already.has(m.id));
-      return next ? { id: next.id, logId: next.id } : null;
+      const ids = [
+        ...PRE_TRIAL.filter((m) => m.due(e, l)).map((m) => m.id),
+        ...POST_TRIAL.filter((m) => m.due(l)).map((m) => m.id),
+      ];
+      const next = ids.find((id) => !already.has(id));
+      return next ? { id: next, logId: next } : null;
     }
     case "active": {
       if (!already.has("gmc_paid_welcome")) return { id: "gmc_paid_welcome", logId: "gmc_paid_welcome" };
@@ -135,8 +155,17 @@ function pickTemplate(sub: Sub, already: Set<string>, now: number, ctx: Ctx): Pi
     }
     case "past_due":
       return already.has("gmc_dunning") ? null : { id: "gmc_dunning", logId: "gmc_dunning" };
-    case "expired":
-      return already.has("gmc_goodbye") ? null : { id: "gmc_goodbye", logId: "gmc_goodbye" };
+    case "expired": {
+      // Abonne payant resilie -> goodbye. Essai expire jamais paye -> suite winback (POST_TRIAL).
+      if (sub.stripe_subscription_id) {
+        return already.has("gmc_goodbye") ? null : { id: "gmc_goodbye", logId: "gmc_goodbye" };
+      }
+      if (sub.trial_ends_at) {
+        const next = POST_TRIAL.filter((m) => m.due(l)).map((m) => m.id).find((id) => !already.has(id));
+        return next ? { id: next, logId: next } : null;
+      }
+      return null;
+    }
     default:
       return null;
   }
@@ -173,7 +202,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: subs, error } = await sb
     .from("gmc_subscriptions")
-    .select("user_id, status, plan, trial_started_at, trial_ends_at, current_period_end, multi_intent_at")
+    .select("user_id, status, plan, trial_started_at, trial_ends_at, current_period_end, multi_intent_at, stripe_subscription_id")
     .in("status", ["trial", "active", "past_due", "expired"]);
 
   if (error) {
@@ -195,18 +224,26 @@ Deno.serve(async (req: Request) => {
     const pw = (logs ?? []).find((l) => l.template_id === "gmc_paid_welcome");
     const paidWelcomeSentMs = pw?.sent_at ? new Date(pw.sent_at as string).getTime() : null;
 
-    // Premier chantier : nom (vars email) + updated_at (proxy d'activite pour reengage).
+    // Utilisateur : email + prenom + derniere connexion (last_sign_in_at = activite reelle,
+    // signal du reengage). Pas d'email => rien a envoyer, on saute.
+    const { data: ud } = await sb.auth.admin.getUserById(s.user_id);
+    const email = ud?.user?.email ?? "";
+    if (!email) continue;
+    const um = (ud?.user?.user_metadata ?? {}) as Record<string, string>;
+    const prenom = (um.first_name || (um.full_name || um.name || "").split(" ")[0] || "").trim();
+    const lastSeenMs = ud?.user?.last_sign_in_at ? new Date(ud.user.last_sign_in_at as string).getTime() : null;
+
+    // Premier chantier : nom (vars email) + presence (reengage).
     const { data: ch } = await sb
       .from("chantiers")
-      .select("nom, updated_at")
+      .select("nom")
       .eq("user_id", s.user_id)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
     const nomChantier = (ch?.nom as string) ?? "";
-    const chantierUpdatedMs = ch?.updated_at ? new Date(ch.updated_at as string).getTime() : null;
 
-    const pick = pickTemplate(s, already, now, { hasChantier: !!ch, chantierUpdatedMs, paidWelcomeSentMs });
+    const pick = pickTemplate(s, already, now, { hasChantier: !!ch, lastSeenMs, paidWelcomeSentMs });
     if (!pick) continue;
 
     planned.push({ user_id: s.user_id, template_id: pick.logId, status: s.status });
@@ -219,16 +256,6 @@ Deno.serve(async (req: Request) => {
       .select("id")
       .maybeSingle();
     if (insErr || !ins) continue;
-
-    const { data: ud } = await sb.auth.admin.getUserById(s.user_id);
-    const email = ud?.user?.email ?? "";
-    const um = (ud?.user?.user_metadata ?? {}) as Record<string, string>;
-    const prenom = (um.first_name || (um.full_name || um.name || "").split(" ")[0] || "").trim();
-
-    if (!email) {
-      await sb.from("gmc_email_log").delete().eq("id", ins.id); // rollback
-      continue;
-    }
 
     const { subject, html } = renderGmcEmail(pick.id, {
       prenom,

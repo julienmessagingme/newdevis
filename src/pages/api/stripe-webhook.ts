@@ -4,40 +4,12 @@ import type { APIRoute } from 'astro';
 import Stripe from 'stripe';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { gmcPlanFromPriceId } from '@/lib/integrations/gmc-stripe-config';
+import { subPeriodEndISO, gmcStatusFromStripe } from '@/lib/integrations/stripe-webhook-helpers';
 
 const stripeSecretKey = import.meta.env.STRIPE_SECRET_KEY;
 const webhookSecret = import.meta.env.STRIPE_WEBHOOK_SECRET;
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// Mappe le statut d'un abonnement Stripe -> statut stocke dans gmc_subscriptions.
-function gmcStatusFromStripe(s: Stripe.Subscription.Status): 'active' | 'past_due' | 'expired' | 'inactive' {
-  switch (s) {
-    case 'active':
-    case 'trialing':
-      return 'active';
-    case 'past_due':
-      return 'past_due';
-    case 'canceled':
-    case 'unpaid':
-    case 'incomplete_expired':
-    case 'paused':
-      return 'expired';
-    default:
-      return 'inactive';
-  }
-}
-
-// current_period_end a migre de l'abonnement vers l'item dans les versions recentes
-// de l'API Stripe (2025+). On lit les deux pour rester robuste selon la version du compte.
-function subPeriodEndISO(sub: Stripe.Subscription): string | null {
-  const s = sub as unknown as {
-    current_period_end?: number;
-    items?: { data?: Array<{ current_period_end?: number }> };
-  };
-  const ts = s.current_period_end ?? s.items?.data?.[0]?.current_period_end;
-  return typeof ts === 'number' ? new Date(ts * 1000).toISOString() : null;
-}
 
 // Trace un passage de statut dans la timeline "Mon abonnement". Best-effort, jamais bloquant.
 async function logGmcEvent(

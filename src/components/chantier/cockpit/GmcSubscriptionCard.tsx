@@ -18,6 +18,8 @@ interface GmcStatusResp {
   isMulti: boolean;
   currentPeriodEnd: string | null;
   hasAccess: boolean;
+  isComp: boolean;
+  hasStripeCustomer: boolean;
   events: GmcEvent[];
 }
 
@@ -51,6 +53,7 @@ function buildTimeline(info: GmcStatusResp): TimelineItem[] {
   if (info.trialEndsAt) items.push({ label: "Fin de l'essai gratuit", date: info.trialEndsAt, tone: 'neutral' });
   for (const e of info.events ?? []) {
     if (e.event === 'subscribed') items.push({ label: `Abonnement activé${e.detail ? ` (${e.detail})` : ''}`, date: e.at, tone: 'good' });
+    else if (e.event === 'plan_changed') items.push({ label: `Passage en ${e.detail || 'Multi-chantiers'}`, date: e.at, tone: 'good' });
     else if (e.event === 'payment_failed') items.push({ label: 'Paiement échoué', date: e.at, tone: 'warn' });
     else if (e.event === 'canceled') items.push({ label: 'Abonnement résilié', date: e.at, tone: 'warn' });
   }
@@ -123,18 +126,23 @@ export default function GmcSubscriptionCard({ token }: { token: string }) {
                 </div>
                 <div className="space-y-2 text-sm">
                   <Row label="Formule" value={PLAN_LABEL[info.plan ?? ''] ?? '—'} />
-                  <Row label="Prochaine échéance" value={fmtDate(info.currentPeriodEnd)} />
+                  {info.isComp
+                    ? <Row label="Accès" value="Offert" />
+                    : <Row label="Prochaine échéance" value={fmtDate(info.currentPeriodEnd)} />}
                   <Row label="Engagement" value="Sans engagement" />
                 </div>
-                <button
-                  onClick={openPortal}
-                  disabled={portalBusy}
-                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#1B3FA1] hover:underline disabled:opacity-60"
-                >
-                  {portalBusy
-                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Ouverture…</>
-                    : <><CreditCard className="h-4 w-4" /> Gérer ou résilier mon abonnement</>}
-                </button>
+                {/* Portail Stripe : seulement s'il y a un client Stripe (jamais pour un compte offert). */}
+                {info.hasStripeCustomer && (
+                  <button
+                    onClick={openPortal}
+                    disabled={portalBusy}
+                    className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#1B3FA1] hover:underline disabled:opacity-60"
+                  >
+                    {portalBusy
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Ouverture…</>
+                      : <><CreditCard className="h-4 w-4" /> Gérer ou résilier mon abonnement</>}
+                  </button>
+                )}
               </>
             ) : info?.isTrial ? (
               <>

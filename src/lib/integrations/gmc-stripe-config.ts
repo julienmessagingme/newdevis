@@ -8,6 +8,8 @@
 //   STRIPE_PRICE_GMC_MULTI_YEAR        (210 EUR / an)
 //   STRIPE_COUPON_GMC_FIRST_MONTH      (coupon -50% duration:once)
 
+import { planFromPriceId } from './stripe-webhook-helpers';
+
 export type GmcPlanKey = 'essentiel' | 'multi';
 export type GmcInterval = 'month' | 'year';
 export type GmcPlanDb = 'gmc_essentiel' | 'gmc_multi';
@@ -33,10 +35,12 @@ export function gmcPriceId(plan: GmcPlanKey, interval: GmcInterval): string | nu
 
 /** Nom de plan stocke en base a partir d'un price ID Stripe (robuste aux upgrades portail). */
 export function gmcPlanFromPriceId(priceId?: string | null): GmcPlanDb | null {
-  if (!priceId) return null;
-  if (priceId === PRICES.essentiel.month || priceId === PRICES.essentiel.year) return 'gmc_essentiel';
-  if (priceId === PRICES.multi.month || priceId === PRICES.multi.year) return 'gmc_multi';
-  return null;
+  return planFromPriceId(priceId, {
+    essentielMonth: PRICES.essentiel.month,
+    essentielYear: PRICES.essentiel.year,
+    multiMonth: PRICES.multi.month,
+    multiYear: PRICES.multi.year,
+  });
 }
 
 /** Convertit la cle de plan (UI) -> nom de plan stocke en base. */

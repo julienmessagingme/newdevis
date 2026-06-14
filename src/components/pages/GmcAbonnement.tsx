@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { getGmcStatus, type GmcSubInfo } from '@/lib/integrations/gmc-subscription';
+import { getGmcStatus, type GmcSubInfoExt } from '@/lib/integrations/gmc-subscription';
 import { toast } from 'sonner';
 import { Check, ArrowRight, Loader2, Shield, Lock } from 'lucide-react';
 
@@ -30,9 +30,9 @@ function param(name: string): string | null {
 export default function GmcAbonnement() {
   const [billing, setBilling] = useState<Billing>(param('interval') === 'year' ? 'year' : 'month');
   const [user, setUser] = useState<{ id: string } | null>(null);
-  const [status, setStatus] = useState<GmcSubInfo | null>(null);
+  const [status, setStatus] = useState<GmcSubInfoExt | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<PlanKey | 'portal' | null>(null);
+  const [busy, setBusy] = useState<PlanKey | 'portal' | 'upgrade' | null>(null);
 
   const offer = param('offer') === '1' || param('offer') === 'true';
   // Arrivee via le gate "2e chantier" (essai/Essentiel limites a 1 chantier).
@@ -99,7 +99,39 @@ export default function GmcAbonnement() {
     }
   };
 
+  // Upgrade en place Essentiel -> Multi (abonne payant existant). Pas de checkout : on
+  // modifie l'abonnement Stripe cote serveur, puis on rafraichit le statut.
+  const upgradeToMulti = async () => {
+    if (!user) return;
+    setBusy('upgrade');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/gmc/change-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ plan: 'multi' }),
+      });
+      const data = await res.json();
+      if (res.ok && (data.ok || data.already)) {
+        toast.success('Vous êtes passé en Multi-chantiers. Vous pouvez gérer plusieurs chantiers dès maintenant.');
+        if (gated) { window.location.href = '/mon-chantier/nouveau'; return; }
+        try { setStatus(await getGmcStatus(user.id)); } catch { /* ignore */ }
+        setBusy(null);
+        return;
+      }
+      toast.error(data.error || 'Le changement de formule a échoué');
+      setBusy(null);
+    } catch {
+      toast.error('Une erreur est survenue');
+      setBusy(null);
+    }
+  };
+
   const isPaid = status?.isPaid ?? false;
+  const isEssentielPaid = isPaid && status?.plan === 'gmc_essentiel';
 
   return (
     <section className="py-12 sm:py-16 px-6">
@@ -127,7 +159,7 @@ export default function GmcAbonnement() {
               <p className="font-bold text-[#0E1730]">Un seul chantier avec votre offre actuelle</p>
               <p className="text-sm text-gray-600 mt-0.5">
                 L'essai gratuit et l'offre Essentiel couvrent <strong>1 chantier</strong>. Pour gérer plusieurs chantiers (en illimité), passez à <strong>Multi</strong>
-                {isPaid ? ' via « Gérer mon abonnement ».' : ' ci-dessous.'}
+                {isEssentielPaid ? ' en cliquant sur « Passer en Multi » ci-dessous.' : ' ci-dessous.'}
               </p>
             </div>
           </div>
@@ -147,13 +179,27 @@ export default function GmcAbonnement() {
             <p className="text-sm font-bold text-[#0E1730]">
               Vous êtes abonné{status?.plan === 'gmc_multi' ? ' (Multi-chantiers)' : ' (Essentiel)'}.
             </p>
-            <button
-              onClick={openPortal}
-              disabled={busy === 'portal'}
-              className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-[#1B3FA1] hover:underline disabled:opacity-60"
-            >
-              {busy === 'portal' ? 'Ouverture…' : 'Gérer mon abonnement'}
-            </button>
+            {isEssentielPaid && (
+              <button
+                onClick={upgradeToMulti}
+                disabled={busy === 'upgrade'}
+                className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-white bg-[#1B3FA1] hover:bg-[#16348A] rounded-lg px-4 h-9 no-underline transition-colors disabled:opacity-60"
+              >
+                {busy === 'upgrade'
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Passage en cours…</>
+                  : <>Passer en Multi-chantiers <ArrowRight className="h-4 w-4" /></>}
+              </button>
+            )}
+            {/* Portail Stripe : jamais pour un compte offert (pas de client Stripe). */}
+            {status?.hasStripeCustomer && (
+              <button
+                onClick={openPortal}
+                disabled={busy === 'portal'}
+                className="mt-2 ml-1 inline-flex items-center gap-1.5 text-sm font-bold text-[#1B3FA1] hover:underline disabled:opacity-60"
+              >
+                {busy === 'portal' ? 'Ouverture…' : 'Gérer mon abonnement'}
+              </button>
+            )}
           </div>
         )}
 
@@ -184,6 +230,9 @@ export default function GmcAbonnement() {
         <div className="grid md:grid-cols-2 gap-5 max-w-3xl mx-auto">
           {PLANS.map((pl) => {
             const price = billing === 'year' ? pl.priceY : pl.priceM;
+            const planDbKey = pl.key === 'multi' ? 'gmc_multi' : 'gmc_essentiel';
+            const isCurrent = isPaid && status?.plan === planDbKey;
+            const canUpgradeHere = isEssentielPaid && pl.key === 'multi';
             return (
               <div
                 key={pl.key}
@@ -221,16 +270,22 @@ export default function GmcAbonnement() {
                   ))}
                 </ul>
                 <button
-                  onClick={() => subscribe(pl.key)}
-                  disabled={busy === pl.key || isPaid}
+                  onClick={canUpgradeHere ? upgradeToMulti : () => subscribe(pl.key)}
+                  disabled={canUpgradeHere ? busy === 'upgrade' : (busy === pl.key || isPaid)}
                   className={`mt-6 inline-flex items-center justify-center w-full gap-1.5 text-sm font-bold px-5 h-11 rounded-xl transition-colors disabled:opacity-60 ${
                     pl.highlight ? 'bg-[#F58A06] hover:bg-[#E47C00] text-white' : 'bg-[#1B3FA1] hover:bg-[#16348A] text-white'
                   }`}
                 >
-                  {busy === pl.key ? (
+                  {canUpgradeHere ? (
+                    busy === 'upgrade'
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Passage…</>
+                      : <>Passer en Multi <ArrowRight className="h-4 w-4" /></>
+                  ) : busy === pl.key ? (
                     <><Loader2 className="h-4 w-4 animate-spin" /> Redirection…</>
-                  ) : isPaid ? (
+                  ) : isCurrent ? (
                     'Formule active'
+                  ) : isPaid ? (
+                    'Inclus'
                   ) : (
                     <>S'abonner <ArrowRight className="h-4 w-4" /></>
                   )}

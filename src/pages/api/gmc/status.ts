@@ -15,7 +15,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const { data } = await supabase
     .from('gmc_subscriptions')
-    .select('status, plan, trial_started_at, trial_ends_at, current_period_end')
+    .select('status, plan, trial_started_at, trial_ends_at, current_period_end, stripe_customer_id, signup_source')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -30,6 +30,9 @@ export const GET: APIRoute = async ({ request }) => {
     ...computeGmcInfo(data, Date.now()),
     paymentsLive: GMC_PAYMENTS_LIVE,
     trialStartedAt: data?.trial_started_at ?? null,
+    // Compte offert (signup_source='comp') = pas de client Stripe -> on masque le portail.
+    isComp: data?.signup_source === 'comp',
+    hasStripeCustomer: !!data?.stripe_customer_id,
     events: events ?? [],
   });
 };
