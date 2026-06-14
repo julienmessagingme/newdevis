@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { ArrowRight, Loader2, Plus, Trash2, HardHat, LayoutDashboard, Pencil, Check, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import AddChantierCard from '@/components/chantier/shared/AddChantierCard';
+import GmcTrialBanner from '@/components/chantier/shared/GmcTrialBanner';
 import { PHASE_LABELS, type PhaseChantier } from '@/types/chantier-dashboard';
 
 const supabase = createClient(
@@ -434,6 +435,8 @@ export default function MonChantierHub() {
     <div className="bg-gray-50 min-h-screen">
       <div className="py-10 px-4">
         <div className="max-w-5xl mx-auto">
+
+          {token && <GmcTrialBanner token={token} />}
 
           {/* ── Header ── */}
           <div className="mb-8 animate-fade-up">
