@@ -4,6 +4,7 @@ import type { APIRoute } from 'astro';
 import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody, CORS } from '@/lib/api/apiHelpers';
 import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
 import { getSemanticEmoji } from '@/lib/chantier/lotUtils';
+import { GMC_PAYMENTS_LIVE } from '@/lib/integrations/gmc-stripe-config';
 
 // Vrai emoji Unicode = pas de lettres/chiffres ASCII, pas de scripts CJK/kana/hangul.
 // Évite les hallucinations Gemini type "タイル" ou "Tile" rendues comme texte au lieu d'icône.
@@ -32,24 +33,27 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   // Gate multi-chantier : 1 chantier en gratuit/essai/Essentiel, illimité avec
-  // l'offre Multi payante. Garde autoritaire (service-role) : empêche le
-  // contournement par appel direct de l'API. Le frontend repère code=multi_required.
-  const { count: chantierCount } = await supabase
-    .from('chantiers')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id);
-  if ((chantierCount ?? 0) >= 1) {
-    const { data: sub } = await supabase
-      .from('gmc_subscriptions')
-      .select('status, plan')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    const isMulti = !!sub && (sub.status === 'active' || sub.status === 'past_due') && sub.plan === 'gmc_multi';
-    if (!isMulti) {
-      return new Response(
-        JSON.stringify({ error: "L'offre Multi est nécessaire pour gérer plusieurs chantiers.", code: 'multi_required' }),
-        { status: 403, headers: CORS },
-      );
+  // l'offre Multi payante. N'enforce QUE quand les paiements GMC sont configurés
+  // (sinon on bloquerait des essais sans moyen de payer). Garde autoritaire
+  // (service-role) : empêche le contournement par appel direct. Frontend : code=multi_required.
+  if (GMC_PAYMENTS_LIVE) {
+    const { count: chantierCount } = await supabase
+      .from('chantiers')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+    if ((chantierCount ?? 0) >= 1) {
+      const { data: sub } = await supabase
+        .from('gmc_subscriptions')
+        .select('status, plan')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const isMulti = !!sub && (sub.status === 'active' || sub.status === 'past_due') && sub.plan === 'gmc_multi';
+      if (!isMulti) {
+        return new Response(
+          JSON.stringify({ error: "L'offre Multi est nécessaire pour gérer plusieurs chantiers.", code: 'multi_required' }),
+          { status: 403, headers: CORS },
+        );
+      }
     }
   }
 

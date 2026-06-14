@@ -48,10 +48,10 @@ export default function NouveauChantier() {
           fetch('/api/gmc/status', { headers: { Authorization: `Bearer ${session.access_token}` } }),
         ]);
         const chJson = chRes.ok ? await chRes.json() : { chantiers: [] };
-        const stJson = stRes.ok ? await stRes.json() : { isMulti: false };
+        const stJson = stRes.ok ? await stRes.json() : { isMulti: false, paymentsLive: false };
         if (cancelled) return;
         const count = (chJson.chantiers ?? []).length;
-        if (count >= 1 && !stJson.isMulti) {
+        if (stJson.paymentsLive && count >= 1 && !stJson.isMulti) {
           window.location.href = '/gmc-abonnement?plan=multi';
           return;
         }

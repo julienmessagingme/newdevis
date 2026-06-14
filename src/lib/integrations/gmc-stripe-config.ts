@@ -43,3 +43,9 @@ export function gmcPlanFromPriceId(priceId?: string | null): GmcPlanDb | null {
 export function gmcPlanDb(plan: GmcPlanKey): GmcPlanDb {
   return plan === 'multi' ? 'gmc_multi' : 'gmc_essentiel';
 }
+
+/** Vrai si les prix Stripe GMC sont configures sur cet environnement (= paiements
+ *  reellement payables). Sert a n'activer le gate multi-chantier QUE quand
+ *  l'abonnement existe : sinon on bloquerait des essais sans moyen de payer.
+ *  S'active tout seul au go-live quand les price env vars sont posees sur Vercel. */
+export const GMC_PAYMENTS_LIVE = !!gmcPriceId('essentiel', 'month');
