@@ -1,0 +1,23 @@
+---
+export const prerender = false;
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+import GmcAbonnementApp from '@/components/app/GmcAbonnementApp';
+---
+
+<BaseLayout
+  title="Abonnement — GérerMonChantier"
+  description="Choisissez votre formule GérerMonChantier : Essentiel ou Multi-chantiers, au mois ou à l'année. Sans engagement, résiliable à tout moment."
+  canonical="https://www.gerermonchantier.fr/gmc-abonnement"
+  siteName="GérerMonChantier"
+  noindex={true}
+>
+  <div class="min-h-screen flex flex-col bg-gradient-to-b from-white via-[#F5F7FA] to-white">
+    <Header />
+    <main class="flex-1">
+      <GmcAbonnementApp client:only="react" />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>
