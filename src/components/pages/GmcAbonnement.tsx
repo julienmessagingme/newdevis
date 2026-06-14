@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getGmcStatus, type GmcSubInfo } from '@/lib/integrations/gmc-subscription';
 import { toast } from 'sonner';
-import { Check, ArrowRight, Loader2, Shield } from 'lucide-react';
+import { Check, ArrowRight, Loader2, Shield, Lock } from 'lucide-react';
 
 type Billing = 'month' | 'year';
 type PlanKey = 'essentiel' | 'multi';
@@ -35,6 +35,8 @@ export default function GmcAbonnement() {
   const [busy, setBusy] = useState<PlanKey | 'portal' | null>(null);
 
   const offer = param('offer') === '1' || param('offer') === 'true';
+  // Arrivee via le gate "2e chantier" (essai/Essentiel limites a 1 chantier).
+  const gated = param('reason') === 'multi';
 
   useEffect(() => {
     if (param('abonnement') === 'success') toast.success('Abonnement activé, bienvenue et merci !');
@@ -116,6 +118,20 @@ export default function GmcAbonnement() {
               : 'Choisissez votre formule. Sans engagement, résiliable à tout moment.'}
           </p>
         </div>
+
+        {/* Limite 1 chantier atteinte (arrivee via le gate 2e chantier) */}
+        {gated && (
+          <div className="max-w-2xl mx-auto mb-8 rounded-xl border border-[#F58A06]/40 bg-[#F58A06]/10 px-5 py-4 flex items-start gap-3">
+            <Lock className="h-5 w-5 text-[#F58A06] shrink-0 mt-0.5" aria-hidden="true" />
+            <div>
+              <p className="font-bold text-[#0E1730]">Un seul chantier avec votre offre actuelle</p>
+              <p className="text-sm text-gray-600 mt-0.5">
+                L'essai gratuit et l'offre Essentiel couvrent <strong>1 chantier</strong>. Pour gérer plusieurs chantiers (en illimité), passez à <strong>Multi</strong>
+                {isPaid ? ' via « Gérer mon abonnement ».' : ' ci-dessous.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Bandeau offre -50% */}
         {offer && !isPaid && (

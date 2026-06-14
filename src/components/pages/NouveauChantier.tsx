@@ -52,7 +52,7 @@ export default function NouveauChantier() {
         if (cancelled) return;
         const count = (chJson.chantiers ?? []).length;
         if (stJson.paymentsLive && count >= 1 && !stJson.isMulti) {
-          window.location.href = '/gmc-abonnement?plan=multi';
+          window.location.href = '/gmc-abonnement?plan=multi&reason=multi';
           return;
         }
       } catch {
@@ -142,7 +142,7 @@ export default function NouveauChantier() {
         const body = await res.json().catch(() => ({} as { code?: string }));
         if (body.code === 'multi_required') {
           toast.info("Le multi-chantiers fait partie de l'offre Multi.");
-          window.location.href = '/gmc-abonnement?plan=multi';
+          window.location.href = '/gmc-abonnement?plan=multi&reason=multi';
           return;
         }
       }

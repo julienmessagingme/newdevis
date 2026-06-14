@@ -10,7 +10,7 @@ export default function AddChantierCard({ delay = 0, locked = false }: { delay?:
   if (locked) {
     return (
       <a
-        href="/gmc-abonnement?plan=multi"
+        href="/gmc-abonnement?plan=multi&reason=multi"
         className="group flex flex-col items-center justify-center gap-3
           bg-[#F58A06]/[0.06] border-2 border-dashed border-[#F58A06]/40
           hover:border-[#F58A06] hover:bg-[#F58A06]/[0.1]
@@ -24,10 +24,10 @@ export default function AddChantierCard({ delay = 0, locked = false }: { delay?:
         </div>
         <div className="text-center">
           <p className="font-display font-bold text-[#0E1730] text-sm">
-            Gérer plusieurs chantiers
+            1 chantier maximum
           </p>
           <p className="text-xs text-gray-500 mt-0.5 group-hover:text-[#F58A06] transition-colors">
-            Passez à l'offre Multi
+            Votre offre inclut 1 chantier. Passez à Multi pour en créer d'autres.
           </p>
         </div>
       </a>
