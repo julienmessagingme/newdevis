@@ -310,6 +310,7 @@ export default function MonChantierHub() {
   const [chantiers, setChantiers] = useState<ChantierItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isMulti, setIsMulti] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -324,6 +325,12 @@ export default function MonChantierHub() {
 
       const tok = session.access_token;
       if (!cancelled) setToken(tok);
+
+      // Statut d'abonnement → gate 2e chantier sur la carte d'ajout.
+      fetch('/api/gmc/status', { headers: { Authorization: `Bearer ${tok}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((s) => { if (!cancelled && s) setIsMulti(!!s.isMulti); })
+        .catch(() => {});
 
       try {
         const res = await fetch('/api/chantier', {
@@ -486,7 +493,7 @@ export default function MonChantierHub() {
               />
             ))}
             {/* Carte d'ajout toujours visible */}
-            <AddChantierCard delay={chantiers.length * 0.06} />
+            <AddChantierCard delay={chantiers.length * 0.06} locked={!isMulti} />
           </div>
         </div>
       </div>

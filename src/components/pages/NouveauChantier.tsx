@@ -30,15 +30,38 @@ export default function NouveauChantier() {
 
   useEffect(() => {
     let cancelled = false;
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (cancelled) return;
       if (!session) {
         const returnTo = window.location.pathname + window.location.search;
         window.location.href = '/inscription?returnTo=' + encodeURIComponent(returnTo);
         return;
       }
+
+      // Gate 2e chantier : en gratuit/essai/Essentiel on ne crée qu'un chantier.
+      // Au-delà → page d'abonnement (offre Multi). Bloque aussi l'accès direct au
+      // tunnel par URL. La garde backend (sauvegarder) reste l'autorité finale.
+      try {
+        const [chRes, stRes] = await Promise.all([
+          fetch('/api/chantier', { headers: { Authorization: `Bearer ${session.access_token}` } }),
+          fetch('/api/gmc/status', { headers: { Authorization: `Bearer ${session.access_token}` } }),
+        ]);
+        const chJson = chRes.ok ? await chRes.json() : { chantiers: [] };
+        const stJson = stRes.ok ? await stRes.json() : { isMulti: false };
+        if (cancelled) return;
+        const count = (chJson.chantiers ?? []).length;
+        if (count >= 1 && !stJson.isMulti) {
+          window.location.href = '/gmc-abonnement?plan=multi';
+          return;
+        }
+      } catch {
+        // Échec réseau : on laisse passer (la garde backend tranchera à la sauvegarde).
+      }
+
+      if (cancelled) return;
       setAuthChecked(true);
-    });
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -113,6 +136,16 @@ export default function NouveauChantier() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
         body: JSON.stringify({ result: resultToSave }),
       });
+
+      // Garde multi-chantier côté serveur : 2e chantier sans offre Multi → abonnement.
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({} as { code?: string }));
+        if (body.code === 'multi_required') {
+          toast.info("Le multi-chantiers fait partie de l'offre Multi.");
+          window.location.href = '/gmc-abonnement?plan=multi';
+          return;
+        }
+      }
 
       if (res.ok) {
         const data = await res.json();

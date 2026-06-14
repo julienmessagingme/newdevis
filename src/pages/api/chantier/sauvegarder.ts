@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/api/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody, CORS } from '@/lib/api/apiHelpers';
 import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
 import { getSemanticEmoji } from '@/lib/chantier/lotUtils';
 
@@ -29,6 +29,28 @@ export const POST: APIRoute = async ({ request }) => {
   const result = rawBody.result;
   if (!result?.nom) {
     return jsonError('Corps de requête invalide', 400);
+  }
+
+  // Gate multi-chantier : 1 chantier en gratuit/essai/Essentiel, illimité avec
+  // l'offre Multi payante. Garde autoritaire (service-role) : empêche le
+  // contournement par appel direct de l'API. Le frontend repère code=multi_required.
+  const { count: chantierCount } = await supabase
+    .from('chantiers')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id);
+  if ((chantierCount ?? 0) >= 1) {
+    const { data: sub } = await supabase
+      .from('gmc_subscriptions')
+      .select('status, plan')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const isMulti = !!sub && (sub.status === 'active' || sub.status === 'past_due') && sub.plan === 'gmc_multi';
+    if (!isMulti) {
+      return new Response(
+        JSON.stringify({ error: "L'offre Multi est nécessaire pour gérer plusieurs chantiers.", code: 'multi_required' }),
+        { status: 403, headers: CORS },
+      );
+    }
   }
 
   const { artisans, aides, formalites, roadmap, taches, ...rest } = result;

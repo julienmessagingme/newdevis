@@ -1,6 +1,39 @@
-import { Plus, Sparkles } from "lucide-react";
+import { Plus, Sparkles, Lock } from "lucide-react";
 
-export default function AddChantierCard({ delay = 0 }: { delay?: number }) {
+/**
+ * Carte d'ajout de chantier.
+ * - Normale : lien vers le tunnel de creation.
+ * - locked (gratuit/essai/Essentiel avec deja 1 chantier) : invite a passer
+ *   a l'offre Multi (le multi-chantiers est payant).
+ */
+export default function AddChantierCard({ delay = 0, locked = false }: { delay?: number; locked?: boolean }) {
+  if (locked) {
+    return (
+      <a
+        href="/gmc-abonnement?plan=multi"
+        className="group flex flex-col items-center justify-center gap-3
+          bg-[#F58A06]/[0.06] border-2 border-dashed border-[#F58A06]/40
+          hover:border-[#F58A06] hover:bg-[#F58A06]/[0.1]
+          rounded-2xl p-8 transition-all cursor-pointer animate-fade-up
+          min-h-[160px] no-underline"
+        style={{ animationDelay: `${delay}s`, animationFillMode: "both" }}
+        aria-label="Passer a l'offre Multi pour gerer plusieurs chantiers"
+      >
+        <div className="w-12 h-12 rounded-full bg-[#F58A06]/10 border border-[#F58A06]/30 flex items-center justify-center transition-transform group-hover:scale-110">
+          <Lock className="h-5 w-5 text-[#F58A06]" />
+        </div>
+        <div className="text-center">
+          <p className="font-display font-bold text-[#0E1730] text-sm">
+            Gérer plusieurs chantiers
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5 group-hover:text-[#F58A06] transition-colors">
+            Passez à l'offre Multi
+          </p>
+        </div>
+      </a>
+    );
+  }
+
   return (
     <a
       href="/mon-chantier/nouveau"
