@@ -49,6 +49,11 @@ export const POST: APIRoute = async ({ request }) => {
         .maybeSingle();
       const isMulti = !!sub && (sub.status === 'active' || sub.status === 'past_due') && sub.plan === 'gmc_multi';
       if (!isMulti) {
+        // Signale l'intention multi → déclenche l'email gmc_upsell_multi (scheduler). Best-effort.
+        await supabase
+          .from('gmc_subscriptions')
+          .update({ multi_intent_at: new Date().toISOString() })
+          .eq('user_id', user.id);
         return new Response(
           JSON.stringify({ error: "L'offre Multi est nécessaire pour gérer plusieurs chantiers.", code: 'multi_required' }),
           { status: 403, headers: CORS },

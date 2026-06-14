@@ -4,18 +4,17 @@
 // + les dates de gmc_subscriptions (aucun appel Stripe ici ; l'edge function a la
 // cle Resend, contrairement a Vercel ou le webhook ne peut pas envoyer).
 //
-//   trial    : engagement (J1/3/7/14 depuis trial_started_at)
-//              + conversion (J-7/J-3/J-1/fin avant trial_ends_at ; -50% des J-3)
-//              + winback (J+3/J+10/J+21 apres la fin ; l'essai ne bascule jamais
-//                en 'expired' tout seul, donc on le rattrape ici)
-//   active   : gmc_paid_welcome (une fois)
-//   past_due : gmc_dunning (une fois)
-//   expired  : gmc_goodbye (une fois — abonnement resilie)
+//   trial    : engagement (J1/3/7/14) + reengage (chantier inactif >5j, hors conversion)
+//              + conversion (J-7/J-3/J-1/fin, -50% des J-3) + winback (J+3/10/21)
+//   active   : paid_welcome (immediat) -> paid_onboard (J+2) -> paid_checkin (J+14)
+//              -> multi_nudge (Essentiel, J+30) ; renewal_notice (annuels, J-3, par periode)
+//   past_due : dunning   ·   expired : goodbye
+//   tous     : upsell_multi sur tentative de 2e chantier (flag multi_intent_at pose par le gate)
 //
-// Anti-doublon : table gmc_email_log (unique user_id+template_id), reservation
-// "log-first" avant envoi (rollback si l'envoi echoue). 1 email/user/run max
-// (le plus ancien jalon du non encore envoye) => pas de rafale de rattrapage.
-// Dry-run : POST body {"dry":true} renvoie le plan sans rien envoyer ni logger.
+// Ancres temporelles "payant" = sent_at du gmc_paid_welcome (pas de colonne dediee).
+// Anti-doublon : gmc_email_log (unique user_id+template_id), reservation log-first.
+// Le renewal_notice se dedup PAR PERIODE via un logId suffixe par la date d'echeance.
+// 1 email/user/run. Dry-run : POST {"dry":true}.
 // ============================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -28,6 +27,7 @@ const FROM           = "GererMonChantier <bonjour@gerermonchantier.fr>";
 const BASE           = "https://www.gerermonchantier.fr";
 const APP_URL        = `${BASE}/mon-chantier`;
 const SUBSCRIBE_URL  = `${BASE}/gmc-abonnement`;
+const MULTI_URL      = `${BASE}/gmc-abonnement?plan=multi`;
 // Lien -50% : ouvre la checkout Essentiel mensuel avec le coupon applique.
 const OFFER_URL      = `${BASE}/gmc-abonnement?plan=essentiel&interval=month&offer=1`;
 const DAY_MS         = 86_400_000;
@@ -48,45 +48,95 @@ const TRIAL_MILESTONES: { id: GmcEmailId; due: (e: number, l: number) => boolean
   { id: "gmc_winback_offer",  due: (_e, l) => l <= -21 },
 ];
 
-// CTA par template : offre -50% pour les jalons qui l'annoncent, page d'abonnement
-// pour les relances sans offre, cockpit pour l'engagement + le welcome payant.
-const OFFER_IDS = new Set<GmcEmailId>([
-  "gmc_trial_j3", "gmc_trial_j1", "gmc_trial_ended", "gmc_winback_offer",
-]);
-const SUBSCRIBE_IDS = new Set<GmcEmailId>([
-  "gmc_trial_j7", "gmc_winback_1", "gmc_winback_2", "gmc_dunning", "gmc_goodbye",
-]);
 function ctaFor(id: GmcEmailId): string {
-  if (OFFER_IDS.has(id)) return OFFER_URL;
-  if (SUBSCRIBE_IDS.has(id)) return SUBSCRIBE_URL;
-  return APP_URL;
+  switch (id) {
+    case "gmc_trial_j3": case "gmc_trial_j1": case "gmc_trial_ended": case "gmc_winback_offer":
+      return OFFER_URL; // -50% applique
+    case "gmc_upsell_multi": case "gmc_multi_nudge":
+      return MULTI_URL;
+    case "gmc_trial_j7": case "gmc_winback_1": case "gmc_winback_2":
+    case "gmc_dunning": case "gmc_goodbye": case "gmc_renewal_notice":
+      return SUBSCRIBE_URL;
+    default:
+      return APP_URL; // activate/value/trust/midtrial/reengage/paid_welcome/paid_onboard/paid_checkin
+  }
+}
+
+function fmtDateFR(ms: number): string {
+  try {
+    return new Date(ms).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  } catch {
+    return "";
+  }
 }
 
 type Sub = {
   user_id: string;
   status: string;
+  plan: string | null;
   trial_started_at: string | null;
   trial_ends_at: string | null;
+  current_period_end: string | null;
+  multi_intent_at: string | null;
 };
 
-// Choisit le template du non encore envoye pour un abonnement, selon son statut.
-function pickTemplate(sub: Sub, already: Set<string>, now: number): GmcEmailId | null {
+type Ctx = { hasChantier: boolean; chantierUpdatedMs: number | null; paidWelcomeSentMs: number | null };
+type Pick = { id: GmcEmailId; logId: string; vars?: Record<string, string> };
+
+// Choisit l'email du non envoye pour un abonnement, selon statut + dates + contexte.
+function pickTemplate(sub: Sub, already: Set<string>, now: number, ctx: Ctx): Pick | null {
+  const isMulti = (sub.status === "active" || sub.status === "past_due") && sub.plan === "gmc_multi";
+
+  // 0. Upsell Multi — tentative de 2e chantier (signal fort, prioritaire). Tous statuts non-Multi.
+  if (sub.multi_intent_at && !isMulti && !already.has("gmc_upsell_multi")) {
+    return { id: "gmc_upsell_multi", logId: "gmc_upsell_multi" };
+  }
+
   switch (sub.status) {
     case "trial": {
       if (!sub.trial_started_at) return null;
       const e = Math.floor((now - new Date(sub.trial_started_at).getTime()) / DAY_MS);
-      const l = sub.trial_ends_at
-        ? Math.ceil((new Date(sub.trial_ends_at).getTime() - now) / DAY_MS)
-        : 999;
-      const due = TRIAL_MILESTONES.filter((m) => m.due(e, l));
-      return due.find((m) => !already.has(m.id))?.id ?? null;
+      const l = sub.trial_ends_at ? Math.ceil((new Date(sub.trial_ends_at).getTime() - now) / DAY_MS) : 999;
+
+      // Reengage : un chantier existe mais n'a pas bouge depuis >5j, hors phase conversion (l>7), une fois.
+      if (ctx.hasChantier && ctx.chantierUpdatedMs && now - ctx.chantierUpdatedMs > 5 * DAY_MS
+          && e >= 5 && l > 7 && !already.has("gmc_reengage")) {
+        return { id: "gmc_reengage", logId: "gmc_reengage" };
+      }
+
+      const next = TRIAL_MILESTONES.filter((m) => m.due(e, l)).find((m) => !already.has(m.id));
+      return next ? { id: next.id, logId: next.id } : null;
     }
-    case "active":
-      return already.has("gmc_paid_welcome") ? null : "gmc_paid_welcome";
+    case "active": {
+      if (!already.has("gmc_paid_welcome")) return { id: "gmc_paid_welcome", logId: "gmc_paid_welcome" };
+      const anchor = ctx.paidWelcomeSentMs;
+      if (anchor) {
+        const days = (now - anchor) / DAY_MS;
+        if (days >= 2 && !already.has("gmc_paid_onboard")) return { id: "gmc_paid_onboard", logId: "gmc_paid_onboard" };
+        if (days >= 14 && !already.has("gmc_paid_checkin")) return { id: "gmc_paid_checkin", logId: "gmc_paid_checkin" };
+        if (days >= 30 && sub.plan === "gmc_essentiel" && !already.has("gmc_multi_nudge")) {
+          return { id: "gmc_multi_nudge", logId: "gmc_multi_nudge" };
+        }
+      }
+      // Renouvellement : annuels uniquement (le mensuel auto-renew = bruit), J-3, une fois par periode.
+      if (sub.current_period_end && anchor) {
+        const endMs = new Date(sub.current_period_end).getTime();
+        const annual = endMs - anchor > 180 * DAY_MS;
+        const daysToRenew = (endMs - now) / DAY_MS;
+        if (annual && daysToRenew <= 3 && daysToRenew > -1) {
+          const logId = `gmc_renewal_notice:${new Date(sub.current_period_end).toISOString().slice(0, 10)}`;
+          if (!already.has(logId)) {
+            const montant = sub.plan === "gmc_multi" ? "210 € / an" : "120 € / an";
+            return { id: "gmc_renewal_notice", logId, vars: { montant, date_renouvellement: fmtDateFR(endMs) } };
+          }
+        }
+      }
+      return null;
+    }
     case "past_due":
-      return already.has("gmc_dunning") ? null : "gmc_dunning";
+      return already.has("gmc_dunning") ? null : { id: "gmc_dunning", logId: "gmc_dunning" };
     case "expired":
-      return already.has("gmc_goodbye") ? null : "gmc_goodbye";
+      return already.has("gmc_goodbye") ? null : { id: "gmc_goodbye", logId: "gmc_goodbye" };
     default:
       return null;
   }
@@ -123,7 +173,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: subs, error } = await sb
     .from("gmc_subscriptions")
-    .select("user_id, status, trial_started_at, trial_ends_at")
+    .select("user_id, status, plan, trial_started_at, trial_ends_at, current_period_end, multi_intent_at")
     .in("status", ["trial", "active", "past_due", "expired"]);
 
   if (error) {
@@ -139,20 +189,33 @@ Deno.serve(async (req: Request) => {
   for (const s of (subs ?? []) as Sub[]) {
     const { data: logs } = await sb
       .from("gmc_email_log")
-      .select("template_id")
+      .select("template_id, sent_at")
       .eq("user_id", s.user_id);
     const already = new Set((logs ?? []).map((l) => l.template_id as string));
+    const pw = (logs ?? []).find((l) => l.template_id === "gmc_paid_welcome");
+    const paidWelcomeSentMs = pw?.sent_at ? new Date(pw.sent_at as string).getTime() : null;
 
-    const tpl = pickTemplate(s, already, now);
-    if (!tpl) continue;
+    // Premier chantier : nom (vars email) + updated_at (proxy d'activite pour reengage).
+    const { data: ch } = await sb
+      .from("chantiers")
+      .select("nom, updated_at")
+      .eq("user_id", s.user_id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const nomChantier = (ch?.nom as string) ?? "";
+    const chantierUpdatedMs = ch?.updated_at ? new Date(ch.updated_at as string).getTime() : null;
 
-    planned.push({ user_id: s.user_id, template_id: tpl, status: s.status });
+    const pick = pickTemplate(s, already, now, { hasChantier: !!ch, chantierUpdatedMs, paidWelcomeSentMs });
+    if (!pick) continue;
+
+    planned.push({ user_id: s.user_id, template_id: pick.logId, status: s.status });
     if (dry) continue;
 
     // Reservation log-first (idempotente) : sur conflit unique => deja envoye, on saute.
     const { data: ins, error: insErr } = await sb
       .from("gmc_email_log")
-      .insert({ user_id: s.user_id, template_id: tpl })
+      .insert({ user_id: s.user_id, template_id: pick.logId })
       .select("id")
       .maybeSingle();
     if (insErr || !ins) continue;
@@ -162,25 +225,16 @@ Deno.serve(async (req: Request) => {
     const um = (ud?.user?.user_metadata ?? {}) as Record<string, string>;
     const prenom = (um.first_name || (um.full_name || um.name || "").split(" ")[0] || "").trim();
 
-    let nomChantier = "";
-    const { data: ch } = await sb
-      .from("chantiers")
-      .select("nom")
-      .eq("user_id", s.user_id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (ch?.nom) nomChantier = ch.nom as string;
-
     if (!email) {
       await sb.from("gmc_email_log").delete().eq("id", ins.id); // rollback
       continue;
     }
 
-    const { subject, html } = renderGmcEmail(tpl, {
+    const { subject, html } = renderGmcEmail(pick.id, {
       prenom,
       nom_chantier: nomChantier,
-      lien_cta: ctaFor(tpl),
+      lien_cta: ctaFor(pick.id),
+      ...(pick.vars ?? {}),
     });
     const ok = await sendEmail(email, subject, html);
     if (ok) {
