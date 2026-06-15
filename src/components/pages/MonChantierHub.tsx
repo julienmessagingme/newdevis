@@ -354,11 +354,11 @@ export default function MonChantierHub() {
         const list = (json.chantiers ?? []) as ChantierItem[];
         if (!cancelled) setChantiers(list);
 
-        // Retour d'abonnement (Stripe) : un user avec UN seul chantier entre direct
-        // dans son cockpit (la vue de travail / dashboard), au lieu de rester sur la
-        // liste. A partir de 2 chantiers (Multi), on garde le hub.
-        const justSubscribed = new URLSearchParams(window.location.search).get('abonnement') === 'success';
-        if (!cancelled && justSubscribed && list.length === 1) {
+        // Un seul chantier => pas besoin du hub : on entre direct dans son cockpit
+        // (la vue de travail / dashboard). A partir de 2 chantiers (Multi) on garde
+        // le hub pour basculer entre projets. La creation d'un 2e chantier passe par
+        // /mon-chantier/nouveau (CTA "Creer avec l'IA" du cockpit), donc pas de piege.
+        if (!cancelled && list.length === 1) {
           window.location.replace(`/mon-chantier/${list[0].id}`);
           return;
         }
