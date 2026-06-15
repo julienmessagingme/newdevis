@@ -174,12 +174,11 @@ const featureMenu = [
       const nameEl = document.getElementById('gmc-user-name');
       if (nameEl) nameEl.textContent = `Espace ${displayName}`;
 
-      // "Mes chantiers" visible si user allowlisté
-      const { hasGmcAccess } = await import('@/lib/auth/gmcAccess');
-      if (hasGmcAccess(user.email)) {
-        const link = document.getElementById('gmc-user-chantier-link');
-        link?.classList.remove('hidden');
-      }
+      // "Mes chantiers" visible pour tout utilisateur connecté — l'accès réel est
+      // contrôlé côté serveur (abonnement / essai). L'ancienne allowlist en dur
+      // masquait le lien aux vrais abonnés, qui ne pouvaient donc pas rejoindre
+      // leur tableau de bord depuis le header.
+      document.getElementById('gmc-user-chantier-link')?.classList.remove('hidden');
     }
   } catch {
     // Mode privé strict ou similaire — non bloquant, on garde le bouton Connexion

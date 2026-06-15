@@ -252,6 +252,18 @@ Liste de tous les chantiers de l'utilisateur.
 - **Actions par chantier** (bouton crayon au survol) : **renommer** le chantier en ligne, **"Modifier le projet avec l'IA"** (ouvre l'éditeur de prompt du cockpit), **supprimer** (avec confirmation)
 - Bouton **"+ Nouveau chantier"** pour créer un projet
 
+### Formules & différenciation Multi
+
+Deux formules payantes (essai 30 j) : **Essentiel** (12 €/mois, 1 chantier) et **Multi-chantiers** (25 €/mois, projets illimités), plus un **Sur mesure** (MOE / architectes). Libellés commerciaux source de vérité : `src/components/gmc-landing/Pricing.astro`.
+
+Features mises en avant comme **exclusives Multi** :
+- **Multi-chantiers illimités** + bascule rapide entre projets
+- **Planning détaillé** (développé / live)
+- **Synthèse multi-chantier** *(à venir, annoncé commercialement)* : vue agrégée de tous les chantiers, budget consolidé, planning global, contacts unifiés
+- **Journal IA quotidien**, branchement **OpenClaw + MCP**, support prioritaire
+
+> Le gating est côté serveur : la création d'un 2e chantier sans offre Multi renvoie vers la page d'abonnement (`/gmc-abonnement?plan=multi`).
+
 ---
 
 ## 3. Onglet **Accueil** (cockpit du chantier)
