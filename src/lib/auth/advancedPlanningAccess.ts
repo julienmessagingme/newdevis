@@ -1,16 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { jsonError, requireAuth, type AuthContext } from '@/lib/api/apiHelpers';
 import { hasGmcAccess } from '@/lib/auth/gmcAccess';
+import { computeGmcInfo } from '@/lib/integrations/gmc-status-compute';
 
 /**
- * Habilitation au PLANNING AVANCÉ (sous-phases) — capacité premium GMC.
+ * Habilitation au PLANNING AVANCÉ (sous-phases) : capacité de l'offre Multi.
  *
- * SEAM minimal, prêt à brancher sur le futur paywall GMC. Habilités V1 :
+ * Habilités :
  *   - admin (table user_roles, role='admin')
- *   - beta / allowlist GMC (hasGmcAccess — Julien + Johan aujourd'hui)
- * TODO (paywall GMC) : ajouter abonnés payants + essai actif quand le tier
- * d'abonnement GMC existera. NE MODIFIER QUE getAdvancedPlanningAccess — les
- * call sites (requireAdvancedPlanning, endpoint, hook) restent stables.
+ *   - beta / allowlist GMC (hasGmcAccess, Julien + Johan)
+ *   - abonné Multi actif (gmc_subscriptions, isMulti via computeGmcInfo)
+ * Essentiel et essai gratuit : non habilités (le planning avancé fait partie
+ * de l'offre Multi). NE MODIFIER QUE getAdvancedPlanningAccess, les call sites
+ * (requireAdvancedPlanning, endpoint, hook) restent stables.
  *
  * Règle anti-bypass : on lit TOUJOURS la DB (jamais un claim du JWT).
  */
@@ -45,7 +47,16 @@ export async function getAdvancedPlanningAccess(
   }
   if (hasGmcAccess(mail)) return { allowed: true, reason: 'beta' };
 
-  // 3. TODO paywall GMC : tier abonnement (subscribed | trial_active) → allowed
+  // 3. Abonné Multi actif : le planning avancé fait partie de l'offre Multi.
+  const { data: sub } = await supabase
+    .from('gmc_subscriptions')
+    .select('status, plan, trial_ends_at, current_period_end')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (computeGmcInfo(sub, Date.now()).isMulti) {
+    return { allowed: true, reason: 'subscribed' };
+  }
+
   return { allowed: false, reason: 'denied' };
 }
 
@@ -66,6 +77,6 @@ export async function requireAdvancedPlanning(request: Request): Promise<AuthCon
   const ctx = await requireAuth(request);
   if (ctx instanceof Response) return ctx;
   const ok = await canUseAdvancedPlanning(ctx.supabase, ctx.user.id, ctx.user.email);
-  if (!ok) return jsonError('Planning avancé réservé à l\'abonnement premium', 403);
+  if (!ok) return jsonError('Planning avancé réservé à l\'offre Multi', 403);
   return ctx;
 }

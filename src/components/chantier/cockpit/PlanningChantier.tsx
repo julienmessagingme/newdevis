@@ -186,8 +186,8 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
             <div className="flex items-start gap-3 bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl px-4 py-3">
               <Sparkles className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" aria-hidden="true" />
               <div className="text-sm text-gray-700">
-                <p className="font-semibold text-gray-900">Planning avancé — offre premium</p>
-                <p className="text-xs mt-0.5 text-gray-600">Découpez chaque phase en sous-étapes et chaînez-les, même entre métiers (ex : l'électricité démarre quand la mise en eau du plombier est finie). Disponible avec l'abonnement GérerMonChantier.</p>
+                <p className="font-semibold text-gray-900">Planning avancé · offre Multi</p>
+                <p className="text-xs mt-0.5 text-gray-600">Découpez chaque phase en sous-étapes et chaînez-les, même entre métiers (ex : l'électricité démarre quand la mise en eau du plombier est finie). Disponible avec l'offre Multi.</p>
               </div>
             </div>
           )}

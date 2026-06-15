@@ -18,7 +18,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   const ctx = await requireChantierAuth(request, chantierId);
   if (ctx instanceof Response) return ctx;
   if (!(await canUseAdvancedPlanning(ctx.supabase, ctx.user.id, ctx.user.email))) {
-    return jsonError('Planning avancé réservé à l\'abonnement premium', 403);
+    return jsonError('Planning avancé réservé à l\'offre Multi', 403);
   }
 
   // Le lot appartient-il bien à ce chantier ?
