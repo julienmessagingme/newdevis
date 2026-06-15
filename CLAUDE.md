@@ -849,7 +849,7 @@ const inputClass = isMobile
 
 ---
 
-## Monitoring & alertes prod — 2 systèmes complémentaires (2026-05-21)
+## Monitoring & alertes prod — 3 systèmes complémentaires (2026-05-21, +error-tracking 2026-06-15)
 
 > Section ajoutée après un **incident silencieux** : la régression V3.4.20 sur l'analyse VMD est passée 2 jours sans alerte mail. Diagnostic : le cron `system-health-alerts` créé en 2026-02-28 avait été supprimé par le commit `ff69caa` (2026-03-14) et jamais restauré → 80 jours sans surveillance volumétrique. Restauré explicitement le 2026-05-21 via migration `20260521_001_restore_system_health_alerts_cron.sql`.
 
@@ -863,6 +863,8 @@ const inputClass = isMobile
 Destinataires alignés des 2 systèmes : `julien@messagingme.fr` + `bridey.johan@gmail.com`. Le commentaire TODO Resend dans `system-alerts/index.ts` ("from=alerts@verifiermondevis.fr une fois domaine vérifié") reste valide mais n'empêche pas les envois aujourd'hui (utilise `from=onboarding@resend.dev`).
 
 **⚠️ Angle mort connu (à addresser)** : un **mauvais verdict** (ex: ROUGE faux comme dans V3.4.20) n'est PAS une erreur technique (pas d'exception, status=`completed` dans la DB). Aucun des 2 crons ne le détecte. Le seul signal aujourd'hui = feedback utilisateur via la modal `FeedbackModal` (chips négatifs `faux_radiee`, `mauvaise_entreprise`, etc., visibles dans `/admin` section "Anomalies bloquantes"). À ajouter en Phase ultérieure : un cron qui surveille les pics de feedbacks négatifs et alerte (genre 3+ feedbacks `faux_radiee` en 1h → email).
+
+**3e système — error-tracking maison (2026-06-15)** : `captureError(source, error, ctx)` ([`errorReporter.ts`](src/lib/integrations/errorReporter.ts) côté Vercel + [`_shared/error-reporter.ts`](supabase/functions/_shared/error-reporter.ts) côté Deno) attrape les **exceptions runtime aux points de fuite silencieuse** (webhook Stripe, photo WhatsApp `whapi.ts:69`, `inbound-email`, agent-orchestrator interactif + batch) → 1 ligne dans la table `error_log` + 1 message Telegram instantané via le bot ops `@Messagingmeapp_bot`. **Best-effort, ne throw jamais.** ⚠️ **Piège : gated sur `TELEGRAM_ERROR_BOT_TOKEN` + `TELEGRAM_ERROR_CHAT_ID`** (Vercel + secrets Supabase) — **no-op silencieux si absentes**. Si tu ne reçois aucune alerte : vérifier que les 2 env vars sont posées des DEUX côtés + **redeploy Vercel** (`import.meta.env` inliné au build). Complète les 2 crons (eux = volumétrique/réparation ; lui = exceptions ponctuelles). L'angle mort « mauvais verdict » reste (pas une exception).
 
 **Vérifications post-déploiement migration** (SQL Editor Supabase) :
 
