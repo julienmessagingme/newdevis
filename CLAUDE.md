@@ -567,7 +567,8 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **Alias** : `@/` → `src/`.
 - **Interface** en français, **code** en anglais.
 - **Params dynamiques** : `[id].astro` et `[slug].astro` — les composants React extraient les params de `window.location.pathname`.
-- **Commandes** : `npm run dev` | `npm run build` | `npm run preview` | `npm run lint`.
+- **Commandes** : `npm run dev` | `npm run build` | `npm run preview` | `npm run lint` | `npm test` (Vitest).
+- **Tests — deux harnais cohabitent** : (1) **Vitest** (`npm test`, `describe/it`) = standard, ex. `src/lib/integrations/stripe-webhook-helpers.test.ts` ; (2) **standalone tsx** (harness maison `check()` + `console.log`, lancés `npx tsx <fichier>`) = `verdictEngine.test.ts`, `advancedPlanningAccess.test.ts`, `planningUtils.subphases.test.ts`, **exclus de `vitest.config.ts`** (pas de `describe/it`). `npm test` ne les exécute donc pas (normal) ; à migrer vers Vitest un jour (TODO Étape 10).
 
 - **Inscription OBLIGATOIRE pour analyser un devis (règle absolue, 2026-05-11)** : `/nouvelle-analyse` redirige vers `/inscription?returnTo=/nouvelle-analyse` si l'utilisateur n'a pas de compte permanent. **Ne JAMAIS** réintroduire un `signInAnonymously()` automatique dans `NewAnalysis.tsx` ni ailleurs dans le funnel d'analyse.
   - Contexte : entre le 02/05 et le 11/05/2026, un `signInAnonymously()` automatique avait été introduit dans `NewAnalysis.tsx` (useEffect au mount). Conséquence : 0 nouveau compte permanent enregistré pendant 9 jours alors que le site recevait du trafic. Les visiteurs analysaient gratuitement en mode anonyme et ne se convertissaient jamais en compte permanent → 0 email récolté, 0 base de relance, 0 visibilité pipeline.
