@@ -7,6 +7,7 @@ import { gmcPlanFromPriceId } from '@/lib/integrations/gmc-stripe-config';
 import { subPeriodEndISO, gmcStatusFromStripe, invoiceSubscriptionId } from '@/lib/integrations/stripe-webhook-helpers';
 // Module de templates email PUR (aucun import Deno) -> importable cote Astro/Vercel comme cote edge function.
 import { renderGmcEmail } from '../../../supabase/functions/_shared/gmc-emails';
+import { captureError } from '@/lib/integrations/errorReporter';
 
 const stripeSecretKey = import.meta.env.STRIPE_SECRET_KEY;
 const webhookSecret = import.meta.env.STRIPE_WEBHOOK_SECRET;
@@ -266,6 +267,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
   } catch (e) {
     console.error('[stripe-webhook] Handler error:', (e as Error).message);
+    await captureError('stripe-webhook', e, { eventType: event.type, eventId: event.id });
     return new Response('Erreur interne', { status: 500 });
   }
 

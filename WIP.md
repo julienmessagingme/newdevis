@@ -33,7 +33,16 @@ Parcours "Tester gratuitement" → inscription → tunnel → cockpit → essai 
 
 **🟠 Reste :** (1) `RESEND_API_KEY` sur **Vercel** (clé fournie 2026-06-14, à coller par Julien → emails payants temps réel via webhook au lieu du cron ≤24h + notif /avis) ; (2) **🔴 `invoice.subscription`** dans `stripe-webhook.ts` (types Stripe v20 : champ retiré → branche `invoice.payment_failed` = past_due/dunning potentiellement cassée au runtime, à vérifier + corriger) ; (3) **gros TODO** Paramètres agent (toggle IA auto-réponse artisans + OpenClaw). Voir `TODO.md` § GMC Monétisation.
 
-**⚠️ Ops :** `RESEND_API_KEY` à ajouter côté **Vercel** pour la notif `/avis` (présente sur Supabase, absente sur Vercel → notif muette, avis quand même stockés). Migrations GMC en SQL direct → `npx supabase migration repair --status applied 20260612120000 20260612130000 20260612140000 20260612150000 20260613090000 20260614100000 20260614170000 20260614190000 20260614210000` avant tout `db push`. Nettoyer `AddIntervenantModal` (dormant).
+**⚠️ Ops :** `RESEND_API_KEY` à ajouter côté **Vercel** pour la notif `/avis` (présente sur Supabase, absente sur Vercel → notif muette, avis quand même stockés). Migrations GMC en SQL direct → `npx supabase migration repair --status applied 20260612120000 20260612130000 20260612140000 20260612150000 20260613090000 20260614100000 20260614170000 20260614190000 20260614210000 20260615100000` avant tout `db push`. Nettoyer `AddIntervenantModal` (dormant).
+
+---
+
+## 🟢 Error-tracking maison (Telegram + table) — 2026-06-15
+
+Alternative légère à Sentry (choix Julien : zéro nouveau vendor, réutilise le bot Telegram ops). **Infra + 1er câblage livrés.**
+- Table `error_log` (Supabase, service-role only, migration `20260615100000`) + helper `captureError(source, error, ctx)` côté Vercel (`src/lib/integrations/errorReporter.ts`) ET côté edge functions Deno (`supabase/functions/_shared/error-reporter.ts`). Sur erreur : 1 ligne `error_log` + 1 message Telegram instantané. **Gated** sur `TELEGRAM_ERROR_BOT_TOKEN` + `TELEGRAM_ERROR_CHAT_ID` (no-op si absentes → safe à shipper avant les secrets).
+- Câblé : webhook Stripe (`stripe-webhook.ts`, catch top-level). `analyze-quote` a déjà son `alertAdminOnFailure` (email admin) → pas un gap.
+- **Reste** : (1) Julien pose les 2 env vars Telegram sur **Vercel** (Prod+Preview) + secrets **Supabase** pour activer ; (2) câbler les autres catch (agent-orchestrator multi-handlers, whapi photo `:69`, inbound-email, gmc-email-scheduler) — 1 ligne chacun via le helper, à faire proprement (pas en fin de session).
 
 ---
 
