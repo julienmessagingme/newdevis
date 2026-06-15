@@ -41,8 +41,8 @@ Parcours "Tester gratuitement" → inscription → tunnel → cockpit → essai 
 
 Alternative légère à Sentry (choix Julien : zéro nouveau vendor, réutilise le bot Telegram ops). **Infra + 1er câblage livrés.**
 - Table `error_log` (Supabase, service-role only, migration `20260615100000`) + helper `captureError(source, error, ctx)` côté Vercel (`src/lib/integrations/errorReporter.ts`) ET côté edge functions Deno (`supabase/functions/_shared/error-reporter.ts`). Sur erreur : 1 ligne `error_log` + 1 message Telegram instantané. **Gated** sur `TELEGRAM_ERROR_BOT_TOKEN` + `TELEGRAM_ERROR_CHAT_ID` (no-op si absentes → safe à shipper avant les secrets).
-- Câblé : webhook Stripe (`stripe-webhook.ts`, catch top-level). `analyze-quote` a déjà son `alertAdminOnFailure` (email admin) → pas un gap.
-- **Reste** : (1) Julien pose les 2 env vars Telegram sur **Vercel** (Prod+Preview) + secrets **Supabase** pour activer ; (2) câbler les autres catch (agent-orchestrator multi-handlers, whapi photo `:69`, inbound-email, gmc-email-scheduler) — 1 ligne chacun via le helper, à faire proprement (pas en fin de session).
+- **Câblé (2026-06-15)** : webhook Stripe (catch top-level) + **whapi** (`webhooks/whapi.ts` : download photo `:69` + catch pipeline `handleWaPhoto`) + **inbound-email** (catch top-level + échec d'insert message) + **agent-orchestrator** (catch interactif chat user + catch batch par chantier). Deploy agent-orchestrator vert (le helper Deno bundle OK). `analyze-quote` a déjà `alertAdminOnFailure` (email) → pas un gap. Optionnel restant : `gmc-email-scheduler` (déjà console.error + retry quotidien, faible priorité).
+- **Reste pour ACTIVER** : Julien pose `TELEGRAM_ERROR_BOT_TOKEN` + `TELEGRAM_ERROR_CHAT_ID` sur **Vercel** (Prod+Preview) **et** en secrets **Supabase**. Tout le câblage est en place + déployé ; le système est muet uniquement par absence de ces 2 env vars.
 
 ---
 
