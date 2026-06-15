@@ -164,7 +164,7 @@ export default function ScreenModeSelection({ onSelect, defaultMode }: Props) {
             Choisissez votre mode de gestion
           </h1>
           <p className="text-gray-500 text-base">
-            Votre espace s\u2019adapte automatiquement à votre façon de piloter
+            Votre espace s'adapte automatiquement à votre façon de piloter
           </p>
         </div>
 

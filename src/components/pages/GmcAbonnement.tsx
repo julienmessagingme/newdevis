@@ -18,7 +18,7 @@ const PLANS: {
   },
   {
     key: 'multi', name: 'Multi-chantiers', priceM: 25, priceY: 210, tagY: '-30 % vs mensuel',
-    features: ['Tout Essentiel', 'Chantiers illimités', 'Journal IA quotidien', 'Support prioritaire'],
+    features: ['Tout Essentiel', 'Chantiers illimités', 'Synthèse multi-chantiers', 'Planning détaillé', 'Journal IA quotidien', 'Support prioritaire'],
     highlight: true,
   },
 ];

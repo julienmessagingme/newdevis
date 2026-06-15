@@ -423,7 +423,7 @@ export default function MonChantierHub() {
             🏗️
           </div>
           <h1 className="font-bold text-gray-900 text-2xl mb-2">
-            Aucun chantier pour l\u2019instant
+            Aucun chantier pour l'instant
           </h1>
           <p className="text-gray-500 text-sm mb-8 leading-relaxed">
             Décrivez votre projet en quelques mots et obtenez un plan complet
