@@ -179,9 +179,27 @@ export const POST: APIRoute = async ({ request }) => {
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
         const userId = subscription.metadata?.supabase_user_id;
-        if (!userId) break;
-
         const periodEnd = subPeriodEndISO(subscription);
+
+        // Fallback robuste si l'event arrive sans metadata supabase_user_id : on cible
+        // la ligne par stripe_subscription_id (seule la table propriétaire matche).
+        if (!userId) {
+          await supabase
+            .from('gmc_subscriptions')
+            .update({
+              status: gmcStatusFromStripe(subscription.status),
+              current_period_end: periodEnd,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('stripe_subscription_id', subscription.id);
+          const vmdStatus = subscription.status === 'active' ? 'active'
+            : subscription.status === 'past_due' ? 'past_due' : 'inactive';
+          await supabase
+            .from('subscriptions')
+            .update({ status: vmdStatus, current_period_end: periodEnd })
+            .eq('stripe_subscription_id', subscription.id);
+          break;
+        }
 
         if (subscription.metadata?.product === 'gmc') {
           const plan = gmcPlanFromPriceId(subscription.items.data[0]?.price?.id);
@@ -216,25 +234,36 @@ export const POST: APIRoute = async ({ request }) => {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.supabase_user_id;
-        if (!userId) break;
+        const subId = subscription.id;
+        const metaUserId = subscription.metadata?.supabase_user_id ?? null;
 
-        if (subscription.metadata?.product === 'gmc') {
-          await supabase
-            .from('gmc_subscriptions')
-            .update({ status: 'expired', updated_at: new Date().toISOString() })
-            .eq('user_id', userId);
-          await logGmcEvent(supabase, userId, 'canceled', null);
-          console.log('[stripe-webhook] GMC subscription canceled for user:', userId);
-          break;
-        }
+        // Résiliation : on cible la ligne par stripe_subscription_id (robuste même si
+        // la metadata supabase_user_id manque sur l'event — sans ce fallback, une
+        // résiliation immédiate laissait la ligne 'active'). Seule la table
+        // propriétaire de cet abonnement possède une ligne correspondante.
+        const { data: gmcRow } = await supabase
+          .from('gmc_subscriptions')
+          .update({ status: 'expired', updated_at: new Date().toISOString() })
+          .eq('stripe_subscription_id', subId)
+          .select('user_id')
+          .maybeSingle();
 
         await supabase
           .from('subscriptions')
           .update({ status: 'inactive' })
-          .eq('user_id', userId);
+          .eq('stripe_subscription_id', subId);
 
-        console.log('[stripe-webhook] Subscription canceled for user:', userId);
+        // Filet : si rien n'a matché par subId mais qu'on a l'user via metadata.
+        if (!gmcRow && metaUserId && subscription.metadata?.product === 'gmc') {
+          await supabase
+            .from('gmc_subscriptions')
+            .update({ status: 'expired', updated_at: new Date().toISOString() })
+            .eq('user_id', metaUserId);
+        }
+
+        const canceledUserId = (gmcRow?.user_id as string | undefined) ?? metaUserId ?? undefined;
+        if (canceledUserId) await logGmcEvent(supabase, canceledUserId, 'canceled', null);
+        console.log('[stripe-webhook] Subscription canceled:', subId, 'gmc:', !!gmcRow);
         break;
       }
 
