@@ -1,0 +1,368 @@
+# =============================================================================
+# Taxonomie famille PEINTURE — Spec V1 (2026-06-15)
+# Statut : 🟡 À VALIDER par Julien
+# =============================================================================
+#
+# Couvre ~25% du volume devis observé. Famille la plus problématique pour
+# les hallucinations parce qu'elle introduit la convention "N couches" qui
+# multiplie artificiellement les m² extraits par l'IA.
+#
+# Cas connus :
+#   - Devis placo 7176€ "Application 2 couches sur 138 m²" → IA somme 276 m²
+#     → comparé au prix moyen "Peinture pièce 12m²" → +500% absurde
+#   - "Enduit ratissage 25€/m²" → verdict expert dit "45€/m² → +500€" (halluciné)
+#
+# Règles métier français BTP (peinture acrylique standard, milieu de gamme) :
+# Une couche de peinture sur mur intérieur = 0.12-0.18 L/m² de produit
+# Coût matière = 2-5 €/m² par couche
+# Coût main d'œuvre = 8-15 €/m² par couche (incluant masquage, lessivage léger)
+# Total réaliste : 10-20 €/m² par couche
+# 2 couches = base standard du marché français (NF P74-201 DTU 59.1)
+# =============================================================================
+
+famille: peinture
+
+# -----------------------------------------------------------------------------
+# DÉTECTION DE LA FAMILLE
+# -----------------------------------------------------------------------------
+# Patterns de description qui font basculer une ligne devis dans cette famille.
+# Évalués dans l'ordre, premier match gagne.
+# -----------------------------------------------------------------------------
+detection:
+  patterns:
+    # Verbes d'application typiques
+    - regex: '\b(application|appliqu(er|ez)|pos(e|er|ez))\b.*\bpeinture\b'
+      priority: high
+    - regex: '\b(couche|couches|enduit|enduits|ratiss(age|er))\b.*(mur|plafond|cloison|façade)'
+      priority: high
+    # Préparations spécifiques peinture
+    - regex: '\b(lessivage|ponçage|sous[- ]couche|impression)\b.*(mur|plafond|peint)'
+      priority: medium
+    # Noms produits
+    - regex: '\b(peinture\s+(acrylique|glycéro|mat|satin|velours))\b'
+      priority: high
+    # Boiseries peintes (peinture sur menuiseries)
+    - regex: '\bpeinture\s+(boiseries?|portes?|fenêtres?|plinthes?|huisseries?|radiateurs?)\b'
+      priority: high
+
+  # Mots-clés qui FONT SORTIR de la famille peinture (anti-confusion)
+  anti_patterns:
+    - 'papier\s+peint'        # → famille revêtement mural
+    - 'fibre\s+de\s+verre'    # → famille revêtement mural
+    - 'toile\s+de\s+verre'    # → famille revêtement mural
+    - 'crépi'                 # → famille façade enduit
+    - 'lasure'                # → famille bois (souvent extérieur)
+
+# -----------------------------------------------------------------------------
+# SOUS-TYPES (exclusifs, un seul match possible)
+# -----------------------------------------------------------------------------
+sous_types:
+
+  murs_interieurs:
+    label: "Peinture murs intérieurs"
+    unite_canonique: "m²"
+    detection:
+      - '\bmurs?\b.*(intérieur|interieur|chambre|salon|cuisine|sdb|sdb)'
+      - '\bmurs?\b'  # fallback si pas de qualif extérieur explicite
+    anti_patterns:
+      - '\bextérieur|exterieur|façade|facade\b'
+    fourchettes_prix_par_couche:  # €/m² par couche (préparation inclus standard)
+      bas:    12
+      moyen:  15
+      haut:   18
+
+  plafonds:
+    label: "Peinture plafonds"
+    unite_canonique: "m²"
+    detection:
+      - '\bplafonds?\b'
+      - '\b(faux[- ]plafond|sous[- ]face)\b'
+    fourchettes_prix_par_couche:
+      # Plafonds = +20-30% vs murs car position en hauteur, masquage, fatigue
+      bas:    15
+      moyen:  19
+      haut:   24
+
+  murs_plus_plafonds:
+    label: "Peinture murs + plafonds (combiné)"
+    unite_canonique: "m²"
+    detection:
+      # Souvent vendu en forfait combiné, surface = murs + plafonds
+      - '\bmurs?\s+(et|\+|&)\s+plafonds?\b'
+      - '\bensemble\s+(murs|peinture)\b.*(plafonds?)'
+    fourchettes_prix_par_couche:
+      # Moyenne pondérée murs/plafonds (~70/30)
+      bas:    13
+      moyen:  17
+      haut:   21
+
+  boiseries:
+    label: "Peinture boiseries / menuiseries"
+    unite_canonique: "ml"  # ou unité (par porte / fenêtre)
+    detection:
+      - '\b(boiseries?|portes?\s+(int|ext|de\s+placard)|fenêtres?|plinthes?|huisseries?|chambranles?|radiateurs?)\b'
+    fourchettes_prix:
+      # En ml de boiserie traitée (intégrant préparation + 2 couches)
+      par_ml:
+        bas:    25
+        moyen:  40
+        haut:   65
+      # OU par unité (porte standard 80x215)
+      par_unite_porte:
+        bas:    80
+        moyen:  130
+        haut:   200
+
+  facade_exterieure:
+    label: "Peinture / revêtement façade extérieure"
+    unite_canonique: "m²"
+    detection:
+      - '\bfaçade|facade\b'
+      - '\b(extérieur|exterieur)\b.*(mur|peint)'
+    fourchettes_prix_par_couche:
+      # Façade = +50-80% vs intérieur (échafaudage, exposition, produits)
+      bas:    20
+      moyen:  30
+      haut:   45
+
+  preparation_lourde:
+    label: "Préparation supports lourde (avant peinture)"
+    unite_canonique: "m²"
+    detection:
+      # Ces opérations s'ajoutent au prix de la peinture pure
+      - '\bratissage\b'
+      - '\benduit\s+(de\s+)?lissage\b'
+      - '\bdécapage\b'
+      - '\brebouchage|reb\.\b'  # Rebouchage important
+      - '\btoile\s+(de\s+)?protection|entoilage\b'
+    fourchettes_prix:
+      par_m2:
+        bas:    8
+        moyen:  15
+        haut:   25
+    # Note : si "préparation lourde" + "peinture N couches" sont 2 lignes
+    # distinctes du devis, on les somme. Si c'est inclus dans une ligne
+    # globale "Application enduit + 2 couches peinture", appliquer
+    # le coefficient "preparation_lourde_incluse" ci-dessous.
+
+# -----------------------------------------------------------------------------
+# CONVENTIONS COMPOSITES — RÈGLES D'AJUSTEMENT
+# -----------------------------------------------------------------------------
+# Les conventions sont des PATTERNS de description qui modifient la
+# quantité de référence OU le prix attendu /m².
+# -----------------------------------------------------------------------------
+conventions:
+
+  # ⭐ LA RÈGLE FONDAMENTALE — "N couches"
+  multiplicateur_couches:
+    description: |
+      "Application de N couches" multiplie le coût mais PAS la quantité de
+      surface. Si le devis affiche "276 m² × 26€/m² = 7176€" pour "138 m²
+      de murs en 2 couches", on doit :
+        - quantite_corrigee = quantite_extracted (276) / N (2) = 138 m²
+        - prix_par_couche_observe = prix_total / (quantite_corrigee × N) = 7176/276 = 26 €/m²
+      → comparer au fourchettes_prix_par_couche du sous-type
+    patterns:
+      - regex: '(\d+)\s+couches?'           # "2 couches", "3 couches"
+        capture_group: 1
+      - regex: 'double\s+couche'            # "double couche"
+        value: 2
+      - regex: 'triple\s+couche'
+        value: 3
+      - regex: 'mono[- ]?couche'
+        value: 1
+    par_defaut: 2  # si rien d'explicite → on suppose 2 couches (standard FR)
+    impact:
+      type: "divide_quantity_by_N_for_comparison"
+
+  # Préparations qui s'ajoutent au prix de la peinture
+  preparation_lourde_incluse:
+    description: |
+      Quand le devis liste une ligne unique avec préparation lourde +
+      peinture (ex: "Application enduit + 2 couches peinture"), il faut
+      ajouter le coût préparation à la fourchette peinture pure.
+    patterns:
+      - 'enduit.*peinture'
+      - 'ratissage.*couche'
+      - 'décapage.*peinture'
+    impact:
+      type: "add_to_fourchette"
+      ajustement:
+        bas: 8
+        moyen: 15
+        haut: 25
+
+  hauteur_importante:
+    description: |
+      Travail en hauteur > 3m → échafaudage requis → majoration 20-30%
+      Souvent mentionné explicitement "en hauteur", "cathédrale", "double hauteur"
+    patterns:
+      - 'hauteur\s+(>?\s*3|importante|cathédrale|double)'
+      - 'sous\s+rampants'  # Combles avec rampants → toujours hauteur variable
+    impact:
+      type: "multiply_fourchette"
+      coefficient: 1.25
+
+  finition_haut_gamme:
+    description: |
+      Finition velours / satin / mat absolu / sablonneux → +20-40%
+    patterns:
+      - 'velours\b'
+      - 'satin\s+(absolu|profond)'
+      - 'mat\s+(absolu|profond|d\'argent)'
+      - 'effet\s+(sablé|sablonneux|béton\s+ciré)'
+    impact:
+      type: "multiply_fourchette"
+      coefficient: 1.30
+
+# -----------------------------------------------------------------------------
+# CAS LIMITES + GESTION
+# -----------------------------------------------------------------------------
+cas_limites:
+
+  # Devis qui mentionne une surface ridicule (probablement extraction OCR foirée)
+  surface_aberrante:
+    seuil_min_m2: 5    # < 5 m² → probable extraction d'1 panneau, pas une pièce
+    seuil_max_m2: 800  # > 800 m² → probable erreur OCR ou multi-bâtiment
+    action: "flag_low_confidence"  # On ne sort PAS d'anomalie, on dit "à vérifier"
+
+  # Devis forfait sans m² explicite
+  forfait_sans_surface:
+    detection:
+      - unit_is: ['forfait', 'ff', 'fft', 'ensemble', 'ens']
+      - quantity_is_one_or_null: true
+    action: "use_forfait_brackets"
+    forfait_brackets:
+      # Forfait par pièce 10-15 m² peinte (référence "pièce moyenne")
+      par_piece:
+        bas:    250
+        moyen:  450
+        haut:   700
+
+# -----------------------------------------------------------------------------
+# PATTERNS DE TEST (validation par toi)
+# -----------------------------------------------------------------------------
+# Quelques exemples concrets pour vérifier que la taxonomie marche.
+# À l'implémentation, ces patterns deviennent des tests unitaires.
+# -----------------------------------------------------------------------------
+test_patterns:
+
+  - description: "Application de 2 couches de peinture velours sur murs et plafonds 138 m²"
+    attendu:
+      sous_type: "murs_plus_plafonds"
+      multiplicateur: 2
+      quantite_corrigee: 138
+      finition: "haut_gamme"  # velours
+      fourchette_appliquee:
+        bas: 13 * 1.30
+        moyen: 17 * 1.30
+        haut: 21 * 1.30
+      verdict_si_prix_unitaire_observe:
+        13_a_27: "dans_la_norme"  # 17 × 1.30 × ±30%
+        moins_de_13: "en_dessous_marche"
+        plus_de_27: "au_dessus_marche"
+        plus_de_35: "anomalie"
+
+  - description: "Enduit ratissage mural et application 1 couche peinture mate"
+    attendu:
+      sous_type: "murs_interieurs"
+      multiplicateur: 1
+      convention: "preparation_lourde_incluse"
+      fourchette_appliquee:
+        bas: 12 + 8     # = 20
+        moyen: 15 + 15  # = 30
+        haut: 18 + 25   # = 43
+
+  - description: "Peinture 5 portes intérieures"
+    attendu:
+      sous_type: "boiseries"
+      unite_canonique: "unite_porte"
+      quantite_corrigee: 5
+      fourchette_appliquee:
+        bas:    80
+        moyen:  130
+        haut:   200
+
+  - description: "Ravalement façade extérieure pignon ouest 45 m² avec sous-couche et 2 couches finition"
+    attendu:
+      sous_type: "facade_exterieure"
+      multiplicateur: 2
+      fourchette_appliquee:
+        bas:    20
+        moyen:  30
+        haut:   45
+
+# -----------------------------------------------------------------------------
+# QUESTIONS POUR JULIEN
+# -----------------------------------------------------------------------------
+# Points sur lesquels j'ai besoin de ton feedback avant l'implémentation.
+# -----------------------------------------------------------------------------
+questions_validation:
+
+  1: |
+    Fourchettes prix par couche (€/m²) :
+    Murs intérieurs : 12 / 15 / 18
+    Plafonds       : 15 / 19 / 24
+    Combiné        : 13 / 17 / 21
+    Façade         : 20 / 30 / 45
+    Préparation lourde (en plus) : 8 / 15 / 25
+
+    → ces valeurs sont alignées sur ton catalogue actuel ?
+    → tu as des cas observés qui sortent de ces fourchettes ?
+
+  2: |
+    Convention "N couches" par défaut = 2 :
+    Si une ligne dit "Application peinture mate sur murs" sans préciser le
+    nombre de couches, on suppose 2 (standard NF P74-201 DTU 59.1).
+
+    → OK ou tu préfères défaut = 1 (plus prudent) ?
+
+  3: |
+    Anti-patterns (sortie de famille peinture) :
+    papier peint / fibre de verre / toile de verre / crépi / lasure
+
+    → tu vois d'autres mots qui devraient sortir de la famille peinture ?
+
+  4: |
+    Forfait par pièce 250 / 450 / 700 €
+    (référence "pièce moyenne 10-15 m² peinte 2 couches")
+
+    → tu vois ces forfaits dans tes devis observés ? À quelle fréquence ?
+    → fourchette à ajuster ?
+
+  5: |
+    Cas spécifique boiseries : prix par ml OU par unité de porte ?
+
+    → la plupart de tes devis sont en ml ou en unité ? Les 2 ?
+    → la fourchette "par porte standard 80x215" est-elle réaliste ?
+
+  6: |
+    Cas non couvert ici qui te vient en tête ?
+    - "Peinture sol époxy" (industriel) ?
+    - "Peinture anti-humidité" (cave, salle d'eau) ?
+    - "Peinture spéciale métaux" ?
+    - "Peinture toiture" ?
+    - Autre ?
+
+  7: |
+    Le devis "placo" qui a foiré le test : 276 m² × 26 €/m² = 7176 €
+    pour "Application 2 couches murs + plafond ~138 m²".
+
+    Avec cette taxonomie :
+      - sous_type = murs_plus_plafonds
+      - multiplicateur = 2 (extrait "2 couches")
+      - quantite_corrigee = 276 / 2 = 138 m²
+      - prix_par_couche = 7176 / 276 = 26 €/m²
+      - fourchette appliquée (sans convention spéciale) : 13 / 17 / 21
+      - 26 €/m² > 21 → "légèrement au-dessus" (pas anomalie)
+
+    → ce verdict te semble juste ? Le tien serait quoi ?
+
+# -----------------------------------------------------------------------------
+# RÉFÉRENCES NORMATIVES
+# -----------------------------------------------------------------------------
+references:
+  - "DTU 59.1 — Travaux de bâtiment : revêtements de peinture en feuil mince, semi-épais et épais"
+  - "NF P74-201 — Recommandations pour les travaux de peinture"
+  - "Capeb 2026 — Prix du bâtiment, peinture intérieure standard"
+  - "FFB 2026 — Bordereau peinture neuf et rénovation"

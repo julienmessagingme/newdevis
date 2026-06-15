@@ -1,0 +1,420 @@
+# =============================================================================
+# Taxonomie famille CARRELAGE — Spec V1 (2026-06-15)
+# Statut : 🟡 À VALIDER par Julien
+# =============================================================================
+#
+# Couvre ~20% du volume devis observé. Famille problématique car elle a 3
+# variantes opératoires fondamentalement différentes que le matcher vectoriel
+# confondait :
+#   1. Fourniture seule (matériau acheté seul)
+#   2. Pose seule / hors fourniture (main d'œuvre seule)
+#   3. Fourniture + pose (variante "tout inclus")
+#
+# Cas connus :
+#   - "Fourniture carrelage 25€/m² à l'achat" matché à "Pose carrelage hors
+#     fourniture 50€/m²" → ratio 50% → faux "en dessous du marché"
+#   - "Pose carrelage 80 €/m² fourniture incluse" matché à "Pose seule 50€/m²"
+#     → ratio 160% → faux "au-dessus du marché"
+#
+# Règles métier français BTP (carrelage céramique standard) :
+#
+#   Fourniture seule          15-50 €/m²  (entrée gamme 15, milieu 25-35, haut 40-50)
+#   Fourniture haut de gamme  50-150 €/m² (grès cérame, pierre naturelle, mosaïque)
+#   Pose seule (hors fourn.)  35-70 €/m²  (incluant colle, joints, ragréage léger)
+#   Fourniture + pose stand.  55-110 €/m² (équivalent F + P entrée/milieu)
+#   Fourniture + pose haut    100-200 €/m²
+# =============================================================================
+
+famille: carrelage
+
+# -----------------------------------------------------------------------------
+# DÉTECTION DE LA FAMILLE
+# -----------------------------------------------------------------------------
+detection:
+  patterns:
+    - regex: '\bcarrelage|carreaux?\b'
+      priority: high
+    - regex: '\bfa(ï|i)ence\b'
+      priority: high
+    - regex: '\bgrès\s+cérame|porcelaine\b'
+      priority: high
+    - regex: '\bmosaïque\b'
+      priority: high
+    - regex: '\b(plinthe|nez\s+de\s+marche)\s+carrelage\b'
+      priority: high
+
+  anti_patterns:
+    - 'parquet'           # → famille sols bois
+    - 'stratifié'         # → famille sols souples
+    - 'vinyle|pvc\b'      # → famille sols souples
+    - 'moquette'          # → famille sols souples
+    - 'béton\s+ciré'      # → famille sols décoratifs
+
+# -----------------------------------------------------------------------------
+# VARIANTES OPÉRATOIRES (la clé du fix V3.6)
+# -----------------------------------------------------------------------------
+# 3 variantes distinctes avec 3 fourchettes prix DIFFÉRENTES.
+# La détection se fait sur la description AVANT le sous-type.
+# -----------------------------------------------------------------------------
+variantes:
+
+  fourniture_seule:
+    label: "Fourniture matériau seul (achat)"
+    detection_positive:
+      - '\bfourniture\s+(de\s+)?(carrelage|faïence|grès|mosaïque)'
+      - '\bachat\s+(de\s+)?carrelage'
+      - '\bcarrelage\s+(à|au)\s+l[''\s]?achat'
+    detection_negative:
+      # Exclu si "pose" ou "main d'œuvre" présent
+      - 'pose\b'
+      - 'main\s+d[''\s]?œuvre'
+      - 'mo\b'
+      - 'fournit.*pos(e|é)'  # "fourniture + pose"
+    notes: "L'utilisateur achète le matériau séparément. Pas de prestation main d'œuvre."
+
+  pose_seule:
+    label: "Pose seule (main d'œuvre, hors fourniture)"
+    detection_positive:
+      - '\bpose\s+(de\s+)?carrelage\b'
+      - '\bpose\s+(de\s+)?faïence\b'
+      - '\bhors\s+fourniture'
+      - '\bpose\s+seule\b'
+      - '\bmain\s+d[''\s]?œuvre\s+(de\s+)?(carrelage|faïence)'
+      - '\bcarrelage\s+(mo|main\s+d[''\s]?œuvre)'
+    detection_negative:
+      # Exclu si "fourniture + pose" ou "fourniture incluse"
+      - 'fournit.*(pos|inclus)'
+      - 'fourniture\s+incluse'
+      - 'tout\s+(compris|inclus)'
+    notes: "L'utilisateur achète le matériau ailleurs. Prix = MO + colle + joints."
+
+  fourniture_et_pose:
+    label: "Fourniture + pose (tout inclus)"
+    detection_positive:
+      - '\bfournit\w*\s+(et\s+|\+\s+|&\s+)?pos(e|é)'  # "fourniture et pose", "fourniture+pose", "fournit. et posé"
+      - '\bfourniture\s+(incluse|comprise)'
+      - '\btout\s+(compris|inclus)\b'
+      - '\bclé\s+en\s+main\b'
+    detection_negative:
+      - 'hors\s+fourniture'
+      - 'pose\s+seule'
+    notes: "Variante la plus courante en France pour les chantiers résidentiels classiques."
+
+  # Fallback : pas de signal clair → on suppose fourniture_et_pose (la plus
+  # courante) mais avec flag de confidence basse.
+  par_defaut:
+    variante: "fourniture_et_pose"
+    confidence: "medium"  # → bandeau "Comparaison incertaine" en UI
+
+# -----------------------------------------------------------------------------
+# SOUS-TYPES (par localisation / type)
+# -----------------------------------------------------------------------------
+sous_types:
+
+  sol_interieur:
+    label: "Carrelage sol intérieur"
+    unite_canonique: "m²"
+    detection:
+      - '\bcarrelage\s+(de\s+)?sol\b'
+      - '\bsol\s+(en\s+)?carrelage\b'
+      - '\bcarrelage\s+(salon|cuisine|sdb|salle\s+de\s+bain|wc|entrée|couloir|chambre)\b'
+
+  faience_murale:
+    label: "Faïence murale"
+    unite_canonique: "m²"
+    detection:
+      - '\bfa(ï|i)ence\s+(mur|sdb|cuisine|crédence)'
+      - '\bfa(ï|i)ence\s+murale\b'
+      - '\bcarrelage\s+mural\b'
+    fourchettes_ajustement:
+      # Faïence mur = légèrement plus cher que sol (découpes, joint cohérent)
+      coefficient: 1.10
+
+  sol_exterieur:
+    label: "Carrelage extérieur / terrasse"
+    unite_canonique: "m²"
+    detection:
+      - '\bterrasse\b.*(carrelage|grès)'
+      - '\b(grès|carrelage)\s+(extérieur|exterieur|terrasse|antidérapant)'
+    fourchettes_ajustement:
+      # Extérieur = +30-50% (épaisseur, gélif, structure)
+      coefficient: 1.40
+
+  plinthes:
+    label: "Plinthes carrelage"
+    unite_canonique: "ml"
+    detection:
+      - '\bplinthes?\s+(carrelage|grès|céramique)'
+      - '\bnez\s+de\s+marche\s+(carrelage|grès)'
+    fourchettes_prix:
+      par_ml:
+        bas:    8
+        moyen:  15
+        haut:   25
+
+# -----------------------------------------------------------------------------
+# MATRICE PRIX = variante × sous-type
+# -----------------------------------------------------------------------------
+# Toutes les fourchettes sont en €/m² (sauf plinthes en €/ml ci-dessus).
+# Lecture : fourchette = (bas, moyen, haut).
+# -----------------------------------------------------------------------------
+fourchettes_prix:
+
+  fourniture_seule:
+    sol_interieur:
+      entree_gamme:    [15, 25, 35]     # carrelage premier prix Lapeyre, Castorama
+      milieu_gamme:    [30, 45, 60]     # marques moyennes
+      haut_gamme:      [55, 90, 150]    # grès cérame, pierre, italien
+    faience_murale:
+      entree_gamme:    [18, 28, 40]
+      milieu_gamme:    [35, 55, 80]
+      haut_gamme:      [60, 100, 180]
+    sol_exterieur:
+      entree_gamme:    [25, 40, 55]
+      milieu_gamme:    [45, 70, 95]
+      haut_gamme:      [80, 130, 220]
+
+  pose_seule:
+    sol_interieur:    [35, 50, 70]   # MO + colle + joints
+    faience_murale:   [40, 55, 75]   # un peu + cher car découpes
+    sol_exterieur:    [45, 65, 90]   # gélif, étanchéité
+
+  fourniture_et_pose:
+    sol_interieur:
+      entree_gamme:    [50, 75, 105]
+      milieu_gamme:    [80, 115, 155]
+      haut_gamme:      [120, 180, 250]
+    faience_murale:
+      entree_gamme:    [55, 85, 115]
+      milieu_gamme:    [90, 125, 170]
+      haut_gamme:      [130, 195, 280]
+    sol_exterieur:
+      entree_gamme:    [70, 105, 145]
+      milieu_gamme:    [110, 160, 215]
+      haut_gamme:      [165, 250, 360]
+
+# -----------------------------------------------------------------------------
+# CONVENTIONS COMPOSITES — RÈGLES D'AJUSTEMENT
+# -----------------------------------------------------------------------------
+conventions:
+
+  format_grand:
+    description: "Carreaux > 60×60 (60×120, 120×120) → +20-30% pose"
+    patterns:
+      - '\b(60\s*x\s*120|80\s*x\s*80|120\s*x\s*120|60\s*x\s*60)\b'
+      - '\bgrand\s+format'
+      - '\bformat\s+(xl|xxl|maxi)\b'
+    impact:
+      type: "multiply_fourchette_pose"
+      coefficient: 1.25
+
+  mosaique:
+    description: "Mosaïque → +50-100% pose (très technique, lent)"
+    patterns:
+      - '\bmosaïque\b'
+      - '\bpâte\s+de\s+verre\b'
+      - '\btesselle\b'
+    impact:
+      type: "multiply_fourchette_pose"
+      coefficient: 1.80
+
+  pierre_naturelle:
+    description: "Pierre naturelle (marbre, travertin, ardoise) → +30-50%"
+    patterns:
+      - '\bmarbre\b'
+      - '\btravertin\b'
+      - '\bardoise\s+(de\s+)?(sol|mur)'
+      - '\bpierre\s+(naturelle|de\s+bourgogne|bleue)'
+    impact:
+      type: "multiply_fourchette_globale"
+      coefficient: 1.40
+
+  preparation_chape:
+    description: |
+      "Avec ragréage" / "Sur chape neuve" / "Avec primaire" → préparation lourde.
+      Ajoute 8-20 €/m² au prix global.
+    patterns:
+      - '\b(ragréage|ragreage)\b'
+      - '\bchape\s+(neuve|de\s+ravoirage|fluide)'
+      - '\bprimaire\s+(adhérence|d[''\s]accrochage)\b'
+    impact:
+      type: "add_to_fourchette"
+      ajustement:
+        bas:    8
+        moyen:  14
+        haut:   20
+
+  pose_diagonale:
+    description: "Pose en diagonale → +15-25% MO (plus de découpes)"
+    patterns:
+      - '\bdiagonale\b'
+      - '\ben\s+oblique\b'
+    impact:
+      type: "multiply_fourchette_pose"
+      coefficient: 1.20
+
+  depose_carrelage_existant:
+    description: |
+      "Dépose carrelage existant" est SOUVENT une ligne séparée mais peut
+      être groupée. Ajoute 15-35 €/m² au global si inclus.
+    patterns:
+      - '\bdépose\s+(carrelage|faïence|existant)'
+      - '\barrachage\s+(carrelage|faïence)'
+    impact:
+      type: "add_to_fourchette"
+      ajustement:
+        bas:    15
+        moyen:  25
+        haut:   35
+
+# -----------------------------------------------------------------------------
+# CAS LIMITES
+# -----------------------------------------------------------------------------
+cas_limites:
+
+  surface_aberrante:
+    seuil_min_m2: 1     # < 1 m² → souvent juste 1 carreau de remplacement
+    seuil_max_m2: 500   # > 500 m² → atypique sur résidentiel, à flag
+    action: "flag_low_confidence"
+
+  forfait_sans_surface:
+    detection:
+      - unit_is: ['forfait', 'ff', 'fft', 'ensemble']
+      - quantity_is_one_or_null: true
+    action: "use_forfait_brackets"
+    forfait_brackets:
+      sdb_complete_4_a_6m2:
+        bas:    400
+        moyen:  900
+        haut:   1800
+      cuisine_credence_5_a_8m2:
+        bas:    250
+        moyen:  600
+        haut:   1100
+      sol_piece_15_a_25m2:
+        bas:    900
+        moyen:  2200
+        haut:   4500
+
+# -----------------------------------------------------------------------------
+# PATTERNS DE TEST
+# -----------------------------------------------------------------------------
+test_patterns:
+
+  - description: "Fourniture de carrelage de sol à 25€ le m² à l'achat — 8 m²"
+    attendu:
+      variante: "fourniture_seule"
+      sous_type: "sol_interieur"
+      gamme: "entree_gamme"  # 25€/m² est dans la fourchette 15-35
+      fourchette_appliquee: [15, 25, 35]
+      verdict_si_devis_25: "dans_la_norme"
+
+  - description: "Pose de carrelage avec fourniture de la colle — 8 m² × 80 €/m²"
+    attendu:
+      variante: "pose_seule"  # "avec fourniture de la colle" = colle uniquement, pas le carrelage
+      sous_type: "sol_interieur"
+      fourchette_appliquee: [35, 50, 70]
+      verdict_si_devis_80: "au_dessus_marche"  # 80 > 70 max
+
+  - description: "Fourniture et pose carrelage grès cérame 60x60 SDB — 12 m² × 130 €/m²"
+    attendu:
+      variante: "fourniture_et_pose"
+      sous_type: "sol_interieur"
+      gamme: "milieu_gamme"  # grès cérame
+      convention: "format_grand"  # 60x60
+      fourchette_avant_conv: [80, 115, 155]
+      fourchette_appliquee: [100, 144, 194]  # × 1.25 (format grand)
+      verdict_si_devis_130: "dans_la_norme"  # 100 < 130 < 194
+
+  - description: "Faïence murale SDB 25 m² fourniture + pose"
+    attendu:
+      variante: "fourniture_et_pose"
+      sous_type: "faience_murale"
+      gamme: "entree_gamme"  # par défaut sans précision
+      fourchette_appliquee: [55, 85, 115]
+
+  - description: "Mosaïque pâte de verre pose seule crédence cuisine — 4 m²"
+    attendu:
+      variante: "pose_seule"
+      sous_type: "faience_murale"
+      convention: "mosaique"
+      fourchette_avant_conv: [40, 55, 75]
+      fourchette_appliquee: [72, 99, 135]  # × 1.80
+
+# -----------------------------------------------------------------------------
+# QUESTIONS POUR JULIEN
+# -----------------------------------------------------------------------------
+questions_validation:
+
+  1: |
+    Variantes opératoires : on en garde 3 distinctes (fourniture seule,
+    pose seule, fourniture + pose). C'est la racine du fix V3.5.9.
+
+    → Tu vois d'autres variantes courantes dans tes devis ?
+      Par ex : "fourniture client + pose artisan" (cas où le client a déjà
+      acheté le carrelage et l'artisan ne fait que la pose, vendue parfois
+      différemment) ?
+
+  2: |
+    Fourchettes fourniture seule sol intérieur :
+       Entrée gamme : 15-35 €/m²
+       Milieu gamme : 30-60 €/m²
+       Haut gamme   : 55-150 €/m²
+
+    → Ces valeurs correspondent à ton observation ?
+    → Ratios entre les 3 gammes corrects ?
+
+  3: |
+    Fourniture + pose sol intérieur entrée gamme : 50-105 €/m²
+    Soit fourniture (15-35) + pose (35-70) = 50-105 ✓ cohérent
+
+    → OK ou tu veux ajuster ?
+
+  4: |
+    Conventions composites listées :
+    - format_grand (60×60+) : × 1.25
+    - mosaïque : × 1.80
+    - pierre naturelle : × 1.40
+    - préparation chape : + 8-20 €/m²
+    - pose diagonale : × 1.20
+    - dépose existant : + 15-35 €/m²
+
+    → Coefficients réalistes ?
+    → Conventions manquantes ? (joints époxy, calepinage spécial,
+      pose en chevron, etc.)
+
+  5: |
+    Plinthes en €/ml : 8-25 €/ml.
+
+    → Réaliste ? Ou tu vois des prix plus élevés sur du haut de gamme ?
+
+  6: |
+    Forfaits "pièce complète" :
+    - SDB complète 4-6 m² : 400 / 900 / 1800 €
+    - Cuisine crédence 5-8 m² : 250 / 600 / 1100 €
+    - Sol pièce 15-25 m² : 900 / 2200 / 4500 €
+
+    → Ces forfaits sont-ils représentatifs ? Plage trop large ?
+
+  7: |
+    Le cas Côte Maison Travaux (V3.5.9 bug 1) :
+    Ligne devis = "Fourniture de carrelage de sol à 25€ le m² à l'achat" 200€
+    Matcher cosine matchait à "Pose carrelage sol (hors fourniture)"
+    → comparaison invalide.
+
+    Avec cette taxonomie :
+    - detection_negative "pose" / "main d'œuvre" sur "Fourniture de…" → exclu
+    - detection_positive "fourniture de carrelage" → variante=fourniture_seule
+    - 25€/m² → dans la fourchette entree_gamme 15-35 → "dans la norme"
+
+    → Verdict cohérent pour toi ?
+
+# -----------------------------------------------------------------------------
+# RÉFÉRENCES NORMATIVES
+# -----------------------------------------------------------------------------
+references:
+  - "DTU 52.1 — Revêtements de sol scellés"
+  - "DTU 52.2 — Pose collée des revêtements céramiques"
+  - "NF P61-202 — Travaux de bâtiment, revêtements muraux intérieurs"
+  - "Capeb 2026 — Prix carrelage rénovation et neuf"
+  - "FFB 2026 — Bordereau carrelage"
