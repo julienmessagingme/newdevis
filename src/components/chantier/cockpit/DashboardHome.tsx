@@ -653,6 +653,19 @@ function DashboardHome({
                       onOpen={() => onGoToLot(lot.id)}
                     />
                   ))}
+                  {/* Ajout d'un intervenant directement depuis le dashboard. Réutilise EXACTEMENT
+                      le même handler que le quick-action + le stepper (onAddIntervenant → onglet
+                      Contacts + formulaire auto-ouvert) → contactsCount/lots/étape se rechaînent seuls. */}
+                  <button
+                    type="button"
+                    onClick={onAddIntervenant}
+                    className="cr-pro-add"
+                    aria-label="Ajouter un intervenant"
+                  >
+                    <span className="cr-pro-add-ic" aria-hidden="true">＋</span>
+                    <span className="cr-pro-add-label">Ajouter un intervenant</span>
+                    <span className="cr-pro-add-sub">Nouveau lot / artisan</span>
+                  </button>
                 </div>
               </div>
             )}
