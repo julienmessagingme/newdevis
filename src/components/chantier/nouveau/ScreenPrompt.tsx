@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ArrowLeft, Loader2, ArrowRight, Plus, Check, Wallet, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2, ArrowRight, Check, Wallet, Sparkles } from 'lucide-react';
 import type { ChantierGuideForm } from '@/types/chantier-ia';
 
 // ── Exemples cliquables ───────────────────────────────────────────────────────
@@ -54,54 +54,6 @@ const TIME_CONFIG: Record<TimeSlot, TimeConfig> = {
 
 const HERO_URL = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1920&q=80';
 
-// ── Suggestions contextuelles ─────────────────────────────────────────────────
-
-interface SuggestionRule {
-  id: string;
-  label: string;
-  appendText: string;
-  absent: (d: string) => boolean;
-}
-
-const SUGGESTION_RULES: SuggestionRule[] = [
-  {
-    id: 'surface',
-    label: '📐 Surface (m²)',
-    appendText: ', sur environ ___ m²',
-    absent: (d) => !/\d+\s*m[²2]/i.test(d),
-  },
-  {
-    id: 'location',
-    label: '📍 Localisation',
-    appendText: ', à ___',
-    absent: (d) => !/\b\d{5}\b|paris|lyon|marseille|bordeaux|lille|nantes|toulouse|rennes|strasbourg|nice|montpellier/i.test(d),
-  },
-  {
-    id: 'timing',
-    label: '📅 Délai souhaité',
-    appendText: ', pour ___',
-    absent: (d) => !/\b(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|\d{4}|mois|semaine|urgent)/i.test(d),
-  },
-  {
-    id: 'materials',
-    label: '🧱 Matériaux',
-    appendText: ', en ___',
-    absent: (d) => !/\b(bois|pierre|béton|métal|aluminium|pvc|brique|parquet|carrelage|inox|verre)\b/i.test(d),
-  },
-  {
-    id: 'logement',
-    label: '🏠 Type de logement',
-    appendText: ', pour une ___',
-    absent: (d) => !/\b(maison|appartement|villa|studio|bureau|local|entrepôt|résidence)\b/i.test(d),
-  },
-];
-
-function getRelevantSuggestions(description: string): SuggestionRule[] {
-  // Affiche les suggestions pertinentes (infos absentes de la description)
-  // Maximum 5 suggestions
-  return SUGGESTION_RULES.filter((r) => r.absent(description)).slice(0, 5);
-}
-
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface ScreenPromptProps {
@@ -120,7 +72,6 @@ type BudgetMode = 'idle' | 'has_budget' | 'estimate';
 
 export default function ScreenPrompt({ onGenerate, isLoading = false, initialBudgetMode, onBack }: ScreenPromptProps) {
   const [description, setDescription]           = useState('');
-  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set());
   // Budget — question fondamentale pour éviter les chiffres au doigt mouillé côté IA.
   const [budgetMode, setBudgetMode]   = useState<BudgetMode>(initialBudgetMode ?? 'idle');
   const [budgetValue, setBudgetValue] = useState<string>('');
@@ -131,35 +82,6 @@ export default function ScreenPrompt({ onGenerate, isLoading = false, initialBud
 
   const slot   = getTimeSlot();
   const config = TIME_CONFIG[slot];
-
-  // Suggestions recalculées à chaque changement de description
-  const suggestions = useMemo(() => getRelevantSuggestions(description), [description]);
-
-  // Nettoie les suggestions sélectionnées qui ne sont plus pertinentes
-  const cleanedSelected = useMemo(
-    () => new Set([...selectedSuggestions].filter((id) => suggestions.some((s) => s.id === id))),
-    [suggestions, selectedSuggestions],
-  );
-
-  const toggleSuggestion = (id: string) => {
-    setSelectedSuggestions((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const applySuggestions = () => {
-    if (cleanedSelected.size === 0) return;
-    const toAppend = suggestions
-      .filter((s) => cleanedSelected.has(s.id))
-      .map((s) => s.appendText)
-      .join('');
-    // Ajout à la fin du texte utilisateur — la textarea reste sous contrôle total
-    setDescription((prev) => prev.trimEnd() + toAppend);
-    setSelectedSuggestions(new Set());
-  };
 
   const handleSubmit = () => {
     const text = description.trim();
@@ -365,46 +287,6 @@ export default function ScreenPrompt({ onGenerate, isLoading = false, initialBud
                   </p>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* ── Suggestions IA ─────────────────────────────────────────── */}
-          {description.trim().length > 10 && suggestions.length > 0 && (
-            <div className="mt-4 bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl px-4 sm:px-5 py-4">
-              <p className="text-xs font-semibold text-white/60 uppercase tracking-widest mb-3">
-                Suggestions pour préciser votre projet
-              </p>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {suggestions.map((s) => {
-                  const selected = cleanedSelected.has(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => toggleSuggestion(s.id)}
-                      className={[
-                        'inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-3 py-1.5 border transition-all',
-                        selected
-                          ? 'bg-white text-gray-900 border-white shadow-sm'
-                          : 'bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white',
-                      ].join(' ')}
-                    >
-                      {selected && <Check className="h-3 w-3 shrink-0" />}
-                      {s.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {cleanedSelected.size > 0 && (
-                <button
-                  type="button"
-                  onClick={applySuggestions}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:text-blue-200 border border-blue-400/40 hover:border-blue-300/60 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg px-3 py-1.5 transition-all"
-                >
-                  <Plus className="h-3 w-3" />
-                  Appliquer ({cleanedSelected.size})
-                </button>
-              )}
             </div>
           )}
 
