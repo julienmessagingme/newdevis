@@ -351,7 +351,17 @@ export default function MonChantierHub() {
         }
 
         const json = await res.json();
-        if (!cancelled) setChantiers(json.chantiers ?? []);
+        const list = (json.chantiers ?? []) as ChantierItem[];
+        if (!cancelled) setChantiers(list);
+
+        // Retour d'abonnement (Stripe) : un user avec UN seul chantier entre direct
+        // dans son cockpit (la vue de travail / dashboard), au lieu de rester sur la
+        // liste. A partir de 2 chantiers (Multi), on garde le hub.
+        const justSubscribed = new URLSearchParams(window.location.search).get('abonnement') === 'success';
+        if (!cancelled && justSubscribed && list.length === 1) {
+          window.location.replace(`/mon-chantier/${list[0].id}`);
+          return;
+        }
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : 'Erreur inconnue';
