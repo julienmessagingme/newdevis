@@ -326,16 +326,26 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
   const deleteLot = useCallback(async (lotId: string) => {
     if (!chantierId || !token) return;
     try {
-      await fetch(`/api/chantier/${chantierId}/lots/${lotId}`, {
+      const res = await fetch(`/api/chantier/${chantierId}/lots/${lotId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      // Cohérence avec handleDeleteDoc : on ne met à jour l'UI que si le serveur a accepté.
+      // Sinon (403 read-only/abonnement, 500…) on évite le faux succès "l'intervenant disparaît
+      // puis revient au refresh".
+      if (!res.ok) {
+        toast.error(res.status === 403 ? 'Action indisponible (abonnement requis).' : "Impossible de supprimer l'intervenant.");
+        return;
+      }
       setResult(prev => ({ ...prev, lots: (prev.lots ?? []).filter(l => l.id !== lotId) }));
       // Le serveur fait SET NULL (FK) sur les documents/devis/contacts du lot : on reflète
       // localement (lot_id -> null) pour qu'ils apparaissent en "non affectés" et que le budget
       // reste coherent sans refetch. (Cote DB, lot_dependencies/subphases sont en CASCADE.)
       setDocuments(prev => prev.map(d => d.lot_id === lotId ? { ...d, lot_id: null } : d));
-    } catch {}
+      toast.success('Intervenant supprimé');
+    } catch {
+      toast.error('Erreur réseau');
+    }
   }, [chantierId, token]);
 
   const addLot = useCallback((lot: LotChantier) => {

@@ -142,7 +142,7 @@ function ProCard({ lot, docs, onOpen, onDelete }: { lot: LotChantier; docs: Docu
       role="button"
       tabIndex={0}
       onClick={onOpen}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
+      onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen(); } }}
       className={`cr-pro-card ${status}`}
     >
       {onDelete && (
