@@ -5,11 +5,14 @@ import Stripe from 'stripe';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { gmcPlanFromPriceId } from '@/lib/integrations/gmc-stripe-config';
 import { subPeriodEndISO, gmcStatusFromStripe, invoiceSubscriptionId } from '@/lib/integrations/stripe-webhook-helpers';
+// Module de templates email PUR (aucun import Deno) -> importable cote Astro/Vercel comme cote edge function.
+import { renderGmcEmail } from '../../../supabase/functions/_shared/gmc-emails';
 
 const stripeSecretKey = import.meta.env.STRIPE_SECRET_KEY;
 const webhookSecret = import.meta.env.STRIPE_WEBHOOK_SECRET;
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+const resendApiKey = import.meta.env.RESEND_API_KEY;
 
 // Trace un passage de statut dans la timeline "Mon abonnement". Best-effort, jamais bloquant.
 async function logGmcEvent(
@@ -22,6 +25,57 @@ async function logGmcEvent(
   try {
     await supabase.from('gmc_subscription_events').insert({ user_id: userId, event, detail });
   } catch { /* non bloquant */ }
+}
+
+// Envoi TEMPS REEL du paid_welcome juste apres le paiement (sinon il attend le cron quotidien <=24h).
+// Best-effort + idempotent : reservation log-first sur gmc_email_log (contrainte unique user_id+template_id).
+// Si le cron l'a deja envoye -> conflit -> skip. Si l'envoi Resend echoue -> rollback du log -> le cron reprendra.
+// L'ancre des emails payants suivants (paid_onboard J+2, paid_checkin J+14) = le sent_at de cette ligne.
+async function sendGmcPaidWelcome(supabase: SupabaseClient, userId: string): Promise<void> {
+  if (!resendApiKey) return; // pas de cle Resend cote Vercel -> on laisse le cron s'en charger
+  try {
+    const { data: ins, error: insErr } = await supabase
+      .from('gmc_email_log')
+      .insert({ user_id: userId, template_id: 'gmc_paid_welcome' })
+      .select('id')
+      .maybeSingle();
+    if (insErr || !ins) return; // conflit unique = deja envoye (cron ou run precedent)
+
+    const { data: ud } = await supabase.auth.admin.getUserById(userId);
+    const email = ud?.user?.email ?? '';
+    if (!email) {
+      await supabase.from('gmc_email_log').delete().eq('id', ins.id); // rollback
+      return;
+    }
+    const um = (ud?.user?.user_metadata ?? {}) as Record<string, string>;
+    const prenom = (um.first_name || (um.full_name || um.name || '').split(' ')[0] || '').trim();
+    const { data: ch } = await supabase
+      .from('chantiers').select('nom').eq('user_id', userId)
+      .order('created_at', { ascending: true }).limit(1).maybeSingle();
+
+    const { subject, html } = renderGmcEmail('gmc_paid_welcome', {
+      prenom,
+      nom_chantier: (ch?.nom as string) ?? '',
+      lien_cta: 'https://www.gerermonchantier.fr/mon-chantier',
+    });
+
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'GererMonChantier <bonjour@gerermonchantier.fr>',
+        to: [email],
+        subject,
+        html,
+      }),
+    });
+    if (!res.ok) {
+      await supabase.from('gmc_email_log').delete().eq('id', ins.id); // echec -> retentera au cron
+      console.error('[stripe-webhook] paid_welcome Resend', res.status, await res.text());
+    }
+  } catch (e) {
+    console.error('[stripe-webhook] sendGmcPaidWelcome:', (e as Error).message);
+  }
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -96,6 +150,8 @@ export const POST: APIRoute = async ({ request }) => {
               { onConflict: 'user_id' },
             );
           await logGmcEvent(supabase, userId, 'subscribed', plan === 'gmc_multi' ? 'Multi-chantiers' : 'Essentiel');
+          // Email de bienvenue payant en TEMPS REEL (idempotent vs le cron quotidien).
+          await sendGmcPaidWelcome(supabase, userId);
           console.log('[stripe-webhook] GMC subscription activated for user:', userId, 'plan:', plan);
           break;
         }

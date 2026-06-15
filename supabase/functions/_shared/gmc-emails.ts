@@ -373,7 +373,7 @@ function buildEmailContent(id: GmcEmailId): string {
   const bodyHtml = BODIES[id]();
   const preheader = def.preheader || "";
   const filler = Array(20).fill("&nbsp;&zwnj;").join("");
-  const footerLinks = def.showUnsubscribe !== false
+  const footerLinks = (def as { showUnsubscribe?: boolean }).showUnsubscribe !== false
     ? `<a href="{{lien_desinscription}}" style="color:#9CA3AF;text-decoration:underline;">Se d&eacute;sinscrire</a>&nbsp;&middot;&nbsp;<a href="{{lien_mentions}}" style="color:#9CA3AF;text-decoration:underline;">Mentions l&eacute;gales</a>`
     : `<span style="color:#9CA3AF;">Email transactionnel</span>`;
   return (
@@ -452,16 +452,16 @@ function buildEmailDocument(id: GmcEmailId): string {
 // ─── Substitution + rendu ─────────────────────────────────────────────────────
 function escText(s: unknown): string {
   return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .split("&").join("&amp;")
+    .split("<").join("&lt;")
+    .split(">").join("&gt;")
+    .split('"').join("&quot;");
 }
 function escAttr(s: unknown): string {
   return String(s ?? "")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .split("<").join("&lt;")
+    .split(">").join("&gt;")
+    .split('"').join("&quot;");
 }
 
 /**
