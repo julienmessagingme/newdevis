@@ -108,42 +108,81 @@ export const POST: APIRoute = async ({ params, request }) => {
   // dépenses sans fichier physique).
   const bucketPath = `manual/${chantierId}/${randomUUID()}`;
 
-  const { data: inserted, error } = await ctx.supabase
-    .from('documents_chantier')
-    .insert({
-      chantier_id:    chantierId,
-      nom:            label,
-      nom_fichier:    note ?? label,
-      bucket_path:    bucketPath,
-      document_type:  'facture',
-      type:           'facture',
-      source:         'manual_entry',
-      depense_type,
-      facture_statut: 'payee',
-      montant:        amount,
-      montant_paye:   amount,
-      lot_id:         lotId,
-      cashflow_terms,
-    })
-    .select('id, nom, montant, depense_type, lot_id, created_at')
-    .single();
+  // V3.5.15 (2026-06-15) — helper d'INSERT + fallback robuste.
+  // Cas observé sur démo Julien : "Frais annexes 5000€ Terrassier/Maçon"
+  // → 500 avec message générique. Cause probable : migration
+  // 20260423150000_add_frais_depense_type.sql non appliquée en prod
+  // (CHECK constraint refuse depense_type='frais').
+  const tryInsert = async (effectiveDepenseType: DepenseType) =>
+    ctx.supabase
+      .from('documents_chantier')
+      .insert({
+        chantier_id:    chantierId,
+        nom:            label,
+        nom_fichier:    note ?? label,
+        bucket_path:    bucketPath,
+        document_type:  'facture',
+        type:           'facture',
+        source:         'manual_entry',
+        depense_type:   effectiveDepenseType,
+        facture_statut: 'payee',
+        montant:        amount,
+        montant_paye:   amount,
+        lot_id:         lotId,
+        cashflow_terms,
+      })
+      .select('id, nom, montant, depense_type, lot_id, created_at')
+      .single();
 
-  if (error || !inserted) {
-    // Log complet côté serveur (Vercel logs) + message exact côté client pour debug.
-    console.error('[quick-expense] insert error:', {
-      message: error?.message,
-      details: (error as any)?.details,
-      hint:    (error as any)?.hint,
-      code:    (error as any)?.code,
-      payload: { chantierId, label, amount, depenseType, lotId, hasCashflowTerms: cashflow_terms.length > 0 },
+  // Wrap try/catch global : Vercel renvoyait parfois un 500 sans body JSON
+  // (exception non catchée), le frontend tombait alors sur son fallback
+  // générique "Erreur lors de l'enregistrement". Désormais, TOUS les cas
+  // d'échec renvoient un JSON `{error: "<détail>"}` exploitable.
+  try {
+    let { data: inserted, error } = await tryInsert(depenseType);
+
+    // Fallback automatique 'frais' → 'achat_materiaux' si migration manquante
+    if (error && depenseType === 'frais' && /depense_type_check|invalid input value|violates check/i.test(error.message ?? '')) {
+      console.warn(
+        `[quick-expense] V3.5.15 fallback 'frais' → 'achat_materiaux' ` +
+        `(migration 20260423150000 manquante en prod ?). Détail: ${error.message}`,
+      );
+      const retry = await tryInsert('achat_materiaux');
+      inserted = retry.data;
+      error = retry.error;
+    }
+
+    if (error || !inserted) {
+      console.error('[quick-expense] insert error:', {
+        message: error?.message,
+        details: (error as any)?.details,
+        hint:    (error as any)?.hint,
+        code:    (error as any)?.code,
+        payload: { chantierId, label, amount, depenseType, lotId, hasCashflowTerms: cashflow_terms.length > 0 },
+      });
+      // Concaténer message + détails Supabase pour diagnostic complet côté UI
+      const fullMsg = [
+        error?.message,
+        (error as any)?.details,
+        (error as any)?.hint,
+      ].filter(Boolean).join(' — ');
+      return jsonError(
+        fullMsg || 'Erreur lors de la création de la dépense (insert null sans message)',
+        500,
+      );
+    }
+
+    return jsonOk({ document: inserted, message: 'Dépense enregistrée' }, 201);
+  } catch (e) {
+    // Exception non-Supabase (timeout, crash JS, etc.) — garantit toujours
+    // un JSON valide en retour pour que le frontend n'affiche pas le fallback
+    // générique "Erreur lors de l'enregistrement".
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error('[quick-expense] uncaught exception:', detail, {
+      chantierId, label, amount, depenseType, lotId,
     });
-    return jsonError(
-      error?.message ?? 'Erreur lors de la création de la dépense (insert null)',
-      500,
-    );
+    return jsonError(`Exception serveur : ${detail}`, 500);
   }
-
-  return jsonOk({ document: inserted, message: 'Dépense enregistrée' }, 201);
 };
 
 export const OPTIONS: APIRoute = () => optionsResponse();
