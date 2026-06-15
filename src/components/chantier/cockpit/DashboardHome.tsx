@@ -71,6 +71,9 @@ const TrendIcon = () => (
 const EditIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
 );
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
+);
 const AlertTriangle = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>
 );
@@ -129,11 +132,29 @@ const STATUS_LABEL: Record<LotStatus, string> = {
   blocked:   'À démarrer',
 };
 
-function ProCard({ lot, docs, onOpen }: { lot: LotChantier; docs: DocumentChantier[]; onOpen: () => void }) {
+function ProCard({ lot, docs, onOpen, onDelete }: { lot: LotChantier; docs: DocumentChantier[]; onOpen: () => void; onDelete?: () => void }) {
   const { status, lastAction, lastDate } = computeLotCard(lot, docs);
 
+  // <div role="button"> (et non <button>) pour pouvoir imbriquer le bouton Supprimer
+  // sans nesting d'éléments interactifs invalide. Même pattern a11y que la carte alerte.
   return (
-    <button type="button" onClick={onOpen} className={`cr-pro-card ${status}`}>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
+      className={`cr-pro-card ${status}`}
+    >
+      {onDelete && (
+        <button
+          type="button"
+          className="cr-pc-del"
+          aria-label={`Supprimer l'intervenant ${lot.nom}`}
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+        >
+          <TrashIcon />
+        </button>
+      )}
       <div className="cr-pc-top">
         <div className="cr-pc-emoji-wrap">{lot.emoji ?? '🔧'}</div>
         <span className={`cr-pc-status ${status}`}><span className="d" />{STATUS_LABEL[status]}</span>
@@ -146,7 +167,7 @@ function ProCard({ lot, docs, onOpen }: { lot: LotChantier; docs: DocumentChanti
         <span className="cr-pc-foot-meta">{lastDate ? relTime(lastDate) : '—'}</span>
         <span className="cr-pc-open">Ouvrir<ArrowRight /></span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -303,7 +324,7 @@ function PlanningBubble({
 function DashboardHome({
   lots, documents, docsByLot, displayMin, displayMax, budgetReel, contactsCount, refinedBreakdown, onAffineBudget,
   onGoToLot, onAddDoc, onGoToAssistant, onGoToTresorerie, onGoToDocuments, onGoToPlanning,
-  onAddIntervenant, chantierId, token, urgentActions, budget,
+  onAddIntervenant, onDeleteLot, chantierId, token, urgentActions, budget,
 }: {
   chantierNom: string;
   chantierEmoji?: string | null;
@@ -651,6 +672,13 @@ function DashboardHome({
                       lot={lot}
                       docs={docsByLot[lot.id] ?? []}
                       onOpen={() => onGoToLot(lot.id)}
+                      onDelete={() => {
+                        const n = (docsByLot[lot.id] ?? []).length;
+                        const msg = `Supprimer l'intervenant « ${lot.nom} » ?`
+                          + (n > 0 ? `\n\nSes ${n} document(s) rattaché(s) deviendront « non affectés » (récupérables, pas supprimés).` : '')
+                          + `\nLe planning sera recalculé.`;
+                        if (window.confirm(msg)) onDeleteLot(lot.id);
+                      }}
                     />
                   ))}
                   {/* Ajout d'un intervenant directement depuis le dashboard. Réutilise EXACTEMENT

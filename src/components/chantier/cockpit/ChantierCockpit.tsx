@@ -331,6 +331,10 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
         headers: { Authorization: `Bearer ${token}` },
       });
       setResult(prev => ({ ...prev, lots: (prev.lots ?? []).filter(l => l.id !== lotId) }));
+      // Le serveur fait SET NULL (FK) sur les documents/devis/contacts du lot : on reflète
+      // localement (lot_id -> null) pour qu'ils apparaissent en "non affectés" et que le budget
+      // reste coherent sans refetch. (Cote DB, lot_dependencies/subphases sont en CASCADE.)
+      setDocuments(prev => prev.map(d => d.lot_id === lotId ? { ...d, lot_id: null } : d));
     } catch {}
   }, [chantierId, token]);
 

@@ -655,6 +655,23 @@
 }
 .cr-pro-card:hover .cr-pc-open{background:var(--cr-navy); color:#fff}
 .cr-pro-card:hover .cr-pc-open svg{transform:translateX(2px)}
+
+/* Bouton "supprimer l'intervenant" (coin haut-droit de la carte). Hover-reveal sur desktop,
+   toujours visible au tactile. stopPropagation cote JS pour ne pas declencher l'ouverture. */
+.cr-pc-del{
+  position:absolute; top:8px; right:8px; z-index:3;
+  width:26px; height:26px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,.9); border:1px solid var(--cr-line);
+  color:var(--cr-muted);
+  opacity:0;
+  transition:opacity .15s, color .15s, border-color .15s, background .15s;
+}
+.cr-pc-del svg{width:14px; height:14px}
+.cr-pro-card:hover .cr-pc-del,
+.cr-pro-card:focus-within .cr-pc-del{opacity:1}
+.cr-pc-del:hover{opacity:1; color:#fff; background:#E5484D; border-color:#E5484D}
+@media (hover: none){ .cr-pc-del{opacity:.6} }
 .cr-pro-card::before{
   content:"";
   position:absolute; top:0; left:0; right:0;
