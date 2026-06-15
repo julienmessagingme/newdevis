@@ -4,6 +4,7 @@ import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 import { formatPhone } from '@/lib/integrations/whapiUtils';
 import { triggerAgentIfOpenClaw } from '@/lib/api/apiHelpers';
+import { captureError } from '@/lib/integrations/errorReporter';
 
 const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -67,6 +68,7 @@ async function handleWaPhoto(
     if (imageBytes.byteLength === 0) throw new Error('empty body');
   } catch (err) {
     console.error('[whapi:photo] download error:', err instanceof Error ? err.message : err);
+    await captureError('whapi-photo-download', err, { msgId, chantierId });
     return;
   }
 
@@ -286,6 +288,7 @@ export const POST: APIRoute = async ({ request }) => {
         await handleWaPhoto(supabase, msg, group.chantier_id, groupId);
       } catch (err) {
         console.error('[whapi:photo] handleWaPhoto error:', err instanceof Error ? err.message : err);
+        await captureError('whapi-photo', err, { chantierId: group.chantier_id, msgId: msg.id });
       }
     }
 

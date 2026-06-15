@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 import { triggerAgentIfOpenClaw } from '@/lib/api/apiHelpers';
+import { captureError } from '@/lib/integrations/errorReporter';
 
 const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -167,6 +168,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   } catch (err) {
     console.error('[inbound-email] Unexpected error:', err instanceof Error ? err.message : err);
+    await captureError('inbound-email', err);
     return ok({ error: 'internal_error' });
   }
 };
@@ -197,6 +199,7 @@ async function processInbound(
 
   if (msgErr) {
     console.error('[inbound-email] Failed to insert message:', msgErr.message);
+    await captureError('inbound-email-insert', msgErr.message, { conversationId: conversation.id });
     return ok({ error: 'insert_failed' });
   }
 

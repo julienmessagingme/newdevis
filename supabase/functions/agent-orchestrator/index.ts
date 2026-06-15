@@ -4,6 +4,7 @@ import { buildContext } from "./context.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { TOOLS_SCHEMA_BATCH, TOOLS_SCHEMA_INTERACTIVE, executeTool } from "./tools.ts";
 import type { RunType, AssistantMessage } from "./types.ts";
+import { captureError } from "../_shared/error-reporter.ts";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -47,6 +48,7 @@ serve(async (req) => {
       });
     } catch (err) {
       console.error("[agent-interactive] error:", err instanceof Error ? err.message : err);
+      await captureError("agent-interactive", err, { chantierId: singleChantierId });
       return new Response(JSON.stringify({ error: "Erreur interne de l'agent" }), { status: 500, headers: { "Content-Type": "application/json" } });
     }
   }
@@ -239,6 +241,7 @@ serve(async (req) => {
       if (await processChantier(singleChantierId)) processed++;
     } catch (err) {
       console.error(`[agent] Error processing ${singleChantierId}:`, err instanceof Error ? err.message : err);
+      await captureError("agent-batch", err, { chantierId: singleChantierId, runType });
     }
   } else {
     // Mode dispatcher (P4) : ne traite RIEN soi-même. Fan-out — fire 1 invocation
