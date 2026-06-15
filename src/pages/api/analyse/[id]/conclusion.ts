@@ -19,7 +19,195 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.5.13";
+const ENGINE_VERSION = "3.5.16";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// V3.5.16 (2026-06-15) — Piste C : revue humaine assistée
+// ──────────────────────────────────────────────────────────────────────────────
+// Objectif : zéro hallucination publique. Les analyses qui touchent un signal
+// "à risque" passent en `review_status = 'pending_review'` côté DB et déclenchent
+// un email à l'expert (bridey.johan@gmail.com) avec lien admin pour validation/
+// correction en 30s. Pendant la fenêtre `pending_review`, l'utilisateur voit
+// un bandeau bleu informatif "Validation expert en cours" (max 24h).
+//
+// Critères : verdict ROUGE, surcout > 2k€, ≥2 anomalies, ou bypass actif.
+//
+// Email destinataire : bridey.johan@gmail.com uniquement (confirmé par user
+// 2026-06-15). Pas julien@messagingme.fr ici (≠ ADMIN_EMAILS du edge function).
+// ──────────────────────────────────────────────────────────────────────────────
+const REVIEW_EMAIL_TO = "bridey.johan@gmail.com";
+const REVIEW_SURCOUT_THRESHOLD = 2000;
+const REVIEW_MIN_ANOMALIES = 2;
+
+interface ReviewTrigger {
+  reasons: string[];
+  shouldReview: boolean;
+}
+
+function detectReviewTriggers(
+  conclusion: Record<string, unknown>,
+): ReviewTrigger {
+  const reasons: string[] = [];
+  const verdictGlobal = String(conclusion.verdict_global ?? "");
+
+  if (verdictGlobal === "a_risque" || verdictGlobal === "refuser") {
+    reasons.push(`verdict=${verdictGlobal}`);
+  }
+
+  const surcoutObj = conclusion.surcout_global as { max?: number } | undefined;
+  const surcoutMax = typeof surcoutObj?.max === "number" ? surcoutObj.max : 0;
+  if (surcoutMax > REVIEW_SURCOUT_THRESHOLD) {
+    reasons.push(`surcout_max=${Math.round(surcoutMax)}€`);
+  }
+
+  const anomalies = Array.isArray(conclusion.anomalies) ? conclusion.anomalies : [];
+  if (anomalies.length >= REVIEW_MIN_ANOMALIES) {
+    reasons.push(`anomalies=${anomalies.length}`);
+  }
+
+  if (conclusion.is_foreign_quote) reasons.push("bypass=foreign");
+  if (conclusion.is_incomplete_quote) reasons.push("bypass=incomplete");
+  if (conclusion.hors_scope) reasons.push("bypass=hors_scope");
+  if (conclusion.estimation_courtier) reasons.push("bypass=courtier");
+
+  return { reasons, shouldReview: reasons.length > 0 };
+}
+
+/**
+ * Envoie l'email Resend à l'expert. Fire-and-forget — si Resend échoue, on
+ * NE bloque PAS la persistance de l'analyse. Le user verra son bandeau bleu
+ * "Validation expert" sans email envoyé, mais le pending_review reste en DB
+ * et Julien le retrouvera dans la vue admin_pending_reviews.
+ */
+async function sendReviewEmail(
+  analysisId: string,
+  fileName: string | null,
+  reasons: string[],
+  conclusion: Record<string, unknown>,
+): Promise<void> {
+  const resendKey = import.meta.env.RESEND_API_KEY ?? process.env.RESEND_API_KEY;
+  if (!resendKey) {
+    console.warn("[review-email] RESEND_API_KEY manquant — email skip");
+    return;
+  }
+
+  const verdictGlobal = String(conclusion.verdict_global ?? "—");
+  const verdictDec = String(conclusion.verdict_decisionnel ?? "—");
+  const surcoutObj = conclusion.surcout_global as { min?: number; max?: number } | undefined;
+  const surcoutStr = surcoutObj
+    ? `${Math.round(surcoutObj.min ?? 0)} - ${Math.round(surcoutObj.max ?? 0)} €`
+    : "—";
+  const anomalies = Array.isArray(conclusion.anomalies) ? conclusion.anomalies : [];
+  const adminUrl = `https://www.verifiermondevis.fr/admin/analyses/${analysisId}`;
+  const date = new Date().toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+
+  const reasonsHtml = reasons.map((r) => `<li style="margin:2px 0">${r}</li>`).join("");
+  const anomaliesHtml = anomalies.slice(0, 3).map((a: Record<string, unknown>) => {
+    const poste = String(a.poste ?? "—");
+    const surcout = typeof a.surcout_estime === "number" ? `${Math.round(a.surcout_estime)} €` : "—";
+    return `<li style="margin:2px 0"><strong>${poste}</strong> · ${surcout}</li>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:20px;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+  <div style="background:#2563eb;padding:16px 20px;color:#fff">
+    <h1 style="margin:0;font-size:17px">🔵 Analyse à valider — ${fileName ?? analysisId.slice(0, 8)}</h1>
+    <p style="margin:6px 0 0;opacity:.85;font-size:13px">VerifierMonDevis · ${date}</p>
+  </div>
+  <div style="padding:20px">
+    <p style="margin:0 0 16px;font-size:14px;color:#374151">
+      Cette analyse a été flaggée pour <strong>validation expert</strong>. L'utilisateur voit actuellement un bandeau "Validation en cours sous 24h" — il attend ton retour.
+    </p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <tr><td style="padding:6px 0;color:#6b7280;width:140px">Verdict global</td><td style="padding:6px 0;color:#dc2626;font-weight:600">${verdictGlobal}</td></tr>
+      <tr><td style="padding:6px 0;color:#6b7280">Décisionnel</td><td style="padding:6px 0">${verdictDec}</td></tr>
+      <tr><td style="padding:6px 0;color:#6b7280">Surcoût estimé</td><td style="padding:6px 0">${surcoutStr}</td></tr>
+      <tr><td style="padding:6px 0;color:#6b7280">Anomalies</td><td style="padding:6px 0">${anomalies.length}</td></tr>
+    </table>
+    ${anomaliesHtml ? `<div style="margin-top:14px"><strong style="font-size:13px;color:#374151">Top anomalies</strong><ul style="margin:6px 0 0;padding-left:20px;font-size:13px;color:#374151">${anomaliesHtml}</ul></div>` : ""}
+    <div style="margin-top:14px;padding:10px 12px;background:#eff6ff;border-radius:6px;font-size:12px;color:#1e40af">
+      <strong>Déclencheurs :</strong>
+      <ul style="margin:4px 0 0;padding-left:16px">${reasonsHtml}</ul>
+    </div>
+    <div style="margin-top:20px;text-align:center">
+      <a href="${adminUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Valider ou corriger</a>
+    </div>
+    <p style="margin:20px 0 0;font-size:11px;color:#9ca3af;text-align:center">
+      Si tu ne fais rien, l'analyse restera en "pending_review" et l'utilisateur verra le bandeau. À toi de jouer.
+    </p>
+  </div>
+</div>
+</body></html>`;
+
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "VerifierMonDevis <onboarding@resend.dev>",
+        to: [REVIEW_EMAIL_TO],
+        subject: `🔵 [VerifierMonDevis] Analyse à valider — ${fileName ?? analysisId.slice(0, 8)}`,
+        html,
+      }),
+    });
+  } catch (err) {
+    console.warn("[review-email] envoi échoué:", err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * Persist conclusion + calcule review_status + envoie email si pending.
+ * Source unique de vérité — remplace les 5 UPDATE conclusion_ia épars.
+ *
+ * - Si la table `analyses` n'a pas encore les colonnes review_*, l'UPDATE
+ *   fallback se contente de conclusion_ia (rétrocompat zéro régression).
+ * - Email fire-and-forget — n'attend pas la réponse Resend pour ne pas
+ *   bloquer l'appel `/conclusion` (UX user prioritaire).
+ */
+async function persistConclusion(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  analysisId: string,
+  fileName: string | null,
+  conclusion: Record<string, unknown>,
+): Promise<void> {
+  const trigger = detectReviewTriggers(conclusion);
+  const reviewStatus = trigger.shouldReview ? "pending_review" : "auto_approved";
+
+  // Tentative 1 — avec review_status (post-migration V3.5.16)
+  const { error: errWithReview } = await supabase
+    .from("analyses")
+    .update({
+      conclusion_ia: JSON.stringify(conclusion),
+      review_status: reviewStatus,
+    })
+    .eq("id", analysisId);
+
+  if (errWithReview) {
+    const msg = errWithReview.message ?? "";
+    if (/review_status|column .* does not exist/i.test(msg)) {
+      // Fallback rétrocompat : la migration n'est pas encore appliquée en prod.
+      console.warn("[review] colonne review_status absente, fallback sans review_status");
+      await supabase
+        .from("analyses")
+        .update({ conclusion_ia: JSON.stringify(conclusion) })
+        .eq("id", analysisId);
+    } else {
+      console.error("[review] UPDATE échoué:", msg);
+      throw new Error(msg);
+    }
+  }
+
+  // Email expert fire-and-forget si pending_review
+  if (trigger.shouldReview) {
+    console.log(`[review] analyse ${analysisId.slice(0, 8)} flaggée pending_review — raisons: ${trigger.reasons.join(", ")}`);
+    sendReviewEmail(analysisId, fileName, trigger.reasons, conclusion).catch(() => {
+      /* déjà loggué dans sendReviewEmail */
+    });
+  }
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -618,7 +806,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   // ── Récupère l'analyse ────────────────────────────────────────────────────
   const { data: analysis } = await (supabase as any)
     .from("analyses")
-    .select("id, user_id, raw_text, resume, work_type, score, conclusion_ia")
+    .select("id, user_id, raw_text, resume, work_type, score, conclusion_ia, file_name")
     .eq("id", analysisId)
     .single();
 
@@ -902,10 +1090,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         engine_version: ENGINE_VERSION,
       };
 
-      await (supabase as any)
-        .from("analyses")
-        .update({ conclusion_ia: JSON.stringify(foreignConclusion) })
-        .eq("id", analysisId);
+      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, foreignConclusion as unknown as Record<string, unknown>);
 
       return jsonOk({ conclusion: foreignConclusion, cached: false });
     }
@@ -1015,10 +1200,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         engine_version: ENGINE_VERSION,
       };
 
-      await (supabase as any)
-        .from("analyses")
-        .update({ conclusion_ia: JSON.stringify(incompleteConclusion) })
-        .eq("id", analysisId);
+      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, incompleteConclusion as unknown as Record<string, unknown>);
 
       return jsonOk({ conclusion: incompleteConclusion, cached: false });
     }
@@ -1088,10 +1270,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         engine_version: ENGINE_VERSION,
       };
 
-      await (supabase as any)
-        .from("analyses")
-        .update({ conclusion_ia: JSON.stringify(courtierConclusion) })
-        .eq("id", analysisId);
+      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, courtierConclusion as unknown as Record<string, unknown>);
 
       return jsonOk({ conclusion: courtierConclusion, cached: false });
     }
@@ -1169,10 +1348,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         engine_version: ENGINE_VERSION,
       };
 
-      await (supabase as any)
-        .from("analyses")
-        .update({ conclusion_ia: JSON.stringify(horsScopeConclusion) })
-        .eq("id", analysisId);
+      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, horsScopeConclusion as unknown as Record<string, unknown>);
 
       return jsonOk({ conclusion: horsScopeConclusion, cached: false });
     }
@@ -2311,10 +2487,9 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
   }
 
   // ── Persistance ───────────────────────────────────────────────────────────
-  await (supabase as any)
-    .from("analyses")
-    .update({ conclusion_ia: JSON.stringify(conclusionData) })
-    .eq("id", analysisId);
+  // V3.5.16 — persistConclusion gère aussi review_status + email expert
+  // (Piste C : zéro hallucination publique sur les analyses à risque).
+  await persistConclusion(supabase, analysisId, analysis.file_name ?? null, conclusionData as unknown as Record<string, unknown>);
 
   return jsonOk({ conclusion: conclusionData, cached: false });
 };

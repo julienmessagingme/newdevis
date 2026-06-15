@@ -100,6 +100,10 @@ type Analysis = {
   market_price_overrides?: Record<string, unknown> | null;
   domain?: string;
   conclusion_ia?: string | null;
+  // V3.5.16 (2026-06-15) — Piste C revue humaine assistée :
+  // 'auto_approved' (défaut) | 'pending_review' (attente expert Julien)
+  // | 'validated' (expert a validé) | 'corrected' (expert a corrigé)
+  review_status?: string | null;
 };
 
 // Pure helper functions — extracted outside component
@@ -1257,6 +1261,31 @@ const AnalysisResult = () => {
               } catch { return null; }
             })()}
           />
+        )}
+
+        {/* V3.5.16 (2026-06-15) — Piste C : revue humaine assistée
+            Bandeau bleu informatif sur les analyses flaggées `pending_review`.
+            Affiché AVANT le verdict pour cadrer l'attente du user.
+            Disparaît dès que l'expert valide (review_status → validated/corrected). */}
+        {analysis.review_status === "pending_review" && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+            <svg
+              className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-blue-900 mb-1">
+                Validation expert en cours
+              </p>
+              <p className="text-sm text-blue-800 leading-relaxed">
+                Cette analyse présente des signaux qui méritent une <strong>validation manuelle par notre expert</strong>.
+                Le verdict ci-dessous est <strong>provisoire</strong> — il sera confirmé ou ajusté sous 24h, et vous serez
+                notifié par email. En attendant, vous pouvez consulter l'analyse à titre informatif.
+              </p>
+            </div>
+          </div>
         )}
 
         {/* ══════════════════════════════════════════════════════

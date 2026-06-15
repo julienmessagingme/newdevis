@@ -11,6 +11,61 @@ Format : chronologie inversée (récent → ancien). Chaque entrée = bug observ
 
 ---
 
+## V3.5.16 (2026-06-15) — Piste C : revue humaine assistée (zéro hallucination publique)
+
+**Contexte** : après 14 versions de patches anti-hallucination (V3.4.x → V3.5.x) qui colmatent au cas par cas, le user a accepté le plan **Piste B + C** :
+- **Piste C** (livrée ici) — revue humaine assistée court terme pour stopper les hallucinations publiques pendant qu'on construit la Piste B
+- **Piste B** (à venir, 4-6 semaines) — référentiel métier hiérarchique remplaçant le matching vectoriel générique
+
+**Architecture Piste C** :
+
+1. **Migration SQL** (`20260615_001_review_status_analyses.sql`) :
+   - Nouvelle colonne `analyses.review_status` ∈ {`auto_approved`, `pending_review`, `validated`, `corrected`} (défaut `auto_approved`)
+   - Colonnes `review_notes`, `reviewed_at`, `reviewed_by` (FK auth.users)
+   - Index partiel `pending_review` pour file d'attente expert
+   - Vue `admin_pending_reviews` (raccourci consultation)
+
+2. **Détection auto dans `conclusion.ts`** (helper `detectReviewTriggers`) :
+   - `verdict_global` ∈ {`a_risque`, `refuser`}
+   - OU `surcout_global.max` > 2 000 €
+   - OU `anomalies.length` ≥ 2
+   - OU bypass actif (`is_foreign_quote`, `is_incomplete_quote`, `hors_scope`, `estimation_courtier`)
+
+3. **Helper centralisé `persistConclusion`** :
+   - Remplace les 5 UPDATE `conclusion_ia` épars (foreign, incomplete, courtier, hors_scope, normal)
+   - UPDATE atomique `conclusion_ia` + `review_status`
+   - Fallback rétrocompat si la migration n'est pas encore appliquée en prod (column does not exist → skip review_status, persiste juste conclusion_ia)
+
+4. **Email Resend fire-and-forget** vers `bridey.johan@gmail.com` (destinataire confirmé par user) :
+   - Template HTML bleu (vs rouge du template "Analyse échouée" existant)
+   - Contenu : verdict, surcoût, top 3 anomalies, raisons du flag, bouton "Valider ou corriger" → `/admin/analyses/<id>`
+   - Pas de blocage si Resend KO (UX utilisateur prioritaire sur email expert)
+
+5. **Bandeau UI bleu** dans `AnalysisResult.tsx` :
+   - Affiché AVANT le verdict si `review_status === 'pending_review'`
+   - Wording : "Validation expert en cours" + "verdict provisoire confirmé sous 24h"
+   - Disparait automatiquement quand `review_status` passe à `validated` ou `corrected`
+
+**Ce qui n'est PAS livré dans V3.5.16** (à venir) :
+- Mini-page admin `/admin/reviews` avec boutons Valider / Corriger (pour l'instant, validation manuelle via SQL Editor ou edit direct table `analyses` côté Supabase)
+- Spec Piste B famille peinture + carrelage (docs à écrire cette semaine)
+
+**ENGINE_VERSION 3.5.13 → 3.5.16** (saut de 3 versions car j'avais 3.5.14 et 3.5.15 qui n'avaient pas bumpé conclusion.ts). Le bump invalide le cache `conclusion_ia` → toutes les analyses existantes seront régénérées au prochain F5, le `review_status` sera évalué pour chacune.
+
+**Effet attendu** :
+- ~30-50% des analyses passent en `pending_review` (cible : verdicts ROUGE, surcouts élevés, anomalies multiples, bypass actifs)
+- Email instantané à chaque trigger → user notifié sous 24h
+- Dataset gold standard se constitue pour Piste B
+
+**⚠️ Actions manuelles requises après push** :
+1. **Migration SQL** : appliquer manuellement le contenu de `supabase/migrations/20260615_001_review_status_analyses.sql` via Dashboard SQL Editor (cf. désynchro CLI documentée précédemment). Idempotent — peut être ré-exécuté sans risque.
+2. **Vercel env vars** : confirmer que `RESEND_API_KEY` est bien configuré côté Vercel (déjà utilisé par d'autres routes du repo).
+3. Tester en uploadant un devis qui déclenche au moins 1 critère → vérifier réception email + bandeau UI bleu côté user.
+
+**Note dataset gold** : chaque analyse qui passe `pending_review → validated` (ou `corrected` avec ajustement) constitue un cas labellisé par toi. Sur 200 cas validés en ~2 mois, on aura assez de data pour calibrer la Piste B (taxonomie métier hiérarchique famille → sous-type → conventions composites).
+
+---
+
 ## V3.5.14 (2026-06-13) — Retour wording verdict prix classique sur mode vectoriel
 
 **Demande utilisateur** : le rendu `VectorialPriceList` introduit en V3.5.0 Phase D affichait des badges "Match fiable / plausible / incertain / Non comparable" + 3 sections séparées ("Comparables fiables / Comparables incertains / Non comparables"). Wording obscur pour l'utilisateur final — jargon technique sans valeur produit.
