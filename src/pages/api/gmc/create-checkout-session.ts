@@ -3,7 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
-import { optionsResponse, jsonOk, jsonError, requireAuth } from '@/lib/api/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireAuth, originFromRequest } from '@/lib/api/apiHelpers';
 import {
   gmcPriceId, gmcPlanDb, GMC_FIRST_MONTH_COUPON,
   type GmcPlanKey, type GmcInterval,
@@ -75,7 +75,7 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
-    const origin = new URL(request.url).origin;
+    const origin = originFromRequest(request);
     const planDb = gmcPlanDb(plan);
     const meta = { supabase_user_id: user.id, product: 'gmc', plan: planDb };
 

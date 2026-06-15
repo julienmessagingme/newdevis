@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import Stripe from 'stripe';
-import { optionsResponse, jsonOk, jsonError, requireAuth } from '@/lib/api/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireAuth, originFromRequest } from '@/lib/api/apiHelpers';
 
 const stripeSecretKey = import.meta.env.STRIPE_SECRET_KEY;
 
@@ -80,8 +80,9 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
-    // Determine origin for redirect URLs
-    const origin = new URL(request.url).origin;
+    // Origine fiable depuis le header Host (cf. originFromRequest — Vercel SSR
+    // ferait pointer new URL(request.url).origin vers localhost).
+    const origin = originFromRequest(request);
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',

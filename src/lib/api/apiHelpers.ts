@@ -30,6 +30,27 @@ export function jsonError(error: string, status = 400) {
   return new Response(JSON.stringify({ error }), { status, headers: CORS });
 }
 
+// ── Origine absolue de la requête (URLs de redirection Stripe, etc.) ─────────
+
+/**
+ * Origine absolue FIABLE de la requête, dérivée du header `Host`.
+ *
+ * NE PAS utiliser `new URL(request.url).origin` : sur Vercel SSR, `request.url`
+ * résout vers `http://localhost:PORT/...` (URL interne du runtime serverless), ce
+ * qui faisait pointer les `success_url` / `cancel_url` / `return_url` Stripe vers
+ * localhost après paiement. Le header `Host`, lui, porte le vrai domaine public
+ * (c'est ce qu'utilise déjà `middleware.ts`). On préserve l'hôte EXACT de
+ * l'utilisateur (apex vs www, ou URL de preview) pour ne pas casser la session
+ * localStorage par un saut d'origine.
+ */
+export function originFromRequest(request: Request): string {
+  const host = request.headers.get('host');
+  if (!host) return 'https://www.verifiermondevis.fr'; // fallback improbable sur Vercel
+  const isLocal = host.startsWith('localhost') || host.startsWith('127.');
+  const proto = request.headers.get('x-forwarded-proto') ?? (isLocal ? 'http' : 'https');
+  return `${proto}://${host}`;
+}
+
 // ── Gate d'acces GMC (lecture seule apres essai expire / non paye) ───────────
 
 /** Acces en ECRITURE GMC : essai en cours OU abonnement actif/past_due. Inactif

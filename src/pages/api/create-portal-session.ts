@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { originFromRequest } from '@/lib/api/apiHelpers';
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -58,7 +59,7 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    const origin = new URL(request.url).origin;
+    const origin = originFromRequest(request);
 
     const session = await stripe.billingPortal.sessions.create({
       customer: sub.stripe_customer_id,
