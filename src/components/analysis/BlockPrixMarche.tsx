@@ -8,7 +8,10 @@ import MarketPositionAnalysis from "./MarketPositionAnalysis";
 import PremiumGate from "@/components/funnel/PremiumGate";
 import { GlobalAnalysisCard } from "./GlobalAnalysisCard";
 import { analyzeQuoteGlobal, classifyRow } from "@/lib/analyse/quoteGlobalAnalysis";
-import { VectorialPriceList } from "./VectorialPriceList";
+// V3.5.14 (2026-06-13) — VectorialPriceList retiré du rendu : wording
+// "Match plausible / incertain" remplacé par les verdicts prix classiques
+// gérés par AnalysisCard ("Dans la norme / Au-delà / En-deçà du marché").
+// Le composant reste en code pour rollback éventuel mais n'est plus utilisé.
 
 // =======================
 // TYPES
@@ -686,15 +689,18 @@ const BlockPrixMarche = ({
           <GlobalAnalysisCard analysis={globalAnalysis} />
 
           {/*
-            V3.5.0 Phase D (2026-05-22) — Détection mode vectoriel.
-            Si au moins une row a `vectorial` set, l'edge function a tourné en
-            MARKET_MATCHER_VECTORIAL=on → on bascule en affichage "1 ligne = 1
-            carte + badge confidence (high/medium/low/no_match)" via VectorialPriceList.
-            Sinon → affichage V3.6 classique (1 carte par groupe + badge verdict).
+            V3.5.14 (2026-06-13) — Wording UI unifié : retour aux verdicts prix
+            classiques ("Dans la norme / Au-delà / En-deçà du marché") quel que
+            soit le mode (V3.6 groupement ou V3.5.0 vectoriel). Le composant
+            VectorialPriceList introduit en Phase D affichait des badges
+            "Match plausible / incertain" obscurs pour l'utilisateur final —
+            jargon technique sans valeur produit. AnalysisCard gère déjà tout
+            via `row.verdict` (computeVerdict dans useMarketPriceAPI) +
+            `globalBadge` (classifyRowEnriched) qui couvre les 5 statuts :
+            anomalie, survalue, surface_mismatch, low_confidence_match, null.
+            La garde confidence V3.5.11 reste active via globalBadge.
           */}
-          {analysisRows.some(r => r.vectorial !== undefined) ? (
-            <VectorialPriceList rows={analysisRows} />
-          ) : analysisRows.length > 0 ? (
+          {analysisRows.length > 0 ? (
             analysisRows.map((row, idx) => {
               // Badge bonus : classification individuelle.
               // V3.4.15 — surface_mismatch (jaune "Surface à vérifier") prioritaire
@@ -722,7 +728,7 @@ const BlockPrixMarche = ({
             </p>
           )}
 
-          {!analysisRows.some(r => r.vectorial !== undefined) && (
+          {(
             <p className="text-xs text-muted-foreground mt-3 italic">
               Ces fourchettes sont basées sur des données de marché externes et ne constituent pas une évaluation de la qualité du prestataire.
             </p>

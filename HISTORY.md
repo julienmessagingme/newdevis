@@ -11,6 +11,29 @@ Format : chronologie inversée (récent → ancien). Chaque entrée = bug observ
 
 ---
 
+## V3.5.14 (2026-06-13) — Retour wording verdict prix classique sur mode vectoriel
+
+**Demande utilisateur** : le rendu `VectorialPriceList` introduit en V3.5.0 Phase D affichait des badges "Match fiable / plausible / incertain / Non comparable" + 3 sections séparées ("Comparables fiables / Comparables incertains / Non comparables"). Wording obscur pour l'utilisateur final — jargon technique sans valeur produit.
+
+L'utilisateur a confirmé qu'il n'avait jamais demandé ce changement et a explicitement réclamé le retour au système classique : "il faut rester sur prix marché 'au-delà' / 'en-deçà' / 'dans la norme' en résumé comme avant."
+
+**Fix** : supprimer la bascule conditionnelle vers `VectorialPriceList` dans `BlockPrixMarche.tsx`. Toujours utiliser `AnalysisCard` (rendu V3.6 classique) qui gère déjà tout :
+
+| Niveau | Source | Contenu affiché |
+|---|---|---|
+| `row.verdict` (vert/orange/rouge selon position prix) | `useMarketPriceAPI.computeVerdict` | "Bien placé / Inférieur à la moyenne / Dans la norme / Légèrement élevé / Plutôt cher" |
+| `globalBadge` (badge synthèse, prioritaire sur `verdict`) | `classifyRowEnriched` via `classifyRow` | 🔴 Anomalie marché, 🟠 Surévalué, 🟡 Surface à vérifier, ⚪ Comparaison incertaine |
+
+Le badge "⚪ Comparaison incertaine" (V3.5.11) reste actif sur les matchs `vectorial.confidence !== "high"` avec ratio modéré — la garde anti-hallucination est préservée. La structure visuelle (1 carte par poste, expand pour voir le détail des lignes + gauge) reste inchangée.
+
+**VectorialPriceList n'est plus rendu** mais conservé en code pour rollback éventuel (`src/components/analysis/VectorialPriceList.tsx`). L'import est retiré de `BlockPrixMarche.tsx`.
+
+**Pas de bump ENGINE_VERSION** — changement UI uniquement, le cache `conclusion_ia` n'est pas concerné. Au prochain F5 (sans régénération), les badges sont déjà reformés.
+
+**Anti-régression** : tests 43/43 verdictEngine + 34/34 vectorial inchangés (logique métier inchangée, seul le rendu UI bascule).
+
+---
+
 ## V3.5.13 (2026-06-12) — Filtre confidence dans le verdict expert (anomalies à 0€)
 
 **Bug observé** : audit des 8 derniers devis a montré 3 analyses avec des anomalies affichées à 0€ dans le verdict expert :
