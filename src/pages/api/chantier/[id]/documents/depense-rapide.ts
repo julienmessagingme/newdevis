@@ -92,33 +92,61 @@ export const POST: APIRoute = async ({ params, request }) => {
     });
   }
 
-  const { data: doc, error } = await ctx.supabase
-    .from('documents_chantier')
-    .insert({
-      chantier_id:    chantierId,
-      lot_id:         lotId,
-      type:           'facture',
-      document_type:  'facture',
-      depense_type:   depenseType,
-      source:         'manual_entry',
-      nom,
-      nom_fichier:    '',
-      bucket_path:    `manual/${chantierId}/${crypto.randomUUID()}`,
-      taille_octets:  null,
-      mime_type:      null,
-      montant:        montant,
-      montant_paye:   factureStatut === 'payee_partiellement' || factureStatut === 'en_litige'
-                        ? montantPaye
-                        : null,
-      facture_statut: factureStatut,
-      cashflow_terms: cashflowTerms,
-    })
-    .select()
-    .single();
+  // Helper : tente l'INSERT avec un depense_type donné. Retourne {doc, error}.
+  // Permet le fallback automatique 'frais' → 'achat_materiaux' si la
+  // migration 20260423150000_add_frais_depense_type.sql n'est pas en prod.
+  const tryInsert = async (effectiveDepenseType: string) =>
+    ctx.supabase
+      .from('documents_chantier')
+      .insert({
+        chantier_id:    chantierId,
+        lot_id:         lotId,
+        type:           'facture',
+        document_type:  'facture',
+        depense_type:   effectiveDepenseType,
+        source:         'manual_entry',
+        nom,
+        nom_fichier:    '',
+        bucket_path:    `manual/${chantierId}/${crypto.randomUUID()}`,
+        taille_octets:  null,
+        mime_type:      null,
+        montant:        montant,
+        montant_paye:   factureStatut === 'payee_partiellement' || factureStatut === 'en_litige'
+                          ? montantPaye
+                          : null,
+        facture_statut: factureStatut,
+        cashflow_terms: cashflowTerms,
+      })
+      .select()
+      .single();
+
+  // V3.5.15 (2026-06-15) — Robustesse INSERT depense_type :
+  // 1. Premier essai avec depenseType demandé
+  // 2. Si CHECK constraint violation sur 'frais' (= migration non appliquée en
+  //    prod), fallback automatique vers 'achat_materiaux' (équivalent fonctionnel
+  //    le plus proche). Le user n'est pas bloqué la veille de sa démo.
+  // 3. Le détail de l'erreur Supabase est désormais remonté au client (au lieu
+  //    du générique "Erreur lors de l'enregistrement") pour diagnostic instantané.
+  let { data: doc, error } = await tryInsert(depenseType);
+
+  if (error && depenseType === 'frais' && /depense_type_check|invalid input value|violates check/i.test(error.message ?? '')) {
+    console.warn(
+      `[depense-rapide] V3.5.15 fallback 'frais' → 'achat_materiaux' ` +
+      `(migration 20260423150000 manquante en prod ?). Détail: ${error.message}`,
+    );
+    const retry = await tryInsert('achat_materiaux');
+    doc = retry.data;
+    error = retry.error;
+  }
 
   if (error || !doc) {
-    console.error('[depense-rapide] insert error:', error?.message);
-    return jsonError('Erreur lors de l\'enregistrement', 500);
+    const detail = error?.message ?? 'INSERT échoué sans message Supabase';
+    console.error('[depense-rapide] insert error:', detail, '— payload:', {
+      chantierId, lotId, depenseType, factureStatut, montant,
+    });
+    // V3.5.15 — remontée du détail au client pour diagnostic instantané.
+    // En cas de demo demain : tu vois directement ce qui bloque côté DB.
+    return jsonError(`Enregistrement impossible : ${detail}`, 500);
   }
 
   // Fire-and-forget: deterministic SQL checks only ($0)
