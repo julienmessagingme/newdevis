@@ -316,11 +316,13 @@
 .cr-setup-step + .cr-setup-step::before{
   content:"";
   position:absolute;
-  left:-50%; right:50%;
-  top:14px;
+  /* Relie le BORD du rond precedent au BORD du rond courant (rond = 28px -> rayon 14px),
+     au lieu de centre-a-centre : la ligne ne passe plus JAMAIS sous les ronds -> fini la bavure. */
+  left:calc(-50% + 14px); right:calc(50% + 14px);
+  top:13px; /* centre les 2px sur le centre vertical du rond (14px) */
   height:2px;
   background:var(--cr-line);
-  z-index:-1;
+  z-index:0;
 }
 .cr-setup-step.done + .cr-setup-step::before{background:var(--cr-sage)}
 .cr-setup-step.done + .cr-setup-step.active::before{
