@@ -463,7 +463,10 @@ export async function verifyData(
   // 2. OpenIBAN - IBAN validation
   if (extracted.entreprise.iban) {
     try {
-      const ibanClean = extracted.entreprise.iban.replace(/\s/g, "");
+      // V3.5.17 — Normalisation étendue : retirer espaces, tirets, points, em-dash, NBSP
+      // Cas vu en prod : IBAN affiché avec tirets sur le devis (ex: "FR76-3006-6108-7700-0209-7520-110")
+      // qui faisait silencieusement échouer la validation OpenIBAN car ces séparateurs n'étaient pas retirés.
+      const ibanClean = extracted.entreprise.iban.replace(/[\s\-–—._ ]/g, "").toUpperCase();
       const ibanResponse = await fetch(`${OPENIBAN_API_URL}/${ibanClean}?getBIC=true`, { signal: AbortSignal.timeout(5_000) });
 
       if (ibanResponse.ok) {
