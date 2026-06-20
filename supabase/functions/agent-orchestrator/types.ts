@@ -57,7 +57,7 @@ export interface ChantierContext {
     contact_metier: string | null;
   }>;
   messages_since_last_run: Array<{
-    source: "whatsapp";
+    source: "whatsapp" | "messagerie";
     from_name: string;
     from_phone: string;
     body: string;

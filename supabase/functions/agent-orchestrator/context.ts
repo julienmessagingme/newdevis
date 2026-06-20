@@ -302,6 +302,52 @@ export async function buildContext(
     };
   });
 
+  // ── Messages entrants de la MESSAGERIE (email + portail Espace Artisan) ────
+  // L'agent ne lisait QUE WhatsApp ; or les emails entrants et les messages du
+  // portail artisan tombent dans chantier_messages. On les ajoute au contexte
+  // pour qu'il les traite (détection de décision, relance), comme un msg WhatsApp.
+  const mappedMessagerie: ChantierContext["messages_since_last_run"] = [];
+  {
+    const { data: convs } = await supabase
+      .from("chantier_conversations")
+      .select("id, contact_id, contact_name, contact_phone")
+      .eq("chantier_id", chantierId);
+    const convList = convs ?? [];
+    if (convList.length > 0) {
+      const convById = new Map(convList.map((c: any) => [c.id, c]));
+      const { data: msgRows } = await supabase
+        .from("chantier_messages")
+        .select("conversation_id, body_text, subject, created_at")
+        .in("conversation_id", convList.map((c: any) => c.id))
+        .eq("direction", "inbound")
+        .gte("created_at", since)
+        .order("created_at", { ascending: true })
+        .limit(30);
+      for (const m of msgRows ?? []) {
+        const conv: any = convById.get(m.conversation_id);
+        const contact = conv?.contact_id ? contacts.find((c: any) => c.id === conv.contact_id) : null;
+        const lotNom = contact?.lot_id ? (enrichedLots.find((l: any) => l.id === contact.lot_id)?.nom ?? null) : null;
+        const channel = m.subject === "Message depuis l'Espace Artisan" ? "Espace Artisan" : "Email";
+        mappedMessagerie.push({
+          source: "messagerie",
+          from_name: conv?.contact_name ?? contact?.nom ?? "Contact",
+          from_phone: conv?.contact_phone ?? contact?.telephone ?? "",
+          body: m.body_text ?? "",
+          timestamp: m.created_at,
+          matched_lot: lotNom,
+          group_name: channel,
+          is_owner: false,
+          is_known_contact: !!contact,
+          contact_role: contact?.role ?? null,
+        });
+      }
+    }
+  }
+
+  // Fusion WhatsApp + Messagerie, triée chronologiquement → contexte de l'agent.
+  const allInboundMessages = [...mappedMessages, ...mappedMessagerie]
+    .sort((a, b) => (a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0));
+
   // Detect owner's unanswered questions
   const ownerQuestions = mappedMessages.filter((m: any) => m.is_owner && m.body.includes("?"));
   const ownerPendingQuestions: Array<{ body: string; timestamp: string; group_name: string | null; inferred_lot: string | null }> = [];
@@ -440,7 +486,7 @@ export async function buildContext(
       user_id: chantier?.user_id ?? "",
     },
     lots: enrichedLots,
-    messages_since_last_run: mappedMessages,
+    messages_since_last_run: allInboundMessages,
     owner_pending_questions: ownerPendingQuestions,
     budget_conseils: budgetRes?.conseils ?? [],
     overdue_payments: overduePayments,

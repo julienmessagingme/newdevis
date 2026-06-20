@@ -419,7 +419,8 @@ ${ctx.lots.map(l =>
 MESSAGES DEPUIS LE DERNIER RUN (${ctx.messages_since_last_run.length}) :
 ${ctx.messages_since_last_run.length > 0
   ? ctx.messages_since_last_run.map(m => {
-      const groupTag = m.group_name ? ` \u{1F4F1} ${m.group_name}` : '';
+      const channelEmoji = m.source === "messagerie" ? "\u{1F4E8}" : "\u{1F4F1}";
+      const groupTag = m.group_name ? ` ${channelEmoji} ${m.group_name}` : '';
       if (m.is_owner) {
         return `[${m.timestamp}]${groupTag} \u{1F464} Vous (propriétaire)${m.matched_lot ? ` \u2192 lot "${m.matched_lot}"` : ''} : "${m.body}"`;
       }
