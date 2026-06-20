@@ -12,6 +12,7 @@ import * as read from "./read.ts";
 import * as documents from "./documents.ts";
 import * as contacts from "./contacts.ts";
 import * as scheduled from "./scheduled.ts";
+import * as artisan from "./artisan.ts";
 import { injectDispatcher, injectValidToolNames } from "./comm.ts";
 
 // Interface stricte que chaque module doit respecter — un export manquant = erreur TS au build.
@@ -23,7 +24,7 @@ interface ToolModule {
 
 // Order matters only for prompt clarity (LLM voit les tools dans cet ordre).
 // Lecture en dernier pour ne pas masquer les actions disponibles.
-const MODULES: ToolModule[] = [planning, status, tasks, finance, documents, contacts, scheduled, insights, comm, read];
+const MODULES: ToolModule[] = [planning, status, tasks, finance, documents, contacts, scheduled, insights, comm, read, artisan];
 
 // Sanity check au boot : refuse les collisions de noms entre modules.
 // Sans ça, un dev qui ajoute par erreur `update_lot_status` dans planning.ts ET status.ts

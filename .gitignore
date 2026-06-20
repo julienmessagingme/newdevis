@@ -37,3 +37,6 @@ report.html
 claude-err.log
 issue-body.md
 .claude/worktrees/
+
+# feature-loop : fichiers d'état de boucle (contrat + progrès), artefact de travail
+.loop/

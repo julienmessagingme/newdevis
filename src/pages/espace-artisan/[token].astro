@@ -1,0 +1,13 @@
+---
+export const prerender = false;
+import ArtisanLayout from '@/layouts/ArtisanLayout.astro';
+import EspaceArtisanApp from '@/components/app/EspaceArtisanApp';
+
+// Le token vient de l'URL ; toute la validation (révocation, abo, contact) se fait
+// côté API à chaque requête via X-Artisan-Token. La page ne fait que monter l'island.
+const { token } = Astro.params;
+---
+
+<ArtisanLayout title="Espace Artisan — GérerMonChantier">
+  <EspaceArtisanApp client:only="react" token={token} />
+</ArtisanLayout>

@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { computeGmcInfo } from '@/lib/integrations/gmc-status-compute';
 import { GMC_PAYMENTS_LIVE } from '@/lib/integrations/gmc-stripe-config';
+import { evaluateArtisanAccess } from './artisanScope';
 
 // ── CORS ────────────────────────────────────────────────────────────────────
 
@@ -329,4 +330,99 @@ export async function parseJsonBody<T = Record<string, unknown>>(request: Reques
   } catch {
     return jsonError('Corps de requête invalide', 400);
   }
+}
+
+// ── Espace Artisan : auth par token (magic-link, sans JWT Supabase) ──────────
+
+export interface ArtisanTokenContext {
+  contactId: string;
+  chantierId: string;
+  /** Owner du chantier — pour les checks abo. JAMAIS exposé à l'artisan. */
+  userId: string;
+  /** Service-role : DOIT être scopé manuellement par contactId/chantierId à chaque requête. */
+  supabase: SupabaseClient;
+}
+
+/** 403 générique : ne révèle JAMAIS pourquoi l'accès est refusé (token / abo / contact). */
+function artisanDenied(): Response {
+  return new Response(
+    JSON.stringify({ error: "Cet espace n'est pas accessible actuellement.", code: 'artisan_access_denied' }),
+    { status: 403, headers: CORS },
+  );
+}
+
+/**
+ * Valide le token Espace Artisan EN LIVE à chaque requête (header `X-Artisan-Token`) :
+ * token non révoqué + abo client actif + contact toujours rattaché au chantier.
+ * Toujours via service-role (l'artisan n'a pas de JWT). La décision passe par la fonction
+ * PURE testée `evaluateArtisanAccess`. Renvoie un contexte scopé OU un 403 générique.
+ *
+ * Usage : const ctx = await requireArtisanToken(request); if (ctx instanceof Response) return ctx;
+ */
+export async function requireArtisanToken(request: Request): Promise<ArtisanTokenContext | Response> {
+  const token = request.headers.get('X-Artisan-Token') ?? request.headers.get('x-artisan-token');
+  if (!token) return artisanDenied();
+
+  const sb = createServiceClient();
+
+  // 1. Token (service-role bypass RLS)
+  const { data: tokenRow } = await sb
+    .from('artisan_space_tokens')
+    .select('id, chantier_id, contact_id, revoked_at')
+    .eq('token', token)
+    .maybeSingle();
+
+  // 2. Chantier + owner (pour le gate abo)
+  let chantier: { user_id: string } | null = null;
+  if (tokenRow) {
+    const { data } = await sb
+      .from('chantiers')
+      .select('user_id')
+      .eq('id', tokenRow.chantier_id)
+      .maybeSingle();
+    chantier = data ?? null;
+  }
+
+  // 3. Abo client actif (hasGmcWriteAccess renvoie true si paywall off)
+  const subActive = chantier ? await hasGmcWriteAccess(sb, chantier.user_id) : false;
+
+  // 4. Contact toujours rattaché à CE chantier
+  let contactOnChantier = false;
+  if (tokenRow && chantier) {
+    const { data: contact } = await sb
+      .from('contacts_chantier')
+      .select('id')
+      .eq('id', tokenRow.contact_id)
+      .eq('chantier_id', tokenRow.chantier_id)
+      .maybeSingle();
+    contactOnChantier = !!contact;
+  }
+
+  // 5. Décision PURE (testée)
+  const verdict = evaluateArtisanAccess({
+    tokenRow: tokenRow ? { revoked_at: tokenRow.revoked_at } : null,
+    chantierExists: !!chantier,
+    subActive,
+    contactOnChantier,
+  });
+  if (!verdict.ok) {
+    // Diagnostic INTERNE seulement (la réponse HTTP reste générique via artisanDenied).
+    // Derrière un flag debug pour ne pas exposer la cause exacte du refus dans les logs.
+    if (process.env.DEBUG_ARTISAN === 'true') console.warn('[requireArtisanToken] denied:', verdict.code);
+    return artisanDenied();
+  }
+
+  // 6. last_used_at (best-effort, non bloquant)
+  void sb
+    .from('artisan_space_tokens')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', tokenRow!.id)
+    .then(() => {}, () => {});
+
+  return {
+    contactId: tokenRow!.contact_id,
+    chantierId: tokenRow!.chantier_id,
+    userId: chantier!.user_id,
+    supabase: sb,
+  };
 }

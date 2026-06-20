@@ -488,6 +488,7 @@ function ContactCard({ contact: c, lots, chantierId, token, onSaved, onEdit, onD
   onEdit: () => void;
   onDelete?: () => void;
 }) {
+  const [showSpace, setShowSpace] = useState(false);
   const sourceBadge = c.source === 'devis' || c.source === 'analyse'
     ? { label: 'Devis', style: 'bg-blue-50 text-blue-600' }
     : c.source === 'facture'
@@ -596,11 +597,117 @@ function ContactCard({ contact: c, lots, chantierId, token, onSaved, onEdit, onD
         <button onClick={onEdit} className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
           <Pencil className="h-3 w-3" /> Modifier
         </button>
+        {c.dbContact && (
+          <button onClick={() => setShowSpace(true)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+            <Link2 className="h-3 w-3" /> Espace artisan
+          </button>
+        )}
         {onDelete && (
           <button onClick={onDelete} className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">
             <Trash2 className="h-3 w-3" /> Supprimer
           </button>
         )}
+      </div>
+      {showSpace && (
+        <ArtisanSpaceDialog
+          chantierId={chantierId}
+          token={token}
+          contact={{ id: c.id, nom: c.nom, telephone: c.telephone }}
+          onClose={() => setShowSpace(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── ArtisanSpaceDialog — génère + partage le lien Espace Artisan ─────────────
+
+function ArtisanSpaceDialog({ chantierId, token, contact, onClose }: {
+  chantierId: string;
+  token: string;
+  contact: { id: string; nom: string; telephone: string | null };
+  onClose: () => void;
+}) {
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [url, setUrl] = useState('');
+  const [hasWhatsapp, setHasWhatsapp] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/chantier/${chantierId}/artisan-space/token`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactId: contact.id }),
+        });
+        if (!alive) return;
+        if (!res.ok) { setStatus('error'); return; }
+        const d = await res.json();
+        setUrl(d.url ?? '');
+        setHasWhatsapp(d.hasWhatsapp !== false);
+        setStatus('ready');
+      } catch {
+        if (alive) setStatus('error');
+      }
+    })();
+    return () => { alive = false; };
+  }, [chantierId, token, contact.id]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* presse-papier indispo */ }
+  }
+
+  const waPhone = (contact.telephone ?? '').replace(/[^0-9]/g, '').replace(/^0/, '33');
+  const waHref = waPhone
+    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(`Bonjour ${contact.nom}, voici votre espace pour le chantier (déposer vos documents, voir le planning) : ${url}`)}`
+    : null;
+
+  return (
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-semibold text-gray-900 truncate">Espace artisan — {contact.nom}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 shrink-0" aria-label="Fermer"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="px-5 py-5 space-y-3">
+          {status === 'loading' && <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>}
+          {status === 'error' && <p className="text-sm text-red-600">Impossible de générer le lien. Vérifiez votre abonnement.</p>}
+          {status === 'ready' && (
+            <>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Lien d'accès personnel de l'artisan : il peut déposer ses documents et voir le planning.
+                Persistant et révocable.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly value={url}
+                  onFocus={e => e.currentTarget.select()}
+                  className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-600 bg-gray-50"
+                />
+                <button onClick={copy} className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl px-3 py-2 transition-colors">
+                  {copied ? 'Copié ✓' : 'Copier'}
+                </button>
+              </div>
+              {waHref ? (
+                <a href={waHref} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-[#25D366] hover:bg-[#1FB855] text-white text-sm font-semibold rounded-xl py-2.5 transition-colors">
+                  Envoyer sur WhatsApp
+                </a>
+              ) : (
+                <p className="text-xs text-gray-400">Aucun numéro enregistré : copiez le lien et envoyez-le par le moyen de votre choix.</p>
+              )}
+              {!hasWhatsapp && (
+                <p className="text-[11px] text-amber-600">Ce contact n'est pas marqué « sur WhatsApp ». Le lien fonctionne quand même, mais vérifiez qu'il peut le recevoir.</p>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
