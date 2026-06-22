@@ -785,14 +785,6 @@ const BlockPrixMarche = ({
             <ChevronDown className={`h-5 w-5 ml-auto text-muted-foreground transition-transform flex-shrink-0 ${isBlockOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {/* Lien ancre vers l'Indice Stratégique Immobilier™ */}
-          <a
-            href="#strategic-index"
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary mt-1 mb-1 transition-colors"
-          >
-            ↑ Voir l'Indice Stratégique Immobilier™
-          </a>
-
           {isBlockOpen && !showGate && (<>
           {/* Résumé du devis */}
           {resume && (
