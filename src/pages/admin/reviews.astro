@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminReviewsApp from '@/components/app/AdminReviewsApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Revue analyses | Admin VerifierMonDevis.fr"
+  description="Validation manuelle des analyses flagguées par la Piste C"
+  noindex={true}
+>
+  <AdminReviewsApp client:only="react" />
+</BaseLayout>
