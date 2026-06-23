@@ -8,6 +8,7 @@ import { PHASE_LABELS, type PhaseChantier } from '@/types/chantier-dashboard';
 import type { ChantierSummary, PortfolioTotals } from '@/lib/chantier/portfolioSummary';
 import type { UnifiedArtisan, PortfolioConflict } from '@/lib/chantier/portfolioConflicts';
 import { buildPortfolioTimeline, nowMarkerPct } from '@/lib/chantier/portfolioTimeline';
+import type { PortfolioCashflow } from '@/lib/chantier/portfolioCashflow';
 import '@/styles/cockpit-refonte.css';
 
 const supabase = createClient(
@@ -178,8 +179,45 @@ function EtatChip({ s }: { s: ChantierSummary }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">À jour</span>;
 }
 
-function FinancesTab({ summaries, totals }: { summaries: ChantierSummary[]; totals: PortfolioTotals }) {
+function CashflowProjection({ cashflow }: { cashflow: PortfolioCashflow | null }) {
+  if (!cashflow || cashflow.months.length === 0) return null;
+  const { months, totalPending, peak } = cashflow;
+  const scale = peak > 0 ? peak : 1;
   return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 mb-4">
+      <div className="flex items-baseline justify-between mb-4">
+        <h3 className="font-bold text-gray-900 text-sm">Trésorerie prévisionnelle</h3>
+        <span className="text-xs text-gray-500">
+          Reste à prévoir : <span className="font-bold text-gray-900">{eur(totalPending)}</span>
+        </span>
+      </div>
+      <div className="flex items-end gap-2 sm:gap-3 overflow-x-auto overscroll-x-contain pb-2" style={{ minHeight: 140 }}>
+        {months.map((m) => {
+          const pendingH = Math.round((m.pending / scale) * 110);
+          const paidH = Math.round((m.paid / scale) * 110);
+          return (
+            <div key={m.month} className="flex flex-col items-center gap-1 shrink-0 w-16">
+              <div className="flex flex-col-reverse items-center justify-end" style={{ height: 110 }}>
+                {m.paid > 0 && <div className="w-7 rounded-t bg-emerald-300" style={{ height: Math.max(2, paidH) }} title={`Payé : ${eur(m.paid)}`} />}
+                {m.pending > 0 && <div className={`w-7 ${m.paid > 0 ? '' : 'rounded-t'} bg-blue-500`} style={{ height: Math.max(2, pendingH) }} title={`À prévoir : ${eur(m.pending)}`} />}
+              </div>
+              <span className={`text-[10px] font-medium ${m.isPast ? 'text-gray-300' : 'text-gray-500'}`}>{m.label}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-4 mt-2 text-[11px] text-gray-400">
+        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block" /> À prévoir</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-300 inline-block" /> Déjà payé</span>
+      </div>
+    </div>
+  );
+}
+
+function FinancesTab({ summaries, totals, cashflow }: { summaries: ChantierSummary[]; totals: PortfolioTotals; cashflow: PortfolioCashflow | null }) {
+  return (
+   <>
+    <CashflowProjection cashflow={cashflow} />
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
       <div className="overflow-x-auto overscroll-x-contain">
         <table className="min-w-[820px] w-full text-sm">
@@ -228,6 +266,7 @@ function FinancesTab({ summaries, totals }: { summaries: ChantierSummary[]; tota
         </table>
       </div>
     </div>
+   </>
   );
 }
 
@@ -452,6 +491,7 @@ export default function PortefeuillePage() {
   const [activeTab, setActiveTab] = useState<Tab>('finances');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [contactsData, setContactsData] = useState<ContactsData | null>(null);
+  const [cashflowData, setCashflowData] = useState<PortfolioCashflow | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -470,6 +510,12 @@ export default function PortefeuillePage() {
         .then((r) => (r.ok ? r.json() : emptyContacts))
         .then((c) => { if (!cancelled) setContactsData(c as ContactsData); })
         .catch(() => { if (!cancelled) setContactsData(emptyContacts); });
+      // Projection de tresorerie : best-effort egalement.
+      const emptyCashflow: PortfolioCashflow = { months: [], totalPending: 0, totalPaid: 0, peak: 0 };
+      fetch('/api/portfolio/cashflow', { headers: auth })
+        .then((r) => (r.ok ? r.json() : emptyCashflow))
+        .then((c) => { if (!cancelled) setCashflowData(c as PortfolioCashflow); })
+        .catch(() => { if (!cancelled) setCashflowData(emptyCashflow); });
       try {
         const res = await fetch('/api/portfolio/summary', {
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -589,7 +635,7 @@ export default function PortefeuillePage() {
           ) : (
             <>
               <TotalsBar totals={totals} />
-              {activeTab === 'finances' && <FinancesTab summaries={summaries} totals={totals} />}
+              {activeTab === 'finances' && <FinancesTab summaries={summaries} totals={totals} cashflow={cashflowData} />}
               {activeTab === 'planning' && <PlanningTab summaries={summaries} />}
               {activeTab === 'contacts' && <ContactsTab data={contactsData} />}
             </>
