@@ -19,7 +19,15 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.5.16";
+//
+// 🟢 REFONTE 2026-06-23 — Reset à "1.0.0-refonte" pour marquer la nouvelle ère.
+// Avant cette date, la série V3.4.x → V3.5.16 accumulait ~50 patches anti-
+// hallucination empilés. La refonte (cf. docs/refonte/PLAN.md) reconstruit
+// la chaîne en 4 maillons (Lire / Comparer / Verdict / Apprendre). Les bumps
+// de version se feront au fil des phases livrées (1.1, 1.2, 2.0, etc.) et
+// JAMAIS pour patcher un cas user signalé — chaque bug va dans
+// docs/refonte/BUGS-A-CORRIGER.md comme cas test.
+const ENGINE_VERSION = "1.0.0-refonte";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // V3.5.16 (2026-06-15) — Piste C : revue humaine assistée
@@ -39,13 +47,79 @@ const REVIEW_EMAIL_TO = "bridey.johan@gmail.com";
 const REVIEW_SURCOUT_THRESHOLD = 2000;
 const REVIEW_MIN_ANOMALIES = 2;
 
+// 🟢 REFONTE 2026-06-23 Phase 0.1 — trigger ratio aberrant
+// Cause : devis ALES (analyse d3b3f014) — un groupe "WC fourni+posé" affiché
+// 8 950 € vs marché_max 608 € (ratio 14.7×) n'a PAS déclenché Piste C parce
+// que le surcout AGRÉGÉ côté conclusion (70 €) était sous le seuil 2k€ — le
+// groupe ayant été filtré par V3.5.13 (low_confidence). Mais l'UI lit
+// raw_text.n8n_price_data SANS filtre confidence → la carte rouge "Anomalie
+// marché" s'affichait à l'utilisateur sur un poste qui n'existait pas dans
+// le devis.
+//
+// Filet de sécurité (Phase 0 sans risque) : tout groupe avec un ratio
+// devis_total_ht / theoreticalMaxHT > 5× sur priceData BRUT (avant filtre
+// confidence) → l'analyse passe en pending_review et la bannière bleue
+// "Validation expert en cours" masque l'anomalie publique.
+//
+// Cap retiré dès que Phase 3 (lecture juste) + Phase 4 (verdict prix unitaire)
+// rendent ce type d'hallucination structurellement impossible. Cf.
+// docs/refonte/RUSTINES.md, classification 🟠 RUSTINE-PHASE-4.
+const REVIEW_RATIO_THRESHOLD = 5;
+
 interface ReviewTrigger {
   reasons: string[];
   shouldReview: boolean;
 }
 
+/**
+ * Cherche dans priceData (BRUT, avant filtres confidence) un groupe dont
+ * le devis_total_ht dépasse `theoreticalMaxHT` × REVIEW_RATIO_THRESHOLD.
+ * Retourne le pire ratio trouvé (0 si aucun aberrant).
+ *
+ * Réutilise la même formule de theoreticalMaxHT que `computeServerSurcout`
+ * pour éviter les divergences (Σ price_max_unit_ht × qty + fixed_max_ht).
+ */
+function findAberrantRatio(priceData: unknown[]): { worstRatio: number; worstLabel: string } {
+  if (!Array.isArray(priceData)) return { worstRatio: 0, worstLabel: "" };
+
+  let worstRatio = 0;
+  let worstLabel = "";
+
+  for (const g of priceData) {
+    if (!g || typeof g !== "object") continue;
+    const group = g as Record<string, any>;
+    if (group.job_type_label === "Autre") continue;
+
+    const devisTotal: number = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
+    if (devisTotal <= 0) continue;
+
+    const prices: any[] = Array.isArray(group.prices) ? group.prices : [];
+    if (prices.length === 0) continue;
+
+    const qty: number = typeof group.main_quantity === "number" && group.main_quantity > 0
+      ? group.main_quantity : 1;
+
+    let theoreticalMaxHT = 0;
+    for (const p of prices) {
+      theoreticalMaxHT +=
+        (typeof p.price_max_unit_ht === "number" ? p.price_max_unit_ht : 0) * qty +
+        (typeof p.fixed_max_ht      === "number" ? p.fixed_max_ht      : 0);
+    }
+    if (theoreticalMaxHT <= 0) continue;
+
+    const ratio = devisTotal / theoreticalMaxHT;
+    if (ratio > worstRatio) {
+      worstRatio = ratio;
+      worstLabel = String(group.job_type_label ?? group.job_type ?? "?");
+    }
+  }
+
+  return { worstRatio, worstLabel };
+}
+
 function detectReviewTriggers(
   conclusion: Record<string, unknown>,
+  rawPriceData?: unknown[],
 ): ReviewTrigger {
   const reasons: string[] = [];
   const verdictGlobal = String(conclusion.verdict_global ?? "");
@@ -69,6 +143,14 @@ function detectReviewTriggers(
   if (conclusion.is_incomplete_quote) reasons.push("bypass=incomplete");
   if (conclusion.hors_scope) reasons.push("bypass=hors_scope");
   if (conclusion.estimation_courtier) reasons.push("bypass=courtier");
+
+  // 🟢 REFONTE 2026-06-23 — trigger ratio aberrant (Phase 0.1)
+  if (rawPriceData) {
+    const { worstRatio, worstLabel } = findAberrantRatio(rawPriceData);
+    if (worstRatio > REVIEW_RATIO_THRESHOLD) {
+      reasons.push(`ratio_aberrant=${worstRatio.toFixed(1)}× ("${worstLabel}")`);
+    }
+  }
 
   return { reasons, shouldReview: reasons.length > 0 };
 }
@@ -172,8 +254,9 @@ async function persistConclusion(
   analysisId: string,
   fileName: string | null,
   conclusion: Record<string, unknown>,
+  rawPriceData?: unknown[],
 ): Promise<void> {
-  const trigger = detectReviewTriggers(conclusion);
+  const trigger = detectReviewTriggers(conclusion, rawPriceData);
   const reviewStatus = trigger.shouldReview ? "pending_review" : "auto_approved";
 
   // Tentative 1 — avec review_status (post-migration V3.5.16)
@@ -854,6 +937,11 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // ── Parse raw_text ────────────────────────────────────────────────────────
   let priceData: unknown[] = [];
+  // 🟢 REFONTE 2026-06-23 Phase 0.1 — snapshot priceData BRUT (avant filtres
+  // V3.4.24 / V3.5.13) pour le trigger ratio aberrant dans detectReviewTriggers.
+  // L'UI VectorialPriceList lit aussi raw_text.n8n_price_data brut → on doit
+  // détecter les aberrations sur la même base que ce que voit l'utilisateur.
+  let rawPriceDataSnapshot: unknown[] = [];
   let extractedData: Record<string, unknown> = {};
   // V3.3 — capture aussi le format legacy `extracted` (utilisé par certaines anciennes
   // analyses) pour permettre le fallback de totalHT plus bas. Sans ça, les analyses
@@ -865,6 +953,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   try {
     const parsed = JSON.parse(analysis.raw_text || "{}");
     priceData       = Array.isArray(parsed.n8n_price_data) ? parsed.n8n_price_data : [];
+    rawPriceDataSnapshot = priceData.slice();
     extractedData   = (parsed.extracted_data as Record<string, unknown>) || {};
     extractedLegacy = (parsed.extracted as Record<string, unknown>) || {};
     // Multi-devis : lire segment_analyses + global_metrics pré-calculés
@@ -2489,7 +2578,15 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
   // ── Persistance ───────────────────────────────────────────────────────────
   // V3.5.16 — persistConclusion gère aussi review_status + email expert
   // (Piste C : zéro hallucination publique sur les analyses à risque).
-  await persistConclusion(supabase, analysisId, analysis.file_name ?? null, conclusionData as unknown as Record<string, unknown>);
+  // 🟢 REFONTE 2026-06-23 Phase 0.1 — passe rawPriceDataSnapshot pour le trigger
+  // ratio aberrant (>5× marché_max sur priceData BRUT avant filtre confidence).
+  await persistConclusion(
+    supabase,
+    analysisId,
+    analysis.file_name ?? null,
+    conclusionData as unknown as Record<string, unknown>,
+    rawPriceDataSnapshot,
+  );
 
   return jsonOk({ conclusion: conclusionData, cached: false });
 };

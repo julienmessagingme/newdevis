@@ -2,6 +2,41 @@
 
 Plateforme d'analyse de devis d'artisans + module **GérerMonChantier**. Stack : Astro 5 + React 18 islands + Supabase + Tailwind/shadcn-ui · Vercel (`@astrojs/vercel`, `output: 'static'`).
 
+---
+
+## 🟢 REFONTE EN COURS (2026-06-23+) — LIRE EN PREMIER
+
+L'outil d'analyse de prix est en **refonte structurée en 4 maillons** :
+**Lire juste → Comparer à vraie référence → Verdict honnête → Apprendre**.
+
+📖 **Source de vérité** : [`docs/refonte/PLAN.md`](docs/refonte/PLAN.md) — boussole de la refonte avec phases, principes inviolables, décisions validées.
+
+### Ce qui s'ARRÊTE immédiatement
+
+- ❌ **Plus de bumps `ENGINE_VERSION`** pour patcher un cas user signalé. Reset à `"1.0.0-refonte"` (2026-06-23). Les prochains bumps suivent les phases (1.x catalogue, 2.x revue, 3.x lecture, 4.x verdict).
+- ❌ **Plus de "Garde n°X" inline** qui s'empile dans `extract.ts` / `verdictEngine.ts` / `market-matcher-vectorial.ts` / `score.ts` / `conclusion.ts`.
+- ❌ **Plus de fix réactifs ad hoc** sur les bugs signalés. Chaque bug → **entrée dans [`docs/refonte/BUGS-A-CORRIGER.md`](docs/refonte/BUGS-A-CORRIGER.md)** qui devient un cas test du filet anti-régression de la phase qui le couvre.
+- ❌ **Plus de feature flags zombies**. Inventaire dans [`docs/refonte/RUSTINES.md`](docs/refonte/RUSTINES.md) avec classification KEEP-GUARD-CRITIQUE / RUSTINE-PHASE-3 / RUSTINE-PHASE-4 / MORT.
+
+### Phase 0 (en cours) — Nettoyage + cartographie
+
+Sans risque. Lecture seule sur la prod + suppression de code mort uniquement. Cf. PLAN.md.
+
+**Filet de sécurité actif** : `detectReviewTriggers` étendu au ratio aberrant (`devis_total_ht > 5 × theoreticalMaxHT` sur le `priceData` BRUT) → analyse passe en `pending_review`, bannière bleue masque l'anomalie. Protège la prod pendant qu'on construit.
+
+### Prochaines phases
+
+- **Phase 1** — Catalogue d'aplomb (`market_prices`, classement métier × nature_prix). Input : [`docs/refonte/catalogue-classement/`](docs/refonte/catalogue-classement/) (YAML peinture + carrelage déjà spec, à valider par Julien)
+- **Phase 2** — Écran de revue (front Piste C). Le mécanisme back (`review_status='pending_review'` + email Resend) tourne déjà depuis V3.5.16. Manque le `/admin/reviews`.
+- **Phase 3** — Refonte `extract.ts` (lecture structure-d'abord + prix unitaire + réconciliation arithmétique). Le gros chantier.
+- **Phase 4** — Verdict prix unitaire + gradation confiance + rattachement annexes au coût unitaire.
+
+### À chaque nouvelle session
+
+Ouvrir [`docs/refonte/PLAN.md`](docs/refonte/PLAN.md) **AVANT** ce CLAUDE.md, et [`docs/refonte/BUGS-A-CORRIGER.md`](docs/refonte/BUGS-A-CORRIGER.md) si un user signale un bug. Pas de saut de phase. Pas de patch parallèle.
+
+---
+
 ## 📚 Où trouver quoi
 
 Ce fichier = **règles + pièges + décisions récentes** pour ne pas casser quand on code. C'est tout. Les tableaux exhaustifs (routes, tables, composants) sont **ailleurs** :
@@ -13,7 +48,8 @@ Ce fichier = **règles + pièges + décisions récentes** pour ne pas casser qua
 | **Backlog — ce qu'on doit/veut faire mais qu'on n'a pas commencé** | [`TODO.md`](TODO.md) |
 | **Référence technique exhaustive** (toutes les routes, schéma DB, pipeline, deploy) | [`DOCUMENTATION.md`](DOCUMENTATION.md) |
 | **Plan de test E2E agent IA** (10 scénarios + cas d'erreur, avec 3 numéros WhatsApp GMC `+33633921577`/USER/ARTISAN + outils debug SQL) | [`TEST-PLAN-AGENT-IA.md`](TEST-PLAN-AGENT-IA.md) |
-| **Historique détaillé V3.x du moteur de scoring** (cause racine + fix + anti-régression de chaque bump ENGINE_VERSION) | [`HISTORY.md`](HISTORY.md) |
+| **Historique détaillé V3.x du moteur de scoring** (cause racine + fix + anti-régression de chaque bump ENGINE_VERSION jusqu'à V3.5.16 inclus) | [`HISTORY.md`](HISTORY.md) |
+| **🟢 Refonte en cours** (PLAN.md, BUGS-A-CORRIGER.md, RUSTINES.md, catalogue-classement/) | [`docs/refonte/`](docs/refonte/) |
 | **Règles + pièges + décisions** | ← ce fichier |
 
 **Si tu ajoutes une info** :
@@ -296,7 +332,7 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
   **ENGINE_VERSION + cache invalidation automatique** : `conclusion_ia.engine_version` stocké à chaque génération. Au cache hit, si version DB ≠ `ENGINE_VERSION` constante du code → régénération forcée automatique (pas besoin de bouton "Régénérer"). À **incrémenter à chaque changement de logique scoring** (ex: 3.3 → 3.3.1).
 
-  État courant : **`ENGINE_VERSION = "3.5.16"`** (`src/pages/api/analyse/[id]/conclusion.ts`). Historique complet des versions V3.4.17 → V3.5.16 (cause racine + fix + anti-régression de chaque bump) dans [`HISTORY.md`](HISTORY.md).
+  État courant : **`ENGINE_VERSION = "1.0.0-refonte"`** (`src/pages/api/analyse/[id]/conclusion.ts`). Reset 2026-06-23 pour marquer la refonte (cf. [`docs/refonte/PLAN.md`](docs/refonte/PLAN.md)). Historique complet des versions V3.4.17 → V3.5.16 (cause racine + fix + anti-régression de chaque bump) dans [`HISTORY.md`](HISTORY.md).
 
   **Invariants ACTIFS** que toute modif scoring doit respecter (= les gardes en place qu'il ne faut PAS supprimer) :
   - **Bypass précoces dans `conclusion.ts`** (avant verdictEngine + matching catalogue), tous suivant le même pattern : `is_foreign_quote` (V3.4.14), `estimation_courtier` (V3.4.20), `hors_scope_categorie` (V3.4.28), `is_incomplete_quote` (V3.5.1). Génèrent un `ConclusionData` synthétique + bannière UI dédiée + masquage `BlockPrixMarche`.

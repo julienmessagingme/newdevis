@@ -14,7 +14,14 @@ import {
 } from "./market-matcher-vectorial.ts";
 
 /**
- * V3.6 — Feature flags pour le déploiement contrôlé.
+ * 🔴 CLEANUP-PHASE-1 (refonte 2026-06-23) — Feature flag V3.6 MORT
+ *
+ * V3.6 a été abandonné après bascule vectoriel le 2026-05-22. Tout ce bloc
+ * (MARKET_MATCHER_V36 + V36_SHADOW_SAMPLE_RATE + modes shadow/v36_only) est
+ * du code zombie depuis 1 mois. À retirer en Phase 1 atomiquement avec le
+ * travail sur le catalogue market_prices. Voir docs/refonte/RUSTINES.md.
+ *
+ * Originalement (mai 2026) :
  *
  * MARKET_MATCHER_V36 (parsing strict, valeurs inconnues = warn + shadow par défaut) :
  *   - "v35_only" | "false" | "0" → V3.5 only (rollback complet)
@@ -149,8 +156,17 @@ function isShadowKilled(): boolean {
 console.log(`[MarketPrices] startup — kill_switch_threshold=${SHADOW_KILL_THRESHOLD} window_ms=${SHADOW_KILL_WINDOW_MS}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 🔴 CLEANUP-PHASE-1 (refonte 2026-06-23)
 // V3.5.0 PHASE C — Feature flag VECTORIEL
 //
+// État actuel : prod = "on" depuis 2026-05-22. Le mode "shadow" est MORT
+// (rollout terminé, jamais rejoué). Le mode "off" sert encore de bouton de
+// repli en cas d'urgence. À simplifier en Phase 1 (atomique avec catalogue) :
+// soit retirer le flag entièrement et garder uniquement le vectoriel, soit
+// le réduire à un boolean on/off documenté.
+// Voir docs/refonte/RUSTINES.md.
+//
+// Originalement :
 // Si MARKET_MATCHER_VECTORIAL="true" (ou "1") → lookupMarketPrices délègue
 // entièrement à `lookupMarketPricesVectorial` (similarity search ligne-par-
 // ligne via Gemini gemini-embedding-001 + RPC search_market_prices_v2).
