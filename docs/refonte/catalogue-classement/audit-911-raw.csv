@@ -1,0 +1,912 @@
+id,job_type,label,unit,price_min_unit_ht,price_avg_unit_ht,price_max_unit_ht,fixed_min_ht,fixed_avg_ht,fixed_max_ht,variability_ratio,confidence,sample_size,source,notes,room_specific,required_room,generic_family
+1,abattage_arbre,Abattage arbre,forfait,0.00,0.00,0.00,350.00,900.00,2500.00,null,null,0,seed_manual,Selon accès/diamètre,false,null,abattage_arbre
+466,piscine_abri,Abri piscine (fourni+posé),forfait,0.00,0.00,0.00,5525.00,8500.00,11475.00,null,null,0,seed_manual,Selon hauteur,false,null,piscine_abri
+956,clim_accessoires,"Accessoires climatisation (liaisons, supports, finitions)",forfait,0.00,0.00,0.00,150.00,350.00,700.00,null,null,0,seed_manual,"Liaisons frigorigènes, supports muraux, décors",false,null,clim_accessoires
+516,accessoires_piscine,"Accessoires piscine (quincaillerie, chimie, PVC)",forfait,0.00,0.00,0.00,400.00,900.00,2000.00,null,null,0,seed_manual,Base,false,null,accessoires_piscine
+806,aerogomage_poutres,Aérogommage poutres apparentes,ml,15.00,28.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,aerogomage_poutres
+757,agglo_beton_moellon,Agglo béton / moellon (fourni+posé),m3,200.00,300.00,420.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,agglo_beton_moellon
+3,ajout_disjoncteur,Ajout disjoncteur,mod,40.00,80.00,160.00,0.00,0.00,0.00,null,null,0,seed_manual,Module tableau,false,null,ajout_disjoncteur
+92,interrupteur,Ajout interrupteur,unité,50.00,90.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,interrupteur
+2,ajout_differentiel,Ajout interrupteur différentiel,mod,60.00,140.00,260.00,0.00,0.00,0.00,null,null,0,seed_manual,30mA,false,null,ajout_differentiel
+188,prise,Ajout prise,unité,60.00,100.00,160.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,prise
+290,prise_rj45,Ajout prise RJ45,unité,57.00,95.00,133.00,0.00,0.00,0.00,null,null,0,seed_manual,Câblage selon distance,false,null,prise_rj45
+291,prise_tv,Ajout prise TV,unité,51.00,85.00,119.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,prise_tv
+831,alarme_intrusion_installation,Alarme intrusion (fourni+posé),unite,1200.00,2200.00,4000.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors abonnement télésurveillance,false,null,alarme_intrusion_installation
+426,pose_alarme_maison,Alarme maison (pose),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Estimation,false,null,pose_alarme_maison
+253,alarme_piscine,Alarme piscine (fourni+posé),forfait,0.00,0.00,0.00,422.00,650.00,878.00,null,null,0,seed_manual,NF P90-307,false,null,alarme_piscine
+874,allée_béton_décoratif,Allée béton décoratif (fourni+posé),m2,55.00,90.00,145.00,0.00,0.00,0.00,null,null,0,seed_manual,Imprimé ou brossé,false,null,allée_béton_décoratif
+947,enrobe_cle_en_main,Allée enrobée clé en main (terrassement + pose),m2,60.00,90.00,140.00,400.00,800.00,1500.00,null,null,0,seed_manual,Décaissement + grave + enrobé 6 cm,false,null,enrobe_cle_en_main
+873,allée_gravillons,Allée gravillons stabilisés (fourni+posé),m2,15.00,28.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 10 cm,false,null,allée_gravillons
+714,amenagement_combles_habitables,Aménagement combles perdus → habitables,m2,600.00,1050.00,1900.00,0.00,0.00,0.00,null,null,0,seed_manual,Surface créée,true,"[""combles""]",amenagement
+790,amenagement_cuisine_complet,Aménagement cuisine complète (hors électroménager),m2,400.00,700.00,1200.00,0.00,0.00,0.00,null,null,0,seed_manual,Sur mesure,true,"[""cuisine""]",amenagement
+147,placard_amenagement,Aménagement placard (simple),forfait,0.00,0.00,0.00,250.00,650.00,1400.00,null,null,0,seed_manual,Étagères/tringles,false,null,placard_amenagement
+718,amenagement_sous_sol,Aménagement sous-sol existant,m2,600.00,1150.00,1900.00,0.00,0.00,0.00,null,null,0,seed_manual,Surface créée,true,"[""cave""]",amenagement
+649,micro_ciment_sol,Application micro-ciment sol,m2,50.00,82.00,135.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,micro_ciment_sol
+310,arrosage_automatique,Arrosage automatique (installation),m2,6.00,12.00,18.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon réseau,false,null,arrosage_automatique
+5,audit_energetique,Audit énergétique RGE,forfait,0.00,0.00,0.00,500.00,800.00,1200.00,null,null,0,seed_manual,RGE,false,null,audit_energetique
+494,pose_baie_vitree_global,Baie vitrée (fourni+posé),unité,1820.00,2600.00,3380.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_baie_vitree_global
+510,baie_vitree_alu_fourniture_pose,Baie vitrée aluminium fourni+posé,unité,2000.00,3200.00,4500.00,0.00,0.00,0.00,null,null,0,seed_manual,"Châssis composé, largeur > 2m, rénovation",false,null,baie_vitree_alu_fourniture_pose
+509,baie_vitree_pvc_fourniture_pose,Baie vitrée PVC fourni+posé,unité,1500.00,2300.00,3500.00,0.00,0.00,0.00,null,null,0,seed_manual,"Châssis composé, largeur > 2m, rénovation",false,null,baie_vitree_pvc_fourniture_pose
+444,baignoire_fourniture_pose,Baignoire (fourni+posé),forfait,0.00,0.00,0.00,488.00,750.00,1013.00,null,null,0,seed_manual,Selon gamme,false,null,baignoire_fourniture_pose
+765,baignoire_ilot_pose,Baignoire îlot (fourni+posé),unite,900.00,1600.00,3000.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors évacuation,false,null,baignoire_ilot_pose
+289,pompe_a_chaleur_eau_chaude_sanitaire,Ballon ECS — pose uniquement,forfait,0.00,0.00,0.00,422.00,650.00,878.00,null,null,0,seed_manual,Hors matériel,false,null,pompe_a_chaleur_eau_chaude_sanitaire
+7,ballon_thermodynamique,Ballon thermodynamique,forfait,0.00,0.00,0.00,1600.00,2300.00,3200.00,null,null,0,seed_manual,RGE,false,null,ballon_thermodynamique
+8,bandes_placo,Bandes + joints,m2,8.00,15.00,28.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,bandes_placo
+502,pose_bande_joint_placo,Bandes/joints placo (MO),m2,10.00,15.00,20.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_bande_joint_placo
+592,bardage_bois_exterieur,Bardage bois extérieur (fourni+posé),m2,55.00,92.00,140.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",bardage_exterieur
+593,bardage_composite_exterieur,Bardage composite extérieur (fourni+posé),m2,50.00,82.00,125.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",bardage_exterieur
+969,bardage_hpl_haut_gamme,Bardage HPL haut de gamme (fourni+posé),m2,95.00,130.00,180.00,0.00,0.00,0.00,null,null,0,seed_manual,Type Trespa/Fundermax. Hors ossature.,false,null,bardage_exterieur
+970,bardage_meleze_naturel,Bardage mélèze naturel (fourni+posé),m2,75.00,105.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,"Sans traitement, classe 3-4. Hors ossature.",false,null,bardage_exterieur
+594,bardage_pvc_exterieur,Bardage PVC extérieur (fourni+posé),m2,35.00,56.00,88.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",bardage_pvc
+254,barriere_piscine,Barrière piscine (fourni+posé),ml,104.00,160.00,216.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon modèle,false,null,barriere_piscine
+9,batterie_solaire,Batterie de stockage solaire,forfait,0.00,0.00,0.00,3500.00,6000.00,9500.00,null,null,0,seed_manual,RGE,false,null,batterie_solaire
+491,batterie_solaire_pose,Batterie solaire — pose (MO),forfait,0.00,0.00,0.00,390.00,650.00,910.00,null,null,0,seed_manual,null,false,null,batterie_solaire_pose
+915,benne_dechets_chantier,Benne à déchets chantier,unite,250.00,450.00,750.00,0.00,0.00,0.00,null,null,0,seed_manual,10 m³,false,null,benne_dechets_chantier
+10,benne,Benne gravats,forfait,0.00,0.00,0.00,250.00,450.00,900.00,null,null,0,seed_manual,null,false,null,benne
+380,pose_beton_cire,Béton ciré (application),m2,72.00,110.00,148.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_beton_cire
+854,peinture_beton_cire_mur,Béton ciré mur (fourni+posé),m2,55.00,90.00,140.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,peinture_beton_cire_mur
+634,beton_cire_murs,Béton ciré murs intérieurs,m2,50.00,82.00,135.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,beton_cire_murs
+834,beton_cire_sol,Béton ciré sol (fourni+posé),m2,60.00,100.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,beton_cire_sol
+673,beton_desactive_allee,Béton désactivé allée,m2,50.00,80.00,130.00,400.00,700.00,1500.00,null,null,0,seed_manual,Finition gravier lavé / expo,false,null,beton_desactive_allee
+644,bibliotheque_bois_mesure,Bibliothèque boiserie sur mesure (MO),ml,200.00,400.00,750.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,bibliotheque_bois_mesure
+11,blindage_porte,Blindage porte (pose),forfait,0.00,0.00,0.00,900.00,1800.00,3500.00,null,null,0,seed_manual,Selon modèle,false,null,blindage_porte
+882,bloc_porte_pose,Bloc-porte bâti+paumelles+serrure (fourni+posé),unite,500.00,900.00,1700.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,bloc_porte_pose
+856,boiserie_moulure_pose,Boiseries / moulures déco (fourni+posé),ml,20.00,38.00,65.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,boiserie_moulure_pose
+12,borne_recharge_irve,Borne de recharge électrique IRVE,forfait,0.00,0.00,0.00,900.00,1400.00,2200.00,null,null,0,seed_manual,RGE,false,null,borne_recharge_irve
+827,borne_recharge_vehicule,Borne de recharge véhicule électrique (fourni+posé),unite,800.00,1400.00,2500.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors renforcement coupure,false,null,borne_recharge_vehicule
+830,cablage_reseau_ethernet,Câblage réseau ethernet (fourni+posé),ml,12.00,22.00,35.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,cablage_reseau_ethernet
+601,calorifugeage_ballon,Calorifugeage réservoir eau chaude,forfait,0.00,0.00,0.00,150.00,290.00,520.00,null,null,0,seed_manual,Base,false,null,calorifugeage_ballon
+602,calorifugeage_tuyaux,Calorifugeage tuyauterie chauffage,ml,8.00,15.00,26.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,calorifugeage_tuyaux
+427,pose_camera_surveillance,Caméra surveillance (pose),unité,117.00,180.00,243.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_camera_surveillance
+682,caniveau_grille_pose,Caniveau avec grille de drainage (fourni+posé),ml,30.00,58.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,caniveau_grille_pose
+965,geothermie_capteurs_horizontaux,Capteurs géothermiques horizontaux (nappe),forfait,0.00,0.00,0.00,3500.00,6000.00,9000.00,null,null,0,seed_manual,Surface terrain ~1.5-2× SHAB. Hors PAC.,false,null,null
+964,geothermie_capteurs_verticaux,Capteurs géothermiques verticaux (forage),ml,90.00,140.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors PAC et raccordement. RGE QualiForage.,false,null,null
+398,abri_voiture_carport_global,Carport (fourni+posé),forfait,0.00,0.00,0.00,2080.00,3200.00,4320.00,null,null,0,seed_manual,Estimation,false,null,abri_voiture_carport_global
+321,carrelage_premium_fourni_pose,Carrelage (fourni+posé),m2,61.00,94.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,premium,false,null,carrelage_premium_fourni_pose
+319,carrelage_standard_fourni_pose,Carrelage (fourni+posé),m2,46.00,70.00,94.00,0.00,0.00,0.00,null,null,0,seed_manual,standard,false,null,carrelage_standard_fourni_pose
+788,carrelage_cuisine_sol,Carrelage cuisine sol (fourni+posé),m2,35.00,60.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""cuisine""]",carrelage
+839,carrelage_exterieur_antiderapant,Carrelage extérieur antidérapant (fourni+posé),m2,40.00,70.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",carrelage
+434,pose_carrelage_sol_global_30m2,Carrelage sol 30m² (MO),forfait,0.00,0.00,0.00,1072.00,1650.00,2228.00,null,null,0,seed_manual,Estimation,false,null,pose_carrelage_sol_global_30m2
+405,plomberie_changement_ballon,Changement ballon (MO),forfait,0.00,0.00,0.00,358.00,550.00,742.00,null,null,0,seed_manual,Estimation,false,null,plomberie_changement_ballon
+406,plomberie_changement_chauffe_eau_gaz,Changement chauffe-eau gaz (MO),forfait,0.00,0.00,0.00,422.00,650.00,878.00,null,null,0,seed_manual,Estimation,false,null,plomberie_changement_chauffe_eau_gaz
+18,changement_cylindre,Changement cylindre,unité,60.00,120.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors cylindre haut sécu,false,null,changement_cylindre
+465,piscine_sable_filtre,Changement sable filtre,forfait,0.00,0.00,0.00,121.00,220.00,319.00,null,null,0,seed_manual,null,false,null,piscine_sable_filtre
+19,chape,Chape,m2,18.00,35.00,65.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,chape
+742,charpente_fermette,Charpente fermette industrielle (fourni+posé),m2,35.00,55.00,80.00,0.00,0.00,0.00,null,null,0,seed_manual,Emprise toit,false,null,charpente_fermette
+537,charpente_industrielle_fermettes,Charpente industrielle fermettes,m2,35.00,60.00,92.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,charpente_industrielle_fermettes
+536,charpente_traditionnelle,Charpente traditionnelle (neuf),m2,55.00,90.00,135.00,0.00,0.00,0.00,null,null,0,seed_manual,Surface au sol,false,null,charpente_traditionnelle
+511,chassis_compose_pvc_fourniture_pose,Châssis composé PVC fourni+posé,unité,1600.00,2400.00,3200.00,0.00,0.00,0.00,null,null,0,seed_manual,"Multi-éléments (fixe+ouvrant), grande dimension, rénovation",false,null,chassis_compose_pvc_fourniture_pose
+20,chaudiere_biomasse,Chaudière biomasse / granulés,forfait,0.00,0.00,0.00,9000.00,13000.00,18000.00,null,null,0,seed_manual,RGE,false,null,chaudiere_biomasse
+21,chaudiere_gaz,Chaudière gaz,forfait,0.00,0.00,0.00,3500.00,6000.00,9000.00,null,null,0,seed_manual,null,false,null,chaudiere_gaz
+807,chaudiere_gaz_condensation,Chaudière gaz condensation (fourni+posé),unite,1800.00,3000.00,5000.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors raccordements gaz,false,null,chaudiere_gaz_condensation
+24,chauffe_eau_thermodynamique,Chauffe-eau thermodynamique,forfait,0.00,0.00,0.00,1800.00,2500.00,3500.00,null,null,0,seed_manual,RGE,false,null,chauffe_eau_thermodynamique
+736,chéneau_zinc,Chéneau zinc (fourni+posé),ml,45.00,70.00,100.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,chéneau_zinc
+336,pose_clim_bisplit_chantier_difficile,Climatisation bi-split (chantier difficile),forfait,0.00,0.00,0.00,1859.00,2860.00,3861.00,null,null,0,seed_manual,Estimation,false,null,pose_clim_bisplit_chantier_difficile
+334,pose_clim_bisplit_complexe,Climatisation bi-split (complexe),forfait,0.00,0.00,0.00,1788.00,2750.00,3713.00,null,null,0,seed_manual,Estimation,false,null,pose_clim_bisplit_complexe
+333,pose_clim_bisplit_standard,Climatisation bi-split (standard),forfait,0.00,0.00,0.00,1430.00,2200.00,2970.00,null,null,0,seed_manual,Estimation,false,null,pose_clim_bisplit_standard
+335,pose_clim_bisplit_urgence,Climatisation bi-split (urgence),forfait,0.00,0.00,0.00,1930.00,2970.00,4010.00,null,null,0,seed_manual,Estimation,false,null,pose_clim_bisplit_urgence
+473,clim_gainable,Climatisation gainable (pose comprise),forfait,0.00,0.00,0.00,5525.00,8500.00,11475.00,null,null,0,seed_manual,null,false,null,clim_gainable
+955,clim_multisplit,Climatisation multi-split (par unité intérieure),unité,1200.00,1900.00,3200.00,800.00,1200.00,2200.00,null,null,0,seed_manual,Prix par unité int. + forfait unité ext.,false,null,clim_multisplit
+25,clim,"Climatisation split (mono-split, fourni+posé)",forfait,0.00,0.00,0.00,900.00,1600.00,2800.00,null,null,0,seed_manual,Mono-split 1 unité int. + 1 unité ext.,false,null,clim
+340,pose_clim_trisplit_chantier_difficile,Climatisation tri-split (chantier difficile),forfait,0.00,0.00,0.00,2704.00,4160.00,5616.00,null,null,0,seed_manual,Estimation,false,null,pose_clim_trisplit_chantier_difficile
+338,pose_clim_trisplit_complexe,Climatisation tri-split (complexe),forfait,0.00,0.00,0.00,2600.00,4000.00,5400.00,null,null,0,seed_manual,Estimation,false,null,pose_clim_trisplit_complexe
+337,pose_clim_trisplit_standard,Climatisation tri-split (standard),forfait,0.00,0.00,0.00,2080.00,3200.00,4320.00,null,null,0,seed_manual,Estimation,false,null,pose_clim_trisplit_standard
+339,pose_clim_trisplit_urgence,Climatisation tri-split (urgence),forfait,0.00,0.00,0.00,2808.00,4320.00,5832.00,null,null,0,seed_manual,Estimation,false,null,pose_clim_trisplit_urgence
+360,pose_cloison_amovible_chantier_difficile,Cloison amovible (chantier difficile),m2,80.00,124.00,167.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_cloison_amovible_chantier_difficile
+358,pose_cloison_amovible_complexe,Cloison amovible (complexe),m2,77.00,119.00,160.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_cloison_amovible_complexe
+357,pose_cloison_amovible_standard,Cloison amovible (standard),m2,62.00,95.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_cloison_amovible_standard
+359,pose_cloison_amovible_urgence,Cloison amovible (urgence),m2,83.00,128.00,173.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_cloison_amovible_urgence
+26,cloison_placo,Cloison placo,m2,40.00,60.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,cloison_placo
+884,cloison_placoplatre,Cloison plâtre BA13 (fourni+posé),m2,35.00,58.00,88.00,0.00,0.00,0.00,null,null,0,seed_manual,Inclus montants,false,null,cloison_placoplatre
+667,cloture_alu_lames,Clôture aluminium lames (fourni+posé),ml,55.00,92.00,145.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,cloture_alu_lames
+483,pose_cloture_beton,Clôture béton (pose),ml,91.00,140.00,189.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_cloture_beton
+666,cloture_bois_occultant,Clôture bois occultant (fourni+posé),ml,35.00,62.00,98.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,cloture_bois_occultant
+869,cloture_bois_occultante,Clôture bois occultante (fourni+posé),ml,60.00,100.00,160.00,0.00,0.00,0.00,null,null,0,seed_manual,H=1.8m,false,null,cloture_bois_occultante
+868,cloture_panneau_rigide,Clôture panneau rigide (fourni+posé),ml,55.00,90.00,140.00,0.00,0.00,0.00,null,null,0,seed_manual,H=1.5m,false,null,cloture_panneau_rigide
+628,coffret_gtl_pose,Coffret GTL gaine technique logement,forfait,0.00,0.00,0.00,150.00,290.00,480.00,null,null,0,seed_manual,Base,false,null,coffret_gtl_pose
+446,colonne_douche_fourniture_pose,Colonne de douche (fourni+posé),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Selon gamme,false,null,colonne_douche_fourniture_pose
+773,colonne_de_douche_hydromassante,Colonne de douche hydromassante (fourni+posé),unite,400.00,800.00,1800.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,colonne_de_douche_hydromassante
+544,mur_parpaing_20_construction,Construction mur parpaing 20 cm (fourni+posé),m2,55.00,88.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,mur_parpaing_20_construction
+255,couverture_barres_piscine,Couverture à barres (fourni+posé),forfait,0.00,0.00,0.00,1170.00,1800.00,2430.00,null,null,0,seed_manual,Selon dimensions,false,null,couverture_barres_piscine
+527,couverture_ardoise_fibrociment,Couverture ardoise fibrociment (fourni+posé),m2,50.00,80.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,couverture_ardoise_fibrociment
+526,couverture_ardoise_naturelle,Couverture ardoise naturelle (fourni+posé),m2,90.00,130.00,185.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,couverture_ardoise_naturelle
+529,couverture_bac_acier,Couverture bac acier (fourni+posé),m2,35.00,60.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,couverture_bac_acier
+540,couverture_shingle,Couverture shingle (bardeaux bitumés),m2,30.00,55.00,82.00,0.00,0.00,0.00,null,null,0,seed_manual,Toiture faible pente,false,null,couverture_shingle
+525,couverture_tuile_beton,Couverture tuile béton (fourni+posé),m2,55.00,85.00,120.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,couverture_tuile_beton
+524,couverture_tuile_terre_cuite,Couverture tuile terre cuite (fourni+posé),m2,70.00,100.00,140.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,couverture_tuile_terre_cuite
+528,couverture_zinc_joint_debout,Couverture zinc joint debout (fourni+posé),m2,100.00,150.00,210.00,0.00,0.00,0.00,null,null,0,seed_manual,Zinc TL ou naturel,false,null,couverture_zinc_joint_debout
+4,alimentation_exterieure,Création alimentation extérieure,unité,120.00,260.00,520.00,0.00,0.00,0.00,null,null,0,seed_manual,Jardin/garage,true,"[""exterieur""]",alimentation
+30,creation_arrivee_eau,Création arrivée d'eau,point,60.00,130.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon accès,false,null,creation_arrivee_eau
+287,pose_douche_italienne,Création douche à l'italienne (MO),forfait,0.00,0.00,0.00,1625.00,2500.00,3375.00,null,null,0,seed_manual,Étanchéité incluse,false,null,pose_douche_italienne
+559,douche_italienne_creation,Création douche italienne complète (maçonnerie+étanchéité+carrelage),forfait,0.00,0.00,0.00,1800.00,3200.00,5500.00,null,null,0,seed_manual,Base,false,null,douche_italienne_creation
+568,douche_pmr_creation,Création douche PMR accessible,forfait,0.00,0.00,0.00,2500.00,4500.00,8500.00,null,null,0,seed_manual,Base,false,null,douche_pmr_creation
+693,escalier_droit_bois_creation,Création escalier droit bois,forfait,0.00,0.00,0.00,2500.00,4800.00,8500.00,null,null,0,seed_manual,Base,false,null,escalier_droit_bois_creation
+694,escalier_quart_tournant,Création escalier quart tournant,forfait,0.00,0.00,0.00,3500.00,6500.00,12500.00,null,null,0,seed_manual,Base,false,null,escalier_quart_tournant
+31,creation_evacuation,Création évacuation,point,80.00,160.00,320.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon pente,false,null,creation_evacuation
+772,evacuation_sdb_création,Création évacuation SDB (déplacement siphon),unite,300.00,550.00,1000.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""sdb""]",evacuation
+32,creation_muret,Création muret,m2,60.00,110.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors enduit,false,null,creation_muret
+176,pose_niche_douche,Création niche de douche,unité,120.00,250.00,450.00,0.00,0.00,0.00,null,null,0,seed_manual,Étanchéité incluse si bien fait,false,null,pose_niche_douche
+302,creation_ouverture_fenetre,Création ouverture fenêtre,forfait,0.00,0.00,0.00,1080.00,1800.00,2520.00,null,null,0,seed_manual,Selon structure,false,null,creation_ouverture_fenetre
+760,ouverture_mur_porteur,Création ouverture mur porteur + IPN,unite,1200.00,2200.00,3800.00,0.00,0.00,0.00,null,null,0,seed_manual,Largeur ≤3m,false,null,ouverture_mur_porteur
+911,creation_piece_supplementaire,Création pièce supplémentaire (cloison+porte),unite,1200.00,2500.00,5000.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,creation_piece_supplementaire
+400,pose_puits_de_lumiere,Création puits de lumière,forfait,0.00,0.00,0.00,780.00,1200.00,1620.00,null,null,0,seed_manual,Estimation,false,null,pose_puits_de_lumiere
+895,evacuation_plomberie_creation,Création réseau évacuation (fourni+posé),ml,45.00,80.00,130.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,evacuation_plomberie_creation
+204,sdb_creation,Création salle de bain (MO globale),forfait,0.00,0.00,0.00,2500.00,5500.00,12000.00,null,null,0,seed_manual,"Hors fourniture, très variable",false,null,sdb_creation
+782,credence_carrelage_cuisine,Crédence carrelage cuisine (fourni+posé),m2,50.00,85.00,140.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""cuisine""]",credence_carrelage
+783,credence_verre_laqué,Crédence verre laqué (fourni+posé),m2,90.00,150.00,250.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,credence_verre_laqué
+655,cristallisation_marbre,Cristallisation / polissage marbre / pierre,m2,20.00,40.00,70.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,cristallisation_marbre
+39,curage_sdb,Curage salle de bain,forfait,0.00,0.00,0.00,600.00,1200.00,2500.00,null,null,0,seed_manual,null,true,"[""sdb""]",curage
+967,cuve_eau_pluie_aerienne,Cuve récupération eau de pluie aérienne 1000-3000L,forfait,0.00,0.00,0.00,400.00,1000.00,1800.00,null,null,0,seed_manual,"Pose simple, hors collecte gouttières.",false,null,null
+966,cuve_eau_pluie_enterree,Cuve récupération eau de pluie enterrée 5000-10000L,forfait,0.00,0.00,0.00,3500.00,5500.00,8000.00,null,null,0,seed_manual,Inclut terrassement + pose. Hors filtration usage intérieur.,false,null,null
+554,cuvelage_sous_sol,Cuvelage sous-sol (étanchéité intérieure),m2,70.00,112.00,165.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""cave""]",cuvelage
+547,dalle_beton_exterieure,Dalle béton armée extérieure,m2,40.00,62.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",dalle_beton
+749,dalle_beton_ep12,Dalle béton épaisseur 12 cm (fourni+posé),m2,50.00,80.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors terrassement,false,null,dalle_beton_ep12
+952,dalle_beton_ext,Dalle béton extérieure,m2,35.00,60.00,100.00,300.00,600.00,1200.00,null,null,0,seed_manual,Dalle 10-15 cm armée treillis,false,null,dalle_beton_ext
+300,dalle_beton_interieur,Dalle béton intérieur,m2,55.00,85.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,dalle_beton_interieur
+558,dalle_beton_interieure,Dalle béton intérieure armée (ragréage épais),m2,32.00,52.00,80.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,dalle_beton_interieure
+248,dalle_beton_plage_piscine,Dalle béton plage piscine,m2,39.00,65.00,91.00,0.00,0.00,0.00,null,null,0,seed_manual,Ép. à préciser,false,null,dalle_beton_plage_piscine
+871,dalle_beton_terrasse_ext,Dalle béton terrasse extérieure (fourni+posé),m2,35.00,60.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 10 cm,true,"[""exterieur""]",dalle_beton
+674,dalle_pierre_naturelle_ext,Dalle pierre naturelle extérieure (fourni+posé),m2,65.00,108.00,172.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,dalle_pierre_naturelle_ext
+40,debouchage,Débouchage canalisation,forfait,0.00,0.00,0.00,90.00,180.00,350.00,null,null,0,seed_manual,null,false,null,debouchage
+640,decollement_papier_peint,Décollement papier peint,m2,6.00,12.00,22.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,decollement_papier_peint
+910,demenagement_de_cuisine,Déménagement de cuisine (dépose+repose),unite,1500.00,3000.00,6000.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""cuisine""]",demenagement_de
+41,demolition_cloison,Démolition cloison,m2,15.00,30.00,60.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,demolition_cloison
+758,demolition_cloison_pla,Démolition cloison plâtre,m2,15.00,25.00,40.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,demolition_cloison_pla
+42,demolition_legere,Démolition légère (cloison/revêtement),m2,18.00,30.00,55.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,demolition_legere
+759,demolition_mur_parpaing,Démolition mur parpaing,m2,40.00,70.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,demolition_mur_parpaing
+35,cuisine_demontage,Démontage ancienne cuisine,forfait,0.00,0.00,0.00,250.00,600.00,1400.00,null,null,0,seed_manual,Hors évacuation,false,null,cuisine_demontage
+450,depose_carrelage_20m2,Dépose carrelage,forfait,0.00,0.00,0.00,264.00,440.00,616.00,null,null,0,seed_manual,Surface ~20m²,false,null,depose_carrelage_20m2
+44,depose_carrelage,Dépose carrelage,m2,10.00,20.00,40.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,depose_carrelage
+453,depose_carrelage_30m2,Dépose carrelage,forfait,0.00,0.00,0.00,396.00,660.00,924.00,null,null,0,seed_manual,Surface ~30m²,false,null,depose_carrelage_30m2
+456,depose_carrelage_50m2,Dépose carrelage,forfait,0.00,0.00,0.00,660.00,1100.00,1540.00,null,null,0,seed_manual,Surface ~50m²,false,null,depose_carrelage_50m2
+447,depose_carrelage_10m2,Dépose carrelage,forfait,0.00,0.00,0.00,132.00,220.00,308.00,null,null,0,seed_manual,Surface ~10m²,false,null,depose_carrelage_10m2
+521,depose_cloture,Dépose et évacuation clôture existante,ml,12.00,20.00,35.00,0.00,0.00,0.00,null,null,0,seed_manual,Démontage + chargement + évacuation en déchetterie,false,null,depose_cloture
+455,depose_moquette_30m2,Dépose moquette,forfait,0.00,0.00,0.00,132.00,240.00,348.00,null,null,0,seed_manual,Surface ~30m²,false,null,depose_moquette_30m2
+449,depose_moquette_10m2,Dépose moquette,forfait,0.00,0.00,0.00,44.00,80.00,116.00,null,null,0,seed_manual,Surface ~10m²,false,null,depose_moquette_10m2
+458,depose_moquette_50m2,Dépose moquette,forfait,0.00,0.00,0.00,220.00,400.00,580.00,null,null,0,seed_manual,Surface ~50m²,false,null,depose_moquette_50m2
+45,depose_moquette,Dépose moquette,m2,3.00,7.00,15.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors évacuation,false,null,depose_moquette
+452,depose_moquette_20m2,Dépose moquette,forfait,0.00,0.00,0.00,88.00,160.00,232.00,null,null,0,seed_manual,Surface ~20m²,false,null,depose_moquette_20m2
+557,demolition_mur_porteur_poutre,Dépose mur porteur + pose poutre IPN,forfait,0.00,0.00,0.00,3000.00,5500.00,10500.00,null,null,0,seed_manual,Hors travaux connexes,false,null,demolition_mur_porteur_poutre
+457,depose_parquet_50m2,Dépose parquet,forfait,0.00,0.00,0.00,330.00,600.00,870.00,null,null,0,seed_manual,Surface ~50m²,false,null,depose_parquet_50m2
+46,depose_parquet,Dépose parquet,m2,6.00,10.00,20.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,depose_parquet
+454,depose_parquet_30m2,Dépose parquet,forfait,0.00,0.00,0.00,198.00,360.00,522.00,null,null,0,seed_manual,Surface ~30m²,false,null,depose_parquet_30m2
+448,depose_parquet_10m2,Dépose parquet,forfait,0.00,0.00,0.00,66.00,120.00,174.00,null,null,0,seed_manual,Surface ~10m²,false,null,depose_parquet_10m2
+451,depose_parquet_20m2,Dépose parquet,forfait,0.00,0.00,0.00,132.00,240.00,348.00,null,null,0,seed_manual,Surface ~20m²,false,null,depose_parquet_20m2
+48,depose_radiateur,Dépose radiateur,unité,40.00,90.00,180.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,depose_radiateur
+47,depose_pvc,Dépose sol PVC,m2,3.00,8.00,18.00,0.00,0.00,0.00,null,null,0,seed_manual,Colle variable,false,null,depose_pvc
+912,desamiantage_plaque,Désamiantage plaque amiantée,m2,50.00,100.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Niveau 1,false,null,desamiantage_plaque
+535,descente_ep_pvc,Descente eaux pluviales PVC (fourni+posé),ml,14.00,22.00,38.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,descente_ep_pvc
+534,descente_ep_zinc,Descente eaux pluviales zinc (fourni+posé),ml,35.00,58.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,descente_ep_zinc
+312,dessouchage,Dessouchage souche,unité,88.00,220.00,352.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon diamètre,false,null,dessouchage
+49,detartrage_cumulus,Détartrage chauffe-eau,forfait,0.00,0.00,0.00,120.00,260.00,520.00,null,null,0,seed_manual,Selon accès,false,null,detartrage_cumulus
+902,detection_fuite_eau,Détection et réparation fuite eau,unite,200.00,400.00,800.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors refection,false,null,detection_fuite_eau
+51,diagnostic,Diagnostic / devis approfondi,forfait,0.00,0.00,0.00,0.00,90.00,250.00,null,null,0,seed_manual,Base,false,null,diagnostic
+52,diagnostic_amiante,Diagnostic amiante,unité,80.00,120.00,180.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_amiante
+53,diagnostic_assainissement,Diagnostic assainissement non collectif,unité,100.00,160.00,260.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_assainissement
+54,diagnostic_bruit_aerien,Diagnostic bruit (PEB),unité,90.00,140.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_bruit_aerien
+55,diagnostic_dpe,Diagnostic de performance énergétique (DPE),unité,90.00,140.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_dpe
+56,diagnostic_electricite,Diagnostic électricité,unité,90.00,130.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_electricite
+59,diagnostic_gaz,Diagnostic gaz,unité,90.00,130.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_gaz
+62,diagnostic_plomb,Diagnostic plomb (CREP),unité,90.00,130.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_plomb
+63,diagnostic_termites,Diagnostic termites,unité,70.00,110.00,170.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_termites
+64,diagnostic_termites_zone,Diagnostic termites (zone à risque),unité,80.00,130.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_termites_zone
+829,domotique_prise_commandee,Domotique — prise commandée (fourni+posé),unite,60.00,110.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,domotique_prise_commandee
+972,domotique_maison_complete,"Domotique maison complète (>4 pièces, multi-protocoles)",forfait,0.00,0.00,0.00,4500.00,8000.00,14000.00,null,null,0,seed_manual,Box principale + sous-stations. Hors gros œuvre.,false,null,domotique
+971,domotique_studio_appartement,Domotique studio/appartement (1-3 pièces équipées),forfait,0.00,0.00,0.00,1500.00,2800.00,4500.00,null,null,0,seed_manual,Box + 5-10 équipements. Hors gros câblage.,false,null,domotique
+66,doublage_placo,Doublage placo,m2,30.00,50.00,80.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,doublage_placo
+148,placo_doublage_mur,Doublage placo + isolation,m2,45.00,70.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,placo_doublage_mur
+794,isolation_iti_pla_ba13,Doublage plâtre BA13 sur isolation (fourni+posé),m2,35.00,55.00,85.00,0.00,0.00,0.00,null,null,0,seed_manual,Inclus montants,false,null,isolation_iti_pla_ba13
+898,douche_à_l_italienne_receveur,Douche à l'italienne receveur (fourni+posé),unite,600.00,1200.00,2500.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors carrelage+paroi,false,null,douche_à_l_italienne_receveur
+467,piscine_douche_exterieure,Douche extérieure (pose),forfait,0.00,0.00,0.00,248.00,450.00,652.00,null,null,0,seed_manual,null,true,"[""exterieur""]",piscine_douche
+763,douche_italienne_complete,Douche italienne complète (receveur+carrelage+paroi),unite,1800.00,3200.00,5500.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors robinetterie,false,null,douche_italienne_complete
+414,pose_drain_peripherique,Drain périphérique maison,ml,55.00,85.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_drain_peripherique
+68,drainage,Drainage (tranchée),ml,35.00,80.00,130.00,0.00,0.00,0.00,null,null,0,seed_manual,Accès/terrain,false,null,drainage
+680,drainage_francais_jardin,Drainage français jardin,ml,28.00,52.00,88.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",drainage_francais
+552,drainage_pied_mur,Drainage périphérique pied de mur,ml,40.00,68.00,105.00,0.00,0.00,0.00,null,null,0,seed_manual,Tuyau drainant + géotextile,false,null,drainage_pied_mur
+543,echafaudage_facade,Échafaudage façade (location + montage),m2,5.00,9.00,16.00,0.00,0.00,0.00,null,null,0,seed_manual,Surface façade,false,null,echafaudage_facade
+914,echafaudage_location,Échafaudage location + montage/démontage,m2,15.00,28.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,Par m² de façade,false,null,echafaudage_location
+294,eclairage_exterieur,Éclairage extérieur (point),unité,72.00,120.00,168.00,0.00,0.00,0.00,null,null,0,seed_manual,null,true,"[""exterieur""]",eclairage
+676,eclairage_jardin_basse_tension,Éclairage jardin basse tension (hors fourniture),unité,100.00,190.00,340.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",eclairage
+825,eclairage_led_encastré,Éclairage LED encastré plafond (fourni+posé),unite,80.00,140.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,eclairage_led_encastré
+461,piscine_eclairage_led,Éclairage piscine LED (pose),unité,132.00,220.00,308.00,0.00,0.00,0.00,null,null,0,seed_manual,Par projecteur,false,null,piscine_eclairage_led
+746,ecran_sous_toiture,Écran de sous-toiture HPV (fourni+posé),m2,6.00,10.00,16.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,ecran_sous_toiture
+801,ecran_de_sous_toiture_hpv,Écran HPV sous-toiture (fourni+posé),m2,5.00,9.00,14.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,ecran_de_sous_toiture_hpv
+70,elagage,Élagage (petit),forfait,0.00,0.00,0.00,180.00,450.00,1200.00,null,null,0,seed_manual,Selon hauteur,false,null,elagage
+71,electricien,Électricien taux horaire,heure,35.00,65.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,electricien
+249,electrolyseur_piscine,Électrolyseur piscine (pose),forfait,0.00,0.00,0.00,540.00,900.00,1260.00,null,null,0,seed_manual,Hors cellule selon gamme,false,null,electrolyseur_piscine
+480,cuisine_equipement_electro,Électroménager cuisine (pose),forfait,0.00,0.00,0.00,150.00,250.00,350.00,null,null,0,seed_manual,null,false,null,cuisine_equipement_electro
+968,elevateur_pmr_plateforme,Élévateur PMR plateforme verticale (2-3 niveaux),forfait,0.00,0.00,0.00,8000.00,12000.00,18000.00,null,null,0,seed_manual,Hors travaux gros œuvre cage. CITE/MaPrimeRénov Adapt.,false,null,null
+74,enduit_lissage,Enduit / lissage,m2,15.00,25.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,enduit_lissage
+635,enduit_chaux_interieur,Enduit chaux intérieur (tadelakt/stucolustro),m2,28.00,46.00,75.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,enduit_chaux_interieur
+862,enduit_de_lissage_plafond,Enduit de lissage plafond (fourni+posé),m2,12.00,22.00,35.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,enduit_de_lissage_plafond
+636,enduit_decoratif_texture,Enduit décoratif texturé (stuc/relief),m2,35.00,62.00,105.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,enduit_decoratif_texture
+301,enduit_facade,Enduit façade,m2,36.00,55.00,74.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,enduit_facade
+750,enduit_facade_gratté,Enduit façade grattée (fourni+posé),m2,30.00,50.00,75.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,enduit_facade_gratté
+548,enduit_facade_monocouche,Enduit façade monocouche (fourni+posé),m2,28.00,46.00,68.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,enduit_facade_monocouche
+751,enduit_facade_taloché,Enduit façade talochée (fourni+posé),m2,25.00,40.00,60.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,enduit_facade_taloché
+503,pose_enduit_finition,Enduit finition (MO),m2,14.00,22.00,30.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_enduit_finition
+394,pose_enrobe_couche,Enrobé (couche) — pose,m2,29.00,45.00,61.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_enrobe_couche
+946,enrobe_froid_reparation,Enrobé à froid — réparation localisée,m2,35.00,60.00,100.00,50.00,150.00,300.00,null,null,0,seed_manual,Correction nids-de-poule / dégradations ponctuelles,false,null,enrobe_froid_reparation
+109,maintenance_clim,Entretien climatisation,forfait,0.00,0.00,0.00,90.00,180.00,320.00,null,null,0,seed_manual,1 à 2 unités,false,null,maintenance_clim
+110,maintenance_pac,Entretien pompe à chaleur,forfait,0.00,0.00,0.00,140.00,260.00,450.00,null,null,0,seed_manual,Contrat possible,false,null,maintenance_pac
+617,equilibrage_chauffage,Équilibrage réseau de chauffage,forfait,0.00,0.00,0.00,200.00,420.00,750.00,null,null,0,seed_manual,Base,false,null,equilibrage_chauffage
+57,diagnostic_erp,ERP / ESRIS,unité,20.00,35.00,60.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_erp
+890,escalier_beton_coffré,Escalier béton coffré (fourni+posé),unite,3000.00,6000.00,12000.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors finition,false,null,escalier_beton_coffré
+888,escalier_bois_quart_tournant,Escalier bois quart tournant (fourni+posé),unite,4000.00,7500.00,14000.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors pose garde-corps,false,null,escalier_bois_quart_tournant
+681,escalier_exterieur_beton,Escalier extérieur béton (sur mesure),forfait,0.00,0.00,0.00,1500.00,3200.00,6500.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",escalier
+695,escalier_helicoidal_metal,Escalier hélicoïdal métal (fourni+posé),forfait,0.00,0.00,0.00,3000.00,5800.00,11000.00,null,null,0,seed_manual,Base,false,null,escalier_helicoidal_metal
+889,escalier_metal_design,Escalier métal design (fourni+posé),unite,5000.00,10000.00,20000.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,escalier_metal_design
+496,travaux_etancheite_sous_sol,Étanchéité sous-sol,m2,72.00,110.00,148.00,0.00,0.00,0.00,null,null,0,seed_manual,null,true,"[""cave""]",travaux_etancheite
+415,pose_etancheite_terrasse,Étanchéité terrasse,m2,49.00,75.00,101.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,true,"[""exterieur""]",pose_etancheite
+530,etancheite_toiture_plate_bicouche,Étanchéité toiture plate bicouche bitume,m2,45.00,72.00,105.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,etancheite_toiture_plate_bicouche
+734,etancheite_toiture_plate_pvc,Étanchéité toiture plate membrane PVC/TPO,m2,55.00,85.00,125.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,etancheite_toiture_plate_pvc
+58,diagnostic_etat_parasitaire,État parasitaire complet,unité,120.00,180.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_etat_parasitaire
+962,anc_etude_sol_pedologique,Étude de sol pédologique / étude filière ANC,forfait,0.00,0.00,0.00,500.00,900.00,1500.00,null,null,0,seed_manual,Obligatoire avant pose. SPANC consultatif.,false,null,null
+77,etude_thermique,Étude thermique RE2020,forfait,0.00,0.00,0.00,400.00,700.00,1200.00,null,null,0,seed_manual,RGE,false,null,etude_thermique
+512,evacuation_dechets_menuiserie,Évacuation déchets menuiseries,forfait,0.00,0.00,0.00,80.00,150.00,250.00,null,null,0,seed_manual,Dépose et traitement anciennes menuiseries,false,null,evacuation_dechets_menuiserie
+79,evacuation_gravats,Evacuation gravats,m3,25.00,50.00,120.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,evacuation_gravats
+78,evacuation_dechets,Evacuation gravats,m3,25.00,50.00,120.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,evacuation_dechets
+246,evacuation_terre_piscine,Évacuation terres (piscine),m3,14.00,35.00,56.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon distance,false,null,evacuation_terre_piscine
+785,evier_granit_pose,Évier granit (fourni+posé),unite,300.00,550.00,950.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,evier_granit_pose
+723,expertise_batiment_facade,Expertise bâtiment / façade,forfait,0.00,0.00,0.00,200.00,420.00,850.00,null,null,0,seed_manual,Base,false,null,expertise_batiment_facade
+716,extension_maconnerie_trad,Extension maçonnerie traditionnelle,m2,1000.00,1900.00,2900.00,0.00,0.00,0.00,null,null,0,seed_manual,Surface créée,false,null,extension_maconnerie_trad
+715,extension_ossature_bois,Extension ossature bois,m2,1200.00,2100.00,3400.00,0.00,0.00,0.00,null,null,0,seed_manual,Surface créée,false,null,extension_ossature_bois
+292,tableau_elec_extension,Extension tableau (modules),mod,30.00,55.00,80.00,0.00,0.00,0.00,null,null,0,seed_manual,Par module,false,null,tableau_elec_extension
+768,faience_salle_de_bain,Faïence salle de bain (fourni+posé),m2,45.00,75.00,120.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""sdb""]",faience
+481,pose_faience_sdb_20m2,Faïence SDB 20m² (MO),forfait,0.00,0.00,0.00,845.00,1300.00,1755.00,null,null,0,seed_manual,null,true,"[""sdb""]",pose_faience
+482,pose_faience_sdb_30m2,Faïence SDB 30m² (MO),forfait,0.00,0.00,0.00,1268.00,1950.00,2632.00,null,null,0,seed_manual,null,true,"[""sdb""]",pose_faience
+735,faitage_tuile,Faîtage tuile (fourni+posé),ml,25.00,40.00,60.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,faitage_tuile
+82,faux_plafond,Faux plafond,m2,40.00,65.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,faux_plafond
+364,pose_faux_plafond_dalle_chantier_difficile,Faux plafond dalles 60x60 (chantier difficile),m2,46.00,72.00,97.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_faux_plafond_dalle_chantier_difficile
+362,pose_faux_plafond_dalle_complexe,Faux plafond dalles 60x60 (complexe),m2,45.00,69.00,93.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_faux_plafond_dalle_complexe
+361,pose_faux_plafond_dalle_standard,Faux plafond dalles 60x60 (standard),m2,36.00,55.00,74.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_faux_plafond_dalle_standard
+363,pose_faux_plafond_dalle_urgence,Faux plafond dalles 60x60 (urgence),m2,48.00,74.00,100.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_faux_plafond_dalle_urgence
+859,faux_plafond_ba13,Faux plafond plâtre BA13 (fourni+posé),m2,35.00,58.00,88.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,faux_plafond_ba13
+277,pose_fenetre_aluminium_fourniture_pose,Fenêtre alu fourni+posé,unité,805.00,1150.00,1495.00,0.00,0.00,0.00,null,null,0,seed_manual,Standard,false,null,pose_fenetre_aluminium_fourniture_pose
+657,fenetre_alu_fourniture_pose,Fenêtre aluminium double vitrage (fourni+posé),unité,500.00,880.00,1400.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,fenetre_alu_fourniture_pose
+656,fenetre_pvc_fourniture_pose,Fenêtre PVC double vitrage (fourni+posé),unité,400.00,660.00,1050.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,fenetre_pvc_fourniture_pose
+276,pose_fenetre_pvc_fourniture_pose,Fenêtre PVC fourni+posé,unité,595.00,850.00,1105.00,0.00,0.00,0.00,null,null,0,seed_manual,Standard,false,null,pose_fenetre_pvc_fourniture_pose
+961,anc_epandage_souterrain,Filière épandage souterrain traditionnel,forfait,0.00,0.00,0.00,5000.00,7500.00,10000.00,null,null,0,seed_manual,Tranchées 0.6-0.8m. Hors terrassement gros volume.,false,null,anc_filiere
+958,anc_filtre_a_sable_drainee,Filière filtre à sable vertical drainé,forfait,0.00,0.00,0.00,6500.00,10000.00,14000.00,null,null,0,seed_manual,Hors terrassement et raccords,false,null,anc_filiere
+959,anc_filtre_plante_phytoepuration,Filière filtre planté / phytoépuration,forfait,0.00,0.00,0.00,8000.00,12000.00,16000.00,null,null,0,seed_manual,Agrément ministériel requis. Hors terrassement.,false,null,anc_filiere
+960,anc_tertre_infiltration,Filière tertre d'infiltration (sol imperméable),forfait,0.00,0.00,0.00,9000.00,13000.00,18000.00,null,null,0,seed_manual,Indiqué si sol non infiltrant. Hors terrassement.,false,null,anc_filiere
+463,piscine_filtration,Filtration piscine (pose),forfait,0.00,0.00,0.00,390.00,650.00,910.00,null,null,0,seed_manual,Hors matériel,false,null,piscine_filtration
+900,filtre_eau_potable,Filtre eau potable sous évier (fourni+posé),unite,250.00,500.00,950.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,filtre_eau_potable
+805,flocage_anti_incendie,Flocage anti-incendie (protection poutres),m2,25.00,45.00,70.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,flocage_anti_incendie
+551,fondation_semelle_filante,Fondation semelle filante béton,ml,180.00,310.00,520.00,0.00,0.00,0.00,null,null,0,seed_manual,Béton + coffrage + armature,false,null,fondation_semelle_filante
+756,fondations_semelle_filante,Fondations semelle filante béton,ml,80.00,130.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors terrassement,false,null,fondations_semelle_filante
+299,fondation_semelle,Fondations semelles filantes,ml,104.00,160.00,216.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,fondation_semelle
+282,assainissement_fosse_septique,Fosse septique (pose),forfait,0.00,0.00,0.00,6300.00,9000.00,11700.00,null,null,0,seed_manual,Selon terrain,false,null,assainissement_fosse_septique
+43,deplacement,Frais de déplacement,forfait,0.00,0.00,0.00,40.00,70.00,120.00,null,null,0,seed_manual,Base,false,null,deplacement
+495,pose_garde_corps_global,Garde-corps (fourni+posé),ml,224.00,320.00,416.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_garde_corps_global
+690,garde_corps_inox,Garde-corps inox (fourni+posé),ml,250.00,430.00,700.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,garde_corps_inox
+402,pose_garde_corps_inox,Garde-corps inox (MO),ml,117.00,180.00,243.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_garde_corps_inox
+401,pose_garde_corps_verre,Garde-corps verre (MO),ml,143.00,220.00,297.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_garde_corps_verre
+691,garde_corps_verre,Garde-corps verre feuilleté (fourni+posé),ml,350.00,600.00,980.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,garde_corps_verre
+875,gazon_synthétique,Gazon synthétique (fourni+posé),m2,25.00,45.00,75.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,gazon_synthétique
+533,gouttiere_pvc_pose,Gouttière PVC (fourni+posé),ml,18.00,28.00,48.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,gouttiere_pvc_pose
+532,gouttiere_zinc_demi_ronde,Gouttière zinc demi-ronde (fourni+posé),ml,35.00,55.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,gouttiere_zinc_demi_ronde
+951,stabilise_grave,Grave stabilisée / gravier compacté,m2,15.00,28.00,50.00,150.00,300.00,600.00,null,null,0,seed_manual,Allée graviers — économique,false,null,stabilise_grave
+395,pose_gravier_stabilise,Gravier stabilisé (pose),m2,23.00,35.00,47.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_gravier_stabilise
+920,grille_entree_air,Grille d'entrée d'air auto-réglable (menuiserie existante),unité,14.00,25.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,"Grille auto-réglable hygrométrique ou débit constant, fournie et posée sur châssis existant",true,"[""entree""]",grille
+903,groupe_securite_chauffe_eau,Groupe de sécurité chauffe-eau (fourni+posé),unite,80.00,150.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,groupe_securite_chauffe_eau
+76,escalier_habillage,Habillage escalier (strat/parquet),forfait,0.00,0.00,0.00,700.00,1500.00,3500.00,null,null,0,seed_manual,Selon marches,false,null,escalier_habillage
+885,habillage_escalier_bois,Habillage escalier bois (fourni+posé),unite,2000.00,4000.00,7500.00,0.00,0.00,0.00,null,null,0,seed_manual,Marches seules,false,null,habillage_escalier_bois
+692,habillage_marche_escalier,Habillage marche escalier bois (hors fourniture),marche,80.00,165.00,295.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,habillage_marche_escalier
+505,piscine_hivernage,Hivernage piscine,forfait,0.00,0.00,0.00,132.00,220.00,308.00,null,null,0,seed_manual,null,false,null,piscine_hivernage
+654,vitrification_parquet_seule,Huilage / vitrification parquet seule (sans ponçage),m2,8.00,15.00,28.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,vitrification_parquet_seule
+555,injection_resine_fissure_beton,Injection résine réparation fissure béton,ml,60.00,115.00,210.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,injection_resine_fissure_beton
+517,insert_cheminee_fourniture_pose,Insert à bois / poêle (fourniture + tubage + pose),forfait,0.00,0.00,0.00,2000.00,4500.00,8500.00,null,null,0,seed_manual,Base,false,null,insert_cheminee_fourniture_pose
+476,chauffage_insert,Insert cheminée (pose),forfait,0.00,0.00,0.00,780.00,1200.00,1620.00,null,null,0,seed_manual,Hors insert,false,null,chauffage_insert
+624,installation_elec_t2,Installation électrique complète T2,forfait,0.00,0.00,0.00,3000.00,5200.00,9000.00,null,null,0,seed_manual,Base,false,null,installation_elec_t2
+625,installation_elec_t3,Installation électrique complète T3,forfait,0.00,0.00,0.00,4500.00,7200.00,13000.00,null,null,0,seed_manual,Base,false,null,installation_elec_t3
+626,installation_elec_t4_t5,Installation électrique complète T4/T5,forfait,0.00,0.00,0.00,6000.00,10000.00,17000.00,null,null,0,seed_manual,Base,false,null,installation_elec_t4_t5
+702,fosse_septique_installation,Installation fosse septique toutes eaux,forfait,0.00,0.00,0.00,4000.00,7500.00,13000.00,null,null,0,seed_manual,Hors terrassement,false,null,fosse_septique_installation
+833,installation_interphone,Installation interphone / visiophone (fourni+posé),unite,300.00,600.00,1200.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,installation_interphone
+90,installation_lave_mains,Installation lave-mains,unité,120.00,260.00,520.00,0.00,0.00,0.00,null,null,0,seed_manual,WC,false,null,installation_lave_mains
+828,photovoltaique_installation,Installation panneaux photovoltaïques,kwc,1400.00,2200.00,3500.00,0.00,0.00,0.00,null,null,0,seed_manual,Clé en main résidentiel,false,null,photovoltaique_installation
+280,installation_pompe_relevage,Installation pompe de relevage,forfait,0.00,0.00,0.00,552.00,850.00,1148.00,null,null,0,seed_manual,Hors matériel,false,null,installation_pompe_relevage
+630,bande_led_installation,Installation ruban LED encastré (hors fourniture),ml,12.00,22.00,42.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,bande_led_installation
+229,vmc_hygro,Installation VMC hygroréglable,forfait,0.00,0.00,0.00,750.00,1150.00,1800.00,null,null,0,seed_manual,Réseau variable,false,null,vmc_hygro
+372,pose_cuisine_electromenager_chantier_difficile,Intégration électroménager (MO) (chantier difficile),forfait,0.00,0.00,0.00,273.00,455.00,637.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",pose
+370,pose_cuisine_electromenager_complexe,Intégration électroménager (MO) (complexe),forfait,0.00,0.00,0.00,262.00,438.00,612.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",pose
+369,pose_cuisine_electromenager_standard,Intégration électroménager (MO) (standard),forfait,0.00,0.00,0.00,210.00,350.00,490.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",pose
+371,pose_cuisine_electromenager_urgence,Intégration électroménager (MO) (urgence),forfait,0.00,0.00,0.00,284.00,473.00,662.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",pose
+826,interrupteur_variateur_pose,Interrupteur / variateur (fourni+posé),unite,40.00,70.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,interrupteur_variateur_pose
+802,isolation_acoustique_cloison,Isolation acoustique entre pièces,m2,40.00,65.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,Rw≥50 dB,false,null,isolation_acoustique_cloison
+412,pose_isolation_cave,Isolation cave,m2,32.00,50.00,68.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,true,"[""cave""]",pose_isolation
+96,isolation_combles_perdus,Isolation combles perdus,m2,18.00,28.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""combles""]",isolation
+95,isolation_combles,Isolation combles perdus,m2,18.00,28.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,true,"[""combles""]",isolation
+740,isolation_combles_perdus_souffle,Isolation combles perdus soufflage laine minérale,m2,15.00,25.00,40.00,0.00,0.00,0.00,null,null,0,seed_manual,R≥7 m².K/W,true,"[""combles""]",isolation
+493,isolation_combles_rouleaux,Isolation combles rouleaux (MO),m2,18.00,28.00,38.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,true,"[""combles""]",isolation
+798,isolation_laine_cellulose_soufflée,Isolation laine cellulose soufflée combles,m2,18.00,28.00,42.00,0.00,0.00,0.00,null,null,0,seed_manual,R≥7,false,null,isolation_laine_cellulose_soufflée
+591,laine_de_bois_combles,Isolation laine de bois combles,m2,30.00,52.00,80.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,true,"[""combles""]",laine_de_bois
+797,isolation_mousse_projetée,Isolation mousse polyuréthane projetée,m2,30.00,50.00,80.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 60 mm,false,null,isolation_mousse_projetée
+97,isolation_murs,Isolation murs intérieurs,m2,35.00,60.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,isolation_murs
+99,isolation_murs_interieurs,Isolation murs intérieurs,m2,35.00,55.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,false,null,isolation_murs_interieurs
+356,pose_isolation_phonique_chantier_difficile,Isolation phonique (doublage) (chantier difficile),m2,63.00,98.00,132.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_isolation_phonique_chantier_difficile
+354,pose_isolation_phonique_complexe,Isolation phonique (doublage) (complexe),m2,61.00,94.00,127.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_isolation_phonique_complexe
+353,pose_isolation_phonique_standard,Isolation phonique (doublage) (standard),m2,49.00,75.00,101.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_isolation_phonique_standard
+355,pose_isolation_phonique_urgence,Isolation phonique (doublage) (urgence),m2,66.00,101.00,137.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_isolation_phonique_urgence
+596,isolation_phonique_cloison,Isolation phonique cloison (laine + placo renforcé),m2,45.00,72.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,isolation_phonique_cloison
+597,isolation_phonique_plafond,Isolation phonique plafond,m2,40.00,68.00,105.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,isolation_phonique_plafond
+100,isolation_plancher_bas,Isolation plancher bas,m2,30.00,45.00,75.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,false,null,isolation_plancher_bas
+796,isolation_plancher_bas_ite,Isolation plancher bas par extérieur,m2,55.00,90.00,135.00,0.00,0.00,0.00,null,null,0,seed_manual,EPS 120 mm,false,null,isolation_plancher_bas_ite
+599,isolation_plancher_haut,Isolation plancher haut entre logements,m2,22.00,38.00,58.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,isolation_plancher_haut
+803,isolation_plancher_polystyrene,Isolation plancher polystyrène dalle (fourni+posé),m2,12.00,20.00,32.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 80 mm,false,null,isolation_plancher_polystyrene
+600,isolation_sous_toiture_rampant,Isolation rampants sous toiture (laine minérale),m2,38.00,58.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,isolation_sous_toiture_rampant
+264,toiture_isolation_sous_rampant,Isolation sous rampant + placo,m2,59.00,85.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,false,null,toiture_isolation_sous_rampant
+375,isolation_sous_sol,Isolation sous-sol/plafond,m2,36.00,55.00,74.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,true,"[""cave""]",isolation
+98,isolation_murs_exterieurs,Isolation thermique par l'extérieur (ITE),m2,90.00,130.00,180.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,true,"[""exterieur""]",isolation_murs
+799,isolation_toiture_interieur_pente,Isolation toiture par intérieur en pente,m2,50.00,80.00,120.00,0.00,0.00,0.00,null,null,0,seed_manual,LDR + frein vapeur,false,null,isolation_toiture_interieur_pente
+101,isolation_toiture,Isolation toiture rampants,m2,40.00,60.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,false,null,isolation_toiture
+102,isolation_toiture_sarking,Isolation toiture sarking,m2,90.00,140.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Rénovation lourde,false,null,isolation_toiture_sarking
+598,isolation_vide_sanitaire,Isolation vide sanitaire (panneaux/rouleaux),m2,25.00,42.00,65.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,isolation_vide_sanitaire
+263,isolation_exterieure_ite_enduit,ITE + enduit finition,m2,112.00,150.00,188.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,true,"[""exterieur""]",isolation
+595,ITE_enduit_mince,ITE enduit mince (polystyrène + enduit),m2,80.00,125.00,172.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,false,null,ITE_enduit_mince
+754,isolation_ite_eps,ITE EPS graphite (fourni+posé),m2,70.00,105.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 120 mm R≥3.4,false,null,isolation_ite_eps
+753,isolation_ite_laine_roche,ITE laine de roche (fourni+posé),m2,90.00,130.00,185.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 100 mm R≥2.8,false,null,isolation_ite_laine_roche
+792,isolation_iti_laine_roche,ITI laine de roche sur ossature (fourni+posé),m2,45.00,70.00,105.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 100 mm R≥2.6,false,null,isolation_iti_laine_roche
+793,isolation_iti_laine_de_verre,ITI laine de verre sur ossature (fourni+posé),m2,35.00,55.00,85.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 100 mm R≥2.6,false,null,isolation_iti_laine_de_verre
+104,joint_carrelage,Joints carrelage,m2,6.00,12.00,20.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,joint_carrelage
+183,pose_silicone_sdb,Joints silicone SDB (périphérie),forfait,0.00,0.00,0.00,40.00,90.00,180.00,null,null,0,seed_manual,Rénovation,true,"[""sdb""]",pose_silicone
+860,lambris_bois_plafond,Lambris bois plafond (fourni+posé),m2,30.00,52.00,85.00,0.00,0.00,0.00,null,null,0,seed_manual,Sapin ou pin,false,null,lambris_bois_plafond
+436,lavabo_fourniture_pose,Lavabo (fourni+posé),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Selon gamme,false,null,lavabo_fourniture_pose
+897,lavabo_suspendu,Lavabo suspendu (fourni+posé),unite,300.00,550.00,950.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors robinetterie,false,null,lavabo_suspendu
+106,lessivage_murs,Lessivage / nettoyage murs,m2,3.00,6.00,12.00,0.00,0.00,0.00,null,null,0,seed_manual,Avant peinture,false,null,lessivage_murs
+843,liège_sol_collé,Liège sol collé (fourni+posé),m2,30.00,55.00,85.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,liège_sol_collé
+257,local_technique_piscine,Local technique piscine (création),forfait,0.00,0.00,0.00,1625.00,2500.00,3375.00,null,null,0,seed_manual,Abri/maçonnerie légère,false,null,local_technique_piscine
+720,nacelle_location_journee,Location nacelle / plateforme (journée),forfait,0.00,0.00,0.00,350.00,620.00,1150.00,null,null,0,seed_manual,Hors transport,false,null,nacelle_location_journee
+922,differentiel_disjoncteur_lot,Lot différentiel 30 mA + disjoncteur sur tableau,forfait,0.00,0.00,0.00,100.00,160.00,280.00,null,null,0,seed_manual,Fourniture et pose différentiel 30mA + disjoncteur sur tableau électrique existant,false,null,differentiel_disjoncteur_lot
+917,maconnerie_scellement,Maçonnerie — scellements et raccords,h,45.00,65.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,maconnerie_scellement
+837,marbre_sol,Marbre sol (fourni+posé),m2,120.00,200.00,350.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,marbre_sol
+891,marche_en_pierre,Marches en pierre naturelle (fourni+posé),unite,200.00,400.00,750.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 3 cm,false,null,marche_en_pierre
+531,membrane_epdm_toiture_plate,Membrane EPDM toiture plate (fourni+posé),m2,50.00,82.00,125.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,membrane_epdm_toiture_plate
+111,menuiserie_taux_horaire,Menuisier (taux horaire),heure,40.00,75.00,120.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,menuiserie_taux_horaire
+60,diagnostic_loi_boutin,Mesurage loi Boutin,unité,70.00,100.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_loi_boutin
+61,diagnostic_loi_carrez,Mesurage loi Carrez,unité,70.00,100.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,diagnostic_loi_carrez
+781,meuble_cuisine_sur_mesure,Meuble cuisine sur mesure (pose incluse),ml,600.00,1000.00,1800.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors électroménager,true,"[""cuisine""]",meuble
+766,meuble_sdb_suspendu,Meuble SDB suspendu avec vasque (fourni+posé),unite,600.00,1100.00,2000.00,0.00,0.00,0.00,null,null,0,seed_manual,Double vasque +30%,true,"[""sdb""]",meuble
+431,pose_meuble_vasque_global,Meuble vasque (fourni+posé),forfait,0.00,0.00,0.00,552.00,850.00,1148.00,null,null,0,seed_manual,Estimation,false,null,pose_meuble_vasque_global
+703,micro_station_epuration,Micro-station d'épuration,forfait,0.00,0.00,0.00,6000.00,11000.00,19000.00,null,null,0,seed_manual,Hors terrassement,false,null,micro_station_epuration
+281,assainissement_microstation,Micro-station d'épuration (pose),forfait,0.00,0.00,0.00,8400.00,12000.00,15600.00,null,null,0,seed_manual,Étude/terrassement,false,null,assainissement_microstation
+638,microtopping_sol_murs,Microtopping béton sol / murs,m2,45.00,78.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,microtopping_sol_murs
+887,miroir_salon_pose,Miroir salon / dressing (fourni+posé),unite,150.00,300.00,600.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""salon""]",miroir
+769,miroir_sdb_eclairage,Miroir SDB avec éclairage LED (fourni+posé),unite,200.00,380.00,700.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""sdb""]",miroir
+112,mise_a_la_terre,Mise à la terre (complément),forfait,0.00,0.00,0.00,250.00,600.00,1300.00,null,null,0,seed_manual,Selon accessibilité,false,null,mise_a_la_terre
+913,mise_a_niveau_plancher,Mise à niveau plancher (ragréage + chape),m2,20.00,38.00,60.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,mise_a_niveau_plancher
+293,mise_aux_normes_elec,Mise aux normes électrique (petit logement),forfait,0.00,0.00,0.00,1430.00,2200.00,2970.00,null,null,0,seed_manual,Diagnostic préalable,false,null,mise_aux_normes_elec
+823,mise_aux_normes_elec_logement,Mise aux normes électrique logement (complet),unite,4000.00,8000.00,15000.00,0.00,0.00,0.00,null,null,0,seed_manual,F3/F4 80 m²,false,null,mise_aux_normes_elec_logement
+627,mise_conformite_elec,Mise en conformité électrique complète,forfait,0.00,0.00,0.00,1200.00,2300.00,4200.00,null,null,0,seed_manual,Base,false,null,mise_conformite_elec
+472,piscine_travaux_securite,Mise en conformité sécurité piscine,forfait,0.00,0.00,0.00,390.00,650.00,910.00,null,null,0,seed_manual,Selon options,false,null,piscine_travaux_securite
+258,mise_en_service_piscine,Mise en service piscine / hivernage,forfait,0.00,0.00,0.00,90.00,180.00,270.00,null,null,0,seed_manual,Entretien saisonnier,false,null,mise_en_service_piscine
+438,mitigeur_fourniture_pose,Mitigeur (fourni+posé),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Selon gamme,false,null,mitigeur_fourniture_pose
+921,mortaise_grille_ventilation,Mortaise menuiserie existante + pose grille ventilation,forfait,0.00,0.00,0.00,60.00,110.00,180.00,null,null,0,seed_manual,Création mortaise sur dormant/ouvrant existant + fourniture et pose grille de ventilation,false,null,mortaise_grille_ventilation
+269,pose_portail_motorisation,Motorisation portail (pose),forfait,0.00,0.00,0.00,358.00,650.00,942.00,null,null,0,seed_manual,Hors kit,false,null,pose_portail_motorisation
+270,porte_garage_motorisation,Motorisation porte de garage (pose),forfait,0.00,0.00,0.00,302.00,550.00,798.00,null,null,0,seed_manual,Hors moteur,true,"[""garage""]",porte
+115,motorisation_volet,Motorisation volet,unité,150.00,250.00,400.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,motorisation_volet
+298,mur_brique,Mur brique (hors enduit),m2,91.00,140.00,189.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,mur_brique
+748,mur_brique_20,Mur brique 20 cm monomur (fourni+posé),m2,80.00,120.00,170.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,mur_brique_20
+546,mur_brique_monomur,Mur brique monomur 30 cm (fourni+posé),m2,92.00,138.00,198.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,mur_brique_monomur
+545,mur_brique_pleine,Mur briques pleines (fourni+posé),m2,75.00,118.00,168.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,mur_brique_pleine
+550,mur_soutenement_beton,Mur de soutènement béton armé,ml,250.00,420.00,680.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon hauteur,false,null,mur_soutenement_beton
+297,mur_parpaing,Mur parpaing (hors enduit),m2,78.00,120.00,162.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,mur_parpaing
+747,mur_parpaing_20,Mur parpaing 20 cm (fourni+posé),m2,55.00,80.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,mur_parpaing_20
+484,pose_cloture_muret_enduit,Muret + enduit (pose),ml,143.00,220.00,297.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_cloture_muret_enduit
+744,nettoyage_toiture_hydrofuge,Nettoyage + hydrofugeant toiture,m2,8.00,15.00,25.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,nettoyage_toiture_hydrofuge
+268,nettoyage_facade,Nettoyage façade,m2,9.00,18.00,27.00,0.00,0.00,0.00,null,null,0,seed_manual,Hydrogommage possible,false,null,nettoyage_facade
+116,nettoyage_fin_chantier,Nettoyage fin de chantier,m2,2.00,4.00,8.00,0.00,0.00,0.00,null,null,0,seed_manual,Après travaux,false,null,nettoyage_fin_chantier
+719,nettoyage_chantier_pro,Nettoyage fin de chantier professionnel,m2,3.00,6.00,14.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,nettoyage_chantier_pro
+708,nettoyage_pression_canalisation,Nettoyage haute pression canalisations,ml,10.00,22.00,42.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,nettoyage_pression_canalisation
+893,nez_de_marche,Nez de marche bois ou alu (fourni+posé),unite,30.00,55.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,nez_de_marche
+424,pose_cloture_occultation,Occultation clôture (lames),ml,29.00,45.00,61.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_cloture_occultation
+118,ouverture_non_porteur,Ouverture mur non porteur,forfait,0.00,0.00,0.00,250.00,500.00,1000.00,null,null,0,seed_manual,null,false,null,ouverture_non_porteur
+120,ouverture_porteur,Ouverture mur porteur,forfait,0.00,0.00,0.00,2000.00,4000.00,9000.00,null,null,0,seed_manual,null,false,null,ouverture_porteur
+119,ouverture_porte,Ouverture porte (claquée),forfait,0.00,0.00,0.00,90.00,160.00,280.00,null,null,0,seed_manual,Jours/nuits en sus,false,null,ouverture_porte
+125,pack_diagnostics_complet,Pack diagnostics immobilier complet,forfait,0.00,0.00,0.00,300.00,450.00,650.00,null,null,0,seed_manual,Base,false,null,pack_diagnostics_complet
+126,pack_diagnostics_location,Pack diagnostics location,forfait,0.00,0.00,0.00,120.00,180.00,260.00,null,null,0,seed_manual,Base,false,null,pack_diagnostics_location
+127,pack_diagnostics_vente_appartement,Pack diagnostics vente appartement,forfait,0.00,0.00,0.00,220.00,320.00,450.00,null,null,0,seed_manual,Base,false,null,pack_diagnostics_vente_appartement
+128,pack_diagnostics_vente_maison,Pack diagnostics vente maison,forfait,0.00,0.00,0.00,260.00,380.00,550.00,null,null,0,seed_manual,Base,false,null,pack_diagnostics_vente_maison
+428,pose_domotique_pack,Pack domotique (pose),forfait,0.00,0.00,0.00,358.00,550.00,742.00,null,null,0,seed_manual,Estimation,false,null,pose_domotique_pack
+430,pose_spots_sdb_pack,Pack spots SDB (pose),forfait,0.00,0.00,0.00,228.00,350.00,473.00,null,null,0,seed_manual,Estimation,true,"[""sdb""]",pose_spots
+821,panneau_solaire_thermique,Panneau solaire thermique (fourni+posé),unite,4000.00,7000.00,12000.00,0.00,0.00,0.00,null,null,0,seed_manual,CESI 1-2 pers.,false,null,panneau_solaire_thermique
+129,panneaux_photovoltaiques_3kwc,Panneaux photovoltaïques 3 kWc,forfait,0.00,0.00,0.00,6500.00,8500.00,11000.00,null,null,0,seed_manual,RGE,false,null,panneaux_photovoltaiques_3kwc
+130,panneaux_photovoltaiques_6kwc,Panneaux photovoltaïques 6 kWc,forfait,0.00,0.00,0.00,11000.00,14500.00,19000.00,null,null,0,seed_manual,RGE,false,null,panneaux_photovoltaiques_6kwc
+131,panneaux_photovoltaiques_9kwc,Panneaux photovoltaïques 9 kWc,forfait,0.00,0.00,0.00,15000.00,19000.00,25000.00,null,null,0,seed_manual,RGE,false,null,panneaux_photovoltaiques_9kwc
+488,installation_panneaux_solaire_3kwc_mo,Panneaux solaires 3kWc — pose (MO),forfait,0.00,0.00,0.00,1170.00,1800.00,2430.00,null,null,0,seed_manual,null,false,null,installation_panneaux_solaire_3kwc_mo
+489,installation_panneaux_solaire_6kwc_mo,Panneaux solaires 6kWc — pose (MO),forfait,0.00,0.00,0.00,1690.00,2600.00,3510.00,null,null,0,seed_manual,null,false,null,installation_panneaux_solaire_6kwc_mo
+490,installation_panneaux_solaire_9kwc_mo,Panneaux solaires 9kWc — pose (MO),forfait,0.00,0.00,0.00,2210.00,3400.00,4590.00,null,null,0,seed_manual,null,false,null,installation_panneaux_solaire_9kwc_mo
+855,papier_peint_pose,Papier peint (fourni+posé),m2,25.00,45.00,75.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors papier peint haut de gamme,false,null,papier_peint_pose
+445,paroi_douche_fourniture_pose,Paroi douche (fourni+posé),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Selon gamme,false,null,paroi_douche_fourniture_pose
+432,pose_paroi_douche_global,Paroi douche (fourni+posé),forfait,0.00,0.00,0.00,488.00,750.00,1013.00,null,null,0,seed_manual,Estimation,false,null,pose_paroi_douche_global
+764,paroi_douche_verre,Paroi douche verre trempé (fourni+posé),unite,400.00,700.00,1200.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,paroi_douche_verre
+320,parquet_stratifie_premium,Parquet stratifié (fourni+posé),m2,43.00,61.00,79.00,0.00,0.00,0.00,null,null,0,seed_manual,premium,false,null,parquet_stratifie_premium
+318,parquet_stratifie_standard,Parquet stratifié (fourni+posé),m2,31.00,45.00,58.00,0.00,0.00,0.00,null,null,0,seed_manual,standard,false,null,parquet_stratifie_standard
+950,paves_autobloquants_fp,Pavés autobloquants fourniture + pose,m2,70.00,110.00,180.00,300.00,600.00,1200.00,null,null,0,seed_manual,Matériaux inclus (béton C25 pavé standard),false,null,paves_autobloquants_fp
+138,peinture_boiseries,"Peinture boiseries (plinthes, encadrements)",ml,6.00,12.00,25.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors réparation lourde,false,null,peinture_boiseries
+139,peinture_escalier,Peinture escalier (rénovation),forfait,0.00,0.00,0.00,250.00,600.00,1200.00,null,null,0,seed_manual,Selon état,false,null,peinture_escalier
+863,peinture_facade_ravalement,Peinture façade (hors ravalement complet),m2,18.00,30.00,48.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,peinture_facade_ravalement
+140,peinture_facade,Peinture façade (simple),m2,18.00,35.00,70.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors ravalement lourd,false,null,peinture_facade
+417,peinture_garage,Peinture garage (forfait),forfait,0.00,0.00,0.00,358.00,550.00,742.00,null,null,0,seed_manual,Estimation,true,"[""garage""]",peinture
+639,impermeabilisant_facade_peinture,Peinture imperméabilisante façade,m2,10.00,19.00,34.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors échafaudage,false,null,impermeabilisant_facade_peinture
+141,peinture_murs,Peinture murs,m2,18.00,35.00,65.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,peinture_murs
+260,peinture_piece_12m2,Peinture pièce ~12m² (murs+plafond),forfait,0.00,0.00,0.00,450.00,750.00,1050.00,null,null,0,seed_manual,2 couches,false,null,peinture_piece_12m2
+261,peinture_piece_20m2,Peinture pièce ~20m² (murs+plafond),forfait,0.00,0.00,0.00,660.00,1100.00,1540.00,null,null,0,seed_manual,2 couches,false,null,peinture_piece_20m2
+143,peinture_plafond,Peinture plafond,m2,22.00,40.00,75.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,peinture_plafond
+144,peinture_porte,Peinture porte,unité,60.00,120.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,peinture_porte
+145,peinture_radiateur,Peinture radiateur,unité,40.00,90.00,180.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,peinture_radiateur
+259,peinture_salle_bain,Peinture salle de bain (pièce),forfait,0.00,0.00,0.00,330.00,600.00,870.00,null,null,0,seed_manual,Selon préparation,false,null,peinture_salle_bain
+771,peinture_sdb_humide,Peinture SDB pièces humides,m2,12.00,20.00,32.00,0.00,0.00,0.00,null,null,0,seed_manual,Deux couches,true,"[""sdb""]",peinture
+642,peinture_garage_epoxy_sol,Peinture sol garage époxy,m2,15.00,28.00,52.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""garage""]",peinture
+664,pergola_bioclimatique_alu,Pergola bioclimatique aluminium (fourni+posé),m2,350.00,580.00,950.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,pergola_bioclimatique_alu
+973,photovoltaique_par_kwc,Photovoltaïque autoconsommation (par kWc),kwc,1700.00,2100.00,2400.00,0.00,0.00,0.00,null,null,0,seed_manual,"Inclut onduleur, pose, MES. RGE QualiPV.",false,null,null
+838,pierre_naturelle_sol,Pierre naturelle sol (fourni+posé),m2,80.00,135.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,pierre_naturelle_sol
+870,pilier_portail_beton,Piliers portail béton (fourni+posé),unite,200.00,380.00,700.00,0.00,0.00,0.00,null,null,0,seed_manual,Paire,false,null,pilier_portail_beton
+678,piscine_beton_construction,Piscine béton armé miroir,forfait,0.00,0.00,0.00,32000.00,55000.00,95000.00,null,null,0,seed_manual,Hors VRD,false,null,piscine_beton_construction
+242,piscine_coque_mo,Piscine coque — main d'œuvre (pose),forfait,0.00,0.00,0.00,6300.00,9000.00,11700.00,null,null,0,seed_manual,Terrassement/pose,false,null,piscine_coque_mo
+241,piscine_coque_materiel,Piscine coque — matériel seul,forfait,0.00,0.00,0.00,9750.00,13000.00,16250.00,null,null,0,seed_manual,Coque + filtration,false,null,piscine_coque_materiel
+238,piscine_coque_global,Piscine coque (fourniture + pose),forfait,0.00,0.00,0.00,16500.00,22000.00,27500.00,null,null,0,seed_manual,Hors aménagements,false,null,piscine_coque_global
+677,piscine_coque_polyester,Piscine coque polyester (fourni+posé),forfait,0.00,0.00,0.00,18000.00,32000.00,55000.00,null,null,0,seed_manual,Hors terrassement,false,null,piscine_coque_polyester
+240,piscine_hors_sol_global,Piscine hors-sol (pose comprise),forfait,0.00,0.00,0.00,2600.00,4000.00,5400.00,null,null,0,seed_manual,Selon modèle,false,null,piscine_hors_sol_global
+244,piscine_maconee_mo,Piscine maçonnée — main d'œuvre (pose),forfait,0.00,0.00,0.00,11050.00,17000.00,22950.00,null,null,0,seed_manual,Gros œuvre,false,null,piscine_maconee_mo
+243,piscine_maconee_materiel,Piscine maçonnée — matériel seul,forfait,0.00,0.00,0.00,12600.00,18000.00,23400.00,null,null,0,seed_manual,Kits/structure,false,null,piscine_maconee_materiel
+239,piscine_maconee_global,Piscine maçonnée (fourniture + pose),forfait,0.00,0.00,0.00,24500.00,35000.00,45500.00,null,null,0,seed_manual,Béton/armatures,false,null,piscine_maconee_global
+880,placard_coulissant,Placard coulissant (fourni+posé),m2,250.00,450.00,800.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,placard_coulissant
+879,placard_sur_mesure,Placard sur mesure (fourni+posé),m2,200.00,380.00,700.00,0.00,0.00,0.00,null,null,0,seed_manual,Portes battantes,false,null,placard_sur_mesure
+468,piscine_plage_boise,Plage piscine bois (pose),m2,77.00,110.00,143.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,piscine_plage_boise
+469,piscine_plage_pierre,Plage piscine pierre (pose),m2,105.00,150.00,195.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,piscine_plage_pierre
+779,plan_de_travail_beton_cire,Plan de travail béton ciré (fourni+posé),ml,280.00,450.00,750.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 5 cm moulé,false,null,plan_de_travail_beton_cire
+576,plan_travail_bois_massif_pose,Plan de travail bois massif (hors fourniture),ml,80.00,145.00,230.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,plan_travail_bois_massif_pose
+574,plan_travail_granit_pose,Plan de travail granit (hors fourniture),ml,100.00,165.00,260.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,plan_travail_granit_pose
+777,plan_de_travail_granit,Plan de travail granit naturel (fourni+posé),ml,250.00,420.00,700.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 20 mm,false,null,plan_de_travail_granit
+778,plan_de_travail_quartz,Plan de travail quartz reconstitué (fourni+posé),ml,300.00,500.00,800.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 20 mm,false,null,plan_de_travail_quartz
+575,plan_travail_quartz_pose,Plan de travail quartz/silestone (hors fourniture),ml,100.00,185.00,290.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,plan_travail_quartz_pose
+780,plan_de_travail_stratifie,Plan de travail stratifié (fourni+posé),ml,80.00,130.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 38 mm,false,null,plan_de_travail_stratifie
+577,plan_travail_stratifie_pose,Plan de travail stratifié (hors fourniture),ml,40.00,78.00,125.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,plan_travail_stratifie_pose
+408,pose_plancher_chauffant,Plancher chauffant (pose),m2,55.00,85.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_plancher_chauffant
+604,plancher_chauffant_electrique,Plancher chauffant électrique (câble/mat),m2,40.00,68.00,100.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,plancher_chauffant_electrique
+811,plancher_chauffant_hydraulique,Plancher chauffant hydraulique (fourni+posé),m2,50.00,80.00,120.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors chaudière,false,null,plancher_chauffant_hydraulique
+409,pose_plancher_chauffant_hydro,Plancher chauffant hydraulique (pose),m2,68.00,105.00,142.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_plancher_chauffant_hydro
+605,plancher_chauffant_eau,Plancher chauffant hydraulique eau chaude,m2,55.00,88.00,132.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,plancher_chauffant_eau
+313,plantation_arbre,Plantation arbre,unité,90.00,180.00,270.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors arbre,false,null,plantation_arbre
+474,chauffage_plinthe_elec,Plinthes chauffantes électriques (pose),ml,55.00,85.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,chauffage_plinthe_elec
+151,plomberie_petite_intervention,Plomberie : petite intervention,unité,90.00,140.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,plomberie_petite_intervention
+153,plombier,Plombier taux horaire,heure,40.00,70.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,plombier
+475,chauffage_poele_bois,Poêle à bois (pose),forfait,0.00,0.00,0.00,618.00,950.00,1282.00,null,null,0,seed_manual,Hors appareil,false,null,chauffage_poele_bois
+518,poele_bois_fourniture_pose,Poêle à bois / granulés (fourniture + installation),forfait,0.00,0.00,0.00,1800.00,3800.00,7000.00,null,null,0,seed_manual,Base,false,null,poele_bois_fourniture_pose
+813,poele_bois_insert,Poêle à bois / insert cheminée (fourni+posé),unite,2500.00,4500.00,8000.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors conduit de fumée,false,null,poele_bois_insert
+348,installation_poele_pellets_chantier_difficile,Poêle à granulés (pose) (chantier difficile),forfait,0.00,0.00,0.00,1014.00,1560.00,2106.00,null,null,0,seed_manual,Estimation,false,null,installation_poele_pellets_chantier_difficile
+346,installation_poele_pellets_complexe,Poêle à granulés (pose) (complexe),forfait,0.00,0.00,0.00,975.00,1500.00,2025.00,null,null,0,seed_manual,Estimation,false,null,installation_poele_pellets_complexe
+345,installation_poele_pellets_standard,Poêle à granulés (pose) (standard),forfait,0.00,0.00,0.00,780.00,1200.00,1620.00,null,null,0,seed_manual,Estimation,false,null,installation_poele_pellets_standard
+347,installation_poele_pellets_urgence,Poêle à granulés (pose) (urgence),forfait,0.00,0.00,0.00,1053.00,1620.00,2187.00,null,null,0,seed_manual,Estimation,false,null,installation_poele_pellets_urgence
+107,luminaire,Point lumineux,unité,70.00,120.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,luminaire
+513,filtration_piscine_fourniture_pose,Pompe + filtre piscine (fourniture + pose),forfait,0.00,0.00,0.00,1500.00,3000.00,5500.00,null,null,0,seed_manual,Base,false,null,filtration_piscine_fourniture_pose
+121,pac,Pompe à chaleur,forfait,0.00,0.00,0.00,8500.00,12500.00,18000.00,null,null,0,seed_manual,null,false,null,pac
+808,pompe_a_chaleur_air_air,Pompe à chaleur air/air (fourni+posé),unite,1500.00,2800.00,5000.00,0.00,0.00,0.00,null,null,0,seed_manual,Monosplit,false,null,pompe_a_chaleur_air_air
+122,pac_air_air,Pompe à chaleur air/air (pose comprise),forfait,0.00,0.00,0.00,3500.00,5500.00,8000.00,null,null,0,seed_manual,RGE,false,null,pac_air_air
+809,pompe_a_chaleur_air_eau,Pompe à chaleur air/eau (fourni+posé),unite,5000.00,9000.00,15000.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors réseau hydraulique,false,null,pompe_a_chaleur_air_eau
+123,pac_air_eau,Pompe à chaleur air/eau (pose comprise),forfait,0.00,0.00,0.00,6500.00,9500.00,14000.00,null,null,0,seed_manual,RGE,false,null,pac_air_eau
+124,pac_geothermie,Pompe à chaleur géothermique,forfait,0.00,0.00,0.00,12000.00,18000.00,25000.00,null,null,0,seed_manual,RGE,false,null,pac_geothermie
+250,pompe_chaleur_piscine,Pompe à chaleur piscine (pose),forfait,0.00,0.00,0.00,720.00,1200.00,1680.00,null,null,0,seed_manual,Hors matériel,false,null,pompe_chaleur_piscine
+155,poncage_parquet,Ponçage vitrification,m2,25.00,40.00,70.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,poncage_parquet
+485,pose_portail_aluminium_global,Portail aluminium (fourni+posé),forfait,0.00,0.00,0.00,1960.00,2800.00,3640.00,null,null,0,seed_manual,null,false,null,pose_portail_aluminium_global
+847,portail_aluminium_motorise,Portail aluminium motorisé (fourni+posé),unite,2000.00,3800.00,7000.00,0.00,0.00,0.00,null,null,0,seed_manual,Coulissant 4 m,false,null,portail_aluminium_motorise
+662,portail_battant_motorise,Portail battant motorisé (fourni+posé),unité,1000.00,1900.00,3400.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,portail_battant_motorise
+661,portail_coulissant_motorise,Portail coulissant motorisé aluminium (fourni+posé),unité,1500.00,2600.00,4800.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,portail_coulissant_motorise
+425,pose_portail_motorise_global,Portail motorisé (fourni+posé),forfait,0.00,0.00,0.00,2080.00,3200.00,4320.00,null,null,0,seed_manual,Estimation,false,null,pose_portail_motorise_global
+486,pose_portail_pvc_global,Portail PVC (fourni+posé),forfait,0.00,0.00,0.00,1330.00,1900.00,2470.00,null,null,0,seed_manual,null,false,null,pose_portail_pvc_global
+853,porte_blindee,Porte blindée (fourni+posé),unite,2000.00,3800.00,7500.00,0.00,0.00,0.00,null,null,0,seed_manual,Classe 3,false,null,porte_blindee
+878,porte_coulissante_galandage,Porte coulissante galandage (fourni+posé),unite,700.00,1200.00,2200.00,0.00,0.00,0.00,null,null,0,seed_manual,H≤2.5m,false,null,porte_coulissante_galandage
+658,porte_entree_fourniture_pose,Porte d'entrée (fourni+posé),unité,800.00,1450.00,2600.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""entree""]",porte
+844,porte_entree_alu_isolation,Porte d'entrée aluminium isolante (fourni+posé),unite,1800.00,3200.00,5500.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors serrurerie 3 points,true,"[""entree""]",porte
+846,porte_entree_bois_massif,Porte d'entrée bois massif (fourni+posé),unite,2000.00,3800.00,7000.00,0.00,0.00,0.00,null,null,0,seed_manual,Avec serrure 3 points,true,"[""entree""]",porte
+845,porte_entree_pvc,Porte d'entrée PVC (fourni+posé),unite,1200.00,2200.00,3800.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""entree""]",porte
+849,porte_de_garage_basculante,Porte de garage basculante (fourni+posé),unite,1000.00,1800.00,3200.00,0.00,0.00,0.00,null,null,0,seed_manual,Sans motorisation,true,"[""garage""]",porte_de
+669,porte_garage_sectionnelle,Porte de garage sectionnelle (fourni+posé),unité,1200.00,2100.00,3800.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""garage""]",porte
+848,porte_de_garage_sectionnelle,Porte de garage sectionnelle (fourni+posé),unite,1500.00,2800.00,5000.00,0.00,0.00,0.00,null,null,0,seed_manual,Avec motorisation,true,"[""garage""]",porte_de
+324,porte_entree_blin,Porte Entree Blin,unité,488.00,750.00,1013.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,true,"[""entree""]",porte
+322,porte_interieure_bloc,Porte Interieure Bloc,unité,143.00,220.00,297.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,porte_interieure_bloc
+323,porte_interieure_galande,Porte Interieure Galande,unité,247.00,380.00,513.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,porte_interieure_galande
+881,porte_interieure_neuve,Porte intérieure neuve (fourni+posé),unite,350.00,650.00,1200.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors bloc-porte,false,null,porte_interieure_neuve
+508,porte_fenetre_alu_fourniture_pose,Porte-fenêtre aluminium fourni+posé,unité,1200.00,1800.00,2500.00,0.00,0.00,0.00,null,null,0,seed_manual,"1 ou 2 vantaux, dimensions standard",false,null,porte_fenetre_alu_fourniture_pose
+507,porte_fenetre_pvc_fourniture_pose,Porte-fenêtre PVC fourni+posé,unité,900.00,1700.00,2200.00,0.00,0.00,0.00,null,null,0,seed_manual,"1 ou 2 vantaux, dimensions standard",false,null,porte_fenetre_pvc_fourniture_pose
+668,portillon_alu_fourniture_pose,Portillon aluminium (fourni+posé),unité,400.00,720.00,1250.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,portillon_alu_fourniture_pose
+368,pose_spots_x10_chantier_difficile,Pose 10 spots encastrés (MO) (chantier difficile),forfait,0.00,0.00,0.00,549.00,845.00,1141.00,null,null,0,seed_manual,Estimation,false,null,pose_spots_x10_chantier_difficile
+366,pose_spots_x10_complexe,Pose 10 spots encastrés (MO) (complexe),forfait,0.00,0.00,0.00,528.00,812.00,1097.00,null,null,0,seed_manual,Estimation,false,null,pose_spots_x10_complexe
+365,pose_spots_x10_standard,Pose 10 spots encastrés (MO) (standard),forfait,0.00,0.00,0.00,422.00,650.00,878.00,null,null,0,seed_manual,Estimation,false,null,pose_spots_x10_standard
+367,pose_spots_x10_urgence,Pose 10 spots encastrés (MO) (urgence),forfait,0.00,0.00,0.00,570.00,878.00,1185.00,null,null,0,seed_manual,Estimation,false,null,pose_spots_x10_urgence
+311,abri_jardin_pose,Pose abri de jardin (MO),forfait,0.00,0.00,0.00,248.00,450.00,652.00,null,null,0,seed_manual,Hors fourniture,true,"[""exterieur""]",abri
+614,adoucisseur_eau_pose,Pose adoucisseur d'eau (hors fourniture),forfait,0.00,0.00,0.00,700.00,1150.00,2000.00,null,null,0,seed_manual,Base,false,null,adoucisseur_eau_pose
+501,pose_plaque_ba13,Pose BA13 (pose),m2,15.00,25.00,35.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_plaque_ba13
+166,pose_baguettes_finition,Pose baguettes / quart-de-rond,ml,6.00,10.00,18.00,0.00,0.00,0.00,null,null,0,seed_manual,Finition sols,false,null,pose_baguettes_finition
+275,pose_baie_vitree_mo,Pose baie vitrée (MO),unité,488.00,750.00,1013.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,pose_baie_vitree_mo
+6,baignoire,Pose baignoire,unité,350.00,750.00,1500.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,baignoire
+167,pose_baignoire,Pose baignoire (MO),unité,300.00,650.00,1200.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors faïence,false,null,pose_baignoire
+566,baignoire_balneo_pose,Pose baignoire balnéo (hors fourniture),unité,500.00,920.00,1650.00,0.00,0.00,0.00,null,null,0,seed_manual,Branchement balnéo inclus,false,null,baignoire_balneo_pose
+286,pose_baignoire_balneo,Pose baignoire balnéo (MO),unité,618.00,950.00,1282.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,pose_baignoire_balneo
+373,pose_bardage_bois,Pose bardage bois,m2,55.00,85.00,115.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_bardage_bois
+374,pose_bardage_composite,Pose bardage composite,m2,72.00,110.00,148.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_bardage_composite
+953,bordurette_pose,Pose bordurette / bordure béton,ml,15.00,28.00,50.00,100.00,200.00,400.00,null,null,0,seed_manual,Baguette béton ou granit scellée,false,null,bordurette_pose
+429,pose_borne_recharge_mo,Pose borne recharge (MO),forfait,0.00,0.00,0.00,422.00,650.00,878.00,null,null,0,seed_manual,Estimation,false,null,pose_borne_recharge_mo
+621,camera_ip_ext_pose,Pose caméra IP extérieure (hors fourniture),unité,150.00,290.00,500.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,camera_ip_ext_pose
+397,abri_voiture_carport_mo,Pose carport (MO),forfait,0.00,0.00,0.00,585.00,900.00,1215.00,null,null,0,seed_manual,Estimation,false,null,abri_voiture_carport_mo
+379,pose_carreaux_ciment,Pose carreaux de ciment,m2,62.00,95.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_carreaux_ciment
+14,carrelage_grand_format,Pose carrelage grand format,m2,35.00,65.00,120.00,0.00,0.00,0.00,null,null,0,seed_manual,Plus technique,false,null,carrelage_grand_format
+572,carrelage_hexagonal_pose,Pose carrelage hexagonal sol / mosaïque,m2,55.00,88.00,135.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,carrelage_hexagonal_pose
+652,carrelage_imitation_bois_pose,Pose carrelage imitation bois (plank 20x120),m2,40.00,68.00,105.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,carrelage_imitation_bois_pose
+316,pose_carrelage_sdb_20m2,Pose carrelage salle de bain (MO),forfait,0.00,0.00,0.00,780.00,1200.00,1620.00,null,null,0,seed_manual,Surface ~20m²,true,"[""sdb""]",pose_carrelage
+314,pose_carrelage_sdb_10m2,Pose carrelage salle de bain (MO),forfait,0.00,0.00,0.00,390.00,600.00,810.00,null,null,0,seed_manual,Surface ~10m²,true,"[""sdb""]",pose_carrelage
+315,pose_carrelage_sdb_15m2,Pose carrelage salle de bain (MO),forfait,0.00,0.00,0.00,585.00,900.00,1215.00,null,null,0,seed_manual,Surface ~15m²,true,"[""sdb""]",pose_carrelage
+317,pose_carrelage_sdb_30m2,Pose carrelage salle de bain (MO),forfait,0.00,0.00,0.00,1170.00,1800.00,2430.00,null,null,0,seed_manual,Surface ~30m²,true,"[""sdb""]",pose_carrelage
+725,carrelage_sdb_etancheite,Pose carrelage salle de bains avec étanchéité,m2,55.00,95.00,170.00,0.00,0.00,0.00,null,null,0,seed_manual,"SPEC Weber/Schluter - douche italienne, pièce humide. Inclut primaire + membrane + colle C2 + joint",true,"[""sdb""]",carrelage
+16,carrelage_sol,Pose carrelage sol,m2,25.00,45.00,80.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,carrelage_sol
+17,carrelage_sol_pose,Pose carrelage sol (hors fourniture),m2,35.00,55.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,carrelage_sol_pose
+631,domotique_centrale_pose,Pose centrale domotique (hors fourniture),forfait,0.00,0.00,0.00,3000.00,6500.00,13000.00,null,null,0,seed_manual,Base,false,null,domotique
+410,pose_chaudiere_pellets_mo,Pose chaudière granulés (MO),forfait,0.00,0.00,0.00,1625.00,2500.00,3375.00,null,null,0,seed_manual,Estimation,false,null,pose_chaudiere_pellets_mo
+688,claustra_bois_exterieur,Pose claustra bois extérieur,m2,90.00,165.00,295.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",claustra_bois
+645,claustra_interieur_pose,Pose claustra intérieur bois / métal,m2,80.00,155.00,295.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,claustra_interieur_pose
+27,cloture,Pose clôture,ml,25.00,55.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,cloture
+386,pose_cloture_bois,Pose clôture bois,ml,62.00,95.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_cloture_bois
+28,cloture_grillage,Pose clôture grillage,ml,20.00,45.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,Scellement poteaux,false,null,cloture_grillage
+387,pose_cloture_panneau,Pose clôture panneaux,ml,75.00,115.00,155.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_cloture_panneau
+29,cloture_rigide,Pose clôture rigide,ml,30.00,60.00,120.00,0.00,0.00,0.00,null,null,0,seed_manual,Occultation en sus,false,null,cloture_rigide
+169,pose_colonne_douche,Pose colonne de douche,unité,80.00,160.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors receveur,false,null,pose_colonne_douche
+33,credence,Pose crédence,m2,30.00,60.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,credence
+170,pose_credence_carrelage,Pose crédence carrelage,m2,30.00,60.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_credence_carrelage
+587,credence_verre_securit_pose,Pose crédence verre sécurit (hors fourniture),m2,80.00,165.00,290.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,credence_verre_securit_pose
+171,pose_credence_verre,Pose crédence verre/alu,m2,45.00,90.00,160.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,pose_credence_verre
+34,cuisine,Pose cuisine,forfait,0.00,0.00,0.00,800.00,1800.00,4000.00,null,null,0,seed_manual,null,false,null,cuisine
+273,cuisine_pose_mo,Pose cuisine — main d'œuvre,forfait,0.00,0.00,0.00,780.00,1300.00,1820.00,null,null,0,seed_manual,Selon complexité,false,null,cuisine_pose_mo
+404,pose_cuisine_sur_mesure_mo,Pose cuisine sur-mesure (MO),forfait,0.00,0.00,0.00,1430.00,2200.00,2970.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",pose
+403,pose_cuisine_ikea_mo,Pose cuisine type IKEA (MO),forfait,0.00,0.00,0.00,715.00,1100.00,1485.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",pose
+392,pose_dallage_pierre,Pose dallage pierre,m2,91.00,140.00,189.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_dallage_pierre
+721,detecteur_co_monoxyde,Pose détecteur CO monoxyde (hors fourniture),unité,80.00,155.00,290.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,detecteur_co_monoxyde
+632,detecteur_fumee_pose,Pose détecteurs fumée interconnectés,forfait,0.00,0.00,0.00,120.00,260.00,480.00,null,null,0,seed_manual,Par pièce inclus,false,null,detecteur_fumee_pose
+67,douche,Pose douche,unité,400.00,850.00,1700.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,douche
+686,dressing_modulable_pose,Pose dressing modulable (hors fourniture),ml,200.00,400.00,680.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,dressing_modulable_pose
+623,eclairage_exterieur_pose,Pose éclairage extérieur (hors fourniture),unité,120.00,230.00,400.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",eclairage
+75,enrobe_pose,Pose enrobé,m2,18.00,35.00,70.00,0.00,0.00,0.00,null,null,0,seed_manual,"Gros volume (>200 m²) — route, parking",false,null,enrobe_pose
+944,enrobe_allee_moyenne,Pose enrobé allée (surface moyenne),m2,30.00,50.00,80.00,200.00,400.00,800.00,null,null,0,seed_manual,Surface 50-200 m² — cylindrage mécanisé,false,null,enrobe_allee_moyenne
+943,enrobe_allee_residentielle,Pose enrobé allée résidentielle,m2,40.00,65.00,100.00,300.00,600.00,1200.00,null,null,0,seed_manual,Petite surface (<50 m²) — mobilisation incluse,false,null,enrobe_allee_residentielle
+306,pose_escalier_bois,Pose escalier bois (MO),forfait,0.00,0.00,0.00,780.00,1200.00,1620.00,null,null,0,seed_manual,Hors fourniture,false,null,pose_escalier_bois
+579,evier_granit_composite_pose,Pose évier granit composite (hors fourniture),unité,120.00,230.00,400.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,evier_granit_composite_pose
+578,evier_inox_pose,Pose évier inox (hors fourniture),unité,100.00,185.00,310.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,evier_inox_pose
+80,extracteur_sdb,Pose extracteur SDB/WC,unité,120.00,220.00,420.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors gaine longue,true,"[""sdb""]",extracteur
+15,carrelage_mural,Pose faïence murale,m2,30.00,55.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,carrelage_mural
+81,faience_mur_pose,Pose faïence murale (hors fourniture),m2,40.00,65.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,faience_mur_pose
+83,fenetre,Pose fenêtre,unité,180.00,350.00,650.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,fenetre
+84,fenetre_pose,Pose fenêtre (hors fourniture),unité,180.00,280.00,420.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,fenetre_pose
+85,fenetre_velux_pose,Pose fenêtre de toit (MO),unité,700.00,1200.00,1800.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture/étanchéité complexe,false,null,fenetre_velux_pose
+706,filtre_anti_calcaire_pose,Pose filtre anti-calcaire (hors fourniture),unité,100.00,210.00,400.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,filtre_anti_calcaire_pose
+583,four_encastre_pose,Pose four encastré (hors fourniture),unité,80.00,165.00,290.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,four_encastre_pose
+86,gaine_ventilation,Pose gaine ventilation,ml,8.00,18.00,35.00,0.00,0.00,0.00,null,null,0,seed_manual,Plafond/faux plafond,false,null,gaine_ventilation
+87,garde_corps_pose,Pose garde-corps,ml,60.00,120.00,240.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,garde_corps_pose
+309,gazon_rouleau,Pose gazon en rouleau,m2,10.00,18.00,26.00,0.00,0.00,0.00,null,null,0,seed_manual,Préparation sol en sus,false,null,gazon_rouleau
+88,gouttiere,Pose gouttière,ml,25.00,45.00,85.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,gouttiere
+389,pose_grillage_rigide,Pose grillage rigide,ml,46.00,70.00,94.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_grillage_rigide
+388,pose_grillage_souple,Pose grillage souple,ml,23.00,35.00,47.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_grillage_souple
+89,hotte_pose,Pose hotte (MO),unité,80.00,150.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,Évacuation en sus,false,null,hotte_pose
+580,hotte_casquette_pose,Pose hotte aspirante casquette (hors fourniture),unité,100.00,185.00,320.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,hotte_casquette_pose
+581,hotte_ilot_suspendue_pose,Pose hotte îlot suspendue (hors fourniture),unité,180.00,330.00,580.00,0.00,0.00,0.00,null,null,0,seed_manual,Réseau gaine en sus,false,null,hotte_ilot_suspendue_pose
+588,ilot_central_cuisine_pose,Pose îlot central cuisine (hors fourniture),forfait,0.00,0.00,0.00,600.00,1300.00,2800.00,null,null,0,seed_manual,Base,true,"[""cuisine""]",ilot_central
+608,insert_cheminee_pose,Pose insert cheminée (hors fourniture),forfait,0.00,0.00,0.00,600.00,1250.00,2600.00,null,null,0,seed_manual,Hors tubage,false,null,insert_cheminee_pose
+622,interphone_video_pose,Pose interphone vidéo (hors fourniture),forfait,0.00,0.00,0.00,250.00,520.00,980.00,null,null,0,seed_manual,Base,false,null,interphone_video_pose
+91,interphone_pose,Pose interphone/visiophone,forfait,0.00,0.00,0.00,250.00,550.00,1100.00,null,null,0,seed_manual,Câblage variable,false,null,interphone_pose
+93,interrupteur_pose,Pose interrupteur,unité,35.00,55.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,interrupteur_pose
+303,pose_ipn,Pose IPN/HEA (ouverture),forfait,0.00,0.00,0.00,1625.00,2500.00,3375.00,null,null,0,seed_manual,Étude structure,false,null,pose_ipn
+200,revetement_mural_boiserie,Pose lambris / boiserie murale,m2,18.00,35.00,70.00,0.00,0.00,0.00,null,null,0,seed_manual,Pose seule,false,null,revetement_mural_boiserie
+641,lambris_pvc_pose,Pose lambris PVC (hors fourniture),m2,18.00,30.00,52.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,lambris_pvc_pose
+105,lavabo,Pose lavabo,unité,120.00,250.00,450.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,lavabo
+584,lave_vaisselle_integre_pose,Pose lave-vaisselle intégrable (hors fourniture),unité,80.00,165.00,290.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,lave_vaisselle_integre_pose
+648,linoleum_naturel_pose,Pose linoléum naturel,m2,15.00,28.00,52.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,linoleum_naturel_pose
+69,eclairage_pose,Pose luminaire simple (plafonnier/applique),unité,60.00,95.00,160.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,eclairage_pose
+470,piscine_margelle_pose,Pose margelles piscine,ml,62.00,95.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,piscine_margelle_pose
+689,marquise_verre_pose,Pose marquise verre auvent (hors fourniture),ml,300.00,520.00,950.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,marquise_verre_pose
+567,meuble_double_vasque_pose,Pose meuble double vasque,unité,350.00,620.00,980.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,meuble_double_vasque_pose
+172,pose_meuble_sdb,Pose meuble SDB,unité,180.00,350.00,700.00,0.00,0.00,0.00,null,null,0,seed_manual,null,true,"[""sdb""]",pose_meuble
+173,pose_miroir_lumineux,Pose miroir lumineux,unité,60.00,140.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_miroir_lumineux
+174,pose_mitigeur,Pose mitigeur (MO),unité,50.00,90.00,160.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,pose_mitigeur
+65,domotique_module,Pose module domotique (volet/lumière),unité,60.00,140.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors matériel,false,null,domotique_module
+696,monte_escalier_pose,Pose monte-escalier (hors fourniture),forfait,0.00,0.00,0.00,1500.00,3200.00,6500.00,null,null,0,seed_manual,Base,false,null,monte_escalier_pose
+113,moquette,Pose moquette,m2,10.00,22.00,40.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,moquette
+561,mosaique_pose,Pose mosaïque (hors fourniture),m2,65.00,100.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,Colle C2 + joint,false,null,mosaique_pose
+175,pose_moustiquaire,Pose moustiquaire,unité,60.00,140.00,260.00,0.00,0.00,0.00,null,null,0,seed_manual,Sur mesure en sus,false,null,pose_moustiquaire
+421,pose_moustiquaire_enroulable_mo,Pose moustiquaire enroulable (MO),unité,91.00,140.00,189.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_moustiquaire_enroulable_mo
+411,pose_pac_air_eau_mo,Pose PAC air/eau (MO),forfait,0.00,0.00,0.00,1430.00,2200.00,2970.00,null,null,0,seed_manual,Estimation,false,null,pose_pac_air_eau_mo
+500,pose_plaque_osb,Pose panneaux OSB,m2,10.00,18.00,26.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_plaque_osb
+132,papier_peint,Pose papier peint,m2,15.00,28.00,55.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,papier_peint
+377,pose_papier_peint_intisse,Pose papier peint intissé,m2,23.00,35.00,47.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_papier_peint_intisse
+378,pose_papier_peint_standard,Pose papier peint standard,m2,18.00,28.00,38.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_papier_peint_standard
+629,parafoudre_pose,Pose parafoudre tableau électrique,unité,180.00,310.00,520.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,parafoudre_pose
+177,pose_paroi_baignoire,Pose pare-baignoire,unité,80.00,160.00,320.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_paroi_baignoire
+603,pare_vapeur_pose,Pose pare-vapeur / frein vapeur,m2,8.00,14.00,24.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,pare_vapeur_pose
+178,pose_paroi_douche,Pose paroi douche,unité,120.00,260.00,480.00,0.00,0.00,0.00,null,null,0,seed_manual,Perçage carrelage,false,null,pose_paroi_douche
+133,parquet_colle,Pose parquet collé,m2,25.00,40.00,60.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,parquet_colle
+134,parquet_colle_pose,Pose parquet collé (hors fourniture),m2,35.00,55.00,85.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,parquet_colle_pose
+865,pose_parquet_contrecolle,Pose parquet contrecollé (fourni+posé),m2,50.00,85.00,135.00,0.00,0.00,0.00,null,null,0,seed_manual,Chêne 15/4,false,null,pose_parquet_contrecolle
+646,parquet_chevrons_pose,Pose parquet en chevrons (hors fourniture),m2,45.00,82.00,135.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,parquet_chevrons_pose
+135,parquet_flottant,Pose parquet flottant,m2,20.00,30.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,parquet_flottant
+136,parquet_massif,Pose parquet massif,m2,35.00,55.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,parquet_massif
+864,pose_parquet_massif,Pose parquet massif (fourni+posé),m2,80.00,130.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Chêne 22 mm,false,null,pose_parquet_massif
+137,parquet_massif_pose,Pose parquet massif (hors fourniture),m2,55.00,85.00,130.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,parquet_massif_pose
+647,parquet_point_hongrie_pose,Pose parquet point de Hongrie (hors fourniture),m2,50.00,88.00,142.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,parquet_point_hongrie_pose
+179,pose_pave,Pose pavés,m2,35.00,70.00,130.00,0.00,0.00,0.00,null,null,0,seed_manual,Prépa sol variable,false,null,pose_pave
+949,paves_autobloquants,Pose pavés autobloquants béton,m2,40.00,65.00,110.00,200.00,400.00,800.00,null,null,0,seed_manual,Hors fourniture graviers + sable,false,null,paves_autobloquants
+391,pose_pave_granit,Pose pavés granit,m2,78.00,120.00,162.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_pave_granit
+146,pergola_pose,Pose pergola (MO),forfait,0.00,0.00,0.00,450.00,1100.00,2600.00,null,null,0,seed_manual,Hors fourniture,false,null,pergola_pose
+308,pergola_bio_climatique_mo,Pose pergola bioclimatique (MO),forfait,0.00,0.00,0.00,780.00,1200.00,1620.00,null,null,0,seed_manual,Hors fourniture,false,null,pergola_bio_climatique_mo
+562,pierre_naturelle_interieur,Pose pierre naturelle intérieure,m2,65.00,98.00,140.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,pierre_naturelle_interieur
+149,plan_travail,Pose plan de travail,ml,40.00,80.00,160.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,plan_travail
+304,pose_cuisine_plan_travail,Pose plan de travail cuisine,ml,72.00,120.00,168.00,0.00,0.00,0.00,null,null,0,seed_manual,Découpe/ajustement,true,"[""cuisine""]",pose
+582,plaque_cuisson_pose,Pose plaque de cuisson (hors fourniture),unité,80.00,165.00,290.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,plaque_cuisson_pose
+150,plinthes,Pose plinthes,ml,6.00,15.00,30.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,plinthes
+180,pose_plinthes_carrelage,Pose plinthes carrelage,ml,6.00,12.00,22.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,pose_plinthes_carrelage
+383,pose_plinthe_carrelage,Pose plinthes carrelage,ml,9.00,14.00,19.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_plinthe_carrelage
+382,pose_plinthe_mdf,Pose plinthes MDF,ml,8.00,12.00,16.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_plinthe_mdf
+606,poele_bois_pose,Pose poêle à bois (hors fourniture),forfait,0.00,0.00,0.00,400.00,850.00,1600.00,null,null,0,seed_manual,Hors tubage,false,null,poele_bois_pose
+607,poele_granules_pose,Pose poêle à granulés (hors fourniture),forfait,0.00,0.00,0.00,500.00,1050.00,2100.00,null,null,0,seed_manual,Hors tubage,false,null,poele_granules_pose
+154,poignee_porte,Pose poignée / garniture,unité,20.00,50.00,100.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,poignee_porte
+679,pompe_chaleur_piscine_pose,Pose pompe à chaleur piscine (hors fourniture),forfait,0.00,0.00,0.00,2200.00,3900.00,6800.00,null,null,0,seed_manual,Base,false,null,pompe_chaleur_piscine_pose
+399,pose_pompe_arrosage,Pose pompe arrosage,forfait,0.00,0.00,0.00,195.00,300.00,405.00,null,null,0,seed_manual,Estimation,false,null,pose_pompe_arrosage
+156,portail,Pose portail,forfait,0.00,0.00,0.00,350.00,750.00,1600.00,null,null,0,seed_manual,null,false,null,portail
+385,pose_portail_mo,Pose portail (MO),unité,488.00,750.00,1013.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_portail_mo
+390,pose_portail_coulissant,Pose portail coulissant (MO),unité,618.00,950.00,1282.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_portail_coulissant
+685,porte_coulissante_verre_pose,Pose porte coulissante verre (hors fourniture),unité,300.00,580.00,980.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,porte_coulissante_verre_pose
+158,porte_entree_pose,Pose porte d'entrée (hors fourniture),unité,250.00,420.00,650.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""entree""]",porte
+683,porte_galandage_pose,Pose porte de galandage (hors fourniture),unité,250.00,460.00,780.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,porte_galandage_pose
+160,porte_garage_pose,Pose porte de garage (MO),unité,350.00,650.00,1100.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,true,"[""garage""]",porte
+157,porte_entree,Pose porte entrée,unité,300.00,650.00,1200.00,0.00,0.00,0.00,null,null,0,seed_manual,null,true,"[""entree""]",porte
+305,pose_porte_garage_sectionnelle,Pose porte garage sectionnelle (MO),unité,422.00,650.00,878.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,true,"[""garage""]",pose_porte
+161,porte_int,Pose porte intérieure,unité,120.00,250.00,450.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,porte_int
+162,porte_interieure_pose,Pose porte intérieure (hors fourniture),unité,120.00,190.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,porte_interieure_pose
+418,pose_porte_fenetre_mo,Pose porte-fenêtre (MO),unité,273.00,420.00,567.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_porte_fenetre_mo
+687,placard_coulissant_miroir_pose,Pose portes coulissantes miroir (hors fourniture),unité,200.00,400.00,680.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,placard_coulissant_miroir_pose
+163,porte_placard_pose,Pose portes placard coulissantes,unité,120.00,250.00,450.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,porte_placard_pose
+164,portillon_pose,Pose portillon,unité,180.00,350.00,700.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,portillon_pose
+384,pose_portillon_mo,Pose portillon (MO),unité,208.00,320.00,432.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_portillon_mo
+396,pose_portique,Pose portique/aire de jeu,forfait,0.00,0.00,0.00,228.00,350.00,473.00,null,null,0,seed_manual,Estimation,false,null,pose_portique
+189,prise_pose,Pose prise électrique,unité,45.00,70.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,prise_pose
+633,prise_rj45_pose,Pose prise RJ45 / réseau informatique,unité,40.00,72.00,125.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,prise_rj45_pose
+193,radiateur_pose,Pose radiateur (hors fourniture),unité,120.00,190.00,300.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,radiateur_pose
+22,chauffage_radiateur_pose,Pose radiateur (MO),unité,120.00,220.00,380.00,0.00,0.00,0.00,null,null,0,seed_manual,Eau/élec selon cas,false,null,chauffage_radiateur_pose
+192,radiateur_elec,Pose radiateur électrique,unité,90.00,160.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,radiateur_elec
+610,radiateur_electrique_inertie,Pose radiateur électrique à inertie (hors fourniture),unité,100.00,188.00,320.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,radiateur_electrique_inertie
+611,radiateur_fonte_pose,Pose radiateur fonte (hors fourniture),unité,150.00,290.00,500.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,radiateur_fonte_pose
+407,pose_radiateur_fonte,Pose radiateur fonte (MO),unité,208.00,320.00,432.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_radiateur_fonte
+165,pose_bac_douche,Pose receveur douche,unité,250.00,550.00,1100.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors faïence,false,null,pose_bac_douche
+571,receveur_resine_extra_plat,Pose receveur résine extra-plat,unité,200.00,330.00,520.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,receveur_resine_extra_plat
+954,regard_ep_pose,Pose regard eaux pluviales,unité,150.00,280.00,500.00,0.00,0.00,0.00,null,null,0,seed_manual,Regard béton + grille fonte,false,null,regard_ep_pose
+202,robinet_thermostatique,Pose robinet thermostatique,unité,35.00,70.00,130.00,0.00,0.00,0.00,null,null,0,seed_manual,Par radiateur,false,null,robinet_thermostatique
+570,robinetterie_bain_pose,Pose robinetterie de bain (hors fourniture),unité,120.00,230.00,400.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,robinetterie_bain_pose
+181,pose_ruban_led,Pose ruban LED (pose),ml,8.00,18.00,40.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors alimentation,false,null,pose_ruban_led
+182,pose_seche_serviettes,Pose sèche-serviettes,unité,120.00,220.00,380.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,pose_seche_serviettes
+573,seche_serviette_eau_pose,Pose sèche-serviettes eau chaude (hors fourniture),unité,200.00,360.00,620.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,seche_serviette_eau_pose
+670,serrure_connectee_pose,Pose serrure connectée (hors fourniture),unité,120.00,230.00,420.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,serrure_connectee_pose
+565,siphon_de_sol_pose,Pose siphon de sol (hors fourniture),unité,100.00,175.00,320.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,siphon_de_sol_pose
+208,sol_pvc,Pose sol PVC,m2,12.00,25.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,sol_pvc
+651,sol_pvc_lame_luxe_pose,Pose sol PVC lames luxe clipsées (LVT),m2,18.00,32.00,55.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,sol_pvc_lame_luxe_pose
+186,pose_stratifie,Pose sol stratifié,m2,15.00,25.00,40.00,0.00,0.00,0.00,null,null,0,seed_manual,Pose flottante,false,null,pose_stratifie
+184,pose_soubassement,Pose soubassement / habillage,ml,10.00,25.00,55.00,0.00,0.00,0.00,null,null,0,seed_manual,Découpe/ajustement,false,null,pose_soubassement
+185,pose_spot_encastre,Pose spot encastré,unité,35.00,70.00,140.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors perçage complexe,false,null,pose_spot_encastre
+705,station_relevage_pose,Pose station de relevage eaux usées,forfait,0.00,0.00,0.00,2000.00,3800.00,7000.00,null,null,0,seed_manual,Base,false,null,station_relevage_pose
+209,store_banne_pose,Pose store banne (MO),unité,250.00,550.00,1100.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon support,false,null,store_banne_pose
+420,pose_store_interieur_mo,Pose store intérieur (MO),unité,58.00,90.00,122.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_store_interieur_mo
+210,store_velux_pose,Pose store Velux,unité,60.00,120.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,store_velux_pose
+168,pose_baignoire_tabliers,Pose tablier baignoire,unité,60.00,140.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,Finition,false,null,pose_baignoire_tabliers
+650,terrazzo_coule_pose,Pose terrazzo coulé in situ,m2,70.00,115.00,168.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,terrazzo_coule_pose
+218,thermostat_pose,Pose thermostat (MO),unité,80.00,160.00,280.00,0.00,0.00,0.00,null,null,0,seed_manual,Filaire ou radio,false,null,thermostat_pose
+615,thermostat_connecte_pose,Pose thermostat connecté (hors fourniture),unité,80.00,155.00,290.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,thermostat_connecte_pose
+220,toile_verre,Pose toile de verre,m2,18.00,30.00,55.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,toile_verre
+697,trappe_acces_combles_isolee,Pose trappe accès combles isolée,unité,200.00,400.00,680.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""combles""]",trappe_acces
+684,verriere_interieure_pose,Pose vérière intérieure acier / verre,m2,400.00,680.00,1150.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,verriere_interieure_pose
+187,pose_verrou,Pose verrou / targette,unité,30.00,70.00,140.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_verrou
+278,volet_battant_pose,Pose volet battant (MO),unité,104.00,160.00,216.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,volet_battant_pose
+231,volet,Pose volet roulant (main d'œuvre seule),unité,80.00,115.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors fourniture,false,null,volet
+419,pose_volet_roulant_solaire_mo,Pose volet roulant solaire (MO),unité,143.00,220.00,297.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_volet_roulant_solaire_mo
+13,bornes_recharge_wallbox,Pose wallbox (MO),forfait,0.00,0.00,0.00,450.00,900.00,1800.00,null,null,0,seed_manual,Hors matériel/longueurs,false,null,bornes_recharge_wallbox
+233,wc,Pose WC,unité,180.00,350.00,650.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,wc
+560,wc_broyeur_pose,Pose WC broyeur (hors fourniture),unité,200.00,360.00,580.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,wc_broyeur_pose
+235,wc_suspendu,Pose WC suspendu,unité,350.00,650.00,1200.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,wc_suspendu
+393,pose_terrassement_pavage,Préparation support pavage,m2,23.00,35.00,47.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,true,"[""exterieur""]",pose
+824,prise_rj45_cat6,Prise RJ45 Cat 6 (fourni+posé),unite,40.00,70.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,prise_rj45_cat6
+590,ouate_cellulose_projection,Projection ouate de cellulose,m2,25.00,42.00,65.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,false,null,ouate_cellulose_projection
+190,protection_chantier,Protection chantier,forfait,0.00,0.00,0.00,80.00,150.00,300.00,null,null,0,seed_manual,null,false,null,protection_chantier
+191,purge_radiateurs,Purge/réglage radiateurs,forfait,0.00,0.00,0.00,60.00,120.00,240.00,null,null,0,seed_manual,Chauffage eau,false,null,purge_radiateurs
+285,installation_lave_linge,Raccordement lave-linge,unité,66.00,110.00,154.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,installation_lave_linge
+284,installation_lave_vaisselle,Raccordement lave-vaisselle,unité,72.00,120.00,168.00,0.00,0.00,0.00,null,null,0,seed_manual,Cuisine,false,null,installation_lave_vaisselle
+296,portail_motorisation_raccord,Raccordement motorisation portail,forfait,0.00,0.00,0.00,125.00,250.00,375.00,null,null,0,seed_manual,Selon distance,false,null,portail_motorisation_raccord
+704,raccordement_reseau_assainissement,Raccordement réseau public assainissement,forfait,0.00,0.00,0.00,2000.00,4200.00,8500.00,null,null,0,seed_manual,Base,false,null,raccordement_reseau_assainissement
+36,cuisine_electricite,Raccordements électricité cuisine,forfait,0.00,0.00,0.00,120.00,300.00,700.00,null,null,0,seed_manual,Four/plaques/hotte,false,null,cuisine_electricite
+37,cuisine_plomberie,Raccordements plomberie cuisine,forfait,0.00,0.00,0.00,120.00,300.00,650.00,null,null,0,seed_manual,Évier/lave-vaisselle,false,null,cuisine_plomberie
+441,radiateur_fourniture_pose,Radiateur (fourni+posé),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Selon gamme,false,null,radiateur_fourniture_pose
+909,rafraichissement_peinture,Rafraîchissement peinture appartement,m2,15.00,28.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,Murs + plafonds,false,null,rafraichissement_peinture
+194,ragreage,Ragréage,m2,10.00,20.00,40.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,ragreage
+435,pose_reagreage_30m2,Ragréage 30m²,forfait,0.00,0.00,0.00,422.00,650.00,878.00,null,null,0,seed_manual,Estimation,false,null,pose_reagreage_30m2
+195,reagr_pp_ragreage_autolissant,Ragréage autolissant (plus),m2,18.00,30.00,55.00,0.00,0.00,0.00,null,null,0,seed_manual,Épaisseur/planéité,false,null,reagr_pp_ragreage_autolissant
+840,ragréage_autonivelant,Ragréage autonivelant chape liquide,m2,12.00,22.00,35.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 5-10 mm,false,null,ragréage_autonivelant
+352,ramonage_chantier_difficile,Ramonage (chantier difficile),forfait,0.00,0.00,0.00,58.00,117.00,176.00,null,null,0,seed_manual,Estimation,false,null,ramonage_chantier_difficile
+350,ramonage_complexe,Ramonage (complexe),forfait,0.00,0.00,0.00,56.00,112.00,169.00,null,null,0,seed_manual,Estimation,false,null,ramonage_complexe
+349,ramonage_standard,Ramonage (standard),forfait,0.00,0.00,0.00,45.00,90.00,135.00,null,null,0,seed_manual,Estimation,false,null,ramonage_standard
+351,ramonage_urgence,Ramonage (urgence),forfait,0.00,0.00,0.00,61.00,122.00,182.00,null,null,0,seed_manual,Estimation,false,null,ramonage_urgence
+892,rampe_bois_metal,Rampe bois + métal (fourni+posé),ml,120.00,220.00,400.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,rampe_bois_metal
+262,ravalement_facade,Ravalement façade (enduit + peinture),m2,62.00,95.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon état,false,null,ravalement_facade
+549,ravalement_facade_complet,Ravalement façade complet (nettoyage+enduit),m2,38.00,65.00,98.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors échafaudage,false,null,ravalement_facade_complet
+752,ravalement_facade_peinture,Ravalement façade peinture minérale,m2,25.00,42.00,65.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,ravalement_facade_peinture
+108,maconnerie_rebouchage,Rebouchage / reprise maçonnerie,m2,15.00,35.00,80.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,maconnerie_rebouchage
+762,receveur_douche_custom,Receveur douche sur mesure résine/pierre,unite,450.00,750.00,1200.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,receveur_douche_custom
+918,joint_carrelage_renovation,Réfection joints carrelage,m2,10.00,18.00,30.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,joint_carrelage_renovation
+553,regard_beton_visite,Regard en béton préfabriqué,unité,300.00,550.00,900.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,regard_beton_visite
+520,regulation_clim_multizone,Régulation clim gainable multizone (SHOGUN / zone control),unité,1500.00,3000.00,5500.00,0.00,0.00,0.00,null,null,0,seed_manual,"Par zone de régulation - système SHOGUN, Daikin, Atlantic",false,null,regulation_clim_multizone
+471,piscine_regulation_ph,Régulation pH automatique (pose),forfait,0.00,0.00,0.00,270.00,450.00,630.00,null,null,0,seed_manual,Hors appareil,false,null,piscine_regulation_ph
+957,anc_rehabilitation_complete,Réhabilitation complète ANC (étude + terrassement + cuve + filière + raccords + remise en état),forfait,0.00,0.00,0.00,14000.00,19000.00,25000.00,null,null,0,seed_manual,Maison individuelle 4-6 pièces. Hors électricité poste relèvement.,false,null,null
+247,remblaiement_piscine,Remblaiement/compactage autour piscine,m3,15.00,30.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,Grave/compactage,false,null,remblaiement_piscine
+699,canalisation_plomb_remplacement,Remplacement canalisations plomb,ml,40.00,82.00,145.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,canalisation_plomb_remplacement
+612,chaudiere_condensation_rempl,Remplacement chaudière condensation gaz,forfait,0.00,0.00,0.00,2000.00,3200.00,5200.00,null,null,0,seed_manual,MO + raccordement,false,null,chaudiere_condensation_rempl
+613,chaudiere_fioul_remplacement,Remplacement chaudière fioul,forfait,0.00,0.00,0.00,2500.00,4200.00,7000.00,null,null,0,seed_manual,MO + raccordement,false,null,chaudiere_fioul_remplacement
+38,cumulus,Remplacement chauffe-eau,forfait,0.00,0.00,0.00,650.00,1100.00,1900.00,null,null,0,seed_manual,null,false,null,cumulus
+23,chauffe_eau_remplacement,Remplacement chauffe-eau (pose),unité,350.00,520.00,800.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,chauffe_eau_remplacement
+700,colonne_fonte_remplacement,Remplacement colonne fonte en PVC,ml,60.00,115.00,188.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,colonne_fonte_remplacement
+538,faitage_remplacement,Remplacement faîtage + solin,ml,28.00,48.00,75.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,faitage_remplacement
+159,porte_galet,Remplacement galets porte coulissante,unité,40.00,90.00,180.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,porte_galet
+707,groupe_securite_cumulus,Remplacement groupe de sécurité cumulus,unité,80.00,145.00,250.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,groupe_securite_cumulus
+274,parquet_reparation_lame,Remplacement lame parquet (unité),unité,34.00,85.00,136.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon accès,false,null,parquet_reparation_lame
+459,piscine_liner_remplacement,Remplacement liner piscine,forfait,0.00,0.00,0.00,1820.00,2800.00,3780.00,null,null,0,seed_manual,Selon dimensions,false,null,piscine_liner_remplacement
+114,moteur_volet_roulant_remplacement,Remplacement moteur volet roulant,unité,220.00,350.00,520.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,moteur_volet_roulant_remplacement
+117,onduleur_photovoltaique,Remplacement onduleur photovoltaïque,forfait,0.00,0.00,0.00,900.00,1400.00,2200.00,null,null,0,seed_manual,RGE,false,null,onduleur_photovoltaique
+616,pompe_circulatrice_remplacement,Remplacement pompe circulatrice chauffage,unité,250.00,420.00,680.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,pompe_circulatrice_remplacement
+464,piscine_pompe_remplacement,Remplacement pompe piscine (MO),forfait,0.00,0.00,0.00,193.00,350.00,508.00,null,null,0,seed_manual,Hors pompe,false,null,piscine_pompe_remplacement
+820,remplacement_radiateur_acier,Remplacement radiateur acier (fourni+posé),unite,200.00,380.00,700.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,remplacement_radiateur_acier
+201,robinet_remplacement,Remplacement robinet / mitigeur (pose),unité,80.00,130.00,210.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,robinet_remplacement
+618,robinets_thermostatiques_lot,Remplacement robinets thermostatiques (lot complet),forfait,0.00,0.00,0.00,300.00,620.00,1150.00,null,null,0,seed_manual,Base,false,null,robinets_thermostatiques_lot
+203,sangle_volet_roulant_remplacement,Remplacement sangle / manivelle volet,unité,70.00,110.00,170.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,sangle_volet_roulant_remplacement
+205,serrure_remplacement,Remplacement serrure (standard),unité,120.00,190.00,320.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,serrure_remplacement
+196,remplacement_siphon,Remplacement siphon,unité,40.00,80.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,remplacement_siphon
+211,tableau_elec,Remplacement tableau,forfait,0.00,0.00,0.00,600.00,1300.00,2000.00,null,null,0,seed_manual,null,false,null,tableau_elec
+212,tableau_electrique_remplacement,Remplacement tableau électrique (hors fourniture),forfait,0.00,0.00,0.00,650.00,950.00,1400.00,null,null,0,seed_manual,Base,false,null,tableau_electrique_remplacement
+213,tablier_volet,Remplacement tablier,unité,250.00,350.00,450.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,tablier_volet
+214,tablier_volet_roulant_remplacement,Remplacement tablier volet roulant (fourniture+pose),unité,220.00,340.00,500.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,tablier_volet_roulant_remplacement
+197,remplacement_vanne,Remplacement vanne/robinet d'arrêt,unité,40.00,90.00,180.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,remplacement_vanne
+198,remplacement_vitrage,Remplacement vitrage,unité,120.00,260.00,480.00,0.00,0.00,0.00,null,null,0,seed_manual,Dimensions/épaisseur,false,null,remplacement_vitrage
+226,vitrage_remplacement,Remplacement vitrage (simple intervention),unité,120.00,210.00,350.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,vitrage_remplacement
+234,wc_remplacement,Remplacement WC (pose),unité,180.00,280.00,420.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,wc_remplacement
+283,remplacement_wc_broyeur,Remplacement WC broyeur (pose),unité,338.00,520.00,702.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors achat,true,"[""wc""]",remplacement
+698,balustrade_renovation,Rénovation balustrade / rampe d'escalier,ml,80.00,165.00,320.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,balustrade_renovation
+901,colonne_plomberie_renovation,Rénovation colonne plomberie immeuble,ml,120.00,220.00,380.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,colonne_plomberie_renovation
+479,renovation_complete_120m2,Rénovation complète 120m² (MO),forfait,0.00,0.00,0.00,27300.00,42000.00,56700.00,null,null,0,seed_manual,Tous corps d'état,false,null,renovation_complete_120m2
+477,renovation_complete_50m2,Rénovation complète 50m² (MO),forfait,0.00,0.00,0.00,11700.00,18000.00,24300.00,null,null,0,seed_manual,Tous corps d'état,false,null,renovation_complete_50m2
+478,renovation_complete_80m2,Rénovation complète 80m² (MO),forfait,0.00,0.00,0.00,18200.00,28000.00,37800.00,null,null,0,seed_manual,Tous corps d'état,false,null,renovation_complete_80m2
+905,renovation_complete_f2,Rénovation complète F2 ≤50 m²,m2,500.00,850.00,1500.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors cuisine+SDB,false,null,renovation_complete_f2
+906,renovation_complete_f3,Rénovation complète F3 ≤80 m²,m2,450.00,780.00,1400.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors cuisine+SDB,false,null,renovation_complete_f3
+907,renovation_complete_maison,Rénovation complète maison ≤120 m²,m2,400.00,700.00,1300.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors cuisine+SDB,false,null,renovation_complete_maison
+709,renovation_complete_studio,Rénovation complète studio 25-35 m²,forfait,0.00,0.00,0.00,15000.00,26000.00,42000.00,null,null,0,seed_manual,Hors fourniture mobilier,false,null,renovation_complete_studio
+710,renovation_complete_t2,Rénovation complète T2 50-60 m²,forfait,0.00,0.00,0.00,26000.00,42000.00,68000.00,null,null,0,seed_manual,Hors fourniture mobilier,false,null,renovation_complete_t2
+711,renovation_complete_t3,Rénovation complète T3 70-90 m²,forfait,0.00,0.00,0.00,42000.00,68000.00,110000.00,null,null,0,seed_manual,Hors fourniture mobilier,false,null,renovation_complete_t3
+712,renovation_complete_t4,Rénovation complète T4 100-120 m²,forfait,0.00,0.00,0.00,62000.00,100000.00,160000.00,null,null,0,seed_manual,Hors fourniture mobilier,false,null,renovation_complete_t4
+332,renovation_cuisine_chantier_difficile,Rénovation cuisine (chantier difficile),forfait,0.00,0.00,0.00,6630.00,11050.00,15470.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",renovation
+330,renovation_cuisine_complexe,Rénovation cuisine (complexe),forfait,0.00,0.00,0.00,6375.00,10625.00,14875.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",renovation
+329,renovation_cuisine_standard,Rénovation cuisine (standard),forfait,0.00,0.00,0.00,5100.00,8500.00,11900.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",renovation
+331,renovation_cuisine_urgence,Rénovation cuisine (urgence),forfait,0.00,0.00,0.00,6885.00,11475.00,16065.00,null,null,0,seed_manual,Estimation,true,"[""cuisine""]",renovation
+585,cuisine_renovation_petite,Rénovation cuisine complète < 8 m²,forfait,0.00,0.00,0.00,8000.00,14000.00,26000.00,null,null,0,seed_manual,Hors électroménager,false,null,cuisine_renovation_petite
+586,cuisine_renovation_grande,Rénovation cuisine complète > 12 m²,forfait,0.00,0.00,0.00,14000.00,26000.00,48000.00,null,null,0,seed_manual,Hors électroménager,false,null,cuisine_renovation_grande
+271,renovation_elec_complete_80m2,Rénovation électricité complète 80m²,forfait,0.00,0.00,0.00,4225.00,6500.00,8775.00,null,null,0,seed_manual,Tableau+circuits,false,null,renovation_elec_complete_80m2
+713,renovation_energetique_globale,Rénovation énergétique globale maison,forfait,0.00,0.00,0.00,30000.00,65000.00,110000.00,null,null,0,seed_manual,ITE+PAC+VMC+Fenêtres,false,null,renovation_energetique_globale
+460,piscine_renovation_etancheite,Rénovation étanchéité piscine,forfait,0.00,0.00,0.00,2925.00,4500.00,6075.00,null,null,0,seed_manual,null,false,null,piscine_renovation_etancheite
+272,renovation_plomberie_sdb,Rénovation plomberie SDB (pose),forfait,0.00,0.00,0.00,1170.00,1800.00,2430.00,null,null,0,seed_manual,Hors fournitures,true,"[""sdb""]",renovation_plomberie
+328,renovation_salle_de_bain_chantier_difficile,Rénovation salle de bain (chantier difficile),forfait,0.00,0.00,0.00,5070.00,8450.00,11830.00,null,null,0,seed_manual,Estimation,true,"[""sdb""]",renovation
+326,renovation_salle_de_bain_complexe,Rénovation salle de bain (complexe),forfait,0.00,0.00,0.00,4875.00,8125.00,11375.00,null,null,0,seed_manual,Estimation,true,"[""sdb""]",renovation
+325,renovation_salle_de_bain_standard,Rénovation salle de bain (standard),forfait,0.00,0.00,0.00,3900.00,6500.00,9100.00,null,null,0,seed_manual,Estimation,true,"[""sdb""]",renovation
+327,renovation_salle_de_bain_urgence,Rénovation salle de bain (urgence),forfait,0.00,0.00,0.00,5265.00,8775.00,12285.00,null,null,0,seed_manual,Estimation,true,"[""sdb""]",renovation
+563,sdb_renovation_petite,Rénovation SDB complète < 5 m²,forfait,0.00,0.00,0.00,6000.00,10000.00,17000.00,null,null,0,seed_manual,Hors fourniture,false,null,sdb_renovation_petite
+564,sdb_renovation_grande,Rénovation SDB complète > 8 m²,forfait,0.00,0.00,0.00,10000.00,17500.00,30000.00,null,null,0,seed_manual,Hors fourniture,false,null,sdb_renovation_grande
+416,reparation_fissure_facade,Réparation fissure façade,ml,26.00,40.00,54.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,reparation_fissure_facade
+267,gouttiere_reparation,Réparation gouttière,forfait,0.00,0.00,0.00,72.00,180.00,288.00,null,null,0,seed_manual,Selon accès,false,null,gouttiere_reparation
+232,volet_roulant_reparation,Réparation volet roulant (petite panne),unité,80.00,140.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,volet_roulant_reparation
+236,zinguerie_reparation,Réparation zinguerie,forfait,0.00,0.00,0.00,150.00,350.00,900.00,null,null,0,seed_manual,Selon accès,false,null,zinguerie_reparation
+556,micropieux_reprise_oeuvre,Reprise en sous-œuvre micropieux,unité,600.00,1100.00,2000.00,0.00,0.00,0.00,null,null,0,seed_manual,Par micropieu,false,null,micropieux_reprise_oeuvre
+497,reprise_enduit_interieur,Reprise enduit intérieur,m2,21.00,35.00,49.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,reprise_enduit_interieur
+945,enrobe_avec_fraisage,Reprise enrobé avec fraisage,m2,45.00,75.00,120.00,300.00,600.00,1200.00,null,null,0,seed_manual,Dépose ancien enrobé + repose,false,null,enrobe_avec_fraisage
+701,reprise_evacuation_pvc,Reprise évacuation PVC (rénovation),ml,25.00,52.00,92.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,reprise_evacuation_pvc
+199,reprise_fissures,Reprise fissures / microfissures,m2,4.00,10.00,22.00,0.00,0.00,0.00,null,null,0,seed_manual,Avant finition,false,null,reprise_fissures
+761,reprise_fissures_facade,Reprise fissures façade injection,ml,20.00,40.00,70.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,reprise_fissures_facade
+498,reprise_platre,Reprise plâtre,m2,24.00,40.00,56.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,reprise_platre
+152,plomberie_soudure,Reprise tuyauterie / soudure,point,25.00,55.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,Par point,false,null,plomberie_soudure
+896,alimentation_eau_froide_chaude,Réseau alimentation EF/EC (fourni+posé),ml,40.00,70.00,110.00,0.00,0.00,0.00,null,null,0,seed_manual,Multicouche,false,null,alimentation_eau_froide_chaude
+818,reseau_gaines_vmc,Réseau de gaines VMC (fourni+posé),ml,20.00,35.00,55.00,0.00,0.00,0.00,null,null,0,seed_manual,Gaine Ø125,false,null,reseau_gaines_vmc
+637,resine_epoxy_sol,Résine époxy sol lissé,m2,30.00,58.00,95.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,resine_epoxy_sol
+789,revetement_sol_vinyle_haut,Revêtement sol vinyle haut de gamme LVT,m2,30.00,55.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,Cliclé 5mm,false,null,revetement_sol_vinyle_haut
+252,rideau_piscine,Rideau piscine (motorisé) fourni+posé,forfait,0.00,0.00,0.00,4550.00,6500.00,8450.00,null,null,0,seed_manual,Alternative volet,false,null,rideau_piscine
+439,robinet_exterieur_fourniture_pose,Robinet extérieur (fourni+posé),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Selon gamme,true,"[""exterieur""]",robinet
+786,robinetterie_cuisine_haut_de_gamme,Robinetterie cuisine haut de gamme (fourni+posé),unite,250.00,450.00,900.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""cuisine""]",robinetterie
+894,robinetterie_sanitaire_pose,Robinetterie sanitaire (fourni+posé),unite,150.00,280.00,550.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,robinetterie_sanitaire_pose
+774,robinetterie_thermostatique,Robinetterie thermostatique (fourni+posé),unite,200.00,380.00,750.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,robinetterie_thermostatique
+256,robot_piscine,Robot piscine (mise en service),forfait,0.00,0.00,0.00,60.00,120.00,180.00,null,null,0,seed_manual,Hors achat robot,false,null,robot_piscine
+72,electricite_saignes,Saignées / rebouchage (élec),ml,6.00,14.00,28.00,0.00,0.00,0.00,null,null,0,seed_manual,Murs durs = plus cher,false,null,electricite_saignes
+237,sav_pompe,SAV / remplacement pompe piscine,forfait,0.00,0.00,0.00,250.00,700.00,1600.00,null,null,0,seed_manual,Pompe piscine (SAV) : déplacement + MO + petites fournitures,false,null,sav_pompe
+770,sèche_serviette_electrique,Sèche-serviette électrique (fourni+posé),unite,250.00,420.00,750.00,0.00,0.00,0.00,null,null,0,seed_manual,Avec radiateur d'appoint,false,null,sèche_serviette_electrique
+440,seche_serviettes_fourniture_pose,Sèche-serviettes (fourni+posé),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Selon gamme,false,null,seche_serviettes_fourniture_pose
+206,serrurerie_taux_horaire,Serrurier (taux horaire),heure,45.00,80.00,130.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors pièces,false,null,serrurerie_taux_horaire
+207,seuils_barres,Seuils / barres de jonction,unité,8.00,18.00,35.00,0.00,0.00,0.00,null,null,0,seed_manual,Par seuil,false,null,seuils_barres
+462,piscine_skimmer,Skimmer piscine (pose),unité,168.00,280.00,392.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,piscine_skimmer
+423,pose_skylight,Skylight/lanterneau (pose),unité,585.00,900.00,1215.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_skylight
+653,sol_beton_poli,Sol béton poli (meulage + cire),m2,30.00,55.00,90.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,sol_beton_poli
+381,pose_resine_sol,Sol résine (application),m2,58.00,90.00,122.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_resine_sol
+492,isolation_combles_soufflage,Soufflage combles (MO),m2,14.00,22.00,30.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,true,"[""combles""]",isolation
+589,soufflage_laine_combles_perdus,Soufflage laine soufflée combles perdus,m2,20.00,35.00,56.00,0.00,0.00,0.00,null,null,0,seed_manual,RGE,true,"[""combles""]",soufflage_laine
+499,pose_sous_couche_sol,Sous-couche sol (pose),m2,4.00,8.00,12.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,pose_sous_couche_sol
+487,pose_store_banne_global,Store banne (fourni+posé),forfait,0.00,0.00,0.00,1610.00,2300.00,2990.00,null,null,0,seed_manual,null,false,null,pose_store_banne_global
+663,store_coffre_motorise,Store banne coffre motorisé (fourni+posé),unité,1200.00,2100.00,3800.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,store_coffre_motorise
+850,store_exterieur_banne,Store extérieur banne (fourni+posé),unite,800.00,1500.00,3000.00,0.00,0.00,0.00,null,null,0,seed_manual,L=3m motorisé,true,"[""exterieur""]",store
+857,stuc_venitien,Stuc vénitien (fourni+posé),m2,60.00,100.00,160.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,stuc_venitien
+717,surelevation_maison,Surélévation maison,m2,1200.00,2300.00,3800.00,0.00,0.00,0.00,null,null,0,seed_manual,Surface créée,false,null,surelevation_maison
+620,alarme_intrusion_filaire,Système alarme intrusion filaire (fourni+posé),forfait,0.00,0.00,0.00,1400.00,2600.00,4800.00,null,null,0,seed_manual,Base,false,null,alarme_intrusion_filaire
+619,alarme_intrusion_sans_fil,Système alarme intrusion sans fil (fourni+posé),forfait,0.00,0.00,0.00,900.00,1650.00,3100.00,null,null,0,seed_manual,Base,false,null,alarme_intrusion_sans_fil
+675,arrosage_automatique_gazon,Système arrosage automatique gazon,forfait,0.00,0.00,0.00,1000.00,1900.00,3800.00,null,null,0,seed_manual,Base,false,null,arrosage_automatique_gazon
+832,systeme_controle_acces,Système contrôle d'accès badge/code,unite,600.00,1200.00,2500.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,systeme_controle_acces
+726,etancheite_sdb,Système étanchéité salle de bains (SPEC),m2,15.00,28.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,"Fourniture seule : membrane, primaire, bande. Weber, Schluter ou équivalent",true,"[""sdb""]",etancheite
+822,tableau_electrique_neuf,Tableau électrique neuf (fourni+posé),unite,600.00,1100.00,2000.00,0.00,0.00,0.00,null,null,0,seed_manual,Jusqu'à 12 circuits,false,null,tableau_electrique_neuf
+515,tableau_electrique_piscine,Tableau électrique piscine (fourniture + pose),forfait,0.00,0.00,0.00,300.00,600.00,1200.00,null,null,0,seed_manual,Base,false,null,tableau_electrique_piscine
+858,tadelakt_mur,Tadelakt mur (fourni+posé),m2,70.00,120.00,190.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,tadelakt_mur
+103,jardin_taille_haie,Taille de haie,ml,5.00,12.00,25.00,0.00,0.00,0.00,null,null,0,seed_manual,Évacuation en sus,false,null,jardin_taille_haie
+215,terrasse_bois,Terrasse bois,m2,45.00,80.00,140.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,terrasse_bois
+872,terrasse_bois_composite,Terrasse bois composite (fourni+posé),m2,50.00,90.00,150.00,0.00,0.00,0.00,null,null,0,seed_manual,Ep. 23 mm,false,null,terrasse_bois_composite
+672,terrasse_carrelage_exterieur,Terrasse carrelage extérieur grand format,m2,55.00,92.00,148.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,true,"[""exterieur""]",terrasse_carrelage
+307,terrasse_composite,Terrasse composite,m2,77.00,110.00,143.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,terrasse_composite
+671,terrasse_composite_pose,Terrasse composite lames (fourni+posé),m2,45.00,78.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,terrasse_composite_pose
+216,terrasse_dalle,Terrasse dalles,m2,35.00,70.00,130.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,terrasse_dalle
+217,terrassement,Terrassement (léger),m3,30.00,55.00,100.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,terrassement
+755,terrassement_fouilles,Terrassement fouilles en rigole,m3,25.00,45.00,70.00,0.00,0.00,0.00,null,null,0,seed_manual,Base mécanisé,false,null,terrassement_fouilles
+866,terrassement_jardin,Terrassement jardin / nivellement terrain,m2,10.00,18.00,30.00,0.00,0.00,0.00,null,null,0,seed_manual,Base mécanisé,true,"[""exterieur""]",terrassement
+245,terrassement_piscine,Terrassement piscine (excavation),m3,22.00,45.00,68.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon accès/sol,false,null,terrassement_piscine
+963,anc_terrassement_fouilles,Terrassement spécifique ANC (fouilles cuve + tranchées épandage),forfait,0.00,0.00,0.00,2200.00,3500.00,5500.00,null,null,0,seed_manual,Évacuation terres incluse. Hors rocher.,false,null,null
+836,terrazzo_sol,Terrazzo sol (fourni+posé),m2,90.00,145.00,220.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,terrazzo_sol
+504,piscine_test_eau,Test eau piscine + conseil,forfait,0.00,0.00,0.00,30.00,60.00,90.00,null,null,0,seed_manual,Entretien,false,null,piscine_test_eau
+219,tirage_ligne,Tirage ligne dédiée (four/LL),unité,90.00,170.00,320.00,0.00,0.00,0.00,null,null,0,seed_manual,Tableau accessible,false,null,tirage_ligne
+861,toile_de_verre_peinture,Toile de verre + peinture (fourni+posé),m2,15.00,28.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,toile_de_verre_peinture
+222,toiture_demoussage,Toiture - démoussage + traitement,m2,12.00,22.00,45.00,0.00,0.00,0.00,null,null,0,seed_manual,Hydrofuge en sus,false,null,toiture_demoussage
+223,toiture_nettoyage,Toiture - nettoyage,m2,8.00,15.00,30.00,0.00,0.00,0.00,null,null,0,seed_manual,Démoussage simple,false,null,toiture_nettoyage
+221,toiture,Toiture - réfection complète,m2,100.00,160.00,260.00,0.00,0.00,0.00,null,null,0,seed_manual,null,false,null,toiture
+224,toiture_reparation,Toiture - réparation,forfait,0.00,0.00,0.00,250.00,600.00,1500.00,null,null,0,seed_manual,null,false,null,toiture_reparation
+541,toiture_vegetalisee_extensive,Toiture végétalisée extensive,m2,60.00,100.00,155.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors structure renforce,false,null,toiture_vegetalisee_extensive
+643,anti_humidite_produit_murs,Traitement anti-humidité produit injectés murs,m2,12.00,24.00,42.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,anti_humidite_produit_murs
+514,traitement_automatique_piscine,Traitement automatique piscine (régulateur pH/chlore),forfait,0.00,0.00,0.00,1200.00,2800.00,5000.00,null,null,0,seed_manual,Base,false,null,traitement_automatique_piscine
+266,traitement_charpente_curatif,Traitement charpente (curatif),m2,27.00,45.00,63.00,0.00,0.00,0.00,null,null,0,seed_manual,Xylophages,false,null,traitement_charpente_curatif
+265,charpente_traitement,Traitement charpente (préventif),m2,15.00,25.00,35.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon accessibilité,false,null,charpente_traitement
+225,traitement_humidite,Traitement humidité (localisé),forfait,0.00,0.00,0.00,250.00,700.00,2000.00,null,null,0,seed_manual,Diagnostic conseillé,false,null,traitement_humidite
+413,traitement_humidite_injection,Traitement humidité par injection,ml,42.00,65.00,88.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,traitement_humidite_injection
+542,traitement_hydrofuge_toiture,Traitement hydrofuge / imperméabilisant toiture,m2,8.00,15.00,26.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,traitement_hydrofuge_toiture
+842,traitement_parquet_vitrification,Traitement parquet vitrification,m2,10.00,18.00,28.00,0.00,0.00,0.00,null,null,0,seed_manual,Ponçage + 2 couches,false,null,traitement_parquet_vitrification
+804,traitement_pont_thermique,Traitement pont thermique (rupture de pont),ml,25.00,45.00,70.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,traitement_pont_thermique
+569,bain_douche_conversion,Transformation baignoire en douche italienne,forfait,0.00,0.00,0.00,800.00,1600.00,3000.00,null,null,0,seed_manual,Hors carrelage neuf,false,null,bain_douche_conversion
+609,tubage_cheminee_inox,Tubage cheminée flexible inox,ml,45.00,78.00,128.00,0.00,0.00,0.00,null,null,0,seed_manual,Flexible ou rigide,false,null,tubage_cheminee_inox
+519,tubage_conduit_cheminee,Tubage conduit cheminée (fourniture + pose),ml,80.00,150.00,280.00,200.00,400.00,800.00,null,null,0,seed_manual,Inox double peau,false,null,tubage_conduit_cheminee
+814,conduit_de_fumee_tubage,Tubage conduit de fumée inox,ml,80.00,130.00,200.00,0.00,0.00,0.00,null,null,0,seed_manual,Ø 150 mm,false,null,conduit_de_fumee_tubage
+437,vasque_fourniture_pose,Vasque (fourni+posé),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Selon gamme,false,null,vasque_fourniture_pose
+738,velux_pose,Velux / fenêtre de toit (fourni+posé),unite,350.00,550.00,850.00,0.00,0.00,0.00,null,null,0,seed_manual,Standard GGL/GGU,false,null,velux_pose
+539,velux_fourniture_pose,Velux fourni + posé (GGL/GGU standard),unité,900.00,1400.00,2200.00,0.00,0.00,0.00,null,null,0,seed_manual,Fourniture incluse,false,null,velux_fourniture_pose
+422,pose_velux_fourniture_pose,Velux fourni+posé,unité,910.00,1400.00,1890.00,0.00,0.00,0.00,null,null,0,seed_manual,Estimation,false,null,pose_velux_fourniture_pose
+787,ventilation_hotte_conduit,Ventilation hotte par conduit,unite,200.00,350.00,600.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors hotte,false,null,ventilation_hotte_conduit
+665,veranda_alu_creation,Véranda aluminium création,m2,500.00,820.00,1350.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,veranda_alu_creation
+791,verriere_cuisine,Verrière cuisine / cloison vitrée (fourni+posé),m2,250.00,450.00,750.00,0.00,0.00,0.00,null,null,0,seed_manual,Acier + verre,true,"[""cuisine""]",verriere
+883,verriere_interieure,Verrière intérieure (fourni+posé),m2,250.00,450.00,750.00,0.00,0.00,0.00,null,null,0,seed_manual,Acier + verre,false,null,verriere_interieure
+722,vidange_fosse_septique,Vidange fosse septique,forfait,0.00,0.00,0.00,150.00,295.00,520.00,null,null,0,seed_manual,Base,false,null,vidange_fosse_septique
+295,interphone_video,Visiophone (pose),forfait,0.00,0.00,0.00,270.00,450.00,630.00,null,null,0,seed_manual,Hors matériel,false,null,interphone_video
+228,vmc_double_flux,VMC double flux,forfait,0.00,0.00,0.00,2500.00,4000.00,6500.00,null,null,0,seed_manual,RGE,false,null,vmc_double_flux
+344,pose_vmc_hygro_b_chantier_difficile,VMC hygro B (chantier difficile),forfait,0.00,0.00,0.00,1098.00,1690.00,2282.00,null,null,0,seed_manual,Estimation,false,null,pose_vmc_hygro_b_chantier_difficile
+342,pose_vmc_hygro_b_complexe,VMC hygro B (complexe),forfait,0.00,0.00,0.00,1056.00,1625.00,2194.00,null,null,0,seed_manual,Estimation,false,null,pose_vmc_hygro_b_complexe
+341,pose_vmc_hygro_b_standard,VMC hygro B (standard),forfait,0.00,0.00,0.00,845.00,1300.00,1755.00,null,null,0,seed_manual,Estimation,false,null,pose_vmc_hygro_b_standard
+343,pose_vmc_hygro_b_urgence,VMC hygro B (urgence),forfait,0.00,0.00,0.00,1141.00,1755.00,2369.00,null,null,0,seed_manual,Estimation,false,null,pose_vmc_hygro_b_urgence
+775,ventilation_vmc_sdb,VMC SDB simple flux (fourni+posé),unite,350.00,600.00,1000.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors réseau gainerie,true,"[""sdb""]",ventilation_vmc
+230,vmc_simple_flux,VMC simple flux,forfait,0.00,0.00,0.00,600.00,900.00,1400.00,null,null,0,seed_manual,RGE,false,null,vmc_simple_flux
+227,vmc,VMC simple flux,forfait,0.00,0.00,0.00,600.00,900.00,1300.00,null,null,0,seed_manual,null,false,null,vmc
+660,volet_alu_battant_fourniture,Volet aluminium battant (fourni+posé),unité,350.00,600.00,980.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,volet_alu_battant_fourniture
+852,volet_battant_bois,Volet battant bois (fourni+posé),unite,300.00,550.00,950.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,volet_battant_bois
+279,volet_battant_fourniture_pose,Volet battant fourni+posé,unité,364.00,520.00,676.00,0.00,0.00,0.00,null,null,0,seed_manual,Selon modèle,false,null,volet_battant_fourniture_pose
+659,volet_bois_battant_fourniture,Volet bois battant (fourni+posé),unité,250.00,430.00,700.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,volet_bois_battant_fourniture
+506,volet_roulant_fourniture_pose,Volet roulant (fourni+pose),unité,500.00,950.00,1600.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,volet_roulant_fourniture_pose
+851,volet_roulant_electrique,Volet roulant électrique (fourni+posé),unite,500.00,900.00,1600.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,volet_roulant_electrique
+251,volet_roulant_piscine,Volet roulant piscine (fourni+posé),forfait,0.00,0.00,0.00,6375.00,8500.00,10625.00,null,null,0,seed_manual,Selon dimensions,false,null,volet_roulant_piscine
+442,wc_fourniture_pose,WC (fourni+posé),forfait,0.00,0.00,0.00,292.00,450.00,608.00,null,null,0,seed_manual,Selon gamme,false,null,wc_fourniture_pose
+443,wc_suspendu_fourniture_pose,WC suspendu (fourni+posé),forfait,0.00,0.00,0.00,488.00,750.00,1013.00,null,null,0,seed_manual,Selon gamme,false,null,wc_suspendu_fourniture_pose
+433,pose_wc_suspendu_global,WC suspendu (fourni+posé),forfait,0.00,0.00,0.00,845.00,1300.00,1755.00,null,null,0,seed_manual,Estimation,true,"[""wc""]",pose
+767,wc_suspendu_bati,WC suspendu + bâti-support (fourni+posé),unite,500.00,900.00,1600.00,0.00,0.00,0.00,null,null,0,seed_manual,Hors carrelage,false,null,wc_suspendu_bati
+743,zinguerie_noue,Zinguerie — noue zinc,ml,55.00,85.00,125.00,0.00,0.00,0.00,null,null,0,seed_manual,Base,false,null,zinguerie_noue
