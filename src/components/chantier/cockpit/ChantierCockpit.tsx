@@ -64,6 +64,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
   const [showBudgetDetail, setShowBudgetDetail]   = useState(false);
   const [activeSection, setActiveSection] = useState<Section>('budget');
   const [mobileOpen, setMobileOpen]       = useState(false);
+  const [isMulti, setIsMulti]             = useState(false);
   const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
   const [pendingDescribeIds, setPendingDescribeIds] = useState<string[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
@@ -74,6 +75,18 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
   useEffect(() => {
     if (chantierId) localStorage.setItem('lastChantierId', chantierId);
   }, [chantierId]);
+
+  // Statut d'abonnement → débloque l'entrée "Multi-chantier" du picker (cosmétique :
+  // le vrai gate est serveur sur /api/portfolio/summary).
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    fetch('/api/gmc/status', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => { if (!cancelled && s) setIsMulti(!!s.isMulti); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [token]);
 
   // Ouverture auto de l'éditeur de projet via ?edit=1 (lien "Modifier avec l'IA" du hub)
   useEffect(() => {
@@ -690,6 +703,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
         onAmeliorer={chantierId && token ? () => setShowAmelioration(true) : undefined}
+        isMulti={isMulti}
       />
 
       {/* ── Contenu principal ──────────────────────────────────────────────── */}

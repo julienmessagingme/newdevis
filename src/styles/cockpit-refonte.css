@@ -94,8 +94,39 @@
   letter-spacing:.04em;
   margin-top:2px;
 }
-.cr-pp-chev{color:rgba(255,255,255,.55); flex-shrink:0}
+.cr-pp-chev{color:rgba(255,255,255,.55); flex-shrink:0; transition:transform .18s}
 .cr-pp-chev svg{width:14px; height:14px; display:block}
+
+/* Project picker = menu deroulant (chantiers / portefeuille Multi) */
+.cr-pp{position:relative}
+.cr-pp.open .cr-pp-chev{transform:rotate(180deg)}
+.cr-pp-dropdown{
+  position:absolute;
+  left:0; right:0;
+  top:calc(100% + 6px);
+  background:#fff;
+  border-radius:12px;
+  padding:6px;
+  box-shadow:0 14px 36px rgba(0,0,0,.40);
+  display:flex; flex-direction:column;
+  gap:2px;
+  z-index:50;
+}
+.cr-pp-dropdown-item{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 10px;
+  border-radius:8px;
+  font-size:13px; font-weight:500;
+  color:var(--cr-body);
+  background:transparent; border:none;
+  cursor:pointer; width:100%; text-align:left;
+  text-decoration:none;
+  transition:background .12s;
+}
+.cr-pp-dropdown-item svg{width:16px; height:16px; flex-shrink:0; opacity:.6}
+.cr-pp-dropdown-item:hover{background:var(--cr-cream)}
+.cr-pp-dropdown-item.locked{color:var(--cr-muted,#8a8a8a)}
+.cr-pp-dropdown-item .cr-pp-lock{margin-left:auto; width:14px; height:14px; opacity:.7}
 
 .cr-nav{display:flex; flex-direction:column; gap:20px; flex:1; overflow-y:auto}
 .cr-nav-section{display:flex; flex-direction:column; gap:2px}

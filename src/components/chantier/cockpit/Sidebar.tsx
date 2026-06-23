@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Wallet, Layers, Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen, LogOut,
-  ChevronUp, Pencil,
+  ChevronUp, Pencil, LayoutGrid, Briefcase, Lock,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { ChantierIAResult } from '@/types/chantier-ia';
 
 export type Section = 'budget' | 'lots' | 'contacts' | 'messagerie' | 'analyse' | 'planning' | 'documents' | 'journal' | 'assistant' | 'diy' | 'settings' | 'tresorerie';
@@ -20,6 +21,8 @@ interface SidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
   onAmeliorer?: () => void;
+  /** Abonné Multi : débloque l'accès au poste de pilotage portefeuille. */
+  isMulti?: boolean;
 }
 
 export interface NavGroup {
@@ -82,10 +85,12 @@ function badgeClass(text: string): string {
   return 'badge info'; // compteur neutre (documents, messages non lus)
 }
 
-export default function Sidebar({ result, activeSection, onSelect, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {
+export default function Sidebar({ result, activeSection, onSelect, badges, mobileOpen, onCloseMobile, onAmeliorer, isMulti = false }: SidebarProps) {
   const [user, setUser] = useState<{ name: string; initials: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -97,6 +102,17 @@ export default function Sidebar({ result, activeSection, onSelect, badges, mobil
     document.addEventListener('keydown', onEsc);
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onEsc); };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    function onDown(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setPickerOpen(false); }
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onEsc); };
+  }, [pickerOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,17 +160,55 @@ export default function Sidebar({ result, activeSection, onSelect, badges, mobil
           </div>
         </button>
 
-        {/* Project picker → tous mes chantiers */}
-        <a href="/mon-chantier" className="cr-project-picker">
-          <div className="cr-pp-icon">{result.emoji ?? '🏗️'}</div>
-          <div className="cr-pp-text">
-            <div className="cr-pp-name">{result.nom}</div>
-            <div className="cr-pp-sub">Tous mes chantiers</div>
-          </div>
-          <div className="cr-pp-chev">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-          </div>
-        </a>
+        {/* Project picker → menu (chantiers / portefeuille Multi) */}
+        <div className={`cr-pp${pickerOpen ? ' open' : ''}`} ref={pickerRef}>
+          <button
+            type="button"
+            className="cr-project-picker"
+            onClick={() => setPickerOpen(o => !o)}
+            aria-haspopup="menu"
+            aria-expanded={pickerOpen}
+          >
+            <div className="cr-pp-icon">{result.emoji ?? '🏗️'}</div>
+            <div className="cr-pp-text">
+              <div className="cr-pp-name">{result.nom}</div>
+              <div className="cr-pp-sub">Changer de vue</div>
+            </div>
+            <div className="cr-pp-chev">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+            </div>
+          </button>
+
+          {pickerOpen && (
+            <div className="cr-pp-dropdown" role="menu">
+              <a href="/mon-chantier" className="cr-pp-dropdown-item" role="menuitem">
+                <LayoutGrid />
+                <span>Mes chantiers</span>
+              </a>
+              {isMulti ? (
+                <a href="/mon-chantier/portefeuille" className="cr-pp-dropdown-item" role="menuitem">
+                  <Briefcase />
+                  <span>Multi-chantier</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cr-pp-dropdown-item locked"
+                  onClick={() => {
+                    setPickerOpen(false);
+                    toast.info('Le poste de pilotage multi-chantier fait partie de l\'offre Multi.');
+                    window.location.href = '/gmc-abonnement?plan=multi';
+                  }}
+                >
+                  <Briefcase />
+                  <span>Multi-chantier</span>
+                  <Lock className="cr-pp-lock" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Navigation */}
         <nav className="cr-nav">

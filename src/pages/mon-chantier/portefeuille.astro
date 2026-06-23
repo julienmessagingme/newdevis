@@ -1,0 +1,14 @@
+---
+export const prerender = false;
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import PortefeuilleApp from '@/components/app/PortefeuilleApp';
+---
+
+<BaseLayout
+  title="Portefeuille chantiers · GérerMonChantier"
+  description="Vue consolidée de tous vos chantiers : planning, finances, contacts."
+  noindex={true}
+  noChatWidget={true}
+>
+  <PortefeuilleApp client:only="react" />
+</BaseLayout>
