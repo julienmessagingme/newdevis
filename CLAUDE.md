@@ -11,25 +11,32 @@ L'outil d'analyse de prix est en **refonte structurée en 4 maillons** :
 
 📖 **Source de vérité** : [`docs/refonte/PLAN.md`](docs/refonte/PLAN.md) — boussole de la refonte avec phases, principes inviolables, décisions validées.
 
-### Ce qui s'ARRÊTE immédiatement
+### État au 2026-06-23 fin de journée
 
-- ❌ **Plus de bumps `ENGINE_VERSION`** pour patcher un cas user signalé. Reset à `"1.0.0-refonte"` (2026-06-23). Les prochains bumps suivent les phases (1.x catalogue, 2.x revue, 3.x lecture, 4.x verdict).
+| Maillon | Phase | Statut |
+|---|---|---|
+| 1 — Lire juste | Phase 3 | 🔴 à attaquer (le gros chantier) |
+| 2 — Comparer à vraie référence | Phase 1 | ✅ **livrée** — 891 entrées rangées par metier × nature_prix |
+| 3 — Verdict honnête | Phase 4 | 🟡 inchangé |
+| 4 — Apprendre | Phase 2 | ✅ **livrée** — `/admin/reviews` + table `analysis_corrections` |
+
+### Ce qui reste
+
+- 🟡 **Phase 1.6** (10 min) — régénérer embeddings sur 11 entrées catalogue modifiées (10 Cat B + 1 nouvelle `pose_carrelage_sdb_m2`)
+- 🟡 **Phase 1.7** (1-2h, optionnel court terme) — recalibrer les fourchettes catalogue vs 1200 devis-postes observés
+- 🔴 **Phase 3** (2-4 sessions) — refonte `extract.ts` : lecture structure-d'abord, prix unitaire, réconciliation arithmétique, confiance par champ
+- 🔴 **Phase 4** (2-3 sessions) — verdict prix unitaire + gradation confiance + rattachement annexes au coût unitaire
+
+### Ce qui s'ARRÊTE immédiatement (rappel)
+
+- ❌ **Plus de bumps `ENGINE_VERSION`** pour patcher un cas user signalé. Ne bumper qu'après livraison de phase (1.6 → 1.0.1, 3.x → 2.0.0, etc.).
 - ❌ **Plus de "Garde n°X" inline** qui s'empile dans `extract.ts` / `verdictEngine.ts` / `market-matcher-vectorial.ts` / `score.ts` / `conclusion.ts`.
 - ❌ **Plus de fix réactifs ad hoc** sur les bugs signalés. Chaque bug → **entrée dans [`docs/refonte/BUGS-A-CORRIGER.md`](docs/refonte/BUGS-A-CORRIGER.md)** qui devient un cas test du filet anti-régression de la phase qui le couvre.
-- ❌ **Plus de feature flags zombies**. Inventaire dans [`docs/refonte/RUSTINES.md`](docs/refonte/RUSTINES.md) avec classification KEEP-GUARD-CRITIQUE / RUSTINE-PHASE-3 / RUSTINE-PHASE-4 / MORT.
 
-### Phase 0 (en cours) — Nettoyage + cartographie
+### Filets de sécurité actifs pendant la refonte
 
-Sans risque. Lecture seule sur la prod + suppression de code mort uniquement. Cf. PLAN.md.
-
-**Filet de sécurité actif** : `detectReviewTriggers` étendu au ratio aberrant (`devis_total_ht > 5 × theoreticalMaxHT` sur le `priceData` BRUT) → analyse passe en `pending_review`, bannière bleue masque l'anomalie. Protège la prod pendant qu'on construit.
-
-### Prochaines phases
-
-- **Phase 1** — Catalogue d'aplomb (`market_prices`, classement métier × nature_prix). Input : [`docs/refonte/catalogue-classement/`](docs/refonte/catalogue-classement/) (YAML peinture + carrelage déjà spec, à valider par Julien)
-- **Phase 2** — Écran de revue (front Piste C). Le mécanisme back (`review_status='pending_review'` + email Resend) tourne déjà depuis V3.5.16. Manque le `/admin/reviews`.
-- **Phase 3** — Refonte `extract.ts` (lecture structure-d'abord + prix unitaire + réconciliation arithmétique). Le gros chantier.
-- **Phase 4** — Verdict prix unitaire + gradation confiance + rattachement annexes au coût unitaire.
+1. **Piste C élargie au ratio aberrant** (`detectReviewTriggers` ratio > 5×) → analyse passe en `pending_review`, bannière bleue masque l'anomalie.
+2. **Écran `/admin/reviews`** (Phase 2 livrée) → Julien peut désormais valider/corriger/rejeter les pending_review en quelques secondes. Chaque action écrit dans `analysis_corrections` (socle gold standard pour Phase 3 anti-régression).
 
 ### À chaque nouvelle session
 

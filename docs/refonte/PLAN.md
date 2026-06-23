@@ -1,19 +1,20 @@
 # Refonte de l'outil d'analyse de prix — Plan de route
 
-**Statut** : 🟢 Phase 0 en cours
+**Statut** : 🟢 Phases 0+1+2 livrées · Phase 3 = prochain gros chantier
 **Démarrage** : 2026-06-23
 **Source** : `refonte outil scoring VMD.pdf` (16 juin 2026), validation Julien 2026-06-23
+**Dernière mise à jour** : 2026-06-23 fin de journée
 
 ---
 
-## La cible — 4 maillons d'une chaîne fiable
+## État actuel des 4 maillons
 
-| # | Maillon | État actuel | Trou à combler |
+| # | Maillon | Avant refonte | Après Phase 0+1+2 |
 |---|---|---|---|
-| 1 | **Lire juste** | 🔴 à construire | Extract.ts lit ligne par ligne, ne calcule jamais le prix unitaire. ~250 lignes de rustines empilées. **Origine de ~70 % des faux verdicts.** |
-| 2 | **Comparer à vraie référence** | 🟡 partiel | Catalogue 911 entrées, **57 % sans métier identifiable**, doublons, fourchettes fausses |
-| 3 | **Verdict honnête** | 🟡 partiel | Décision sur montants globaux (pas prix unitaires), pas de gradation de confiance |
-| 4 | **Apprendre** | 🟡 moitié | Piste C (attente + bannière + email) en prod V3.5.16 ; **écran de revue absent → socle de cas validés vide** |
+| 1 | **Lire juste** | 🔴 à construire | 🔴 inchangé (Phase 3 le couvre — gros chantier extract.ts) |
+| 2 | **Comparer à vraie référence** | 🟡 partiel (57% sans métier) | 🟢 **fait** — 891 entrées rangées par metier × nature_prix × gamme + 33 métiers + 0 doublon |
+| 3 | **Verdict honnête** | 🟡 partiel | 🟡 inchangé (Phase 4 le couvre — prix unitaire + confiance) |
+| 4 | **Apprendre** | 🟡 moitié (socle vide) | 🟢 **fait** — écran `/admin/reviews` + table `analysis_corrections` (socle gold standard prêt) |
 
 **Principe de la chaîne** : chaque maillon doit être solide et honnête sur sa propre confiance. Pas de patch correctif — chaque maillon est solide ou il dit "non comparable".
 
@@ -51,55 +52,39 @@
 
 ## Ordre d'exécution
 
-### 🟢 Phase 0 — Nettoyage + cartographie (en cours)
+### ✅ Phase 0 — Nettoyage + cartographie (LIVRÉE 2026-06-23)
 
-Avant de construire, on cartographie et on enlève le bruit. **Sans risque** (lecture seule sur la prod, suppression de code mort uniquement).
+- [x] **0.1** Étendre Piste C aux ratios aberrants (>5× marché_max) — `detectReviewTriggers` étendu, protège la prod
+- [ ] **0.2** Flag manuel de l'analyse ALES 8950€ en `pending_review` — peut maintenant se faire via `/admin/reviews` (Phase 2)
+- [x] **0.3** `docs/refonte/BUGS-A-CORRIGER.md` créé (3 bugs notés : ALES WC, IBAN CIC tirets, placo 25€/m²)
+- [x] **0.4** `docs/refonte/RUSTINES.md` créé (50 patches V3.4.x/V3.5.x classifiés KEEP / PHASE-3 / PHASE-4 / MORT)
+- [x] **0.5** Code mort marqué `🔴 CLEANUP-PHASE-1` (`MARKET_MATCHER_V36`, `MARKET_MATCHER_VECTORIAL=shadow`)
+- [x] **0.6** `ENGINE_VERSION` reset à `"1.0.0-refonte"`
+- [x] **0.7** YAML peinture/carrelage pivotés en `docs/refonte/catalogue-classement/`
+- [x] **0.8** `PLAN.md` créé
+- [x] **0.9** `CLAUDE.md` mis à jour (section REFONTE EN COURS en tête)
+- [x] **0.10** Commit + push main (`62d3572`)
 
-- [ ] **0.1** Étendre Piste C aux ratios aberrants (>5× marché_max) — protège la prod
-- [ ] **0.2** Flag manuel de l'analyse ALES 8950€ en `pending_review`
-- [ ] **0.3** Créer `docs/refonte/BUGS-A-CORRIGER.md` (file de test des signalements)
-- [ ] **0.4** Inventaire `docs/refonte/RUSTINES.md` (classification des ~50 patches V3.4.x/V3.5.x)
-- [ ] **0.5** Retirer le code mort (flag `MARKET_MATCHER_V36`, modes shadow vectoriel)
-- [ ] **0.6** Reset `ENGINE_VERSION` → `"1.0.0-refonte"`
-- [ ] **0.7** Pivoter YAML peinture/carrelage en input Phase 1 (catalogue-classement)
-- [x] **0.8** Créer `docs/refonte/PLAN.md` (ce fichier)
-- [ ] **0.9** Mettre à jour `CLAUDE.md` (interdits + pointer vers PLAN.md)
-- [ ] **0.10** Commit + push tout sur main
+### ✅ Phase 1 — Catalogue d'aplomb (LIVRÉE 2026-06-23)
 
-### 🟡 Phase 1 — Catalogue d'aplomb (Maillon 2)
+**Résultat** : 891 entrées (911 initiales − 21 nettoyées + 1 créée) rangées par métier × nature_prix × multiplicateur_couches × gamme. **33 métiers distincts**, 4 natures de prix, 100% couverture, 0 doublon, 0 inclassable.
 
-Objectif : catalogue rangé par métier + nature de prix, sans doublons, fourchettes vérifiées contre les prix réels observés.
+- [x] **1.3** Script `scripts/phase1-audit-catalogue.ts` v4 (auto-classifie 891 entrées par parsing label + heuristique nature_prix par défaut)
+- [x] **1.4a** Fix doublons : 39 doublons réglés via `phase1-fix-doublons.sql` (16 forfaits par taille supprimés + 10 labels expliciter + 5 fusions + F2 + G1)
+- [x] **1.4b** Relecture 152 conflits : 18 corrections Claude + 6 arbitrages Julien + 128 validés en bloc
+- [x] **1.5** Migration `phase1-migration-colonnes.sql` appliquée (ALTER TABLE + 891 UPDATE + indexes + CHECK constraints)
+- [ ] **1.6** ⏳ Régénération embeddings sur 11 entrées modifiées (10 labels Cat B + 1 nouveau `pose_carrelage_sdb_m2`) — script `scripts/seed_market_prices_embeddings.mjs` existant
+- [ ] **1.7** ⏳ Recalibrage fourchettes vs prix réels observés dans `analyses` (94% des 1200 devis-postes recalculables) — facultatif court terme
 
-**Sans risque** : lecture seule sur la prod jusqu'à validation Julien sur le classement.
+### ✅ Phase 2 — Écran de revue (LIVRÉE 2026-06-23)
 
-- Audit `market_prices` (911 entrées) — SQL déjà spec dans `docs/refonte/catalogue-classement/AUDIT_CATALOGUE.md`
-- Ajout colonnes `metier` (text) + `nature_prix` (`pose_seule` | `fourniture_pose` | `fourniture_seule`) à `market_prices`
-- Heuristique de classement initial : ratio main-d'œuvre 100 % → pose seule, libellé "Fourniture + pose…" → fourniture+pose
-- Julien valide le classement, arbitre les ambigus
-- Fusion doublons, normalisation unités, recalibrage fourchettes vs `analyses` réelles (94 % des 1200 devis-postes ont un prix unitaire recalculable)
-- Régénération embeddings (obligatoire après modif libellés)
+**Résultat** : page `/admin/reviews` opérationnelle, table `analysis_corrections` prête à recevoir, mécanisme back Piste C V3.5.16 enfin pleinement exploitable.
 
-**Risques** :
-- Re-génération embeddings oubliée → audit invisible au moteur
-- Validation circulaire (ne pas recalibrer uniquement sur nos propres observations)
-- Ratio ≠ nature (un "fourniture+pose" à ratio MO ~50 % est exploitable mais à confirmer)
+- [x] **2.1** Migration `20260624_001_phase2_analysis_corrections.sql` appliquée (table + vue `admin_pending_reviews` + RLS 3 policies)
+- [x] **2.2** 3 routes API admin (`/api/admin/reviews` GET list, `/api/admin/reviews/[id]` GET detail, `/api/admin/reviews/[id]/decide` POST action)
+- [x] **2.3** Page `/admin/reviews` (layout 2 colonnes : liste pending_review à gauche, détail + formulaire correction inline à droite, 3 boutons Valider/Corriger/Rejeter)
 
-### 🟡 Phase 2 — Écran de revue (Maillon 4) — en parallèle de Phase 1
-
-Objectif : passer le socle de cas validés de zéro à utile.
-
-**Sans risque** : nouvelle page admin, ne touche pas la prod publique.
-
-- Page `/admin/reviews` qui liste les `analyses.review_status='pending_review'`
-- Détail 2 colonnes : gauche = lecture IA (verdict, postes, prix), droite = champs corrigeables
-- Bouton "Valider" 1 clic / "Corriger" si modification
-- Persistance corrections → table `analysis_corrections`
-- Chaque correction = 1 cas du filet anti-régression
-
-**Décisions préalables** :
-- **Grain de revue** = verdict global d'abord (rapide, suffit pour démarrer), descente ligne par ligne seulement si correction de prix l'exige. Un outil trop lourd finit inutilisé.
-- **"Validé" ≠ "corrigé"** : tracer la correction réelle, pas le clic
-- **Réutiliser le mécanisme d'attente existant** — ne pas créer de parcours parallèle
+**Grain de revue** (validé PDF) : verdict global d'abord, descente ligne par ligne reportée à Phase 2.4 (édition anomalies détaillées) — à faire seulement si on constate qu'on en a besoin en pratique.
 
 ### 🔴 Phase 3 — Lecture juste (Maillon 1) — le gros chantier
 
@@ -162,8 +147,45 @@ Chaque correction humaine devient :
 
 Ouvrir **CE FICHIER** en premier. Puis :
 - Si on bosse sur un bug user → noter dans `BUGS-A-CORRIGER.md`, ne **PAS** patcher inline
-- Si on bosse sur le catalogue → Phase 1, lire `catalogue-classement/`
-- Si on bosse sur l'écran de revue → Phase 2
-- Si on bosse sur extract.ts → on est entré en Phase 3, suivre le scope strict
+- Si on bosse sur les fourchettes catalogue → Phase 1.7 (recalibrage)
+- Si on bosse sur les embeddings → Phase 1.6 (régénération)
+- Si on bosse sur extract.ts → on entre en Phase 3, suivre le scope strict
+- Si on bosse sur le verdict → on entre en Phase 4
 
 **Règle absolue** : la priorité va à la phase en cours. Pas de saut de phase. Pas de patch parallèle.
+
+---
+
+## ⏸️ Où on s'est arrêté — fin de journée 2026-06-23
+
+**État livré ce jour** : Phase 0 ✅ · Phase 1 ✅ (1.6 et 1.7 reportées) · Phase 2 ✅ (déployée et migration appliquée)
+
+**Reprise possible demain — 3 options** (à arbitrer début de session) :
+
+### (A) Phase 1.6 — Régénération embeddings (10 min)
+Re-générer les embeddings pour 11 entrées `market_prices` dont le label a été modifié en Phase 1.4a (10 entrées Cat B "standard/premium" + 1 nouvelle entrée `pose_carrelage_sdb_m2`). Sans ça, le matcher vectoriel V3.5 prod cherche encore les anciens libellés.
+- Script existant : `scripts/seed_market_prices_embeddings.mjs`
+- Effort : nul côté Julien si script déjà OK, sinon 10 min pour ajouter une option `--only-modified`
+
+### (B) Phase 1.7 — Recalibrage fourchettes vs prix réels (1-2h)
+Le PDF dit : "auditer le catalogue contre les ~1200 devis-postes observés, dont 94% avec prix unitaire recalculable". On confronte les fourchettes théoriques aux médianes + quartiles réels pour identifier les entrées catalogue qui divergent significativement.
+- Sortie : SQL d'ajustement des fourchettes avec proposition (median±IQR) + validation Julien sur les cas douteux
+- Risque : validation circulaire — ne pas recalibrer uniquement sur nos propres observations sur les postes sensibles
+
+### (C) Phase 3 — Refonte extract.ts (le GROS chantier)
+Le maillon 1 du PDF, origine de ~70% des faux verdicts (mauvaise lecture du PDF avant tout matching).
+- Lecture "structure d'abord" : cartographier la grille du tableau une seule fois
+- Extraire le prix unitaire (+ texte brut original)
+- Réconciliation arithmétique côté code (`montant = qty × prix_unitaire`, `sous-total = somme lignes filles`, `devis = somme − remise`)
+- Niveau de confiance par champ
+- Tagger chaque ligne par nature (ancre surfacique / annexe corrélée / ligne transverse)
+- **Risques** : budget temps 150s · troncature JSON · ne pas casser ce qui marche (rustines à enlever progressivement)
+- **Effort** : 2-4 sessions (le plus gros morceau de la refonte)
+
+**Ma reco** : (A) puis (C). La (B) peut attendre que la Phase 2 ait commencé à produire des corrections expert qui valideront/invalideront naturellement les fourchettes. (A) est rapide et complète Phase 1 proprement avant d'attaquer Phase 3.
+
+**Décisions actées le 2026-06-23** :
+- ENGINE_VERSION = `"1.0.0-refonte"` (ne plus bumper sauf phase livrée)
+- Bugs ALES 8950€ WC, IBAN CIC tirets, placo 25€ → restent en `BUGS-A-CORRIGER.md`, deviendront cas test Phase 3
+- Catalogue verrouillé : 891 entrées, 33 métiers, 4 natures, 100% couverture
+- Piste C élargie au ratio aberrant (>5×) protège la prod pendant Phase 3
