@@ -121,116 +121,102 @@ interface Classified extends MarketRow {
 // Donc les règles spécifiques (forfait rénovation, diagnostic, cuisine) AVANT
 // les règles générales (plomberie, peinture, etc.).
 
-// 🟢 RAFFINEMENT v2 (2026-06-23) — règles enrichies + pluriel-tolérantes
-// Cible : passer de 105 inclassables / 132 conflits / 351 doutes
-// à <30 inclassables / <50 conflits / <100 doutes
+// 🟢 RAFFINEMENT v4 (2026-06-23) — 4 ajustements priorités pour réduire conflits
+// Changements vs v3 :
+//   1. maconnerie_structure MOVED UP avant menuiserie (création ouverture, IPN, mur porteur)
+//   2. facade_ravalement MOVED UP avant peinture (ravalement façade → famille dédiée)
+//   3. stores_occultation MOVED UP avant menuiserie (volets/stores → famille dédiée)
+//   4. domotique_securite RESTREINTE aux vrais cas (KNX/MyHome/BUS/Z-Wave/Tahoma/Jeedom)
+//      Les alarmes/caméras/interphones génériques restent en electricite.
+// Cible : 163 conflits → ~70 conflits restants
 const METIER_RULES: { name: string; rx: RegExp }[] = [
   // Forfaits rénovation globale — TRÈS spécifique, doit passer en premier
-  // Élargi : "Rénovation SDB" (<5m² / >8m²), "Rénovation élec complète 80m²"
   { name: "forfait_renovation_globale", rx: /(?<![A-Za-zÀ-ÿ])(r[ée]novation\s+(compl[èe]te|sdb|salle\s+de\s+bain|[ée]lectric|[ée]nerg[ée]tique\s+globale|plomberie)|sdb\s+r[ée]novation|am[ée]nagement\s+(combles|sous[\s-]?sol)|sur[ée]l[ée]vation\s+maison|cr[ée]ation\s+(salle\s+de\s+bain|sdb|pi[èe]ce\s+suppl[ée]mentaire)|extension\s+(ma[çc]onnerie|ossature)|veranda)/i },
 
-  // Diagnostics réglementaires (incl. étude thermique RE2020)
-  // v3 : "diagnostic" pluriel, "Pack diagnostics", "État parasitaire complet"
+  // Diagnostics réglementaires
   { name: "diagnostic_reglementaire", rx: /(?<![A-Za-zÀ-ÿ])(diagnostics?|audit\s+[ée]nerg[ée]tique|[ée]tude\s+thermique|expertise|pack\s+diagnostics?|loi\s+(carrez|boutin)|dpe|erp|esris|re2020|[ée]tat\s+parasitaire)(?![A-Za-zÀ-ÿ])/i },
 
-  // Ouvrages spécialisés (volume faible → famille dédiée)
+  // Ouvrages spécialisés
   { name: "ouvrages_piscine", rx: /(?<![A-Za-zÀ-ÿ])(piscine|spa|bassin\s+(natation|piscine)|filtration\s+piscine|local\s+technique\s+piscine|r[ée]gulation\s+ph|chlorinateur|[ée]lectrolyseur|sable\s+filtre|filtre\s+piscine)(?![A-Za-zÀ-ÿ])/i },
-  // Photovoltaïque ÉLARGI : "Panneaux solaires 3kWc — pose (MO)"
   { name: "ouvrages_photovoltaique", rx: /(?<![A-Za-zÀ-ÿ])(photovolta|panneaux?\s+(solaires?|photovolta)|onduleur|batterie\s+(de\s+stockage\s+)?solaire|kwc|installation\s+panneaux)(?![A-Za-zÀ-ÿ])/i },
-  // ANC ÉLARGI : "Filière tertre", "Pose station relevage eaux usées"
   { name: "ouvrages_anc", rx: /(?<![A-Za-zÀ-ÿ])(anc|assainissement|fosse\s+septique|micro[\s-]?station|[ée]puration|phyto[ée]puration|tertre\s+d?[''']?infiltration|fili[èe]re\s+(filtre|[ée]pandage|tertre)|station\s+(de\s+)?relevage\s+(eaux\s+us[ée]es)?)(?![A-Za-zÀ-ÿ])/i },
   { name: "ouvrages_geothermie", rx: /(?<![A-Za-zÀ-ÿ])(g[ée]othermie|capteurs?\s+g[ée]othermiques?)(?![A-Za-zÀ-ÿ])/i },
-  // Paysagisme ÉLARGI : "Pose pompe arrosage", "Pose portique/aire de jeu"
   { name: "ouvrages_paysagisme", rx: /(?<![A-Za-zÀ-ÿ])(paysag|jardin|plantation|arbre|haie|engazon|gazon|pelouse|[ée]lagage|dessouchage|arrosage|pompe\s+arrosage|portique|aire\s+de\s+jeu)(?![A-Za-zÀ-ÿ])/i },
   { name: "ouvrages_ascenseur", rx: /(?<![A-Za-zÀ-ÿ])(ascenseur|monte[\s-]?(escalier|charge)|pmr|[ée]l[ée]vateur)(?![A-Za-zÀ-ÿ])/i },
-  // VRD ÉLARGI : "Pose enrobé", "Préparation pavage", "Gravier stabilisé pose", "Enrobé fraisage"
   { name: "ouvrages_vrd", rx: /(?<![A-Za-zÀ-ÿ])(vrd|terrassements?|terrasses?\s+(bois|composite|dalles?|carrelage)|terrasses?(?=\s|$|\()|pav[ée]s?|enrob[ée]s?|all[ée]es?|caniveau|drainage\s+(p[ée]riph[ée]rique|fran[çc]ais|pied\s+de\s+mur)|drain\s+p[ée]riph[ée]rique|drainage|grave|stabilis[ée]|pr[ée]paration\s+(support\s+)?pavage|fraisage|[ée]tanch[ée]it[ée]\s+terrasse)(?![A-Za-zÀ-ÿ])/i },
 
   // Cuisine / agencement cuisine
-  // ÉLARGI : "Évier" pluriel, "Intégration électroménager" (4 variantes complexité)
   { name: "cuisine_agencement", rx: /(?<![A-Za-zÀ-ÿ])(cuisine|plan\s+de\s+travail|cr[ée]dences?|hottes?|four\s+encastr[ée]?|lave[\s-]?vaisselle|plaques?\s+(de\s+)?cuisson|[ée]viers?|[ée]lectrom[ée]nager|int[ée]gration\s+[ée]lectrom[ée]nager|placards?|dressings?|biblioth[èe]que|meuble\s+(double[\s-]?)?vasque|meuble\s+sdb)(?![A-Za-zÀ-ÿ])/i },
 
-  // Chauffage (avant CVC pour ne pas confondre)
-  // ÉLARGI : "Changement ballon", "Purge/réglage radiateurs", "Pose chaudière"
+  // Chauffage
   { name: "chauffage", rx: /(?<![A-Za-zÀ-ÿ])(chauffage|chaudi[èe]res?|radiateurs?|plancher\s+chauffant|po[êe]les?|inserts?|granul[ée]s?|pellets?|tubage|ramonage|cumulus|chauffe[\s-]?eau|ballons?(\s+(ecs|thermodynamique))?|calorifugeage|plinthes?\s+chauffantes?|changement\s+ballon|purge[\s/]?(et\s+)?(r[ée]glage)?\s+radiateurs?|[ée]quilibrage\s+chauffage|robinets?\s+thermostatiques?|conduit\s+(de\s+)?fum[ée]e)(?![A-Za-zÀ-ÿ])/i },
 
   // CVC / ventilation
   { name: "cvc_ventilation", rx: /(?<![A-Za-zÀ-ÿ])(climatisation|\bclim\b|pac\b|pompe.*chaleur|vmc|ventilation|extracteur|gaine\s+ventilation|hotte\s+conduit|gaines?\s+vmc|r[ée]seau\s+gaines?)(?![A-Za-zÀ-ÿ])/i },
 
-  // Toiture (descente EP, regard EP, chéneau, faîtage)
+  // 🟢 v4 — Maçonnerie/structure MONTÉ avant menuiserie pour capturer
+  // "Création ouverture porte", "IPN", "Mur porteur", etc. (gros œuvre prioritaire)
+  { name: "maconnerie_structure", rx: /(?<![A-Za-zÀ-ÿ])(ma[çc]onneries?|b[ée]ton(?!\s+cir[ée])|briques?|parpaings?|dalles?\s+b[ée]ton|chape|gros[\s-]?(œuvre|oeuvre)|fondations?|semelles?\s+filantes?|murs?\s+(soutènement|porteur|brique|parpaing)|ipn|hea|micropieux|cuvelage|[ée]tanch[ée]it[ée]\s+(sous[\s-]?sol|sdb|salle\s+de\s+bain|toiture\s+plate)|syst[èe]me\s+[ée]tanch[ée]it[ée]|traitements?\s+(humidit[ée]|pont\s+thermique)|anti[\s-]?humidit[ée]|d[ée]samiantage|injection\s+r[ée]sine|reprise\s+en\s+sous[\s-]?(œuvre|oeuvre)|cr[ée]ation\s+(muret|ouverture|pi[èe]ce|alimentation\s+ext[ée]rieure)|ouverture\s+(mur\s+(porteur|non\s+porteur)|porte)|agglo\s+b[ée]ton|extension\s+(ma[çc]onnerie|ossature\s+bois)|moellons?|injection|drainages?|drain\s+p[ée]riph[ée]rique|reprise\s+fissures?\s+fa[çc]ade|r[ée]paration\s+fissure\s+fa[çc]ade)(?![A-Za-zÀ-ÿ])/i },
+
+  // Toiture / couverture
   { name: "toiture_couverture", rx: /(?<![A-Za-zÀ-ÿ])(toiture|couverture|tuiles?|ardoises?|zinguerie|goutti[èe]re?s?|chevron|ch[ée]neau|fa[îi]tage|noue|shingle|bac\s+acier|membrane\s+epdm|[ée]tanch[ée]it[ée]\s+toiture|sous[\s-]?toiture|nettoyage\s+toiture|d[ée]moussage\s+toiture|hydrofuge\s+toiture|descente\s+(ep|eaux\s+pluviales)|regard\s+(ep|eaux\s+pluviales)|skylight|toiture\s+v[ée]g[ée]talis[ée]e|[ée]cran\s+sous[\s-]?toiture)(?![A-Za-zÀ-ÿ])/i },
 
-  // Menuiserie / vitrages
-  // ÉLARGI : "Châssis composé PVC", "Pose moustiquaire", "Pose verrière intérieure"
-  { name: "menuiserie_vitrages", rx: /(?<![A-Za-zÀ-ÿ])(menuiserie|portes?|fen[êe]tres?|baies?\s+vitr[ée]es?|volets?|escaliers?|velux|verri[èe]res?|v[ée]ri[èe]re|puits\s+de\s+lumi[èe]re|moustiquaires?|ch[âa]ssis|marquise|vitrage|cylindres?|poign[ée]es?|verrous?|serrures?|garde[\s-]?corps|bloc[\s-]?portes?|portails?|portillon|tabliers?|sangle|rampes?\s+bois|trappe\s+(d[''']?)?acc[èe]s)(?![A-Za-zÀ-ÿ])/i },
+  // 🟢 v4 — Façade / ravalement MONTÉ avant peinture (ravalement façade = famille dédiée)
+  { name: "facade_ravalement", rx: /(?<![A-Za-zÀ-ÿ])(fa[çc]ade|ravalement|cr[ée]pi|nettoyage\s+fa[çc]ade)(?![A-Za-zÀ-ÿ])/i },
+
+  // 🟢 v4 — Stores / occultation MONTÉ avant menuiserie (volets/stores = famille dédiée)
+  { name: "stores_occultation", rx: /(?<![A-Za-zÀ-ÿ])(stores?(?!ur)|volets?(?:\s+(roulants?|battants?|alu|bois|pvc))?|tablier\s+volet|sangle|motorisation\s+volet|moteur\s+volet|claustra|abris?\s+voiture|carport|pergola|v[ée]randa)(?![A-Za-zÀ-ÿ])/i },
+
+  // Menuiserie / vitrages (volets sortis → vont en stores_occultation)
+  { name: "menuiserie_vitrages", rx: /(?<![A-Za-zÀ-ÿ])(menuiserie|portes?|fen[êe]tres?|baies?\s+vitr[ée]es?|escaliers?|velux|verri[èe]res?|v[ée]ri[èe]re|puits\s+de\s+lumi[èe]re|moustiquaires?|ch[âa]ssis|marquise|vitrage|cylindres?|poign[ée]es?|verrous?|serrures?|garde[\s-]?corps|bloc[\s-]?portes?|portails?|portillon|tabliers?|rampes?\s+bois|trappe\s+(d[''']?)?acc[èe]s)(?![A-Za-zÀ-ÿ])/i },
 
   // Métallerie / serrurerie (générique)
   { name: "metallerie_serrurerie", rx: /(?<![A-Za-zÀ-ÿ])(serrur|cl[ôo]tures?|grilles?|grillage|blindage)(?![A-Za-zÀ-ÿ])/i },
 
   // Plomberie / sanitaires
-  // ÉLARGI : "sèche-serviettes" pluriel, "Création arrivée/évacuation/réseau", "Reprise tuyauterie"
   { name: "plomberie_sanitaires", rx: /(?<![A-Za-zÀ-ÿ])(plomberie|plombier|wc|robinets?|mitigeurs?|sanitaires?|baignoires?|douches?|lavabos?|vasques?|s[èe]che[\s-]?serviettes?|adoucisseurs?|filtre\s+(anti[\s-]?calcaire|eau)|d[ée]bouchage|fuites?\s+(d[''']?)?eau|d[ée]tection\s+fuite|lave[\s-]?mains|pompe\s+(de\s+)?relevage|siphons?|canalisations?|colonne\s+(fonte|plomberie|de\s+douche)|alimentation\s+(eau|ext[ée]rieure|ef\/?ec)|cr[ée]ation\s+(arriv[ée]e\s+(d[''']?)?eau|[ée]vacuation|r[ée]seau\s+[ée]vacuation)|arriv[ée]e\s+(d[''']?)?eau|[ée]vacuation\s+(pvc|us[ée]es?|plomberie)|raccordement\s+(lave|r[ée]seau)|paroi\s+douche|receveur|cumulus\s+(d[ée]tartrage|groupe|s[ée]curit[ée])|robinetterie|bain[\s-]?douche\s+conversion|reprise\s+(tuyauterie|[ée]vacuation\s+pvc)|raccordement\s+r[ée]seau\s+assainissement|remplacement\s+(canalisations?\s+plomb|colonne\s+fonte|robinet|siphon|vanne))(?![A-Za-zÀ-ÿ])/i },
 
-  // Électricité
-  // ÉLARGI : "Installation élec complète T2/T3/T4", "Mise aux normes", "Pose 10 spots",
-  // "Point lumineux", "Visiophone", "Pose éclairage", "Tableau élec", "Câblage réseau"
-  { name: "electricite", rx: /(?<![A-Za-zÀ-ÿ])([ée]lectric(ien|ique|it[ée])?s?|tableaux?|prises?|interrupteurs?|disjoncteurs?|diff[ée]rentiels?|c[âa]bles?|gaines?|spots?|luminaires?|[ée]clairages?|rubans?\s+led|bandes?\s+led|cablage|c[âa]blage\s+r[ée]seau|borne\s+(de\s+)?recharge|irve|wallbox|d[ée]tecteurs?\s+(fum[ée]es?|co\s+monoxyde)|interphone|alarme\s+(intrusion|maison)|cam[ée]ra\s+surveillance|domotique|mise\s+aux?\s+normes?|mise\s+en\s+conformit[ée]|mise\s+[àa]\s+la\s+terre|saign[ée]es|tirage\s+ligne|thermostat|parafoudre|coffret\s+gtl|installation\s+(elec|[ée]lectrique)|point\s+lumineux|visiophone|extension\s+tableau|remplacement\s+tableau)(?![A-Za-zÀ-ÿ])/i },
+  // 🟢 v4 — Domotique RESTREINTE aux vrais systèmes (KNX, MyHome, BUS, Z-Wave, Tahoma, Jeedom)
+  // Alarme/caméra/interphone génériques restent en electricite (cas standard pose).
+  { name: "domotique_securite", rx: /(?<![A-Za-zÀ-ÿ])(knx|my[\s-]?home|bus\s+(domotique|knx)|z[\s-]?wave|tahoma|jeedom|eedomus|module\s+domotique|pack\s+domotique|installation\s+domotique\s+(compl[èe]te|pack)|automatisme\s+(complet|maison)|syst[èe]me\s+(contr[ôo]le\s+(d[''']?\s*)?acc[èe]s|domotique)|contr[ôo]le\s+(d[''']?\s*)?acc[èe]s\s+badge)(?![A-Za-zÀ-ÿ])/i },
 
-  // Domotique / sécurité (souvent corrélé électricité mais distinct)
-  { name: "domotique_securite", rx: /(?<![A-Za-zÀ-ÿ])(domotique|alarme\b|cam[ée]ra|interphone\s+vid[ée]o|automatisme|portail.*motoris|contr[ôo]le\s+d[''']?\s*acc[èe]s|serrure\s+connect|thermostat\s+connect)(?![A-Za-zÀ-ÿ])/i },
+  // Électricité (alarme/caméra/interphone/domotique générique tombe ici)
+  { name: "electricite", rx: /(?<![A-Za-zÀ-ÿ])([ée]lectric(ien|ique|it[ée])?s?|tableaux?|prises?|interrupteurs?|disjoncteurs?|diff[ée]rentiels?|c[âa]bles?|gaines?|spots?|luminaires?|[ée]clairages?|rubans?\s+led|bandes?\s+led|cablage|c[âa]blage\s+r[ée]seau|borne\s+(de\s+)?recharge|irve|wallbox|d[ée]tecteurs?\s+(fum[ée]es?|co\s+monoxyde)|interphones?|alarmes?\s+(intrusion|maison|filaire|sans\s+fil)?|alarmes?\b|cam[ée]ras?\s+(surveillance|ip)?|cam[ée]ras?\b|domotique|mise\s+aux?\s+normes?|mise\s+en\s+conformit[ée]|mise\s+[àa]\s+la\s+terre|saign[ée]es|tirage\s+ligne|thermostat|parafoudre|coffret\s+gtl|installation\s+(elec|[ée]lectrique)|point\s+lumineux|visiophone|extension\s+tableau|remplacement\s+tableau|portails?\s+motoris[ée]s?)(?![A-Za-zÀ-ÿ])/i },
 
   // Carrelage / faïence / mosaïque
-  // ÉLARGI : "Carreaux ciment"
   { name: "carrelage_faience", rx: /(?<![A-Za-zÀ-ÿ])(carrelage|fa[ïi]ence|gr[èe]s|mosa[ïi]que|nez\s+de\s+marche|carreaux\s+(de\s+)?ciment|terrazzo|joint\s+carrelage|cr[ée]dence\s+carrelage)(?![A-Za-zÀ-ÿ])/i },
 
-  // Sols durs (marbre, pierre, micro-ciment, béton ciré sol)
-  // ÉLARGI : "Pose carreaux de ciment" → sols durs OK, "Sol résine application", "Dalle pierre ext"
+  // Sols durs
   { name: "sols_durs", rx: /(?<![A-Za-zÀ-ÿ])(marbres?\s+sol|pierres?\s+naturelles?(\s+(int[ée]rieur|sol|interieur|ext[ée]rieur))?|dallage\s+pierre|dalle\s+pierre\s+naturelle|marches?\s+en\s+pierre|b[ée]ton\s+cir[ée]|micro[\s-]?ciment\s+sol|terrazzo|microtopping\s+sol|r[ée]sines?\s+([ée]poxy|epoxy)\s+sol|sol\s+r[ée]sine)(?![A-Za-zÀ-ÿ])/i },
 
-  // Sols souples (parquet, stratifié, vinyl, lino, moquette, baguettes, plinthes, lambris)
-  // ÉLARGI : "Pose sol stratifié", "Pose linoléum", "Pose lambris boiserie murale" (boiseries déco au sens mural intérieur), "Pose baguettes", "Ponçage vitrification", "Pose soubassement"
+  // Sols souples
   { name: "sols_souples", rx: /(?<![A-Za-zÀ-ÿ])(parquets?|planchers?\s+(flottant|massif|chevrons|hongrie|colle)|stratifi[ée]s?|moquettes?|lino|linol[ée]ums?|sols?\s+(pvc|stratifi[ée]|vinyle|vinyl|r[ée]sine)|vinyle?|lambris\s+(bois|pvc|pos[ée])|li[èe]ges?|ragr[ée]ages?|po[nç]?[çc]age\s+(parquet|vitrification)|vitrification\s+parquet|plinthes?|baguettes?(\s+(finition|quart[\s-]?de[\s-]?rond))?|seuils?|sous[\s-]?couches?\s+sol|barres?\s+de\s+jonction|revetements?\s+sols?|soubassement)(?![A-Za-zÀ-ÿ])/i },
 
-  // Peinture / revêtements muraux
-  // ÉLARGI : "Enduit lissage" et "Enduit / lissage" (les 2 formats), "Reprise plâtre", "Reprise enduit intérieur"
-  { name: "peinture_revetements", rx: /(?<![A-Za-zÀ-ÿ])(peintures?|enduits?(\s+(de\s+)?(lissage|chaux|d[ée]coratif|fa[çc]ade|monocouche|gratt[ée]|talo[cç]h[ée]|finition|int[ée]rieur))?|ratissage|lessivage|sous[\s-]?couches?|toile\s+(de\s+)?verre|fibre\s+verre|papiers?\s+peints?|stuc|tadelakt|a[ée]rogommage|cristallisation\s+marbre|reprise\s+(pl[âa]tre|fissures|enduit)|d[ée]collement\s+papier\s+peint|imperm[ée]abilisant\s+fa[çc]ade|rafraichissement\s+peinture|ravalement|moulures?\s+d[ée]co|boiseries?\s+(d[ée]co|moulure)|microtopping\s+murs?|lambris\s+(pl[âa]fond|boiserie\s+murale|[/]\s*boiserie))(?![A-Za-zÀ-ÿ])/i },
-
-  // Maçonnerie / structure
-  // ÉLARGI : "Drain périphérique", "Drainage", "Étanchéité sous-sol", "Système étanchéité SDB",
-  // "Fondations semelles filantes", "Traitement humidité par injection", "Anti-humidité injecté",
-  // "Mur brique pleine", "Création ouverture"
-  { name: "maconnerie_structure", rx: /(?<![A-Za-zÀ-ÿ])(ma[çc]onneries?|b[ée]ton(?!\s+cir[ée])|briques?|parpaings?|dalles?\s+b[ée]ton|chape|gros[\s-]?(œuvre|oeuvre)|fondations?|semelles?\s+filantes?|murs?\s+(soutènement|porteur|brique|parpaing)|ipn|hea|micropieux|cuvelage|[ée]tanch[ée]it[ée]\s+(sous[\s-]?sol|sdb|salle\s+de\s+bain|toiture\s+plate)|syst[èe]me\s+[ée]tanch[ée]it[ée]|traitements?\s+(humidit[ée]|pont\s+thermique)|anti[\s-]?humidit[ée]|d[ée]samiantage|injection\s+r[ée]sine|reprise\s+en\s+sous[\s-]?(œuvre|oeuvre)|cr[ée]ation\s+(muret|ouverture|pi[èe]ce|alimentation\s+ext[ée]rieure)|ouverture\s+(mur\s+(porteur|non\s+porteur)|porte)|agglo\s+b[ée]ton|extension\s+(ma[çc]onnerie|ossature\s+bois)|moellons?|injection|drainages?|drain\s+p[ée]riph[ée]rique|reprise\s+fissures?\s+fa[çc]ade|r[ée]paration\s+fissure\s+fa[çc]ade)(?![A-Za-zÀ-ÿ])/i },
+  // Peinture / revêtements muraux (façade/ravalement déjà capturé plus haut → va à facade_ravalement)
+  { name: "peinture_revetements", rx: /(?<![A-Za-zÀ-ÿ])(peintures?|enduits?(\s+(de\s+)?(lissage|chaux|d[ée]coratif|monocouche|gratt[ée]|talo[cç]h[ée]|finition|int[ée]rieur))?|ratissage|lessivage|sous[\s-]?couches?|toile\s+(de\s+)?verre|fibre\s+verre|papiers?\s+peints?|stuc|tadelakt|a[ée]rogommage|cristallisation\s+marbre|reprise\s+(pl[âa]tre|fissures|enduit)|d[ée]collement\s+papier\s+peint|rafraichissement\s+peinture|moulures?\s+d[ée]co|boiseries?\s+(d[ée]co|moulure)|microtopping\s+murs?|lambris\s+(pl[âa]fond|boiserie\s+murale|[/]\s*boiserie))(?![A-Za-zÀ-ÿ])/i },
 
   // Démolition / dépose
   { name: "demolition_depose", rx: /(?<![A-Za-zÀ-ÿ])(d[ée]molition|d[ée]pose|[ée]vacuation\s+(gravats|d[ée]chets)|curage|d[ée]m[ée]nagement)(?![A-Za-zÀ-ÿ])/i },
 
   // Placo / isolation / cloisons
-  // ÉLARGI : "Bandes + joints" (sans "placo"), "Projection ouate cellulose"
   { name: "placo_isolation", rx: /(?<![A-Za-zÀ-ÿ])(placo|ba\s*13|isolation|cloisons?|laines?|pare[\s-]?vapeur|bandes?(\s+(\+|et)\s+joints?)?|bandes?\s+(joints?\s+)?placo|doublage|faux\s+plafonds?|ite|iti|ouate\s+(de\s+)?cellulose|projection\s+ouate|mousse\s+projet[ée]e|soufflage\s+laine|panneaux?\s+osb|flocage|laine\s+de\s+bois|lambris\s+plafond|joints?\s+placo)(?![A-Za-zÀ-ÿ])/i },
-
-  // Stores / occultation
-  { name: "stores_occultation", rx: /(?<![A-Za-zÀ-ÿ])(stores?(?!ur)|volets?\s+roulants?|tablier\s+volet|sangle|motorisation\s+volet|moteur\s+volet|claustra|abris?\s+voiture|carport|pergola|v[ée]randa)(?![A-Za-zÀ-ÿ])/i },
 
   // Charpente / bois
   { name: "charpente_bois", rx: /(?<![A-Za-zÀ-ÿ])(charpentes?|combles(?!\s+habitables)|ossature\s+bois|traitement\s+charpente|poutres?)(?![A-Za-zÀ-ÿ])/i },
 
   // Logistique de chantier
-  // ÉLARGI : "Nettoyage fin de chantier (m²)", "Évacuation déchets menuiseries"
   { name: "logistique_chantier", rx: /(?<![A-Za-zÀ-ÿ])(logistique|livraison|nettoyages?\s+(chantier|fin\s+(de\s+)?chantier|fa[çc]ade|haute\s+pression|toiture)|mise.*disposition|protection\s+chantier|[ée]chafaudages?|nacelle|bennes?|d[ée]placement|[ée]vacuation\s+d[ée]chets)(?![A-Za-zÀ-ÿ])/i },
 
-  // Bardage extérieur (compté à part — souvent mal classé en peinture/iso)
+  // Bardage extérieur
   { name: "bardage_exterieur", rx: /(?<![A-Za-zÀ-ÿ])bardage(?![A-Za-zÀ-ÿ])/i },
-
-  // Façade / ravalement (vu plus haut en peinture mais à clarifier)
-  { name: "facade_ravalement", rx: /(?<![A-Za-zÀ-ÿ])(fa[çc]ade|ravalement|cr[ée]pi|nettoyage\s+fa[çc]ade)(?![A-Za-zÀ-ÿ])/i },
 
   // Énergies / cuves / batteries
   { name: "energie_environnement", rx: /(?<![A-Za-zÀ-ÿ])(cuve\s+(eau\s+pluie|r[ée]cup[ée]ration)|panneau\s+solaire\s+thermique)(?![A-Za-zÀ-ÿ])/i },
 
-  // Prestations intellectuelles (architecte, MOE, taux horaire, plombier/électricien/menuisier horaire)
-  { name: "prestations_intellectuelles", rx: /(?<![A-Za-zÀ-ÿ])(moe|ma[îi]tre.*[œo]euvre|maitrise.*oeuvre|architecte|conseil|amo|opc|ing[ée]nierie|taux\s+horaire|main[\s-]?(d[''']?)?(œuvre|oeuvre)|heure\s+(de\s+)?(travail|main)|d[ée]placement\s+forfait|menuiserie\s+taux\s+horaire|serrurerie\s+taux\s+horaire)(?![A-Za-zÀ-ÿ])/i },
+  // Prestations intellectuelles
+  { name: "prestations_intellectuelles", rx: /(?<![A-Za-zÀ-ÿ])(moe|ma[îi]tre.*[œo]euvre|maitrise.*oeuvre|architecte|amo|opc|ing[ée]nierie|taux\s+horaire|main[\s-]?(d[''']?)?(œuvre|oeuvre)|heure\s+(de\s+)?(travail|main)|d[ée]placement\s+forfait|menuiserie\s+taux\s+horaire|serrurerie\s+taux\s+horaire)(?![A-Za-zÀ-ÿ])/i },
 
-  // Catch-all : trappe d'accès, joints silicone, etc.
+  // Catch-all
   { name: "petits_ouvrages_divers", rx: /(?<![A-Za-zÀ-ÿ])(joints?\s+silicone|miroirs?|cristallisation)(?![A-Za-zÀ-ÿ])/i },
 ];
 
