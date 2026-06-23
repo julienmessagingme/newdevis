@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "astro": "astro"
+    "astro": "astro",
+    "phase1:audit": "tsx scripts/phase1-audit-catalogue.ts"
   },
   "dependencies": {
     "@amplitude/analytics-browser": "^2.39.0",
