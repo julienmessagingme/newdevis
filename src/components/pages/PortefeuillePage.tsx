@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Wallet, Calendar, Users, LayoutGrid, Loader2, AlertTriangle, Lock,
-  ArrowRight, Menu, TrendingUp,
+  ArrowRight, Menu, TrendingUp, Phone, Building2,
 } from 'lucide-react';
 import { PHASE_LABELS, type PhaseChantier } from '@/types/chantier-dashboard';
 import type { ChantierSummary, PortfolioTotals } from '@/lib/chantier/portfolioSummary';
+import type { UnifiedArtisan, PortfolioConflict } from '@/lib/chantier/portfolioConflicts';
 import '@/styles/cockpit-refonte.css';
 
 const supabase = createClient(
@@ -18,6 +19,11 @@ type Tab = 'finances' | 'planning' | 'contacts';
 interface PortfolioData {
   summaries: ChantierSummary[];
   totals: PortfolioTotals;
+}
+
+interface ContactsData {
+  artisans: UnifiedArtisan[];
+  conflicts: PortfolioConflict[];
 }
 
 // ── Helpers d'affichage ──────────────────────────────────────────────────────
@@ -62,13 +68,14 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 function PortfolioSidebar({
-  active, onSelect, mobileOpen, onCloseMobile, lateCount,
+  active, onSelect, mobileOpen, onCloseMobile, lateCount, conflictCount,
 }: {
   active: Tab;
   onSelect: (t: Tab) => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
   lateCount: number;
+  conflictCount: number;
 }) {
   return (
     <>
@@ -114,6 +121,9 @@ function PortfolioSidebar({
                   <span className="lbl">{t.label}</span>
                   {t.id === 'planning' && lateCount > 0 && (
                     <span className="badge">{lateCount}</span>
+                  )}
+                  {t.id === 'contacts' && conflictCount > 0 && (
+                    <span className="badge">{conflictCount}</span>
                   )}
                 </button>
               );
@@ -264,19 +274,118 @@ function PlanningLiteTab({ summaries }: { summaries: ChantierSummary[] }) {
   );
 }
 
-// ── Onglet Contacts (placeholder, phase 2) ───────────────────────────────────
+// ── Onglet Contacts unifiés (phase 2 : annuaire dédupliqué + conflits) ───────
 
-function ContactsPlaceholder() {
+function ConflictsBanner({ conflicts }: { conflicts: PortfolioConflict[] }) {
+  if (conflicts.length === 0) return null;
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto mb-4">
-        <Users className="h-6 w-6 text-blue-500" aria-hidden="true" />
+    <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+        <span className="font-bold text-amber-800 text-sm">
+          {conflicts.length} conflit{conflicts.length > 1 ? 's' : ''} de ressources à arbitrer
+        </span>
       </div>
-      <h3 className="font-bold text-gray-900 text-lg">Annuaire unifié</h3>
-      <p className="text-gray-500 text-sm mt-2 max-w-md mx-auto">
-        Tous vos artisans dédupliqués, tous chantiers confondus, avec la détection des conflits
-        de disponibilité. Disponible prochainement.
+      <div className="flex flex-col gap-2">
+        {conflicts.map((c, i) => (
+          <div key={i} className="rounded-xl bg-white border border-amber-100 p-3">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="font-semibold text-gray-900 text-sm">{c.artisanLabel}</span>
+              {c.confidence === 'confirmed' ? (
+                <span className="px-2 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-700 text-[11px] font-semibold">Conflit confirmé</span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 border border-amber-200 text-amber-700 text-[11px] font-semibold">À vérifier</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+              {c.windows.map((w, j) => (
+                <span key={j} className="inline-flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1">
+                  <span className="font-medium text-gray-800">{w.chantierNom}</span>
+                  {w.lotNom ? <span className="text-gray-400">· {w.lotNom}</span> : null}
+                  <span className="text-gray-400">({fmtDate(w.start)} → {fmtDate(w.end)})</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-amber-700/80 mt-2">
+        Périodes qui se recoupent : à confirmer avec l'artisan (un chevauchement de dates ne signifie pas toujours une présence simultanée).
       </p>
+    </div>
+  );
+}
+
+function ContactsTab({ data }: { data: ContactsData | null }) {
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+  const { artisans, conflicts } = data;
+  if (artisans.length === 0) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center text-gray-500 text-sm">
+        Aucun artisan enregistré sur vos chantiers pour l'instant.
+      </div>
+    );
+  }
+  return (
+    <div>
+      <ConflictsBanner conflicts={conflicts} />
+      <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto overscroll-x-contain">
+          <table className="min-w-[720px] w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left text-[11px] font-bold uppercase tracking-wide text-gray-400">
+                <th className="px-4 py-3">Artisan</th>
+                <th className="px-4 py-3">Coordonnées</th>
+                <th className="px-4 py-3">Intervient sur</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {artisans.map((a) => (
+                <tr key={a.key} className="hover:bg-gray-50/60 transition-colors align-top">
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-gray-900">{a.label}</div>
+                    {a.confidence === 'low' && a.chantierCount > 1 && (
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-medium">
+                        rapprochement à vérifier
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    <div className="flex flex-col gap-1">
+                      {a.phone && (
+                        <span className="inline-flex items-center gap-1.5"><Phone className="h-3 w-3 text-gray-400" aria-hidden="true" />{a.phone}</span>
+                      )}
+                      {a.siret && (
+                        <span className="inline-flex items-center gap-1.5"><Building2 className="h-3 w-3 text-gray-400" aria-hidden="true" />{a.siret}</span>
+                      )}
+                      {!a.phone && !a.siret && <span className="text-gray-300">—</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {a.occurrences.map((o, i) => (
+                        <a
+                          key={i}
+                          href={`/mon-chantier/${o.chantierId}`}
+                          className="inline-flex items-center gap-1 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg px-2 py-0.5 text-xs no-underline hover:bg-blue-100"
+                        >
+                          {o.chantierNom}{o.lotNom ? <span className="text-blue-400">· {o.lotNom}</span> : null}
+                        </a>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -290,6 +399,7 @@ export default function PortefeuillePage() {
   const [locked, setLocked] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('finances');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [contactsData, setContactsData] = useState<ContactsData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -300,6 +410,14 @@ export default function PortefeuillePage() {
         window.location.href = '/connexion?redirect=/mon-chantier/portefeuille';
         return;
       }
+      const auth = { Authorization: `Bearer ${session.access_token}` };
+      // Annuaire unifie + conflits : best-effort, ne bloque pas l'affichage principal.
+      // En cas d'echec serveur on resout vers vide (evite le spinner infini de l'onglet).
+      const emptyContacts: ContactsData = { artisans: [], conflicts: [] };
+      fetch('/api/portfolio/contacts', { headers: auth })
+        .then((r) => (r.ok ? r.json() : emptyContacts))
+        .then((c) => { if (!cancelled) setContactsData(c as ContactsData); })
+        .catch(() => { if (!cancelled) setContactsData(emptyContacts); });
       try {
         const res = await fetch('/api/portfolio/summary', {
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -388,6 +506,7 @@ export default function PortefeuillePage() {
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
         lateCount={totals.lateCount}
+        conflictCount={contactsData?.conflicts.length ?? 0}
       />
 
       <div className="cr-main flex-1 flex flex-col overflow-hidden">
@@ -420,7 +539,7 @@ export default function PortefeuillePage() {
               <TotalsBar totals={totals} />
               {activeTab === 'finances' && <FinancesTab summaries={summaries} totals={totals} />}
               {activeTab === 'planning' && <PlanningLiteTab summaries={summaries} />}
-              {activeTab === 'contacts' && <ContactsPlaceholder />}
+              {activeTab === 'contacts' && <ContactsTab data={contactsData} />}
             </>
           )}
         </main>
