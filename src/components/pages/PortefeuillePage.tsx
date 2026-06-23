@@ -7,6 +7,7 @@ import {
 import { PHASE_LABELS, type PhaseChantier } from '@/types/chantier-dashboard';
 import type { ChantierSummary, PortfolioTotals } from '@/lib/chantier/portfolioSummary';
 import type { UnifiedArtisan, PortfolioConflict } from '@/lib/chantier/portfolioConflicts';
+import { buildPortfolioTimeline, nowMarkerPct } from '@/lib/chantier/portfolioTimeline';
 import '@/styles/cockpit-refonte.css';
 
 const supabase = createClient(
@@ -230,13 +231,63 @@ function FinancesTab({ summaries, totals }: { summaries: ChantierSummary[]; tota
   );
 }
 
-// ── Onglet Planning (lite) ───────────────────────────────────────────────────
+// ── Onglet Planning : frise consolidée + détail ─────────────────────────────
 
-function PlanningLiteTab({ summaries }: { summaries: ChantierSummary[] }) {
+function FriseTimeline({ summaries }: { summaries: ChantierSummary[] }) {
+  const timeline = buildPortfolioTimeline(summaries);
+  const marker = nowMarkerPct(timeline);
+  if (timeline.bars.length === 0) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-2xl p-6 text-center text-gray-400 text-sm mb-4">
+        Aucun chantier daté à afficher sur la frise. Définissez des dates de planning pour les voir ici.
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-bold text-gray-900 text-sm">Frise consolidée</h3>
+        <span className="text-[11px] text-gray-400">{fmtDate(new Date(timeline.rangeStartMs).toISOString())} → {fmtDate(new Date(timeline.rangeEndMs).toISOString())}</span>
+      </div>
+      <div className="relative flex flex-col gap-2">
+        {/* Repère "aujourd'hui" */}
+        {marker !== null && (
+          <div className="absolute top-0 bottom-0 w-px bg-blue-400/70 z-10" style={{ left: `${marker}%` }} aria-hidden="true">
+            <span className="absolute -top-0.5 -translate-x-1/2 text-[9px] font-semibold text-blue-500 bg-white px-1">auj.</span>
+          </div>
+        )}
+        {timeline.bars.map((bar) => (
+          <a
+            key={bar.id}
+            href={`/mon-chantier/${bar.id}`}
+            className="relative h-8 rounded-lg bg-gray-50 border border-gray-100 block no-underline group"
+            title={`${bar.nom} · ${fmtDate(new Date(bar.startMs).toISOString())} → ${fmtDate(new Date(bar.endMs).toISOString())}`}
+          >
+            <div
+              className={`absolute top-1 bottom-1 rounded-md flex items-center px-2 overflow-hidden ${bar.isLate ? 'bg-amber-400/90' : 'bg-blue-500/90'} group-hover:brightness-110`}
+              style={{ left: `${bar.leftPct}%`, width: `${bar.widthPct}%`, minWidth: 24 }}
+            >
+              <span className="text-[11px] font-semibold text-white whitespace-nowrap">{bar.emoji} {bar.nom}</span>
+            </div>
+          </a>
+        ))}
+      </div>
+      {timeline.undated.length > 0 && (
+        <p className="text-[11px] text-gray-400 mt-3">
+          {timeline.undated.length} chantier{timeline.undated.length > 1 ? 's' : ''} sans date de planning (non affiché{timeline.undated.length > 1 ? 's' : ''} sur la frise).
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PlanningTab({ summaries }: { summaries: ChantierSummary[] }) {
   // Retards en premier.
   const sorted = [...summaries].sort((a, b) => Number(b.isLate) - Number(a.isLate));
   return (
-    <div className="flex flex-col gap-3">
+    <>
+      <FriseTimeline summaries={summaries} />
+      <div className="flex flex-col gap-3">
       {sorted.map((s) => {
         const pct = s.lotsCount > 0 ? Math.round((s.lotsDone / s.lotsCount) * 100) : 0;
         return (
@@ -270,7 +321,8 @@ function PlanningLiteTab({ summaries }: { summaries: ChantierSummary[] }) {
           </a>
         );
       })}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -538,7 +590,7 @@ export default function PortefeuillePage() {
             <>
               <TotalsBar totals={totals} />
               {activeTab === 'finances' && <FinancesTab summaries={summaries} totals={totals} />}
-              {activeTab === 'planning' && <PlanningLiteTab summaries={summaries} />}
+              {activeTab === 'planning' && <PlanningTab summaries={summaries} />}
               {activeTab === 'contacts' && <ContactsTab data={contactsData} />}
             </>
           )}
