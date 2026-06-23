@@ -148,7 +148,7 @@ const METIER_RULES: { name: string; rx: RegExp }[] = [
   { name: "electricite", rx: /\b([ée]lectric|tableau\s+[ée]lec|prise|interrupteur|disjoncteur|c[âa]ble|gaine|spot|luminaire|[ée]clairage|ruban\s+led|bande\s+led|cablage|borne\s+(de\s+)?recharge|irve|wallbox|d[ée]tecteur\s+(fum[ée]e|co\s+monoxyde)|interphone|alarme\s+(intrusion|maison)|cam[ée]ra\s+surveillance|domotique|mise\s+aux?\s+normes?\s+[ée]lec|mise\s+en\s+conformit[ée]\s+[ée]lec|mise\s+[àa]\s+la\s+terre|saign[ée]es|tirage\s+ligne|thermostat|parafoudre|coffret\s+gtl|installation\s+elec)\b/i },
 
   // Domotique / sécurité (souvent corrélé électricité mais distinct)
-  { name: "domotique_securite", rx: /\b(domotique|alarme\b|cam[ée]ra|interphone\s+vid[ée]o|automatisme|portail.*motoris|contr[ôo]le\s+d[''](']?acc[èe]s|serrure\s+connect|thermostat\s+connect)\b/i },
+  { name: "domotique_securite", rx: /\b(domotique|alarme\b|cam[ée]ra|interphone\s+vid[ée]o|automatisme|portail.*motoris|contr[ôo]le\s+d[''']?\s*acc[èe]s|serrure\s+connect|thermostat\s+connect)\b/i },
 
   // Carrelage / faïence / mosaïque (avant peinture pour les enduits sur sols)
   { name: "carrelage_faience", rx: /\b(carrelage|fa[ïi]ence|gr[èe]s|mosa[ïi]que|nez\s+de\s+marche|carreaux\s+ciment|terrazzo|joint\s+carrelage)\b/i },
