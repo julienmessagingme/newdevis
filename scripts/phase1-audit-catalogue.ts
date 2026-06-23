@@ -54,17 +54,31 @@ function loadEnv(): void {
 }
 loadEnv();
 
+// 🟢 Phase 1.3.1 (2026-06-23) — Mode --from-csv
+// Permet de lire le catalogue depuis un CSV exporté manuellement (Supabase
+// Studio → Export → CSV) au lieu de fetcher via service_role. Utile quand
+// la clé service_role n'est pas accessible (cas Julien possede la cle, pas Johan).
+const FROM_CSV = process.argv.includes("--from-csv");
+
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error("❌ Env vars manquantes. Requis dans .env :");
-  console.error("   - SUPABASE_URL (ou PUBLIC_SUPABASE_URL)");
-  console.error("   - SUPABASE_SERVICE_ROLE_KEY");
-  process.exit(1);
+let supabase: ReturnType<typeof createClient> | null = null;
+if (!FROM_CSV) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error("❌ Env vars manquantes. Requis dans .env :");
+    console.error("   - SUPABASE_URL (ou PUBLIC_SUPABASE_URL)");
+    console.error("   - SUPABASE_SERVICE_ROLE_KEY");
+    console.error("");
+    console.error("💡 Alternative : exporte le CSV depuis Supabase Studio + lance avec --from-csv");
+    console.error("   1. Lance le SQL d'audit dans Supabase Studio");
+    console.error("   2. Studio → Results → Export ▼ → CSV");
+    console.error(`   3. Sauvegarde sous ${join(OUTPUT_DIR, "audit-911-raw.csv")}`);
+    console.error("   4. Relance : npm run phase1:audit -- --from-csv");
+    process.exit(1);
+  }
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 }
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -291,9 +305,10 @@ function toCsv<T extends Record<string, unknown>>(rows: T[], columns: (keyof T)[
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Fetch all
+// Fetch all (Supabase ou CSV)
 // ──────────────────────────────────────────────────────────────────────────────
 async function fetchAll(): Promise<MarketRow[]> {
+  if (!supabase) throw new Error("supabase client non initialisé");
   // Page de 1000 pour être sûr de tout chopper en 1 call
   const { data, error } = await supabase
     .from("market_prices")
@@ -307,7 +322,138 @@ async function fetchAll(): Promise<MarketRow[]> {
     console.error("❌ Erreur fetch market_prices :", error.message);
     process.exit(1);
   }
-  return (data ?? []) as MarketRow[];
+  return (data ?? []) as unknown as MarketRow[];
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Parser CSV minimal (gère les guillemets + virgules dans les champs)
+// ──────────────────────────────────────────────────────────────────────────────
+function parseCsv(content: string): Record<string, string>[] {
+  const rows: Record<string, string>[] = [];
+  const lines: string[][] = [];
+  let cur: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < content.length; i++) {
+    const c = content[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (content[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ",") {
+        cur.push(field);
+        field = "";
+      } else if (c === "\n" || c === "\r") {
+        if (field !== "" || cur.length > 0) {
+          cur.push(field);
+          lines.push(cur);
+          cur = [];
+          field = "";
+        }
+        if (c === "\r" && content[i + 1] === "\n") i++;
+      } else {
+        field += c;
+      }
+    }
+  }
+  if (field !== "" || cur.length > 0) {
+    cur.push(field);
+    lines.push(cur);
+  }
+  if (lines.length === 0) return rows;
+
+  const header = lines[0];
+  for (let r = 1; r < lines.length; r++) {
+    const obj: Record<string, string> = {};
+    for (let c = 0; c < header.length; c++) {
+      obj[header[c]] = lines[r][c] ?? "";
+    }
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function num(s: string | undefined): number | null {
+  if (s === undefined || s === null || s === "" || s === "null" || s === "NULL") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function bool(s: string | undefined): boolean | null {
+  if (s === undefined || s === null || s === "" || s === "null" || s === "NULL") return null;
+  if (s === "true" || s === "t" || s === "1") return true;
+  if (s === "false" || s === "f" || s === "0") return false;
+  return null;
+}
+
+function arr(s: string | undefined): string[] | null {
+  if (s === undefined || s === null || s === "" || s === "null" || s === "NULL") return null;
+  // Postgres exporte les arrays sous forme {a,b,c} ou ["a","b","c"] selon studio
+  try {
+    if (s.startsWith("[")) return JSON.parse(s);
+    if (s.startsWith("{") && s.endsWith("}")) {
+      return s.slice(1, -1).split(",").map((x) => x.replace(/^"|"$/g, "").trim()).filter(Boolean);
+    }
+  } catch {
+    /* ignore */
+  }
+  return [s];
+}
+
+async function loadFromCsv(): Promise<MarketRow[]> {
+  const csvPath = join(OUTPUT_DIR, "audit-911-raw.csv");
+  if (!existsSync(csvPath)) {
+    console.error(`❌ Fichier CSV introuvable : ${csvPath}`);
+    console.error("");
+    console.error("Pour exporter le CSV depuis Supabase Studio :");
+    console.error("  1. Ouvre Supabase Studio → SQL Editor");
+    console.error("  2. Colle ce SQL :");
+    console.error("     SELECT id,job_type,label,unit,price_min_unit_ht,price_avg_unit_ht,");
+    console.error("            price_max_unit_ht,fixed_min_ht,fixed_avg_ht,fixed_max_ht,");
+    console.error("            variability_ratio,confidence,sample_size,source,notes,");
+    console.error("            room_specific,required_room,generic_family");
+    console.error("     FROM public.market_prices ORDER BY label;");
+    console.error("  3. Lance la query");
+    console.error("  4. Results panel → bouton Export ▼ → CSV");
+    console.error(`  5. Sauvegarde sous ${csvPath}`);
+    console.error("  6. Relance : npm run phase1:audit -- --from-csv");
+    process.exit(1);
+  }
+  const content = readFileSync(csvPath, "utf-8");
+  const parsed = parseCsv(content);
+  console.log(`✓ ${parsed.length} lignes lues depuis ${csvPath}`);
+
+  return parsed.map((r) => ({
+    id: Number(r.id),
+    job_type: r.job_type ?? "",
+    label: r.label ?? "",
+    unit: r.unit || null,
+    price_min_unit_ht: num(r.price_min_unit_ht),
+    price_avg_unit_ht: num(r.price_avg_unit_ht),
+    price_max_unit_ht: num(r.price_max_unit_ht),
+    fixed_min_ht: num(r.fixed_min_ht),
+    fixed_avg_ht: num(r.fixed_avg_ht),
+    fixed_max_ht: num(r.fixed_max_ht),
+    variability_ratio: num(r.variability_ratio),
+    confidence: r.confidence || null,
+    sample_size: num(r.sample_size) === null ? null : Math.trunc(num(r.sample_size)!),
+    source: r.source || null,
+    notes: r.notes || null,
+    room_specific: bool(r.room_specific),
+    required_room: arr(r.required_room),
+    generic_family: r.generic_family || null,
+  }));
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -315,10 +461,11 @@ async function fetchAll(): Promise<MarketRow[]> {
 // ──────────────────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
   console.log("🟢 Phase 1.3 — Audit catalogue market_prices");
-  console.log("");
+  console.log(FROM_CSV ? "   Mode : lecture CSV (--from-csv)\n" : "   Mode : fetch Supabase\n");
 
-  const rows = await fetchAll();
-  console.log(`✓ ${rows.length} entrées fetchées depuis market_prices\n`);
+  const rows = FROM_CSV ? await loadFromCsv() : await fetchAll();
+  if (!FROM_CSV) console.log(`✓ ${rows.length} entrées fetchées depuis market_prices`);
+  console.log("");
 
   // Map de comptage des labels normalisés (pour détection doublons)
   const labelCounts = new Map<string, number>();
@@ -387,7 +534,11 @@ async function main(): Promise<void> {
     "required_room",
     "generic_family",
   ];
-  writeFileSync(join(OUTPUT_DIR, "audit-911-raw.csv"), toCsv(rows, rawCols), "utf-8");
+  if (!FROM_CSV) {
+    // En mode --from-csv, le fichier audit-911-raw.csv vient déjà du Studio,
+    // on ne le réécrit pas (pour ne pas perdre le format original Postgres si l'user veut le ré-importer)
+    writeFileSync(join(OUTPUT_DIR, "audit-911-raw.csv"), toCsv(rows, rawCols), "utf-8");
+  }
 
   // ── CSV classé (trié par metier → niveau_doute → label) ────────────────────
   const sorted = [...classified].sort((a, b) => {
