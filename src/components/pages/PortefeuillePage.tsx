@@ -214,11 +214,44 @@ function CashflowProjection({ cashflow }: { cashflow: PortfolioCashflow | null }
   );
 }
 
+function FinanceCardsMobile({ summaries }: { summaries: ChantierSummary[] }) {
+  return (
+    <div className="sm:hidden flex flex-col gap-3">
+      {summaries.map((s) => (
+        <a key={s.id} href={`/mon-chantier/${s.id}`} className="block bg-white border border-gray-100 rounded-2xl p-4 no-underline">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-lg select-none">{s.emoji}</span>
+              <span className="font-semibold text-gray-900 truncate">{s.nom}</span>
+            </div>
+            <EtatChip s={s} />
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-gray-50 rounded-lg py-2">
+              <div className="text-[10px] uppercase tracking-wide text-gray-400">Décaissé</div>
+              <div className="text-sm font-bold text-gray-900">{eur(s.decaisse)}</div>
+            </div>
+            <div className="bg-gray-50 rounded-lg py-2">
+              <div className="text-[10px] uppercase tracking-wide text-gray-400">À régler</div>
+              <div className="text-sm font-bold text-gray-900">{eur(s.aRegler)}</div>
+            </div>
+            <div className="bg-gray-50 rounded-lg py-2">
+              <div className="text-[10px] uppercase tracking-wide text-gray-400">À venir</div>
+              <div className="text-sm font-bold text-gray-900">{eur(s.aVenir)}</div>
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function FinancesTab({ summaries, totals, cashflow }: { summaries: ChantierSummary[]; totals: PortfolioTotals; cashflow: PortfolioCashflow | null }) {
   return (
    <>
     <CashflowProjection cashflow={cashflow} />
-    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+    <FinanceCardsMobile summaries={summaries} />
+    <div className="hidden sm:block bg-white border border-gray-100 rounded-2xl overflow-hidden">
       <div className="overflow-x-auto overscroll-x-contain">
         <table className="min-w-[820px] w-full text-sm">
           <thead>
