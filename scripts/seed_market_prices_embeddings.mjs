@@ -40,6 +40,38 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { readFileSync, existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// ── .env loader (zero dep) ─────────────────────────────────────────────────
+// Lit .env.local en priorité (convention Vercel), puis .env.
+// Ne remplace pas les vars deja set dans process.env.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, '..');
+function loadEnvFile(name) {
+  const p = join(ROOT, name);
+  if (!existsSync(p)) return false;
+  const content = readFileSync(p, 'utf-8');
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    let value = trimmed.slice(eqIdx + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = value;
+  }
+  return true;
+}
+const loadedLocal = loadEnvFile('.env.local');
+const loadedEnv = loadEnvFile('.env');
+if (loadedLocal || loadedEnv) {
+  console.log(`📁 .env loaded : ${[loadedLocal && '.env.local', loadedEnv && '.env'].filter(Boolean).join(' + ')}`);
+}
 
 // ── Configuration ──────────────────────────────────────────────────────────
 const SUPABASE_URL    = process.env.SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL;
