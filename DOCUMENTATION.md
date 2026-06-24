@@ -628,6 +628,9 @@ Ces pages ont `export const prerender = false` et sont rendues côté serveur ou
 | `api/chantier/[id]/documents/[docId]/analyser.ts` | `/api/chantier/:id/documents/:docId/analyser` | Déclencher analyse d'un document |
 | `api/chantier/[id]/devis/index.ts` | `/api/chantier/:id/devis` | Liste devis d'un chantier |
 | `api/chantier/[id]/devis/[devisId].ts` | `/api/chantier/:id/devis/:devisId` | Détail devis individuel |
+| `api/portfolio/summary.ts` | `/api/portfolio/summary` | GET — résumé léger par chantier (5 KPI budget + planning) pour le compte. Gate Multi (`getPortfolioAccess`), lecture seule, fan-out HTTP interne plafonné vers `budget` + `planning`, isolation d'erreur par chantier. |
+| `api/portfolio/contacts.ts` | `/api/portfolio/contacts` | GET — annuaire artisans dédupliqué + conflits de ressources (matching tél/SIRET/nom + chevauchement de lots). Gate Multi, lecture seule. |
+| `api/portfolio/cashflow.ts` | `/api/portfolio/cashflow` | GET — projection trésorerie mensuelle (sorties par mois). Gate Multi, fan-out vers `payment-events`, lecture seule. |
 | `api/health.ts` | `/api/health` | Health check ops — ping Supabase + check env vars. 200 si tout OK, 503 sinon. Pas de check externe (Gemini, whapi, SendGrid) pour ne pas gonfler la latence — leurs APIs ont leurs propres SLA. Réponse JSON `{ status, checks }`. |
 
 ### Pages dynamiques avec paramètres
@@ -1798,6 +1801,11 @@ Chaque badge ⚠ N pointe vers l'onglet où l'action se résout. **Ne pas réuti
 | `/api/chantier/conseils` | POST | Conseils maître d'œuvre (3-5 conseils typés) | Gemini |
 | `/api/chantier/synthese` | POST | Synthèse courte du chantier (3 phrases max) | Gemini |
 | `/api/chantier/materiaux` | POST | Génération 3 options matériaux pour une étape | Gemini |
+| `/api/portfolio/summary` | GET | Portefeuille Multi : résumé léger par chantier (budget + planning), fan-out interne | Non (gate Multi) |
+| `/api/portfolio/contacts` | GET | Portefeuille Multi : annuaire unifié + conflits de ressources | Non (gate Multi) |
+| `/api/portfolio/cashflow` | GET | Portefeuille Multi : projection trésorerie mensuelle (fan-out payment-events) | Non (gate Multi) |
+
+**Portefeuille multi-chantier (offre Multi, lecture seule)** : les 3 routes `/api/portfolio/*` réutilisent les moteurs existants via **fan-out HTTP interne plafonné** (`originFromRequest` + Bearer forwardé), jamais de recalcul de KPI. Gate serveur `getPortfolioAccess` (alias de `getAdvancedPlanningAccess` : admin + allowlist GMC + abonné Multi) dans `src/lib/auth/portfolioAccess.ts`. Logique pure testée : `src/lib/chantier/portfolio{Summary,Conflicts,Timeline,Cashflow}.ts` (+ tests Vitest). UI : `src/pages/mon-chantier/portefeuille.astro` → `PortefeuillePage.tsx`.
 
 Routes spécialisées (documents, lots, devis, planning, payment-events, assistant…) couvertes dans les sections dédiées (§ 21-26).
 

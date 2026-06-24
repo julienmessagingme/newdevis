@@ -1022,6 +1022,13 @@ Si jamais une migration cron est supprimée pour cleanup, **TOUJOURS** créer un
 
 Pour le détail complet (modèle CPM, agent IA dual-mode, pipeline de génération, écrans cockpit, hooks matériaux) → `DOCUMENTATION.md` § 20.
 
+### Portefeuille multi-chantier (offre Multi, lecture seule, 2026-06-24)
+Surface `/mon-chantier/portefeuille` (réservée au palier Multi) qui agrège tous les chantiers du compte : onglets Finances (+ projection trésorerie), Planning (frise consolidée), Contacts unifiés (+ détection de conflits de ressources). Entrée via le menu déroulant du project picker (`Sidebar.tsx`, prop `isMulti` câblée dans `ChantierCockpit` via `/api/gmc/status`).
+- **Règle absolue** : NE JAMAIS recalculer un KPI/date/montant. Les 3 endpoints `/api/portfolio/{summary,contacts,cashflow}` font un **fan-out HTTP interne plafonné** vers les routes existantes (`budget`, `planning`, `payment-events`) avec `originFromRequest` + Bearer forwardé. Source unique de vérité, le portefeuille ne peut pas diverger d'un cockpit.
+- **Gate serveur** : `getPortfolioAccess` (alias de `getAdvancedPlanningAccess`) dans `src/lib/auth/portfolioAccess.ts`. Cadenas UI = cosmétique, le vrai gate est sur les 3 endpoints (403).
+- **Cœurs purs testés** (Vitest) : `src/lib/chantier/portfolio{Summary,Conflicts,Timeline,Cashflow}.ts`. Conflits = honnêteté par confiance (tél normalisé/SIRET = `confirmed`, nom approché conservateur = `to_verify` ; contact sans lot exclu du chevauchement).
+- 🟡 connus (`TODO.md`) : dégradation silencieuse si le self-call est bloqué (previews Vercel) ; coût du fan-out à grande échelle (cashflow génère des signed URLs inutiles). Détail : `DOCUMENTATION.md` (routes) + `FEATURES.md § 2bis`.
+
 ### Planning CPM
 - **DAG multi-parent** : `lots_chantier` (durée + délai + lane_index) + `lot_dependencies` (Finish-to-Start).
 - Dates **dérivées** via tri topologique (Kahn) + forward pass (`src/lib/chantier/planningUtils.ts`).

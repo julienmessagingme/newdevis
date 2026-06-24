@@ -440,6 +440,17 @@ Donner à l'utilisateur, dans les Paramètres du cockpit, le contrôle de l'agen
 
 ---
 
+## Portefeuille multi-chantier — durcissements (🟡, issus de la revue finale 2026-06-24)
+
+Feature livrée (cf. `WIP.md` + `FEATURES.md § 2bis`). Aucun bloquant ; ces points sont des durcissements / clarté, à faire si le besoin remonte.
+
+- [ ] **Dégradation silencieuse du fan-out self-call** : les routes `/api/portfolio/{summary,cashflow}` appellent les endpoints publics du serveur avec le Bearer du user. Si ce self-call est bloqué (Vercel **Deployment Protection sur les previews**, WAF, challenge Cloudflare), tous les chantiers tombent en `fetchError` → lignes "Indisponible" + totaux à 0, mais la route répond quand même 200. OK en prod publique. *Fix* : bannière "données temporairement indisponibles" si **tous** les chantiers sont en fetchError ; à terme, appeler la logique directement plutôt qu'en HTTP.
+- [ ] **Coût/timeout du fan-out à >15 chantiers** : `summary` = 2 appels lourds/chantier (recompute CPM + réconciliation budget + signed URLs) ; `cashflow` tape `payment-events` qui **génère des signed URLs inutiles** pour la projection. Risque du budget 60s à grande échelle. *Fix* : mode `?fields=totaux` léger sur budget, chemin payment-events allégé, ou table de cache portefeuille.
+- [ ] **Deux chiffres "ce que je dois" sur l'onglet Finances** : "À régler" (`a_payer` réconcilié, budget) vs "Reste à prévoir" (échéancier pending, trésorerie) mesurent des choses différentes → confusion possible. *Fix* : libellé clarifiant sur le bloc trésorerie (ex "échéancier prévisionnel").
+- [ ] **Polish v2 (faible valeur)** : aperçu "flouté" pour non-Multi au lieu de l'écran verrouillé ; pull-to-refresh ; cache des résumés ; expansion lot-par-lot de la frise Planning.
+
+---
+
 ## Comment ce fichier fonctionne
 
 - **Quand on ajoute un item** : description courte + fichier:ligne quand pertinent + effort estimé si on l'a.

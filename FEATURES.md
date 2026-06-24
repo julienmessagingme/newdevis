@@ -266,6 +266,22 @@ Features mises en avant comme **exclusives Multi** :
 
 ---
 
+## 2bis. Poste de pilotage portefeuille multi-chantier (offre Multi)
+
+Pour qui gère plusieurs chantiers (maître d'œuvre, investisseur) : une vue "portefeuille" qui zoome arrière sur tous les chantiers d'un coup. **Réservée à l'offre Multi**, en **lecture seule** (on observe, on agit toujours depuis chaque chantier).
+
+**Comment y accéder** : dans le cockpit d'un chantier, cliquer sur le sélecteur de projet en haut de la barre latérale (la tuile avec l'emoji du chantier) → menu déroulant → **Multi-chantier**. Un utilisateur hors Multi voit l'entrée verrouillée (cadenas) qui mène à la page d'abonnement.
+
+La surface a sa propre barre latérale gauche avec 3 onglets :
+
+- **Finances** : tableau consolidé par chantier (budget cible, décaissé, à régler, à venir, flux certains) avec un état rouge/vert par chantier, les totaux du portefeuille, et une **projection de trésorerie mensuelle** ("cash à prévoir" mois par mois, déjà payé vs à prévoir). Vue en cartes sur mobile.
+- **Planning** : une **frise consolidée** où chaque chantier est une barre (début → livraison estimée), avec un repère "aujourd'hui" et les retards en ambre, plus le détail par chantier dessous.
+- **Contacts unifiés** : l'**annuaire dédupliqué** de tous les artisans, tous chantiers confondus (qui intervient où), et surtout la **détection des conflits de ressources** : quand un même artisan est attendu sur deux chantiers en même temps. Honnêteté par confiance : un conflit n'est marqué "confirmé" que sur un rapprochement fiable (téléphone ou SIRET) + chevauchement de dates ; sinon "à vérifier". Jamais de fausse alerte.
+
+Les chiffres ne sont jamais recalculés : ils viennent des mêmes moteurs que chaque cockpit (budget, planning), donc le portefeuille ne peut pas diverger d'un chantier ouvert individuellement.
+
+---
+
 ## 3. Onglet **Accueil** (cockpit du chantier)
 
 Vue d'entrée du chantier — refonte design GMC (sidebar navy, fond crème). Tout le projet lisible en un écran.

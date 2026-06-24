@@ -11,6 +11,20 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🟢 Poste de pilotage portefeuille multi-chantier (offre Multi) — livré 2026-06-24, QA visuelle en attente
+
+Surface `/mon-chantier/portefeuille` réservée au palier Multi, lecture seule, single-owner. **5 phases livrées + poussées** (commits `5c81fc2` → `a609037`), gates verts à chaque phase (vitest 68/68, tsc Δ0, build OK), reviewers séparés PASS (phases 1-4) + revue finale stricte. Construit via la skill `feature-loop`.
+
+- **Entrée** : le project picker du cockpit (`Sidebar.tsx`) est devenu un menu déroulant (Mes chantiers / Multi-chantier, verrouillé + upsell si non-Multi ; `isMulti` via `/api/gmc/status` dans `ChantierCockpit`).
+- **Onglet Finances** : tableau par chantier (rouge/vert) + totaux agrégés + projection de trésorerie mensuelle ("cash à prévoir") + cartes mobile.
+- **Onglet Planning** : frise consolidée multi-chantier (1 chantier = 1 barre, repère "aujourd'hui", retards ambre) + détail.
+- **Onglet Contacts unifiés** : annuaire dédupliqué (tél normalisé/SIRET = fort, nom = faible conservateur) + détection de conflits de ressources (chevauchement de fenêtres de lots sur ≥2 chantiers, confirmé vs à vérifier, honnêteté par confiance).
+- **Archi** : `getPortfolioAccess` (alias `getAdvancedPlanningAccess`) + 3 endpoints GET `/api/portfolio/{summary,contacts,cashflow}` en **fan-out HTTP interne plafonné** vers budget/planning/payment-events (jamais de recalcul KPI). 4 cœurs purs testés (`portfolioSummary/Conflicts/Timeline/Cashflow`).
+
+**Reste** : QA visuelle Julien (compte Multi ≥2 chantiers). 🟡 durcissements connus → `TODO.md`. Pas de migration DB (lecture seule sur tables existantes).
+
+---
+
 ## 🟢 Activation + Monétisation GMC : EN PROD (Stripe Live + Phase B emails, 2026-06-14)
 
 Parcours "Tester gratuitement" → inscription → tunnel → cockpit → essai → emails. **Fondation, séquence d'engagement et tunnel auth-first EN PROD.** Source de vérité : [`docs/plans/2026-06-12-activation-gmc.md`](docs/plans/2026-06-12-activation-gmc.md) + brief emails [`docs/plans/2026-06-12-brief-emails-claude-design.md`](docs/plans/2026-06-12-brief-emails-claude-design.md).
