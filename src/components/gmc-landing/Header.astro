@@ -1,6 +1,11 @@
 ---
 import Logo from './Logo.astro';
 
+// CTA "Tester gratuitement". Defaut = /beta (accroche). Une page peut surcharger :
+// notamment /beta elle-meme pointe vers le tunnel (sinon recliquer = page courante = rien).
+interface Props { ctaHref?: string }
+const { ctaHref = '/beta' } = Astro.props;
+
 const featureMenu = [
   { h: "Vue d'ensemble", links: [
     { href: '/logiciel-suivi-chantier', t: 'Logiciel de suivi chantier' },
@@ -90,7 +95,7 @@ const featureMenu = [
 
     {/* CTA principal — toujours visible */}
     <a
-      href="/beta"
+      href={ctaHref}
       class="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold px-3 sm:px-4 h-10 rounded-xl shadow-sm cursor-pointer transition-colors bg-[#F58A06] hover:bg-[#E47C00] text-white whitespace-nowrap"
     >
       <span class="sm:hidden">Tester</span>
