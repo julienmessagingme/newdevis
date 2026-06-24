@@ -31,14 +31,14 @@ interface ContactsData {
 // ── Helpers d'affichage ──────────────────────────────────────────────────────
 
 function eur(n: number | null | undefined): string {
-  if (n === null || n === undefined) return '—';
+  if (n === null || n === undefined) return '-';
   return `${Math.round(n).toLocaleString('fr-FR')} €`;
 }
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '-';
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
@@ -488,7 +488,7 @@ function ContactsTab({ data }: { data: ContactsData | null }) {
                       {a.siret && (
                         <span className="inline-flex items-center gap-1.5"><Building2 className="h-3 w-3 text-gray-400" aria-hidden="true" />{a.siret}</span>
                       )}
-                      {!a.phone && !a.siret && <span className="text-gray-300">—</span>}
+                      {!a.phone && !a.siret && <span className="text-gray-300">-</span>}
                     </div>
                   </td>
                   <td className="px-4 py-3">
