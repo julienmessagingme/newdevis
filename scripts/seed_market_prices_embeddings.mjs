@@ -17,6 +17,9 @@
  *   # Re-embed TOUT (utile après changement de modèle ou de format de texte)
  *   node scripts/seed_market_prices_embeddings.mjs --force
  *
+ *   # Re-embed UNIQUEMENT des ids spécifiques (utile après Phase 1.4a Cat B)
+ *   node scripts/seed_market_prices_embeddings.mjs --ids "319,321,318,320"
+ *
  *   # Tester sur 5 rows seulement
  *   node scripts/seed_market_prices_embeddings.mjs --limit 5
  *
@@ -63,6 +66,10 @@ const args = process.argv.slice(2);
 const force  = args.includes('--force');
 const limitI = args.indexOf('--limit');
 const limit  = limitI >= 0 ? parseInt(args[limitI + 1], 10) : null;
+const idsI   = args.indexOf('--ids');
+const onlyIds = idsI >= 0
+  ? args[idsI + 1].split(',').map((s) => parseInt(s.trim(), 10)).filter(Number.isFinite)
+  : null;
 
 // ── Validation env vars ────────────────────────────────────────────────────
 if (!SUPABASE_URL || !SUPABASE_KEY || !GEMINI_API_KEY) {
@@ -150,7 +157,10 @@ function toPgVector(arr) {
 
 async function main() {
   console.log(`\n🚀 Seed market_prices.embedding (V3.5.0 Phase B)`);
-  console.log(`   Mode  : ${force ? '🔄 RE-EMBED ALL (--force)' : '📌 missing only'}`);
+  let modeLabel = '📌 missing only';
+  if (force) modeLabel = '🔄 RE-EMBED ALL (--force)';
+  else if (onlyIds) modeLabel = `🎯 SPECIFIC IDS (${onlyIds.length} : ${onlyIds.slice(0, 5).join(',')}${onlyIds.length > 5 ? '...' : ''})`;
+  console.log(`   Mode  : ${modeLabel}`);
   console.log(`   Model : ${EMBEDDING_MODEL} (${EMBEDDING_DIM} dim)`);
   if (limit) console.log(`   Limit : ${limit} rows max`);
   console.log('');
@@ -186,17 +196,29 @@ async function main() {
   let q = supabase
     .from('market_prices')
     .select('id, job_type, label, unit, notes, domain, embedding')
-    .order('id', { ascending: true });
+    .order('id', { ascending: true })
+    .limit(2000); // garde-fou contre la limite Supabase 1000 par défaut
   if (limit) q = q.limit(limit);
+  if (onlyIds) q = q.in('id', onlyIds);
   const { data: rows, error } = await q;
   if (error) {
     console.error(`❌ Fetch market_prices : ${error.message}`);
     process.exit(1);
   }
 
-  const target = force ? rows : rows.filter(r => r.embedding === null);
+  let target;
+  if (force) target = rows;
+  else if (onlyIds) target = rows; // déjà filtré par .in()
+  else target = rows.filter(r => r.embedding === null);
   console.log(`📦 Total catalogue : ${rows.length} rows`);
   console.log(`📦 À traiter       : ${target.length} rows\n`);
+
+  // Vérification ids manquants en mode --ids
+  if (onlyIds && rows.length < onlyIds.length) {
+    const foundIds = new Set(rows.map(r => r.id));
+    const missing = onlyIds.filter(id => !foundIds.has(id));
+    console.log(`⚠️  ${missing.length} id(s) introuvable(s) en DB : ${missing.join(', ')}\n`);
+  }
 
   if (target.length === 0) {
     console.log('✅ Aucune row à embedder (toutes déjà OK). Use --force pour re-embed.');
