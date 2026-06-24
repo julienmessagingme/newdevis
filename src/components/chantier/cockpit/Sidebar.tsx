@@ -181,7 +181,7 @@ export default function Sidebar({ result, activeSection, onSelect, badges, mobil
 
           {pickerOpen && (
             <div className="cr-pp-dropdown" role="menu">
-              <a href="/mon-chantier" className="cr-pp-dropdown-item" role="menuitem">
+              <a href="/mon-chantier?hub=1" className="cr-pp-dropdown-item" role="menuitem">
                 <LayoutGrid />
                 <span>Mes chantiers</span>
               </a>

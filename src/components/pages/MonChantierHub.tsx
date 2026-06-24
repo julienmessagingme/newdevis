@@ -354,11 +354,13 @@ export default function MonChantierHub() {
         const list = (json.chantiers ?? []) as ChantierItem[];
         if (!cancelled) setChantiers(list);
 
-        // Un seul chantier => pas besoin du hub : on entre direct dans son cockpit
-        // (la vue de travail / dashboard). A partir de 2 chantiers (Multi) on garde
-        // le hub pour basculer entre projets. La creation d'un 2e chantier passe par
-        // /mon-chantier/nouveau (CTA "Creer avec l'IA" du cockpit), donc pas de piege.
-        if (!cancelled && list.length === 1) {
+        // Un seul chantier => par defaut on entre direct dans son cockpit (la vue de
+        // travail). MAIS si on arrive EXPLICITEMENT via "Mes chantiers" (?hub=1), on
+        // reste sur le hub meme avec 1 seul chantier, pour pouvoir en creer un 2e
+        // (upsell Multi via la carte d'ajout verrouillee). Ne JAMAIS bloquer le passage
+        // mono -> multi : la creation passe par /mon-chantier/nouveau (gate Multi serveur).
+        const forceHub = new URLSearchParams(window.location.search).get('hub') === '1';
+        if (!cancelled && list.length === 1 && !forceHub) {
           window.location.replace(`/mon-chantier/${list[0].id}`);
           return;
         }
