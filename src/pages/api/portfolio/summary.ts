@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { jsonOk, jsonError, optionsResponse, originFromRequest, requireAuth } from '@/lib/api/apiHelpers';
+import { jsonOk, jsonError, optionsResponse, internalFanoutBase, requireAuth } from '@/lib/api/apiHelpers';
 import { getPortfolioAccess } from '@/lib/auth/portfolioAccess';
 import {
   buildChantierSummary,
@@ -59,7 +59,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const chantiers = (rows ?? []) as RawChantierRow[];
   const bearer = request.headers.get('Authorization') ?? '';
-  const origin = originFromRequest(request);
+  const origin = internalFanoutBase(request);
   const nowMs = Date.now();
 
   const summaries: ChantierSummary[] = [];
@@ -70,7 +70,7 @@ export const GET: APIRoute = async ({ request }) => {
     const batchSummaries = await Promise.all(
       batch.map(async (c) => {
         const [budget, planning] = await Promise.all([
-          fetchJson<RawBudgetResponse>(`${origin}/api/chantier/${c.id}/budget`, bearer),
+          fetchJson<RawBudgetResponse>(`${origin}/api/chantier/${c.id}/budget?fields=totaux`, bearer),
           fetchJson<RawPlanningResponse>(`${origin}/api/chantier/${c.id}/planning`, bearer),
         ]);
         return buildChantierSummary(c, budget, planning, nowMs);

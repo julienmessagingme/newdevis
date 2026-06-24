@@ -52,6 +52,32 @@ export function originFromRequest(request: Request): string {
   return `${proto}://${host}`;
 }
 
+// Hôtes de confiance pour les self-calls internes PORTEURS DE TOKEN (fan-out
+// serveur→serveur qui forwarde le Bearer de l'utilisateur).
+const TRUSTED_INTERNAL_HOSTS = new Set([
+  'verifiermondevis.fr', 'www.verifiermondevis.fr',
+  'gerermonchantier.fr', 'www.gerermonchantier.fr',
+]);
+
+/**
+ * Base absolue FIABLE pour un fan-out interne qui forwarde le Bearer du user.
+ *
+ * `originFromRequest` fait confiance au header Host : pour un appel qui PORTE le
+ * token, un Host forgé enverrait le token vers un domaine arbitraire. On vérifie
+ * donc le Host contre une allowlist (+ localhost en dev + `*.vercel.app` pour les
+ * previews). Host inconnu → on retombe sur le domaine canonique de prod (le nôtre)
+ * plutôt que de forwarder le token ailleurs.
+ */
+export function internalFanoutBase(request: Request): string {
+  const host = request.headers.get('host') ?? '';
+  const isLocal = host.startsWith('localhost') || host.startsWith('127.');
+  const isPreview = host.endsWith('.vercel.app');
+  const trusted = isLocal || isPreview || TRUSTED_INTERNAL_HOSTS.has(host);
+  if (!trusted) return 'https://www.verifiermondevis.fr';
+  const proto = request.headers.get('x-forwarded-proto') ?? (isLocal ? 'http' : 'https');
+  return `${proto}://${host}`;
+}
+
 // ── Gate d'acces GMC (lecture seule apres essai expire / non paye) ───────────
 
 /** Acces en ECRITURE GMC : essai en cours OU abonnement actif/past_due. Inactif

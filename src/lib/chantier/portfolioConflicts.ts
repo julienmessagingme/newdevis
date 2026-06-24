@@ -242,8 +242,10 @@ export function buildUnifiedArtisans(
 
 // ── Detection de conflits (chevauchement de periodes) ────────────────────────
 
+// Chevauchement STRICT : deux fenetres qui se touchent seulement (fin de l'une =
+// debut de l'autre, ex 30/06 -> 30/06) ne sont PAS un conflit (l'artisan enchaine).
 function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
-  return aStart <= bEnd && bStart <= aEnd;
+  return aStart < bEnd && bStart < aEnd;
 }
 
 /**

@@ -118,6 +118,17 @@ describe('detectConflicts', () => {
     expect(conflicts).toHaveLength(0);
   });
 
+  it('pas de conflit si les fenetres se touchent seulement (fin = debut)', () => {
+    const contacts = [
+      contact({ id: 'c1', chantier_id: 'A', nom: 'Martin', telephone: '0612345678', lot_id: 'l1' }),
+      contact({ id: 'c2', chantier_id: 'B', nom: 'Martin', telephone: '0612345678', lot_id: 'l2' }),
+    ];
+    // l1 finit le 30/06, l2 demarre le 30/06 : l'artisan enchaine, pas un conflit.
+    const lots = [lot('l1', 'A', '2026-06-01', '2026-06-30'), lot('l2', 'B', '2026-06-30', '2026-07-30')];
+    const conflicts = detectConflicts(buildUnifiedArtisans(contacts, lots, chantiers));
+    expect(conflicts).toHaveLength(0);
+  });
+
   it('conflit a verifier si rapprochement faible (nom seul)', () => {
     const contacts = [
       contact({ id: 'c1', chantier_id: 'A', nom: 'Carrelage Sud', lot_id: 'l1' }),

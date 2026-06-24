@@ -185,12 +185,15 @@ function CashflowProjection({ cashflow }: { cashflow: PortfolioCashflow | null }
   const scale = peak > 0 ? peak : 1;
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 mb-4">
-      <div className="flex items-baseline justify-between mb-4">
+      <div className="flex items-baseline justify-between mb-1">
         <h3 className="font-bold text-gray-900 text-sm">Trésorerie prévisionnelle</h3>
         <span className="text-xs text-gray-500">
           Reste à prévoir : <span className="font-bold text-gray-900">{eur(totalPending)}</span>
         </span>
       </div>
+      <p className="text-[11px] text-gray-400 mb-4">
+        Basé sur l'échéancier prévisionnel (distinct du « À régler » facturé du tableau ci-dessous).
+      </p>
       <div className="flex items-end gap-2 sm:gap-3 overflow-x-auto overscroll-x-contain pb-2" style={{ minHeight: 140 }}>
         {months.map((m) => {
           const pendingH = Math.round((m.pending / scale) * 110);

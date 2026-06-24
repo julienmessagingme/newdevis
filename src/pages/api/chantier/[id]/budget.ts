@@ -250,6 +250,11 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   const chantierId = params.id!;
 
+  // Mode allégé (fan-out portefeuille) : ?fields=totaux skippe la génération des
+  // signed URLs (storage round-trips, le gros du coût) ; les totaux/lots restent
+  // calculés à l'identique. Le portefeuille n'utilise que `totaux`.
+  const lightTotaux = new URL(request.url).searchParams.get('fields') === 'totaux';
+
   try {
     // ── Phase A : 4 queries indépendantes en parallèle ─────────────────────
     // chantier, lots, docs et proofCount ne dépendent d'aucune autre query.
@@ -359,16 +364,18 @@ export const GET: APIRoute = async ({ params, request }) => {
             .select('id, status, score, signal, raw_text')
             .in('id', analyseIds)
         : Promise.resolve({ data: [] as Array<{ id: string; status: string | null; score: number | null; signal: string | null; raw_text: unknown }>, error: null }),
-      Promise.all(
-        (docs ?? [])
-          .filter(d => d.bucket_path && !d.bucket_path.startsWith('analyse/'))
-          .map(async d => {
-            const { data: urlData } = await ctx.supabase.storage
-              .from(BUCKET)
-              .createSignedUrl(d.bucket_path!, URL_TTL);
-            return [d.id, urlData?.signedUrl] as const;
-          })
-      ),
+      lightTotaux
+        ? Promise.resolve([] as (readonly [string, string | undefined])[])
+        : Promise.all(
+            (docs ?? [])
+              .filter(d => d.bucket_path && !d.bucket_path.startsWith('analyse/'))
+              .map(async d => {
+                const { data: urlData } = await ctx.supabase.storage
+                  .from(BUCKET)
+                  .createSignedUrl(d.bucket_path!, URL_TTL);
+                return [d.id, urlData?.signedUrl] as const;
+              })
+          ),
     ]);
 
     if ('error' in analysesRes && analysesRes.error) {

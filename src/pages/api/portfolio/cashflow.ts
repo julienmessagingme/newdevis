@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { jsonOk, jsonError, optionsResponse, originFromRequest, requireAuth } from '@/lib/api/apiHelpers';
+import { jsonOk, jsonError, optionsResponse, internalFanoutBase, requireAuth } from '@/lib/api/apiHelpers';
 import { getPortfolioAccess } from '@/lib/auth/portfolioAccess';
 import { bucketCashflowByMonth, type CashflowEvent } from '@/lib/chantier/portfolioCashflow';
 
@@ -49,14 +49,14 @@ export const GET: APIRoute = async ({ request }) => {
 
   const ids = (rows ?? []).map((r) => r.id as string);
   const bearer = request.headers.get('Authorization') ?? '';
-  const origin = originFromRequest(request);
+  const origin = internalFanoutBase(request);
 
   const events: CashflowEvent[] = [];
 
   for (let i = 0; i < ids.length; i += BATCH_SIZE) {
     const batch = ids.slice(i, i + BATCH_SIZE);
     const results = await Promise.all(
-      batch.map((id) => fetchEvents(`${origin}/api/chantier/${id}/payment-events`, bearer)),
+      batch.map((id) => fetchEvents(`${origin}/api/chantier/${id}/payment-events?lite=1`, bearer)),
     );
     for (const evs of results) {
       for (const e of evs) {

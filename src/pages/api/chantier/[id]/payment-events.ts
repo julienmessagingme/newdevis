@@ -15,6 +15,11 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   const chantierId = params.id!;
 
+  // Mode allégé (fan-out portefeuille / trésorerie) : ?lite=1 skippe l'enrichissement
+  // coûteux (preuves + signed URLs storage + noms artisan/lot). On garde le montant
+  // des documents source pour calculer amount_estimate. Les events restent identiques.
+  const lite = new URL(request.url).searchParams.get('lite') === '1';
+
   // Récupérer les IDs des devis validés pour filtrer les payment_events
   // On n'inclut que les events issus de devis validés (ou d'attente_facture) et de factures.
   // Les devis en cours / non retenus ne doivent pas apparaître dans l'échéancier.
@@ -48,15 +53,16 @@ export const GET: APIRoute = async ({ params, request }) => {
   const sourceIds = (data ?? []).map(e => e.source_id).filter(Boolean);
   const eventIds = (data ?? []).map(e => e.id);
 
-  // Phase 2: docs + proofDocs in parallel (both depend only on events data)
+  // Phase 2: docs + proofDocs in parallel (both depend only on events data).
+  // En mode lite : docs réduit à (id, montant) pour amount_estimate, proofDocs skippé.
   const [docsRes, proofDocsRes] = await Promise.all([
     sourceIds.length > 0
       ? ctx.supabase
           .from('documents_chantier')
-          .select('id, nom, nom_fichier, analyse_id, montant, lots_chantier(nom)')
+          .select(lite ? 'id, montant' : 'id, nom, nom_fichier, analyse_id, montant, lots_chantier(nom)')
           .in('id', sourceIds)
       : Promise.resolve({ data: [] as any[] }),
-    eventIds.length > 0
+    !lite && eventIds.length > 0
       ? ctx.supabase
           .from('documents_chantier')
           .select('id, nom, nom_fichier, analyse_id, bucket_path')
