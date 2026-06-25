@@ -73,8 +73,9 @@
 - [x] **1.4a** Fix doublons : 39 doublons réglés via `phase1-fix-doublons.sql` (16 forfaits par taille supprimés + 10 labels expliciter + 5 fusions + F2 + G1)
 - [x] **1.4b** Relecture 152 conflits : 18 corrections Claude + 6 arbitrages Julien + 128 validés en bloc
 - [x] **1.5** Migration `phase1-migration-colonnes.sql` appliquée (ALTER TABLE + 891 UPDATE + indexes + CHECK constraints)
-- [ ] **1.6** ⏳ Régénération embeddings sur 11 entrées modifiées (10 labels Cat B + 1 nouveau `pose_carrelage_sdb_m2`) — script `scripts/seed_market_prices_embeddings.mjs` existant
-- [ ] **1.7** ⏳ Recalibrage fourchettes vs prix réels observés dans `analyses` (94% des 1200 devis-postes recalculables) — facultatif court terme
+- [x] **1.6** Régénération embeddings (891/891 en 344 s, 2026-06-24) — `seed_market_prices_embeddings.mjs --force`. Le matcher vectoriel prod cherche maintenant sur les libellés à jour.
+- [x] **1.7** Recalibrage fourchettes : **outillage livré** — `scripts/phase1-7-recalibrage-fourchettes.ts` produit `RAPPORT-RECALIBRAGE.md`. **Reste à Julien** : lancer + relire les flags rouges + écrire SQL d'ajustement (1-2h, optionnel court terme)
+- [x] **1.8** Audit unités incohérentes : **outillage livré** — `scripts/phase1-8-audit-unites.ts` produit `RAPPORT-UNITES.md`. **Reste à Julien** : lancer + appliquer les normalisations SQL (~30 min)
 
 ### ✅ Phase 2 — Écran de revue (LIVRÉE 2026-06-23)
 
@@ -86,23 +87,28 @@
 
 **Grain de revue** (validé PDF) : verdict global d'abord, descente ligne par ligne reportée à Phase 2.4 (édition anomalies détaillées) — à faire seulement si on constate qu'on en a besoin en pratique.
 
-### 🔴 Phase 3 — Lecture juste (Maillon 1) — le gros chantier
+### 🟡 Phase 3 — Lecture juste (Maillon 1) — le gros chantier
 
 Objectif : ne plus confondre quantité / unité / prix unitaire, extraire le prix unitaire, vérifier l'arithmétique du devis sur lui-même.
 
-**Risque modéré** : refonte complète de extract.ts. Déploiement derrière drapeau, repli immédiat.
+**Sous-phases livrées au 2026-06-24 (code mort, prêt à brancher)** :
 
-- **Lecture "structure d'abord"** : cartographier la grille du tableau **une seule fois** (quelles colonnes, schéma numérotation, devise, sous-totaux), puis remplir les valeurs dans ce schéma figé
-- **Extraire le prix unitaire** (+ texte brut original de la ligne, pour réparation ciblée)
-- **Réconciliation arithmétique côté code** (gratuit) : `montant = qty × prix_unitaire` ; `sous-total = somme lignes filles` ; `devis = somme − remise`. La redondance du devis devient un correcteur d'erreur — **la plupart des rustines deviennent inutiles**
-- **Niveau de confiance par champ** (prix lu vs recalculé, unité explicite vs déduite)
-- **Tagger chaque ligne par nature** : ancre surfacique (pose au m²) / annexe corrélée sans unité propre (ragréage, primaire, dépose, joints…) / ligne transverse (nettoyage, déchets). Prérequis du rattachement annexes au coût unitaire (Phase 4).
+- [x] **3.0** Architecture complète dans [`PHASE3-ARCHITECTURE.md`](PHASE3-ARCHITECTURE.md) (520 lignes) : diagnostic extract.ts actuel (924 lignes dont ~250 de rustines), cible structure-d'abord, mapping des 10 rustines (6 KEEP, 4 RETIRABLES), esquisse prompt v2, stratégie shadow → bascule contrôlée → cleanup
+- [x] **3.0bis** Module de réconciliation arithmétique TS pur livré + testé Vitest 23/23 : `src/lib/analyse/extract/reconciliation.ts` + copie Deno dans `supabase/functions/analyze-quote/reconciliation.ts`
+- [x] **3.0ter** Banc de tests spec dans [`BANC-DE-TESTS.md`](BANC-DE-TESTS.md) (15 cas canoniques, dont ALES 8950€ et Créteil résumé par lot)
+- [x] **3.1** `supabase/functions/analyze-quote/extract_v2.ts` écrit (973 lignes) : nouveau pipeline complet. Prompt v2 en 2 sections (Cartographie + Lignes structurées). 6 rustines métier conservées, 4 rustines extraction retirées. Output `ExtractedDataV2` étend `ExtractedData` v1 (rétrocompat). **Code mort, pas appelé, zero risque prod.**
 
-**Risques** :
-- **Budget temps ~150 s** (extraction a déjà délai 80 s). Faire 2 appels (structure puis valeurs) risque de dépasser → un seul appel à sortie structurée
-- **Troncature** : ajouter le prix unitaire + structure alourdit la sortie ; JSON tronqué = extraction ratée
-- **Ne pas casser ce qui marche** : les rustines couvrent de vrais cas ; ne les retirer **qu'après** que la réconciliation couvre le même cas (prouvé par le filet de tests)
-- **Cas particuliers à préserver** : multi-devis, devis "résumé par lot" (sans prix unitaire)
+**Sous-phases restantes** :
+
+- [ ] **3.2** Brancher feature flag `EXTRACT_V2_ENABLED` (off/shadow/on) + migration SQL `extract_comparisons` (snapshot V1 vs V2 par analyse). En mode shadow : appeler V2 via `EdgeRuntime.waitUntil` + logger comparaison. (1-2h)
+- [ ] **3.3** Bascule contrôlée après ~100 analyses shadow validées (1 semaine monitoring rapproché via `/admin/reviews`)
+- [ ] **3.4** Cleanup `extract.ts` v1 + retrait des 4 rustines extraction (R3 sanitize, R5 RECAP_PATTERNS, R6 titres section, R9 swap HT/TTC) + bump `ENGINE_VERSION` → `"2.0.0-refonte"`
+
+**Risques connus** (mitigation dans `PHASE3-ARCHITECTURE.md` §8) :
+- **Budget temps ~150 s** : un seul appel à sortie structurée (cartographie fait partie du JSON)
+- **Troncature JSON** : maxOutputTokens=32768, monitoring en shadow
+- **Ne pas casser ce qui marche** : retrait des 4 rustines uniquement après que le banc de tests les couvre
+- **Cas particuliers** : multi-devis + devis "résumé par lot" sont dans le banc de tests
 
 ### 🔴 Phase 4 — Verdict honnête (Maillon 3)
 
@@ -138,8 +144,10 @@ Chaque correction humaine devient :
 |---|---|
 | [`PLAN.md`](PLAN.md) | Ce fichier — boussole de la refonte |
 | [`BUGS-A-CORRIGER.md`](BUGS-A-CORRIGER.md) | File de test des bugs signalés (deviennent cas du filet anti-régression) |
-| [`RUSTINES.md`](RUSTINES.md) | Inventaire des ~50 patches V3.4.x/V3.5.x avec classification (KEEP-GUARD-CRITIQUE / RUSTINE-PHASE-3 / MORT) |
-| [`catalogue-classement/`](catalogue-classement/) | Phase 1 — grille métier+nature_prix + audit catalogue (anciennement `docs/taxonomy/`) |
+| [`RUSTINES.md`](RUSTINES.md) | Inventaire des ~50 patches V3.4.x/V3.5.x avec classification (KEEP-GUARD-CRITIQUE / RUSTINE-PHASE-3 / RUSTINE-PHASE-4 / MORT) |
+| [`PHASE3-ARCHITECTURE.md`](PHASE3-ARCHITECTURE.md) | Architecture détaillée Phase 3 (refonte extract.ts) |
+| [`BANC-DE-TESTS.md`](BANC-DE-TESTS.md) | 15 cas canoniques pour valider Phase 3 (avant bascule prod) |
+| [`catalogue-classement/`](catalogue-classement/) | Phase 1 — grille métier+nature_prix + audit catalogue + rapports unités/recalibrage |
 
 ---
 
@@ -156,36 +164,47 @@ Ouvrir **CE FICHIER** en premier. Puis :
 
 ---
 
-## ⏸️ Où on s'est arrêté — fin de journée 2026-06-23
+## ⏸️ Où on s'est arrêté — fin de journée 2026-06-24
 
-**État livré ce jour** : Phase 0 ✅ · Phase 1 ✅ (1.6 et 1.7 reportées) · Phase 2 ✅ (déployée et migration appliquée)
+**État cumulé** : Phase 0 ✅ · Phase 1 ✅ (1.3 à 1.6 appliquées, 1.7 et 1.8 outillage livré) · Phase 2 ✅ (déployée) · Phase 3.0 + 3.1 ✅ (code mort prêt à brancher)
 
-**Reprise possible demain — 3 options** (à arbitrer début de session) :
+### Ce qui a été livré dans la session 2026-06-24
 
-### (A) Phase 1.6 — Régénération embeddings (10 min)
-Re-générer les embeddings pour 11 entrées `market_prices` dont le label a été modifié en Phase 1.4a (10 entrées Cat B "standard/premium" + 1 nouvelle entrée `pose_carrelage_sdb_m2`). Sans ça, le matcher vectoriel V3.5 prod cherche encore les anciens libellés.
-- Script existant : `scripts/seed_market_prices_embeddings.mjs`
-- Effort : nul côté Julien si script déjà OK, sinon 10 min pour ajouter une option `--only-modified`
+- **Phase 1.6** — Régénération embeddings appliquée (891/891 entrées en 344 s)
+- **Phase 1.7** — Script `phase1-7-recalibrage-fourchettes.ts` livré (produit `RAPPORT-RECALIBRAGE.md`)
+- **Phase 1.8** — Script `phase1-8-audit-unites.ts` livré (produit `RAPPORT-UNITES.md`)
+- **Phase 3.0** — Architecture `PHASE3-ARCHITECTURE.md` + module réconciliation TS pur + 23 tests Vitest passants + spec banc de tests
+- **Phase 3.1** — `extract_v2.ts` (973 lignes, code mort) + copie Deno `reconciliation.ts`
 
-### (B) Phase 1.7 — Recalibrage fourchettes vs prix réels (1-2h)
-Le PDF dit : "auditer le catalogue contre les ~1200 devis-postes observés, dont 94% avec prix unitaire recalculable". On confronte les fourchettes théoriques aux médianes + quartiles réels pour identifier les entrées catalogue qui divergent significativement.
-- Sortie : SQL d'ajustement des fourchettes avec proposition (median±IQR) + validation Julien sur les cas douteux
-- Risque : validation circulaire — ne pas recalibrer uniquement sur nos propres observations sur les postes sensibles
+### Reprise possible — 4 options
 
-### (C) Phase 3 — Refonte extract.ts (le GROS chantier)
-Le maillon 1 du PDF, origine de ~70% des faux verdicts (mauvaise lecture du PDF avant tout matching).
-- Lecture "structure d'abord" : cartographier la grille du tableau une seule fois
-- Extraire le prix unitaire (+ texte brut original)
-- Réconciliation arithmétique côté code (`montant = qty × prix_unitaire`, `sous-total = somme lignes filles`, `devis = somme − remise`)
-- Niveau de confiance par champ
-- Tagger chaque ligne par nature (ancre surfacique / annexe corrélée / ligne transverse)
-- **Risques** : budget temps 150s · troncature JSON · ne pas casser ce qui marche (rustines à enlever progressivement)
-- **Effort** : 2-4 sessions (le plus gros morceau de la refonte)
+#### (A) Phase 1.7 application — relire `RAPPORT-RECALIBRAGE.md` + écrire SQL d'ajustement (1-2h)
 
-**Ma reco** : (A) puis (C). La (B) peut attendre que la Phase 2 ait commencé à produire des corrections expert qui valideront/invalideront naturellement les fourchettes. (A) est rapide et complète Phase 1 proprement avant d'attaquer Phase 3.
+Julien lance `npx tsx scripts/phase1-7-recalibrage-fourchettes.ts`, ouvre le rapport généré, regarde les flags rouges (entrées catalogue où la médiane observée diverge > 30% du catalogue). Pour chaque proposition acceptée : `UPDATE market_prices SET price_min_unit_ht = X, price_avg_unit_ht = Y, price_max_unit_ht = Z WHERE id = ...`. **Risque de validation circulaire** : flag accepté = vérifier qu'on n'a pas un bug d'extraction systématique sur ce poste.
 
-**Décisions actées le 2026-06-23** :
-- ENGINE_VERSION = `"1.0.0-refonte"` (ne plus bumper sauf phase livrée)
-- Bugs ALES 8950€ WC, IBAN CIC tirets, placo 25€ → restent en `BUGS-A-CORRIGER.md`, deviendront cas test Phase 3
-- Catalogue verrouillé : 891 entrées, 33 métiers, 4 natures, 100% couverture
-- Piste C élargie au ratio aberrant (>5×) protège la prod pendant Phase 3
+#### (B) Phase 1.8 application — relire `RAPPORT-UNITES.md` + normaliser (~30 min)
+
+Idem, mais plus simple : variantes orthographiques à normaliser (u/u./unite/unité → u canonique), entrées sans unité à compléter, incohérences forfait/unitaire à corriger.
+
+#### (C) Phase 2.4 — Amorcer le socle avec 15 revues réelles (~1h)
+
+`/admin/reviews` est opérationnel. Julien fait 15 revues réelles (validations / corrections / rejets) pour amorcer la table `analysis_corrections` (socle gold standard pour Phase 3 anti-régression) et valider l'ergonomie de l'écran en pratique.
+
+#### (D) Phase 3.2 — Brancher extract_v2 en shadow run (1-2h)
+
+Le nouveau pipeline `extract_v2.ts` est écrit (code mort). Pour le brancher en shadow :
+1. Migration SQL : table `extract_comparisons` (analysis_id, raw_v1, raw_v2, diff, created_at)
+2. Feature flag `EXTRACT_V2_ENABLED` (off/shadow/on) dans `index.ts`
+3. En mode `shadow` : appeler V2 via `EdgeRuntime.waitUntil()` après la réponse à l'utilisateur, comparer V1 vs V2, logger dans `extract_comparisons`. Zero impact UX.
+4. Script `scripts/phase3-analyze-shadow.ts` qui analyse les divergences (semaine suivante)
+
+**Reco** : (C) puis (D). La (C) amorce le filet de tests qui validera la (D). La (A) et (B) peuvent attendre.
+
+### Décisions actées cumulées
+
+- **ENGINE_VERSION** = `"1.0.0-refonte"` jusqu'à Phase 3.4 où on bumpera à `"2.0.0-refonte"`
+- **Catalogue verrouillé** : 891 entrées, 33 métiers, 4 natures, 100% couverture, embeddings à jour
+- **Piste C élargie** au ratio aberrant > 5× — protège la prod pendant la refonte
+- **Bugs ALES 8950€ / IBAN CIC tirets / placo 25€** : restent dans `BUGS-A-CORRIGER.md`, deviennent cas test Phase 3 (cas #11, #5, à constituer)
+- **Code extract.ts v1 NON modifié** pendant la refonte (extract_v2.ts vit à côté, zero risque tant que pas appelé)
+- **Module reconciliation** versionné en double : source de vérité = `src/lib/analyse/extract/reconciliation.ts` (testé Vitest), copie Deno = `supabase/functions/analyze-quote/reconciliation.ts` (à synchroniser à la main au moindre changement)

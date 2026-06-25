@@ -1,6 +1,6 @@
 # Inventaire des rustines + code mort — refonte en cours
 
-**Statut** : 🟢 V1 — inventaire initial 2026-06-23
+**Statut** : 🟢 V2 — mise à jour 2026-06-24 après Phase 3.1 (extract_v2.ts écrit)
 
 **But** : pour chaque rustine V3.4.x / V3.5.x empilée dans le code, donner :
 1. L'emplacement (`fichier:ligne`)
@@ -16,11 +16,39 @@
 
 ---
 
+## Statut au 2026-06-24 — extract_v2.ts écrit (Phase 3.1 livrée)
+
+Le nouveau pipeline `supabase/functions/analyze-quote/extract_v2.ts` est écrit (code mort tant que pas appelé). Il **conserve 6 rustines métier et retire 4 rustines extraction**. Voici le mapping précis :
+
+### 🟢 Conservées dans extract_v2.ts (rustines métier — survivent à la refonte)
+
+| ID | Description | Présent dans extract_v2 |
+|---|---|---|
+| R1 | `detectIncompleteQuote` — devis résumé par lot | ✅ Fonction `detectIncompleteV2` (lignes 264+) |
+| R2 | `PHYSICAL_UNIT_NAMES` étendu (u, pce, piece, etc.) | ✅ Constante (lignes 57-75) |
+| R4 | `detectQuoteCountry` — devis étranger | ✅ Importé depuis `country.ts` |
+| R7 | Whitelist enum `estimation_courtier` | ✅ Fonction `validateTypeDocumentV2` (lignes 322+) |
+| R8 | Whitelist enum `hors_scope_categorie` | ✅ Fonction `validateHorsScopeCategorieV2` (lignes 334+) |
+| R10 | Validation `clauses_litigieuses` | ✅ Fonction `validateClausesV2` (lignes 295+) |
+
+### 🟡 Retirées dans extract_v2.ts (rustines extraction — couvertes par le nouveau format JSON)
+
+| ID | Description | Pourquoi extract_v2 n'en a plus besoin |
+|---|---|---|
+| R3 | `sanitizeEntrepriseNom` (rejet fragments légaux) | La cartographie distingue le bloc en-tête entreprise → Gemini ne confond plus avec le corps du devis |
+| R5 | `RECAP_PATTERNS` (filtre lignes "Total HT/TVA/TTC") | Section B impose `type ∈ {ligne_travaux, sous_total, total, titre_section}` → exclu nativement |
+| R6 | Filtre titres section (Σ enfants ≈ parent) | Section B impose `type="titre_section"` natif via la cartographie hiérarchique N / N.M |
+| R9 | Swap HT/TTC inversé | Le prompt v2 demande explicitement HT/TVA/TTC + la réconciliation arithmétique post-extraction détecte l'incohérence |
+
+**Effet attendu à Phase 3.4 (cleanup)** : `extract.ts` v1 et ces 4 rustines disparaissent (~120 lignes de code en moins). Bump `ENGINE_VERSION` → `"2.0.0-refonte"`.
+
+---
+
 ## Légende statut
 
 - 🟢 garde-fou métier
-- 🟡 rustine extraction
-- 🟠 rustine verdict
+- 🟡 rustine extraction (retirée par extract_v2)
+- 🟠 rustine verdict (retirée par Phase 4)
 - 🔴 code mort
 
 ---

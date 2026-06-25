@@ -11,6 +11,149 @@ Format : chronologie inversée (récent → ancien). Chaque entrée = bug observ
 
 ---
 
+## 🟢 REFONTE 2026-06-23 — Pivot vers une chaîne fiable en 4 maillons
+
+### Pourquoi ce pivot
+
+Après 17 versions V3.4.x → V3.5.16 de patches anti-hallucination, le constat de Julien (2026-06-23) :
+
+> "Il faut arrêter les patchs dans tous les sens, ça ne fonctionne pas. J'ai créé une feuille de route pour fiabiliser définitivement l'outil. Il faut nettoyer l'outil actuel pour repartir d'une base saine et éviter le chevauchement de règles contradictoires."
+
+**Le déclencheur immédiat** : devis ALES n°467, analyse `d3b3f014-7441-42fb-b3b7-95c7b56eb521`.
+- L'utilisateur voyait afficher "WC (fourni+posé) — Anomalie marché — Devis 8 950 € · Marché 292-608 €"
+- Le devis ne contenait pas de WC à 8 950 €
+- Diagnostic : Gemini a **collé** le libellé de la ligne 2.3 ("Fourniture et pose de nouveaux wc") avec le montant de la ligne 3.1 ("Dépose totale des cloisons intérieures sur combles — 8 950 €")
+- 2 vraies lignes du devis ont disparu, 1 ligne fantôme à 8 950 € a été créée
+- Tout cela parce que les cellules "Désignation" du tableau ALES s'étendent sur 2-3 lignes physiques du PDF, et le pipeline V3.5 lit chaque ligne physique de façon isolée
+
+Ce n'est pas un cas isolé : le PDF de refonte ("refonte outil scoring VMD.pdf" du 16 juin 2026, validé Julien 2026-06-23) chiffre que **~70% des faux verdicts viennent du Maillon 1 (lecture)** qui est aujourd'hui à construire.
+
+### La cible — 4 maillons d'une chaîne fiable
+
+| # | Maillon | Avant | Après refonte (cible) |
+|---|---|---|---|
+| 1 | **Lire juste** | 🔴 à construire | Cartographie de la grille du tableau UNE FOIS + extraction prix unitaire + réconciliation arithmétique côté code + confiance par champ |
+| 2 | **Comparer à vraie référence** | 🟡 partiel (57% sans métier) | Catalogue rangé par métier × nature_prix × gamme, fourchettes recalibrées vs prix réels observés |
+| 3 | **Verdict honnête** | 🟡 partiel | Décision sur le prix unitaire (pas le montant), gradation de confiance certifié/indicatif/non comparable, rattachement annexes au coût complet |
+| 4 | **Apprendre** | 🟡 socle vide | Écran de revue admin pour expert, chaque correction = cas test du filet anti-régression |
+
+### Principes inviolables (PDF page 13)
+
+1. **Honnêteté avant exhaustivité** — mieux dire "comparaison indicative" qu'inventer une anomalie
+2. **Comparer à base identique** — "pose seule" ≠ "fourniture+pose"
+3. **Comparer le coût complet** — annexes corrélées rattachées à l'ouvrage qu'elles servent
+4. **L'humain valide, la machine n'invente pas**
+5. **Zéro régression** — chaque évolution passe le filet des cas validés avant la prod
+6. **Coût ≈ 0** — pas d'usine à gaz
+
+### Ce qui s'arrête immédiatement
+
+- ❌ **Plus de bumps `ENGINE_VERSION`** pour patcher un cas user signalé (reset à `"1.0.0-refonte"` le 2026-06-23)
+- ❌ **Plus de "Garde n°X"** qui s'empile inline dans extract.ts / verdictEngine.ts / market-matcher / score.ts / conclusion.ts
+- ❌ **Plus de fix réactifs ad hoc** — chaque bug user → entrée dans `docs/refonte/BUGS-A-CORRIGER.md` qui devient un cas test
+- ❌ **Plus de feature flags zombies** — code mort inventorié dans `docs/refonte/RUSTINES.md`
+
+### Chronologie de la refonte
+
+#### Phase 0 — Cap + nettoyage (2026-06-23 — livrée)
+
+- Reset `ENGINE_VERSION` "3.5.16" → "1.0.0-refonte" (marque la nouvelle ère, ne bumper qu'aux livraisons de phase)
+- Création de 5 documents de référence dans `docs/refonte/`
+  - `PLAN.md` (boussole, 4 maillons, principes inviolables, ordre d'exécution, décisions actées)
+  - `BUGS-A-CORRIGER.md` (file de test — chaque bug user signalé y atterrit, devient cas test de la phase qui le couvre)
+  - `RUSTINES.md` (inventaire des ~50 patches V3.4.x/V3.5.x avec classification : KEEP-GUARD-CRITIQUE / RUSTINE-PHASE-3 / RUSTINE-PHASE-4 / MORT)
+  - `catalogue-classement/` (anciens YAML peinture/carrelage pivotés en input Phase 1, grille de classement métier × nature_prix)
+- Code mort marqué `// CLEANUP-PHASE-1` (`MARKET_MATCHER_V36`, `MARKET_MATCHER_VECTORIAL=shadow`)
+- CLAUDE.md mis à jour avec section "REFONTE EN COURS" en tête
+- **Filet de sécurité Phase 0.1** : `detectReviewTriggers` étendu au ratio aberrant (`devis_total > 5 × theoreticalMaxHT` sur priceData BRUT) → toute analyse type ALES bascule automatiquement en `pending_review` + email expert + bannière bleue masque l'anomalie. **Protège la prod pendant la refonte sans toucher à la logique métier.**
+
+#### Phase 1 — Catalogue d'aplomb (2026-06-23/24 — livrée)
+
+**Effet** : Maillon 2 passe de 🟡 à 🟢.
+
+- **1.3 Audit catalogue** : script `phase1-audit-catalogue.ts` (v4 avec ~35 règles de classification, défaut nature_prix=fourniture_pose, pluriel-tolérant, lookarounds Unicode-aware). Sur 911 entrées : 726 auto / 0 doute / 146 conflit / 39 doublon / 0 inclassable.
+- **1.4a Fix doublons** : `phase1-fix-doublons.sql` (BEGIN/COMMIT atomique avec 4 vérifs). 39 doublons résolus en 3 catégories : 16 forfaits par taille linéaires supprimés (dépose carrelage/moquette/parquet × 10/20/30/50m² + pose SDB × 4 tailles), 10 labels expliciter (standard/premium/simple/global), 4 fusions strictes, 1 fusion intelligente (isolation_murs_interieurs élargie 35-110 €/m²) + 1 nouvelle entrée `pose_carrelage_sdb_m2` (39-81 €/m², calcul depuis les 4 forfaits supprimés). **Catalogue : 911 → 891 entrées**.
+- **1.4b Relecture conflits** : Claude relit les 152 conflits → 18 corrections sûres + 6 cas ambigus arbitrés par Julien (réponses 1A 2B 3B 4A 5B 6B) + 128 validés en bloc. Scripts `phase1-apply-relecture-claude.ts` + `phase1-apply-julien-arbitrages.ts` pour traçabilité.
+- **1.5 Migration colonnes** : `phase1-migration-colonnes.sql` ajoute `metier` + `nature_prix` + `multiplicateur_couches_applicable` + `gamme` à `market_prices`. 891 UPDATE en transaction atomique avec 4 vérifs intégrées. **33 métiers distincts, 4 natures de prix, 100% couverture, 0 NULL**.
+- **1.6 Régénération embeddings** (2026-06-24) : `seed_market_prices_embeddings.mjs --force` re-embed 891/891 entrées en 344 s. Sans ça les 10 labels Cat B modifiés + la nouvelle entrée SDB pointaient sur les anciens libellés → matcher vectoriel V3.5 prod incohérent. Le PDF marque ce point comme **point de vigilance obligatoire**.
+- **1.7 Recalibrage fourchettes** (2026-06-24, outillage livré) : script `phase1-7-recalibrage-fourchettes.ts` confronte le catalogue aux ~1200 devis-postes observés. Médiane / Q1 / Q3 / p10 / p90 par job_type. Flag rouge si écart médiane > 30%. Respect du point de vigilance PDF "ne pas recalibrer aveuglément" : on flag, Julien valide chaque proposition avant SQL UPDATE.
+- **1.8 Audit unités incohérentes** (2026-06-24, outillage livré) : script `phase1-8-audit-unites.ts` détecte variantes orthographiques (u/u./unite/unité/pce/piece), unités atypiques par métier, entrées sans unité, incohérences forfait/unitaire (prix dans le mauvais champ).
+
+#### Phase 2 — Écran de revue + socle de cas validés (2026-06-23 — livrée)
+
+**Effet** : Maillon 4 passe de 🟡 à 🟢.
+
+- **2.1 Migration SQL** (`20260624_001_phase2_analysis_corrections.sql`) : nouvelle table `analysis_corrections` (snapshot conclusion originale immuable + corrections appliquées + audit trail + RLS admin uniquement) + vue `admin_pending_reviews` enrichie (verdict, surcout, anomalies count, bypass flags).
+- **2.2 3 routes API admin** : `GET /api/admin/reviews` (liste pending_review), `GET /api/admin/reviews/[id]` (détail avec conclusion parsée + raw priceData + review_triggers devinés + corrections antérieures), `POST /api/admin/reviews/[id]/decide` (action validated/corrected/rejected → INSERT correction + UPDATE analyses.review_status + UPDATE conclusion_ia si action=corrected).
+- **2.3 Page admin** `/admin/reviews` (Astro + wrapper React lazy + composant principal avec layout 2 colonnes : liste à gauche / détail à droite). Le verdict corrigé est immédiatement visible côté utilisateur (bannière bleue disparaît).
+- **Grain de revue** acté (PDF) : verdict global d'abord, descente ligne par ligne reportée à 2.4 (anomalies détaillées éditables) — uniquement si l'usage réel le justifie.
+
+#### Phase 3.0 — Préparation refonte extract.ts (2026-06-24 — livrée)
+
+**Effet** : architecture validée, code mort prêt à brancher.
+
+- **`docs/refonte/PHASE3-ARCHITECTURE.md`** (520 lignes) : diagnostic extract.ts actuel (924 lignes dont ~250 de rustines), cible (cartographie + lignes structurées + réconciliation arithmétique côté code), mapping des 10 rustines (6 KEEP métier, 4 RETIRABLES couvertes par le nouveau format), esquisse du nouveau prompt, API publique du module reconciliation, 9 décisions actées, 6 risques + mitigation, stratégie shadow → bascule contrôlée → cleanup.
+- **`src/lib/analyse/extract/reconciliation.ts`** + **`reconciliation.test.ts`** : module TS pur de réconciliation arithmétique (qty × prix_u ≈ montant ; section ≈ Σ lignes filles ; devis ≈ Σ sections − remise). 5 cas couverts par ligne (3 connus cohérents, 3 connus désaccord, 2 connus → calcule le 3e, 1 connu → impossible, 0 connu → tout absent). Confiance par champ (lu/calculé/déduit/absent). Confiance globale du devis (certifié/indicatif/non comparable). **23/23 tests Vitest passants**.
+- **`docs/refonte/BANC-DE-TESTS.md`** : 15 cas canoniques (facile/moyen/difficile) avec critères de réussite. 2 cas détaillés : ALES 8950€ (le bug emblématique) + Créteil 49 700€ (devis résumé par lot).
+
+#### Phase 3.1 — Écrire extract_v2.ts (2026-06-24 — livrée, code mort)
+
+**Effet** : nouveau pipeline structure-d'abord écrit, prêt à brancher en shadow run.
+
+- **`supabase/functions/analyze-quote/reconciliation.ts`** : copie Deno du module Node testé (synchronisation manuelle, source de vérité = version Node).
+- **`supabase/functions/analyze-quote/extract_v2.ts`** (973 lignes) : nouveau pipeline complet.
+  - **Prompt v2 en 2 sections solidaires** : Section A (Cartographie : colonnes, schéma numérotation N/N.M/N.M.K, devise, multi_devis, pages_total) faite UNE FOIS ; Section B (Lignes structurées : type ∈ {ligne_travaux, sous_total, total, titre_section}, id_hierarchique, qty, unite, prix_unitaire, montant_total, tags_nature[ancre_surfacique|annexe_correlee|ligne_transverse], texte_brut) qui remplit la carte.
+  - **7 règles absolues** inscrites au prompt (jamais de mix description/montant, type=titre_section natif, prix_unitaire OBLIGATOIRE si colonne existe, unite courante uniquement, tags_nature obligatoire, multi-devis structuré).
+  - **6 rustines métier conservées** (R1 incomplete, R2 unités étendues, R4 country, R7+R8 enums whitelist, R10 clauses).
+  - **4 rustines extraction retirées** (R3 sanitize entreprise, R5 RECAP_PATTERNS, R6 titres section, R9 swap HT/TTC) — couvertes par le format JSON structuré.
+  - **Output type `ExtractedDataV2`** étend `ExtractedData` v1 (rétrocompat conclusion.ts) + enrichit avec cartographie, sections_v2, reconciliation (résultat du module), confiance_globale.
+  - **STATUS** : code mort, **pas appelé**, pas de risque prod. À brancher en Phase 3.2 (shadow run via feature flag `EXTRACT_V2_ENABLED`).
+
+### État au 2026-06-24 fin de journée
+
+| Maillon | Phase | Statut |
+|---|---|---|
+| 1 — Lire juste | Phase 3.0 + 3.1 livrées (code mort) | 🟡 prêt à brancher en shadow (Phase 3.2) |
+| 2 — Comparer à vraie référence | Phase 1.3-1.6 livrées + Phase 1.7-1.8 outillage livré | 🟢 **fait** côté catalogue, optimisations 1.7/1.8 à appliquer manuellement |
+| 3 — Verdict honnête | Phase 4 non commencée | 🟡 inchangé (filet de sécurité Phase 0.1 protège) |
+| 4 — Apprendre | Phase 2 livrée | 🟢 **fait** (outil opérationnel, socle à amorcer par 15 revues réelles) |
+
+### Décisions actées pendant la refonte (clés A à L)
+
+- **A** — `ENGINE_VERSION` reset à `"1.0.0-refonte"` (clarté visuelle, marque la nouvelle ère)
+- **B** — Piste C élargie au ratio aberrant > 5× marché_max (protège la prod pendant Phase 3)
+- **C** — YAML peinture/carrelage pivotés en input Phase 1 (grille de classement métier+nature_prix, plus un système parallèle de matching)
+- **D** — Audit 228 inclassables creusé avec SQL 5
+- **E** — Relecture intégrale du CSV abandonnée en pratique au profit de la relecture des 152 conflits seulement (plus rapide, mêmes résultats)
+- **F2** — `isolation_murs_interieurs` : élargir fourchette 35→110 €/m² + DELETE id 97 (fusion intelligente)
+- **G1** — Créer `pose_carrelage_sdb_m2` 39-81 €/m² en remplacement des 4 forfaits par taille
+- **H1** — Ajustements priorités v4 sur les conflits avant relecture humaine (réduit la charge de 627 à 185 lignes)
+- **I1** — Phase 1.6 régénération embeddings prioritaire avant tout (sinon le matcher cherche les anciens libellés)
+- **J1** — Continuer Phase 3.1 (extract_v2.ts) pendant que Julien débloque les credentials Vercel (zero risque, code mort)
+- **K** — Demande à l'associé : invitation sur le scope Vercel (option propre) OU partage sécurisé des 4 vars (rapide)
+- **L1+L2** — Lancer les 2 audits unités + recalibrage en parallèle
+
+### Bugs identifiés à corriger par la refonte (file de test)
+
+Source : `docs/refonte/BUGS-A-CORRIGER.md`.
+
+| Bug | Phase qui le résoudra | Cas test |
+|---|---|---|
+| ALES 8950€ WC | Phase 3 (lecture juste, cartographie multi-lignes) | Cas #11 du banc de tests |
+| IBAN CIC avec tirets | Phase 3 (extraction robuste, retire le patch V3.5.17) | Cas #5 du banc |
+| Devis placo 25€/m² verdict 45€/m² halluciné | Phase 4 (verdict prix unitaire d'abord) | Cas à constituer |
+
+### Ce qui reste à faire (mise à jour 2026-06-24)
+
+- 🟡 **Phase 1.7 / 1.8 application** : Julien lit les rapports, écrit le SQL d'ajustement (1-2h)
+- 🟡 **Phase 2.4 amorcer socle** : Julien fait les 15 premières revues réelles via `/admin/reviews` pour valider l'ergonomie et alimenter le socle gold standard (~1h)
+- 🔴 **Phase 3.2 shadow run** : brancher feature flag `EXTRACT_V2_ENABLED` + table `extract_comparisons` (1-2h)
+- 🔴 **Phase 3.3 bascule contrôlée** : après ~100 analyses shadow validées (1 semaine de monitoring)
+- 🔴 **Phase 3.4 cleanup + bump v2.0** : retirer code mort extract.ts v1 + 4 rustines extraction couvertes
+- 🔴 **Phase 4 — Verdict honnête** : rattachement annexes, gradation confiance, blocages anti-verdict-dur
+
+---
+
 ## V3.5.16 (2026-06-15) — Piste C : revue humaine assistée (zéro hallucination publique)
 
 **Contexte** : après 14 versions de patches anti-hallucination (V3.4.x → V3.5.x) qui colmatent au cas par cas, le user a accepté le plan **Piste B + C** :

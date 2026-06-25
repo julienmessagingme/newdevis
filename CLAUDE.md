@@ -11,20 +11,22 @@ L'outil d'analyse de prix est en **refonte structurée en 4 maillons** :
 
 📖 **Source de vérité** : [`docs/refonte/PLAN.md`](docs/refonte/PLAN.md) — boussole de la refonte avec phases, principes inviolables, décisions validées.
 
-### État au 2026-06-23 fin de journée
+### État au 2026-06-24 fin de journée
 
 | Maillon | Phase | Statut |
 |---|---|---|
-| 1 — Lire juste | Phase 3 | 🔴 à attaquer (le gros chantier) |
-| 2 — Comparer à vraie référence | Phase 1 | ✅ **livrée** — 891 entrées rangées par metier × nature_prix |
-| 3 — Verdict honnête | Phase 4 | 🟡 inchangé |
-| 4 — Apprendre | Phase 2 | ✅ **livrée** — `/admin/reviews` + table `analysis_corrections` |
+| 1 — Lire juste | Phase 3.0 + 3.1 livrées (code mort) | 🟡 prêt à brancher en shadow (Phase 3.2) |
+| 2 — Comparer à vraie référence | Phase 1.3-1.6 appliquées + 1.7/1.8 outillage livré | 🟢 **fait** — 891 entrées · 33 métiers · 100% couverture · embeddings à jour |
+| 3 — Verdict honnête | Phase 4 non commencée | 🟡 inchangé (filet sécurité Phase 0.1 protège) |
+| 4 — Apprendre | Phase 2 livrée | 🟢 **fait** — `/admin/reviews` + table `analysis_corrections` |
 
 ### Ce qui reste
 
-- 🟡 **Phase 1.6** (10 min) — régénérer embeddings sur 11 entrées catalogue modifiées (10 Cat B + 1 nouvelle `pose_carrelage_sdb_m2`)
-- 🟡 **Phase 1.7** (1-2h, optionnel court terme) — recalibrer les fourchettes catalogue vs 1200 devis-postes observés
-- 🔴 **Phase 3** (2-4 sessions) — refonte `extract.ts` : lecture structure-d'abord, prix unitaire, réconciliation arithmétique, confiance par champ
+- 🟡 **Phase 1.7 application** (1-2h) — Julien relit `RAPPORT-RECALIBRAGE.md` + écrit SQL d'ajustement fourchettes (script déjà livré)
+- 🟡 **Phase 1.8 application** (~30 min) — Julien relit `RAPPORT-UNITES.md` + normalisations SQL (script déjà livré)
+- 🟡 **Phase 2.4** (~1h) — Julien fait 15 revues réelles via `/admin/reviews` pour amorcer le socle gold standard
+- 🔴 **Phase 3.2** (1-2h) — brancher feature flag `EXTRACT_V2_ENABLED` + table `extract_comparisons` + shadow run de `extract_v2.ts`
+- 🔴 **Phase 3.3-3.4** (~2 semaines) — bascule contrôlée + cleanup + bump `ENGINE_VERSION` → `"2.0.0-refonte"`
 - 🔴 **Phase 4** (2-3 sessions) — verdict prix unitaire + gradation confiance + rattachement annexes au coût unitaire
 
 ### Ce qui s'ARRÊTE immédiatement (rappel)
