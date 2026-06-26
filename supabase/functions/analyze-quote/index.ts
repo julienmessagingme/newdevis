@@ -62,6 +62,8 @@ async function alertAdminOnFailure(params: {
 }
 import type { ExtractedData, DomainType } from "./types.ts";
 import { extractDataFromDocument } from "./extract.ts";
+// 🟢 Phase 3.2 (2026-06-24) — Shadow runner pour comparer extract.ts v1 vs extract_v2.ts
+import { getExtractV2Mode, runShadowExtractV2 } from "./extract_shadow.ts";
 import { verifyData } from "./verify.ts";
 import { calculateScore } from "./score.ts";
 import { renderOutput } from "./render.ts";
@@ -459,10 +461,45 @@ serve(async (req) => {
             publicMessage: "Le service d'analyse a mis trop de temps à répondre. Veuillez réessayer.",
           })), 90_000)
         );
+        // 🟢 Phase 3.2 (2026-06-24) — mesure de la durée V1 pour comparaison shadow
+        const v1Start = performance.now();
         extracted = await Promise.race([
           extractDataFromDocument(uint8Array, mimeType, googleApiKey, domainConfig),
           hardTimeout,
         ]);
+        const v1DurationMs = Math.round(performance.now() - v1Start);
+
+        // 🟢 Phase 3.2 (2026-06-24) — Shadow run extract_v2 fire-and-forget
+        // Lit EXTRACT_V2_ENABLED (off / shadow / on). En "shadow", V2 tourne en background
+        // (EdgeRuntime.waitUntil) après la réponse user, calcule un diff structuré vs V1, et
+        // insère dans extract_comparisons (consulté plus tard via scripts/phase3-analyze-shadow).
+        // Zero impact UX. Aucune exception ne remonte (try/catch interne).
+        try {
+          const v2Mode = getExtractV2Mode();
+          if (v2Mode === "shadow" && extracted) {
+            // Cast EdgeRuntime — disponible dans le runtime Supabase Functions Deno
+            // deno-lint-ignore no-explicit-any
+            const er = (globalThis as any).EdgeRuntime;
+            if (er && typeof er.waitUntil === "function") {
+              er.waitUntil(
+                runShadowExtractV2(supabase, {
+                  analysisId,
+                  fileName: analysis.file_name ?? null,
+                  fileBytes: uint8Array,
+                  mimeType,
+                  googleApiKey,
+                  extractedV1: extracted,
+                  v1DurationMs,
+                  v1EngineVersion: "v1",
+                }),
+              );
+              console.log(`[extract_shadow] analysis=${analysisId} shadow V2 scheduled (V1 done in ${v1DurationMs}ms)`);
+            }
+          }
+        } catch (e) {
+          // jamais bloquer le flux principal
+          console.warn(`[extract_shadow] schedule failed:`, e instanceof Error ? e.message : e);
+        }
 
         // Update status to extracted with ocr_status = success
         if (extractionId) {

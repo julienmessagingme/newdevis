@@ -190,13 +190,22 @@ Idem, mais plus simple : variantes orthographiques à normaliser (u/u./unite/uni
 
 `/admin/reviews` est opérationnel. Julien fait 15 revues réelles (validations / corrections / rejets) pour amorcer la table `analysis_corrections` (socle gold standard pour Phase 3 anti-régression) et valider l'ergonomie de l'écran en pratique.
 
-#### (D) Phase 3.2 — Brancher extract_v2 en shadow run (1-2h)
+#### (D) Phase 3.2 — Brancher extract_v2 en shadow run (1-2h) — 🟡 Code livré, à activer
 
-Le nouveau pipeline `extract_v2.ts` est écrit (code mort). Pour le brancher en shadow :
-1. Migration SQL : table `extract_comparisons` (analysis_id, raw_v1, raw_v2, diff, created_at)
-2. Feature flag `EXTRACT_V2_ENABLED` (off/shadow/on) dans `index.ts`
-3. En mode `shadow` : appeler V2 via `EdgeRuntime.waitUntil()` après la réponse à l'utilisateur, comparer V1 vs V2, logger dans `extract_comparisons`. Zero impact UX.
-4. Script `scripts/phase3-analyze-shadow.ts` qui analyse les divergences (semaine suivante)
+**Livré côté code (commit à venir)** :
+1. Migration SQL `supabase/migrations/20260624_002_extract_comparisons.sql` — table `extract_comparisons` (extract_v1, extract_v2, diff JSONB, v1_duration_ms, v2_duration_ms, v2_success, v2_error). RLS admin-only.
+2. Module `supabase/functions/analyze-quote/extract_shadow.ts` — `getExtractV2Mode()` (lit env `EXTRACT_V2_ENABLED`, off/shadow/on), `diffExtractions(v1, v2)` (diff structuré : totaux, lignes added/removed/modified, iban/siret/type match), `runShadowExtractV2()` (fire-and-forget, jamais d'exception remontée).
+3. `supabase/functions/analyze-quote/index.ts` — wrap V1 avec `performance.now()` + `EdgeRuntime.waitUntil(runShadowExtractV2(...))` quand mode=`shadow`.
+4. Script `scripts/phase3-analyze-shadow.ts` — produit `docs/refonte/RAPPORT-SHADOW-V2.md` (verdict bascule, stats globales, top erreurs V2, divergences majeures).
+
+**Actions Julien pour activer** :
+1. `npx supabase db push --linked` (applique la migration `20260624_002_extract_comparisons.sql`)
+2. `npx supabase secrets set EXTRACT_V2_ENABLED=shadow --project-ref vhrhgsqxwvouswjaiczn`
+3. `git pull origin main && npx supabase functions deploy analyze-quote --project-ref vhrhgsqxwvouswjaiczn` (⚠️ `git pull` AVANT — `deploy` lit le code local)
+4. Vérifier dans Supabase Dashboard → Functions → analyze-quote logs : la 1re analyse réelle doit logger `[extract_shadow] analysis=<id> shadow V2 scheduled (V1 done in Xms)` puis quelques secondes plus tard `[extract_shadow] analysis=<id> v2_success=true v2_duration=Yms diff="…"`
+5. Après 50-100 analyses naturelles (3-5 jours en prod), lancer `npx tsx scripts/phase3-analyze-shadow.ts` pour obtenir le rapport décisionnel.
+
+**Rollback express** : `npx supabase secrets set EXTRACT_V2_ENABLED=off --project-ref vhrhgsqxwvouswjaiczn` (effet immédiat).
 
 **Reco** : (C) puis (D). La (C) amorce le filet de tests qui validera la (D). La (A) et (B) peuvent attendre.
 
