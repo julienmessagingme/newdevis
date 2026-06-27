@@ -53,3 +53,9 @@ verify_jwt = false
 
 [functions.photo-coherence-check]
 verify_jwt = false
+
+[functions.vmd-on-signup]
+verify_jwt = false
+
+[functions.vmd-email-scheduler]
+verify_jwt = false
