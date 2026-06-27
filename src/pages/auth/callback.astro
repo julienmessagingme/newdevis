@@ -108,6 +108,21 @@ export const prerender = false;
           } catch {
             // Non bloquant : la connexion aboutit même si la création d'essai échoue.
           }
+        } else {
+          // VMD : l'inscription Google ne passe PAS par le trigger SQL (signup_source
+          // absent des métadonnées OAuth). On crée donc la ligne vmd_signups côté serveur
+          // ici → l'INSERT déclenche le webhook welcome + notif admin + la séquence.
+          try {
+            await fetch("/api/vmd-ensure-signup", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+          } catch {
+            // Non bloquant.
+          }
         }
 
         // Laisser au pixel (requête GET) le temps de partir avant la redirection dure
