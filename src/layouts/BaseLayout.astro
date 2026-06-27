@@ -212,7 +212,7 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
           <div class="flex-1 min-w-0">
             <p class="text-sm text-foreground font-medium mb-1">Cookies et confidentialit&eacute;</p>
             <p class="text-xs text-muted-foreground">
-              Ce site utilise des cookies techniques (n&eacute;cessaires au fonctionnement) et, avec votre accord, des cookies de mesure d'audience (<strong>Google Analytics</strong>) et de publicit&eacute; (<strong>Meta&nbsp;/&nbsp;Facebook</strong>) pour mesurer l'audience et am&eacute;liorer nos services. Aucun cookie de tracking n'est d&eacute;pos&eacute; sans votre accord.
+              Ce site utilise des cookies techniques (n&eacute;cessaires au fonctionnement) et, avec votre accord, des cookies de mesure d'audience (<strong>Google Analytics</strong>) et de publicit&eacute; (<strong>Meta&nbsp;/&nbsp;Facebook</strong>, <strong>TikTok</strong>) pour mesurer l'audience et am&eacute;liorer nos services. Aucun cookie de tracking n'est d&eacute;pos&eacute; sans votre accord.
               <a href="/confidentialite" class="text-primary hover:underline ml-1">Politique de confidentialit&eacute;</a>
             </p>
           </div>
@@ -398,6 +398,13 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
           'https://connect.facebook.net/en_US/fbevents.js');
           fbq('init', '1006152355233216');
           fbq('track', 'PageView');
+
+          // === TikTok Pixel — ID D902V4RC77UB3EFMQVB0 (VMD + GMC, layout partagé) ===
+          !function (w, d, t) {
+            w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=r;ttq._t=ttq._t||{};ttq._t[e]=+new Date;ttq._o=ttq._o||{};ttq._o[e]=n||{};n=document.createElement("script");n.type="text/javascript";n.async=!0;n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
+            ttq.load('D902V4RC77UB3EFMQVB0');
+            ttq.page();
+          }(window, document, 'ttq');
         }
       })();
     </script>

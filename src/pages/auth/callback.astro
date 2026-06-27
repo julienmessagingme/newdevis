@@ -21,6 +21,7 @@ export const prerender = false;
     import { detectBrandFromHost } from "@/lib/auth/brand";
     import { performPostLoginRedirect } from "@/lib/auth/postLoginRedirect";
     import { trackPixel } from "@/lib/integrations/metaPixel";
+    import { trackTikTok } from "@/lib/integrations/tiktokPixel";
 
     const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || "";
     const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
@@ -88,10 +89,11 @@ export const prerender = false;
         const brand = detectBrandFromHost(window.location.hostname);
         const signupSource = brand === "gmc" ? "gerermonchantier" : "verifiermondevis";
 
-        // Meta Pixel — conversion "inscription" pour les comptes créés via Google OAuth.
+        // Meta + TikTok Pixel — conversion "inscription" pour les comptes créés via Google OAuth.
         // Sans ça, les inscriptions Google n'étaient PAS comptées comme conversion : le pixel
         // n'existait que dans le flux email (Register.tsx). no-op si cookies refusés.
         trackPixel('CompleteRegistration', { content_name: signupSource });
+        trackTikTok('CompleteRegistration', { content_name: signupSource });
 
         // GMC : l'inscription Google ne passe PAS par le trigger SQL d'essai (signup_source
         // est absent des métadonnées OAuth, fournies par Google). On crée donc l'essai côté

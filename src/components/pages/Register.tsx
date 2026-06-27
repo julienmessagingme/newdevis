@@ -11,6 +11,7 @@ import BrandLogo from "@/components/auth/BrandLogo";
 import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/auth/brand";
 import { trackEvent } from "@/lib/integrations/amplitude";
 import { trackPixel } from "@/lib/integrations/metaPixel";
+import { trackTikTok } from "@/lib/integrations/tiktokPixel";
 
 interface Props {
   brand?: Brand;
@@ -122,8 +123,9 @@ const Register = ({ brand }: Props) => {
           return_to: returnTo || '/tableau-de-bord',
         });
 
-        // Meta Pixel — conversion "inscription" (no-op si cookies refusés)
+        // Meta Pixel + TikTok Pixel — conversion "inscription" (no-op si cookies refusés)
         trackPixel('CompleteRegistration', { content_name: signupSource });
+        trackTikTok('CompleteRegistration', { content_name: signupSource });
 
         toast.success("Compte créé avec succès !");
         // Laisser au pixel Meta (requête GET image) le temps de partir AVANT la redirection.

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import { trackEvent } from "@/lib/integrations/amplitude";
 import { trackPixelOnce } from "@/lib/integrations/metaPixel";
+import { trackTikTokOnce } from "@/lib/integrations/tiktokPixel";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -1297,8 +1298,9 @@ const AnalysisResult = () => {
             conclusionIaRaw={analysis.conclusion_ia ?? null}
             onVerdictReady={(raw) => {
               setConclusionIaLive(raw);
-              // Meta Pixel — conversion "analyse terminée", 1x par analyse (no-op si cookies refusés)
+              // Meta + TikTok Pixel — conversion "analyse terminée", 1x par analyse (no-op si cookies refusés)
               trackPixelOnce(`lead_${analysis.id}`, 'Lead', { content_name: 'analyse_devis' });
+              trackTikTokOnce(`submitform_${analysis.id}`, 'SubmitForm', { content_name: 'analyse_devis' });
             }}
             onCopy={openFeedback}
             deterministicAnomalyCount={deterministicAnomalyCount}
