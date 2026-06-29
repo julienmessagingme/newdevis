@@ -9,12 +9,12 @@
 
 ## État actuel des 4 maillons
 
-| # | Maillon | Avant refonte | Après Phase 0+1+2 |
+| # | Maillon | Avant refonte | Au 2026-06-29 fin de journée |
 |---|---|---|---|
-| 1 | **Lire juste** | 🔴 à construire | 🔴 inchangé (Phase 3 le couvre — gros chantier extract.ts) |
+| 1 | **Lire juste** | 🔴 à construire | 🟡 **code prêt** (Phase 3.0+3.1+3.2 livrées) — attente activation prod (3 commandes : db push + secret EXTRACT_V2_ENABLED=shadow + functions deploy) |
 | 2 | **Comparer à vraie référence** | 🟡 partiel (57% sans métier) | 🟢 **fait** — 891 entrées rangées par metier × nature_prix × gamme + 33 métiers + 0 doublon |
-| 3 | **Verdict honnête** | 🟡 partiel | 🟡 inchangé (Phase 4 le couvre — prix unitaire + confiance) |
-| 4 | **Apprendre** | 🟡 moitié (socle vide) | 🟢 **fait** — écran `/admin/reviews` + table `analysis_corrections` (socle gold standard prêt) |
+| 3 | **Verdict honnête** | 🟡 partiel | 🟡 **spec consolidée** (BUGS-A-CORRIGER §"Spec Maillon 3") — code Phase 4 démarre APRÈS bascule extract_v2 |
+| 4 | **Apprendre** | 🟡 moitié (socle vide) | 🟢 **fait + assisté IA** — `/admin/reviews` + table `analysis_corrections` + email Resend post-revue (`contact@verifiermondevis.fr`) + script Phase B `ai-prepare-reviews.ts` (pré-revue Claude Sonnet 4.6) |
 
 **Principe de la chaîne** : chaque maillon doit être solide et honnête sur sa propre confiance. Pas de patch correctif — chaque maillon est solide ou il dit "non comparable".
 
@@ -164,9 +164,36 @@ Ouvrir **CE FICHIER** en premier. Puis :
 
 ---
 
-## ⏸️ Où on s'est arrêté — fin de journée 2026-06-24
+## ⏸️ Où on s'est arrêté — fin de journée 2026-06-29
 
-**État cumulé** : Phase 0 ✅ · Phase 1 ✅ (1.3 à 1.6 appliquées, 1.7 et 1.8 outillage livré) · Phase 2 ✅ (déployée) · Phase 3.0 + 3.1 ✅ (code mort prêt à brancher)
+**État cumulé** : Phase 0 ✅ · Phase 1 ✅ (1.3 à 1.6 appliquées, 1.7 et 1.8 outillage livré) · Phase 2 ✅ (déployée) · Phase 2.4 🟡 (5 revues humaines faites sur 15 cibles) · Phase 3.0 + 3.1 + 3.2 ✅ (shadow run code livré, attente activation prod) · Phase B (assistant pré-revue IA) ✅
+
+### Ce qui a été livré dans la session 2026-06-29
+
+- **Phase 3.2** — Shadow run `extract_v2` câblé (migration `extract_comparisons` + module `extract_shadow.ts` + script `phase3-analyze-shadow.ts`)
+- **Phase 4 Apprendre étendue** :
+  - Script `admin-fetch-pending-reviews.ts` (CLI pour lister les analyses pending sans naviguer dans l'admin)
+  - Script `admin-correct-review.ts` (corriger une revue déjà tranchée par erreur)
+  - **Email Resend post-revue** (`reviewNotificationEmail.ts`) envoyé au user dès qu'admin valide/corrige/rejette. From `contact@verifiermondevis.fr`, 3 wordings (validated/corrected/rejected).
+  - Script `preview-review-email.ts` (prévisualisation HTML locale du mail avant déploiement)
+  - **Phase B** : script `ai-prepare-reviews.ts` — Claude Sonnet 4.6 lit le PDF + verdict actuel + déclencheurs Piste C, propose en pré-revue (action / verdict / surcout / note expert / commande prête à exécuter). Julien gagne ~80% du temps de revue.
+- **Phase 2.4 revues humaines** : 5/15 faites (Travaux Maçonnerie, Mélier Cognac, Toiture Boxes, ALES n°467, DUBOIS clavier VELUX)
+- **Spec Maillon 3 (Verdict honnête) consolidée** dans `BUGS-A-CORRIGER.md` :
+  - 4 exigences UX (verdict 1 ligne / 3 leviers / message aligné / détail replié)
+  - 4 sources de bruit à éliminer
+  - 4 cas test acceptance
+  - 2 nouveaux bugs documentés : `FORFAIT-VS-PRIX-UNITAIRE-CATALOGUE` (pattern récurrent sur 4 devis) + `DEVIS-DATE-NON-EXTRAIT-COMME-LEVIER`
+- **Wording bandeau "validation expert"** sécurisé : "sous 24h ouvrées" + "à l'adresse de votre compte" (promesse email enfin tenue par Resend)
+- **TikTok Pixel** (`D902V4RC77UB3EFMQVB0`) câblé sur VMD + GMC (mutualisé)
+- **Pont VMD→GMC** dans `/api/gmc/status` (provisionne l'essai des users VMD existants qui entrent dans GMC)
+
+### Ce qui a été livré dans la session 2026-06-24
+
+- **Phase 1.6** — Régénération embeddings appliquée (891/891 entrées en 344 s)
+- **Phase 1.7** — Script `phase1-7-recalibrage-fourchettes.ts` livré (produit `RAPPORT-RECALIBRAGE.md`)
+- **Phase 1.8** — Script `phase1-8-audit-unites.ts` livré (produit `RAPPORT-UNITES.md`)
+- **Phase 3.0** — Architecture `PHASE3-ARCHITECTURE.md` + module réconciliation TS pur + 23 tests Vitest passants + spec banc de tests
+- **Phase 3.1** — `extract_v2.ts` (973 lignes, code mort) + copie Deno `reconciliation.ts`
 
 ### Ce qui a été livré dans la session 2026-06-24
 

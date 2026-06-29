@@ -11,23 +11,24 @@ L'outil d'analyse de prix est en **refonte structurée en 4 maillons** :
 
 📖 **Source de vérité** : [`docs/refonte/PLAN.md`](docs/refonte/PLAN.md) — boussole de la refonte avec phases, principes inviolables, décisions validées.
 
-### État au 2026-06-24 fin de journée
+### État au 2026-06-29 fin de journée
 
 | Maillon | Phase | Statut |
 |---|---|---|
-| 1 — Lire juste | Phase 3.0 + 3.1 livrées (code mort) | 🟡 prêt à brancher en shadow (Phase 3.2) |
+| 1 — Lire juste | Phase 3.0 + 3.1 + 3.2 livrées côté code | 🟡 attente activation prod (Julien : 3 commandes — db push + secret + functions deploy) |
 | 2 — Comparer à vraie référence | Phase 1.3-1.6 appliquées + 1.7/1.8 outillage livré | 🟢 **fait** — 891 entrées · 33 métiers · 100% couverture · embeddings à jour |
-| 3 — Verdict honnête | Phase 4 non commencée | 🟡 inchangé (filet sécurité Phase 0.1 protège) |
-| 4 — Apprendre | Phase 2 livrée | 🟢 **fait** — `/admin/reviews` + table `analysis_corrections` |
+| 3 — Verdict honnête | Spec UX consolidée dans BUGS-A-CORRIGER.md | 🟡 Phase 4 démarre APRÈS bascule extract_v2 |
+| 4 — Apprendre | Phase 2 livrée + Phase B (assistant pré-revue IA) | 🟢 **fait** — `/admin/reviews` + email Resend post-revue + script `ai-prepare-reviews` |
 
 ### Ce qui reste
 
 - 🟡 **Phase 1.7 application** (1-2h) — Julien relit `RAPPORT-RECALIBRAGE.md` + écrit SQL d'ajustement fourchettes (script déjà livré)
 - 🟡 **Phase 1.8 application** (~30 min) — Julien relit `RAPPORT-UNITES.md` + normalisations SQL (script déjà livré)
-- 🟡 **Phase 2.4** (~1h) — Julien fait 15 revues réelles via `/admin/reviews` pour amorcer le socle gold standard
-- 🔴 **Phase 3.2** (1-2h) — brancher feature flag `EXTRACT_V2_ENABLED` + table `extract_comparisons` + shadow run de `extract_v2.ts`
-- 🔴 **Phase 3.3-3.4** (~2 semaines) — bascule contrôlée + cleanup + bump `ENGINE_VERSION` → `"2.0.0-refonte"`
-- 🔴 **Phase 4** (2-3 sessions) — verdict prix unitaire + gradation confiance + rattachement annexes au coût unitaire
+- 🟡 **Phase 2.4 — 11 revues restantes** sur 15 cibles (5 faites : Travaux Maçonnerie, Mélier Cognac, Toiture Boxes, ALES n°467, DUBOIS clavier). Phase B `ai-prepare-reviews` accélère désormais la revue.
+- 🟡 **Phase 3.2 activation** — 3 commandes côté Julien : `db push` + `secrets set EXTRACT_V2_ENABLED=shadow` + `functions deploy`. Puis 50-100 analyses naturelles avant `phase3-analyze-shadow`.
+- 🔴 **Phase 3.3-3.4** (~2 semaines) — bascule contrôlée extract_v2 + cleanup + bump `ENGINE_VERSION` → `"2.0.0-refonte"`
+- 🔴 **Phase 4** (2-3 sessions) — verdict tranché 1 ligne / 3 leviers de négociation / détail replié / date devis comme levier (cf. spec dans `BUGS-A-CORRIGER.md` section "Spec produit validée — Maillon 3")
+- 🔴 **Phase C — validation auto contrôlée** — à coder quand 50+ revues humaines accumulées dans `analysis_corrections` (calibration confidence IA validatrice vs humain)
 
 ### Ce qui s'ARRÊTE immédiatement (rappel)
 
