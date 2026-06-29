@@ -25,6 +25,13 @@ export default function SimulateurAidesCard() {
   const [open, setOpen] = useState(false);
   const isAdmin = useIsAdmin();
 
+  // Auto-ouverture via ?aides=1 (CTA "Calculer mes aides" des emails onboarding VMD).
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('aides') === '1') setOpen(true);
+    } catch { /* no-op */ }
+  }, []);
+
   return (
     <>
       {/* ── Carte ── */}
