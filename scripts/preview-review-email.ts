@@ -1,28 +1,32 @@
-// ============================================================
-// Email Resend — notification user après revue expert (validation/correction/rejet).
-//
-// Déclenché à la fin de /api/admin/reviews/[id]/decide.ts ET de
-// scripts/admin-correct-review.ts. Tient enfin la promesse du bandeau bleu
-// "Validation expert en cours sous 24h — vous serez notifié par email".
-//
-// Pattern Resend identique à supabase/functions/vmd-on-signup/index.ts
-// (RESEND_API_KEY_VMD prioritaire, fallback RESEND_API_KEY, expéditeur
-// bonjour@verifiermondevis.fr).
-//
-// Best-effort : ne throw jamais. Si Resend plante, on log + on retourne false.
-// ============================================================
+#!/usr/bin/env tsx
+/**
+ * scripts/preview-review-email.ts
+ *
+ * Génère 3 fichiers HTML locaux (un par action : validated / corrected /
+ * rejected) à partir du helper src/lib/integrations/reviewNotificationEmail.ts.
+ *
+ * Pas d'envoi Resend. Juste de la prévisualisation pour valider la mise en
+ * forme + le wording AVANT de mettre l'envoi en production.
+ *
+ * USAGE :
+ *   npx tsx scripts/preview-review-email.ts
+ *
+ * Ouvre ensuite les 3 fichiers générés dans ton navigateur (le script affiche
+ * les chemins exacts à la fin).
+ */
 
-export type ReviewAction = "validated" | "corrected" | "rejected";
+import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
-export interface ReviewEmailInput {
-  toEmail: string;
-  prenom?: string | null;
-  fileName: string | null;
-  analysisId: string;
-  action: ReviewAction;
-  verdictDecisionnel?: string | null; // signer | signer_avec_negociation | ne_pas_signer
-  verdictGlobal?: string | null; // dans_la_norme | a_negocier | a_risque | ...
-}
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, "..");
+
+// Reproduction locale de buildHtml (le helper n'exporte pas buildHtml pour
+// rester minimal côté prod ; on duplique ici à des fins de preview SEULEMENT).
+// Si tu modifies le helper, mets aussi à jour ce fichier de preview.
+
+type ReviewAction = "validated" | "corrected" | "rejected";
 
 const SUBJECT_BY_ACTION: Record<ReviewAction, string> = {
   validated: "✓ Votre analyse a été confirmée par notre expert",
@@ -68,20 +72,26 @@ function esc(s: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-function buildHtml(input: ReviewEmailInput): string {
-  const { prenom, fileName, analysisId, action, verdictDecisionnel } = input;
-  const hero = HERO_BY_ACTION[action];
-  const decisionnel = verdictDecisionnel ?? "signer";
+interface Scenario {
+  toEmail: string;
+  prenom: string;
+  fileName: string;
+  analysisId: string;
+  action: ReviewAction;
+  verdictDecisionnel: string;
+}
+
+function buildHtml(s: Scenario): string {
+  const hero = HERO_BY_ACTION[s.action];
+  const decisionnel = s.verdictDecisionnel;
   const verdictLabel = VERDICT_DECISIONNEL_LABEL[decisionnel] ?? "Verdict mis à jour";
   const colors = VERDICT_BADGE_COLOR[decisionnel] ?? VERDICT_BADGE_COLOR.signer;
-
-  const link = `https://www.verifiermondevis.fr/analyse/${encodeURIComponent(analysisId)}`;
-  const greeting = prenom
-    ? `Bonjour <strong style="color:#0E1730;">${esc(prenom)}</strong>,`
+  const link = `https://www.verifiermondevis.fr/analyse/${encodeURIComponent(s.analysisId)}`;
+  const greeting = s.prenom
+    ? `Bonjour <strong style="color:#0E1730;">${esc(s.prenom)}</strong>,`
     : `Bonjour,`;
-
-  const fileLine = fileName
-    ? `<p style="margin:0 0 18px;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:14px;color:#6B7280;line-height:1.65;">Document analysé : <strong style="color:#374151;">${esc(fileName)}</strong></p>`
+  const fileLine = s.fileName
+    ? `<p style="margin:0 0 18px;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:14px;color:#6B7280;line-height:1.65;">Document analysé : <strong style="color:#374151;">${esc(s.fileName)}</strong></p>`
     : "";
 
   const verdictBadge = `
@@ -109,7 +119,7 @@ function buildHtml(input: ReviewEmailInput): string {
 <html lang="fr"><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${esc(SUBJECT_BY_ACTION[action])}</title>
+<title>${esc(SUBJECT_BY_ACTION[s.action])}</title>
 </head>
 <body style="margin:0;padding:0;background:#F3F4F6;font-family:'DM Sans',Arial,Helvetica,sans-serif;">
 <div style="display:none;font-size:1px;color:#F3F4F6;max-height:0;max-width:0;opacity:0;overflow:hidden;">${esc(hero.intro)}</div>
@@ -137,55 +147,65 @@ function buildHtml(input: ReviewEmailInput): string {
 </body></html>`;
 }
 
-/**
- * Envoie l'email de notification au user après une revue expert.
- * Best-effort : ne throw jamais. Retourne `true` si Resend a accepté la requête,
- * `false` sinon. À appeler en fire-and-forget après le UPDATE analyses.
- */
-export async function sendReviewNotificationEmail(input: ReviewEmailInput): Promise<boolean> {
-  const RESEND_API_KEY =
-    process.env.RESEND_API_KEY_VMD ?? process.env.RESEND_API_KEY ?? "";
-  if (!RESEND_API_KEY) {
-    console.warn("[reviewEmail] RESEND_API_KEY manquant — email non envoyé");
-    return false;
-  }
-  if (!input.toEmail || !input.toEmail.includes("@")) {
-    console.warn(`[reviewEmail] email destinataire invalide : "${input.toEmail}"`);
-    return false;
-  }
+const SCENARIOS: Scenario[] = [
+  {
+    toEmail: "marie.dupont@example.fr",
+    prenom: "Marie",
+    fileName: "Devis-toiture.pdf",
+    analysisId: "8060adbf-31fb-4cda-8a07-e2f17fab3cfc",
+    action: "validated",
+    verdictDecisionnel: "signer",
+  },
+  {
+    toEmail: "marie.dupont@example.fr",
+    prenom: "Marie",
+    fileName: "Devis-renovation-sdb.pdf",
+    analysisId: "d3b3f014-7441-42fb-b3b7-95c7b56eb521",
+    action: "corrected",
+    verdictDecisionnel: "signer_avec_negociation",
+  },
+  {
+    toEmail: "marie.dupont@example.fr",
+    prenom: "Marie",
+    fileName: "Devis-store-velux.pdf",
+    analysisId: "bd222544-e5bd-478a-bbb9-9bcf2dff5698",
+    action: "rejected",
+    verdictDecisionnel: "ne_pas_signer",
+  },
+];
 
-  const subject = SUBJECT_BY_ACTION[input.action];
-  const html = buildHtml(input);
+const out = join(ROOT, "scratchpad", "email-previews");
+if (!existsSync(out)) mkdirSync(out, { recursive: true });
 
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        // contact@verifiermondevis.fr = adresse pro standard (à laquelle un user
-        // peut répondre directement, cf. ligne "Vous pouvez répondre à cet email"
-        // dans le template). Le domaine verifiermondevis.fr est déjà vérifié dans
-        // Resend (cf. bonjour@verifiermondevis.fr déjà utilisé par vmd-on-signup).
-        from: "VerifierMonDevis <contact@verifiermondevis.fr>",
-        reply_to: "contact@verifiermondevis.fr",
-        to: [input.toEmail],
-        subject,
-        html,
-      }),
-    });
-    if (!res.ok) {
-      console.error(`[reviewEmail] Resend ${res.status}:`, await res.text());
-      return false;
-    }
-    console.log(
-      `[reviewEmail] envoyé à ${input.toEmail} (action=${input.action}, analysis=${input.analysisId.slice(0, 8)})`,
-    );
-    return true;
-  } catch (e) {
-    console.error("[reviewEmail] fetch failed:", e instanceof Error ? e.message : String(e));
-    return false;
-  }
+console.log("🟢 Génération des previews email\n");
+
+const indexLines: string[] = [
+  `<!doctype html><html><head><meta charset="utf-8"><title>Previews email revue expert</title>`,
+  `<style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;color:#0E1730}h1{font-size:22px}h2{font-size:16px;margin-top:24px;color:#374151}a{display:inline-block;margin-right:12px;padding:8px 16px;background:#2563EB;color:#fff;border-radius:6px;text-decoration:none;font-size:14px}.subject{color:#6B7280;font-style:italic;margin-top:4px;font-size:14px}.from{color:#9CA3AF;font-size:13px;margin-bottom:8px}</style>`,
+  `</head><body><h1>Previews — emails de revue expert</h1>`,
+  `<p class="from">De : VerifierMonDevis &lt;contact@verifiermondevis.fr&gt;<br/>Pour : marie.dupont@example.fr (exemple)</p>`,
+];
+
+for (const s of SCENARIOS) {
+  const html = buildHtml(s);
+  const filename = `review-${s.action}.html`;
+  const filepath = join(out, filename);
+  writeFileSync(filepath, html, "utf-8");
+  console.log(`  ✓ ${s.action.padEnd(10)} → ${filepath}`);
+  console.log(`     Objet  : ${SUBJECT_BY_ACTION[s.action]}`);
+  console.log(`     Verdict: ${VERDICT_DECISIONNEL_LABEL[s.verdictDecisionnel]}\n`);
+
+  indexLines.push(
+    `<h2>${s.action.toUpperCase()} (verdict ${s.verdictDecisionnel})</h2>`,
+    `<p class="subject">Objet : « ${SUBJECT_BY_ACTION[s.action]} »</p>`,
+    `<a href="./${filename}">Ouvrir le mail</a>`,
+  );
 }
+
+const indexPath = join(out, "index.html");
+indexLines.push(`</body></html>`);
+writeFileSync(indexPath, indexLines.join("\n"), "utf-8");
+
+console.log(`📁 Tous les previews + index dans : ${out}`);
+console.log(`\n👉 Ouvre ce fichier dans ton navigateur :`);
+console.log(`   ${indexPath}`);
