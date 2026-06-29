@@ -1282,8 +1282,8 @@ const AnalysisResult = () => {
               </p>
               <p className="text-sm text-blue-800 leading-relaxed">
                 Cette analyse présente des signaux qui méritent une <strong>validation manuelle par notre expert</strong>.
-                Le verdict ci-dessous est <strong>provisoire</strong> — il sera confirmé ou ajusté sous 24h, et vous serez
-                notifié par email. En attendant, vous pouvez consulter l'analyse à titre informatif.
+                Le verdict ci-dessous est <strong>provisoire</strong> — il sera confirmé ou ajusté sous 24h ouvrées, et vous serez
+                notifié par email à l'adresse de votre compte. En attendant, vous pouvez consulter l'analyse à titre informatif.
               </p>
             </div>
           </div>

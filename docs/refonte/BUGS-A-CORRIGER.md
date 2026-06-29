@@ -67,6 +67,90 @@
   - Sortie attendue : verdict "dans la norme" (25 ∈ [22, 32]), pas d'anomalie inventée
 - **Statut** : 🔴 à corriger (Phase 4)
 
+### 2026-06-29 — FORFAIT-VS-PRIX-UNITAIRE-CATALOGUE
+
+- **Signalé par** : Julien (pattern récurrent identifié pendant les revues Phase 2.4)
+- **Analyses concernées** :
+  - `8060adbf-31fb-4cda-8a07-e2f17fab3cfc` (Toiture Boxes) : "Échafaudage location + montage/démontage" devis 295€ forfait vs catalogue ~45€/jour → ratio 6.56× faux
+  - Devis Mélier Cognac : "Échafaudage location + montage/démontage" forfait multi-mois → ratio 112.5× faux
+  - Devis Travaux Maçonnerie : 7 postes en forfait (démolition mur parpaing, évacuation gravats, piliers portail, scellements, rebouchage, reprise fissures) tous classés "Anomalie marché"
+  - `d3b3f014-7441-42fb-b3b7-95c7b56eb521` (ALES n°467) : "Dépose et évacuation clôture existante 950€ ×27.14" alors qu'il s'agit en réalité de "Fourniture + fermeture séparation chambre/SDB" (mauvais matching)
+- **Symptôme observé** : Le moteur classe massivement en "Anomalie marché" des postes facturés en forfait quand le catalogue contient le même travail mais en prix unitaire (au ml / m² / U / jour). L'utilisateur voit un nombre élevé d'anomalies rouges qui contredisent le verdict global, sans pouvoir distinguer les vrais signaux des artefacts.
+- **Cause racine** : Le matching catalogue actuel ne tient pas compte de la **nature_prix** (forfait / unitaire) de l'entrée catalogue ni de la **structure de tarification** de la ligne devis (qté=1 unique = forfait probable). Quand l'écart d'unité est de plusieurs ordres de grandeur (forfait journée vs forfait chantier multi-mois), aucune comparaison n'a de sens.
+- **Maillon concerné** : 2 (Comparer à vraie référence) + 3 (Verdict honnête — il faut ne PAS lever d'anomalie sur du non-comparable)
+- **Phase qui corrige** : 1 (catalogue : la colonne `nature_prix` ajoutée Phase 1.5 va servir) + 4 (verdict ignore les "anomalies" sur des matchings de natures incompatibles)
+- **Cas test à passer** :
+  - Input : ligne "Échafaudage location + montage/démontage 1 forfait 295€"
+  - Sortie attendue : classification `non_comparable` (ou `low_confidence_match`) — pas `anomalie_marche`. Le poste apparaît dans une section "Comparaison non applicable" et n'entre PAS dans le compte d'anomalies du verdict global.
+- **Statut** : 🔴 à corriger (Phase 4). Mitigation immédiate : la garde V3.5.11 `low_confidence_match` rattrape une partie des cas (similarity < 0.85). Mais le pattern forfait est si massif qu'il déborde quand même.
+
+### 2026-06-29 — DEVIS-DATE-NON-EXTRAIT-COMME-LEVIER
+
+- **Signalé par** : Julien (revue devis Mélier Cognac 2024)
+- **Analyse ID** : `2c52e2f6-...` (Devis Mr Mélier Cognac.pdf, daté 2024)
+- **Symptôme observé** : Un devis daté de 2024 est validé "dans_la_norme/signer" pour 2026, alors que l'évolution des coûts matériaux entre 2024 et 2026 (+5-8% selon poste) constitue un levier de négociation factuel pour le client ("vos prix 2024 doivent être révisés"). VMD n'extrait pas la `date_devis` du PDF et ne l'utilise pas comme signal.
+- **Cause racine** : Champ `date_devis` non extrait par `extract.ts` (le prompt actuel demande date d'analyse, pas date du devis lui-même).
+- **Maillon concerné** : 1 (Lire juste — un champ manquant à extraire) + 3 (Verdict honnête — un levier de négo à proposer)
+- **Phase qui corrige** : 3 (extract_v2 ajoute date_devis dans la structure ExtractedData) + 4 (verdict génère une action "demander révision tarifaire" si âge devis > 12 mois)
+- **Cas test à passer** :
+  - Input : devis daté 2024, analysé 2026
+  - Sortie attendue : `date_devis` extraite + action "Demandez à l'artisan de réviser ses prix : votre devis date de 2024, les coûts matériaux ont évolué de ~5-8% depuis. Marge de négociation possible : 3-5% du montant total."
+- **Statut** : 🔴 à corriger (Phase 3 + Phase 4)
+
+---
+
+## Spec produit validée — Maillon 3 (Verdict honnête)
+
+**Session 2026-06-29** : critique produit fondamentale soulevée par Julien sur 2 devis (Toiture Boxes + Mélier Cognac).
+
+### Verbatim de la critique
+> "compliqué pour l'utilisateur et fastidieux dans l'analyse de prix de lire ligne par ligne si on est dans le marché ou hors marché, on voit plein de ligne avec anomalie marché, dans la norme, pas de référence marché, comparaison incertaine. Et difficile au final d'avoir un avis global sur le devis (est-ce une bonne affaire ou je me fais avoir), que dire à l'artisan et comment négocier (véritable valeur ajoutée du site)"
+
+### Reformulation des 2 vraies questions de l'utilisateur
+1. **Est-ce une bonne affaire ou je me fais avoir ?** → 1 ligne, pas 13
+2. **Quoi dire à l'artisan, comment négocier, sur quels leviers ?** → 3 leviers max, hiérarchisés par puissance
+
+### Les 4 exigences UX à coder en Phase 4
+
+1. **Verdict tranché above-the-fold** (1 ligne) :
+   ```
+   ✓ Vous pouvez signer ce devis.
+      77 568€ HT pour rénovation complète = prix correct, dans le marché.
+      Levier de négociation envisageable : 3-5%.
+   ```
+   OU
+   ```
+   ⚠️ À négocier avant signature.
+      35 570€ HT — niveau de prix incertain (manque de détails) + acompte 50% excessif.
+      Levier principal : exiger un devis détaillé avec quantités.
+   ```
+
+2. **3 leviers de négociation hiérarchisés** (pas une liste exhaustive de 8 actions) :
+   ```
+   1. 🔴 LE PLUS PUISSANT : exiger des quantités précises (ml de fissure, m² de mur)
+      → bascule le rapport de force, oblige l'artisan à justifier le prix
+   2. 🟠 IMPORTANT : ramener l'acompte de 50% à 30% maximum
+   3. 🟡 BONUS : demander une révision tarifaire (devis 2024 → coûts 2026)
+   ```
+
+3. **Message à copier-coller** : aligné sur les **vrais** leviers, pas sur les fausses anomalies (aujourd'hui le message reflète les anomalies catalogue qui contiennent du bruit forfait/unitaire).
+
+4. **Détail poste par poste replié par défaut** ("Voir le détail" expand). Pour les rares users qui veulent rentrer dans la matière. Pas dans le chemin de lecture principal.
+
+### Sources de bruit identifiées à éliminer ou contextualiser
+
+- **Statuts contradictoires** : "Dans la norme" + 7 anomalies marché simultanément (cas Toiture Boxes, Travaux Maçonnerie). L'utilisateur ne sait pas qui croire.
+- **Tableau de répartition par catégorie sans contexte** : "2 correct / 0 légèrement / 0 survalué / 7 anomalie" — un décompte hors-sol qui n'aide pas à décider. À retirer ou requalifier.
+- **Liste exhaustive de 8 actions** : aujourd'hui Gemini génère 6-8 actions par analyse. L'utilisateur ne sait pas par où commencer. À ramener à 3 max.
+- **Anomalies forfait/unitaire** : voir bug FORFAIT-VS-PRIX-UNITAIRE-CATALOGUE ci-dessus. 60% des "anomalies marché" sont des artefacts de matching.
+
+### Cas test acceptance pour la Phase 4
+
+- Toiture Boxes 8 841€ → verdict 1 ligne "signer, marge 3-5%", 3 leviers (assurance / références / révision tarifaire), détail replié. PAS de "7 anomalies marché" dans le chemin principal.
+- Travaux Maçonnerie 35 570€ → verdict "à négocier", 3 leviers (quantités précises / acompte 30% max / révision tarifaire). Anomalies forfait ignorées, on parle d'abord transparence.
+- Mélier Cognac 77 568€ → verdict "signer, marge 3-5%", levier principal "devis 2024, demander révision 2026".
+- DUBOIS clavier VELUX 372€ → verdict "ne pas signer en l'état", levier unique "retirer les 2 clauses abusives" (citation à la lettre).
+
 ---
 
 ## Bugs corrigés (clos)
