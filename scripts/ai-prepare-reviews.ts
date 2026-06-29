@@ -392,7 +392,7 @@ async function main(): Promise<void> {
 
   if (!rows.length) {
     console.log("⏸️  Aucune analyse pending_review.");
-    process.exit(0);
+    return; // pas de process.exit() : Node ferme proprement les handles Supabase (évite l'Assertion Windows libuv)
   }
 
   console.log(`✓ ${rows.length} analyse(s) à pré-réviser\n`);
