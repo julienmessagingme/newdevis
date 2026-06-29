@@ -2,6 +2,10 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { optionsResponse, jsonOk, jsonError, requireAuth } from "@/lib/api/apiHelpers";
+import {
+  sendReviewNotificationEmail,
+  type ReviewAction,
+} from "@/lib/integrations/reviewNotificationEmail";
 
 const ENGINE_VERSION_FALLBACK = "1.0.0-refonte";
 
@@ -180,6 +184,38 @@ export const POST: APIRoute = async ({ request, params }) => {
 
   if (updateErr) {
     return jsonError(`Update analysis failed: ${updateErr.message}`, 500);
+  }
+
+  // Notification email user — fire-and-forget. Vercel coupe la lambda dès le
+  // return → on AWAIT volontairement (fire-and-forget pur perdrait l'email).
+  // Le pattern await ici reste fiable car Resend répond généralement en < 300ms.
+  // L'envoi ne peut JAMAIS faire échouer la décision admin (try/catch + best-effort).
+  try {
+    if (analysis.user_id) {
+      const { data: userData } = await supabase.auth.admin.getUserById(analysis.user_id);
+      const recipient = userData?.user;
+      const meta = (recipient?.user_metadata ?? {}) as Record<string, string>;
+      const prenom =
+        (meta.first_name || (meta.full_name || meta.name || "").split(" ")[0] || "").trim() || null;
+      if (recipient?.email) {
+        await sendReviewNotificationEmail({
+          toEmail: recipient.email,
+          prenom,
+          fileName: analysis.file_name ?? null,
+          analysisId: id,
+          action: action as ReviewAction,
+          verdictDecisionnel:
+            (conclusionToPersist as any)?.verdict_decisionnel ?? correctedVerdictDecisionnel,
+          verdictGlobal: (conclusionToPersist as any)?.verdict_global ?? correctedVerdictGlobal,
+        });
+      }
+    }
+  } catch (e) {
+    console.error(
+      "[decide.ts] notification email failed:",
+      e instanceof Error ? e.message : String(e),
+    );
+    // pas de propagation : la décision admin reste OK même si l'email a échoué
   }
 
   return jsonOk({

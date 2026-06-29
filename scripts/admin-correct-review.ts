@@ -36,6 +36,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sendReviewNotificationEmail } from "../src/lib/integrations/reviewNotificationEmail.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -89,6 +90,7 @@ const surcoutMin = getArg("--surcout-min");
 const surcoutMax = getArg("--surcout-max");
 const clearAnomalies = hasFlag("--clear-anomalies");
 const notes = getArg("--notes");
+const skipEmail = hasFlag("--no-email");
 
 if (!id) {
   console.error("❌ --id <analysis_uuid> requis");
@@ -203,7 +205,45 @@ async function main(): Promise<void> {
   }
   console.log("✓ Analyses.conclusion_ia + review_status mis à jour\n");
 
-  console.log("🟢 Correction appliquée. L'utilisateur verra le verdict corrigé au prochain refresh.");
+  // 5) Notification email user (sauf --no-email)
+  if (skipEmail) {
+    console.log("⏭  Envoi email skippé (--no-email)");
+  } else if (!analysis.user_id) {
+    console.log("⏭  Pas de user_id sur l'analyse → email skippé");
+  } else {
+    try {
+      const { data: userData } = await supabase.auth.admin.getUserById(analysis.user_id);
+      const recipient = userData?.user;
+      const meta = (recipient?.user_metadata ?? {}) as Record<string, string>;
+      const prenom =
+        (meta.first_name || (meta.full_name || meta.name || "").split(" ")[0] || "").trim() || null;
+      if (recipient?.email) {
+        const sent = await sendReviewNotificationEmail({
+          toEmail: recipient.email,
+          prenom,
+          fileName: (analysis as any).file_name ?? null,
+          analysisId: id!,
+          action: "corrected",
+          verdictDecisionnel: patched.verdict_decisionnel ?? verdictDecisionnel,
+          verdictGlobal: patched.verdict_global ?? verdictGlobal,
+        });
+        console.log(
+          sent
+            ? `✓ Email envoyé à ${recipient.email}`
+            : `⚠️  Email NON envoyé (cf. logs au-dessus)`,
+        );
+      } else {
+        console.log("⏭  Pas d'email sur le compte user → email skippé");
+      }
+    } catch (e) {
+      console.error(
+        "⚠️  Erreur envoi email :",
+        e instanceof Error ? e.message : String(e),
+      );
+    }
+  }
+
+  console.log("\n🟢 Correction appliquée. L'utilisateur verra le verdict corrigé au prochain refresh.");
   console.log("   Audit trail : 2 lignes analysis_corrections (decision initiale + correction script).");
 }
 
