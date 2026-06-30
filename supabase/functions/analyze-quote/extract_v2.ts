@@ -365,8 +365,15 @@ RÈGLES MÉTIER (extraction stricte, jamais d'invention)
   ces 9 chiffres comme SIREN.
 
 - IBAN : cherche sur TOUTES les pages, surtout la dernière. Format 2 lettres pays + 2 chiffres +
-  12-30 alphanum. Les séparateurs (espaces, tirets, points) sont à RETIRER : restitue en CONTINU.
-  Ex: "FR76-3006-6108-7700-0209-7520-110" → "FR7630066108770002097520110".
+  12-30 ALPHANUMÉRIQUES (lettres ET chiffres mélangés sont valides — certaines banques
+  françaises comme Crédit Mutuel-CIC mettent des lettres dans le numéro de compte).
+  Les séparateurs (espaces, tirets, points) sont à RETIRER : restitue en CONTINU.
+  Ex 1 : "FR76-3006-6108-7700-0209-7520-110" → "FR7630066108770002097520110".
+  Ex 2 (avec lettre, NE PAS REJETER) : "FR36 3000 2004 5500 0044 5891 W40" →
+       "FR3630002004550000445891W40".
+  Ex 3 (IBAN belge avec lettres) : "BE68 539 0075 470 34" → "BE68539007547034".
+  Règle absolue : NE JAMAIS écarter un IBAN parce qu'il contient une lettre au milieu.
+  Restitue exactement ce qui est imprimé, lettres comprises.
 
 ═══════════════════════════════════════════════════════════════════════════════
 RÉSUMÉ DU FORMAT JSON ATTENDU
