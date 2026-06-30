@@ -333,10 +333,24 @@ AUTRES CHAMPS DU JSON (en plus de cartographie + sections)
 RÈGLES MÉTIER (extraction stricte, jamais d'invention)
 ═══════════════════════════════════════════════════════════════════════════════
 
-- type_document="estimation_courtier" si l'en-tête contient un courtier connu (Renovation Man,
-  Ootravaux, Hellio, Travaux.com, Effy, IZI by EDF, Tucoenergie, La Maison Saint-Gobain,
-  Bricoleur du Coin, Mes Travaux Solidaires) OU mention "estimation" + phrase
-  "identification artisan" + ligne "Frais de service".
+- type_document="estimation_courtier" si AU MOINS 2 signaux convergents :
+  (1) Nom de marque connu dans en-tête / logo / pied :
+      - Courtiers travaux : Renovation Man, Ootravaux, Hellio, Travaux.com, Effy,
+        IZI by EDF, Tucoenergie, La Maison Saint-Gobain, Bricoleur du Coin,
+        Mes Travaux Solidaires, HomeServe, Quelle Energie, Heero.
+      - Syndics de copropriété qui émettent des packs travaux pour leurs
+        copropriétaires : FONCIA, Nexity, Citya, Square Habitat, Sergic,
+        Imodirect, Lamy.
+  (2) Mention explicite "estimation" (et non "devis") dans le titre/corps.
+  (3) Phrases types : "estimation à partir des prix du marché", "sera vérifiée
+      sur place par un professionnel partenaire", "nous identifions le meilleur
+      artisan", "mise en relation", "pack travaux copropriété".
+  (4) Ligne "Frais de service [NomCourtier]" ou "Commission" séparée du total
+      travaux.
+  (5) Méthodologie en étapes affichée où l'artisan est désigné PLUS TARD.
+  Ne PAS confondre avec un devis d'artisan classique qui peut mentionner
+  "Renovation" dans son nom (ex: "AEB Rénovation" est une vraie entreprise
+  individuelle, pas un courtier).
 
 - type_document="hors_scope" si > 50 % des lignes décrivent du non-BTP :
   réparation véhicule, réparation électroménager, achat de biens mobiliers, services personnels,
@@ -947,7 +961,10 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
     devis_list: undefined, // construction multi-devis détaillée reportée à 3.1.b
     country_code: country?.country_code,
     country_label: country?.country_label,
-    is_foreign_quote: country?.is_foreign_quote ?? false,
+    // FIX 2026-06-30 : detectQuoteCountry retourne `is_foreign` (cf. country.ts CountryDetectionResult),
+    // pas `is_foreign_quote`. Bug de copie V1->V2 qui faisait perdre le bypass devis étranger.
+    // Cas test : invoice (48).pdf Stone Gardens BE — V2 lisait IBAN BE mais is_foreign=false.
+    is_foreign_quote: country?.is_foreign ?? false,
     courtier_nom,
     hors_scope_categorie,
     is_incomplete_quote: is_incomplete,
