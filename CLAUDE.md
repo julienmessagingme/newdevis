@@ -11,23 +11,35 @@ L'outil d'analyse de prix est en **refonte structurée en 4 maillons** :
 
 📖 **Source de vérité** : [`docs/refonte/PLAN.md`](docs/refonte/PLAN.md) — boussole de la refonte avec phases, principes inviolables, décisions validées.
 
-### État au 2026-06-29 fin de journée
+### État au 2026-06-30 fin de journée
 
 | Maillon | Phase | Statut |
 |---|---|---|
-| 1 — Lire juste | Phase 3.0 + 3.1 + 3.2 livrées côté code | 🟡 attente activation prod (Julien : 3 commandes — db push + secret + functions deploy) |
-| 2 — Comparer à vraie référence | Phase 1.3-1.6 appliquées + 1.7/1.8 outillage livré | 🟢 **fait** — 891 entrées · 33 métiers · 100% couverture · embeddings à jour |
+| 1 — Lire juste | Phase 3.0 + 3.1 + 3.2 ACTIVE en shadow + 3 patches régressions V2 livrés | 🟡 shadow tourne en prod, attente +50 analyses naturelles avant Phase 3.3 (bascule) |
+| 2 — Comparer à vraie référence | Phase 1.3-1.6 appliquées + 1.7/1.8 outillage livré + recalibrage seuils HIGH 0.85→0.77 | 🟢 **fait** — 891 entrées · 33 métiers · 100% couverture · embeddings à jour |
 | 3 — Verdict honnête | Spec UX consolidée dans BUGS-A-CORRIGER.md | 🟡 Phase 4 démarre APRÈS bascule extract_v2 |
-| 4 — Apprendre | Phase 2 livrée + Phase B (assistant pré-revue IA) | 🟢 **fait** — `/admin/reviews` + email Resend post-revue + script `ai-prepare-reviews` |
+| 4 — Apprendre | Phase 2 livrée + Phase B (assistant pré-revue IA) + email Resend câblé | 🟢 **fait** — `/admin/reviews` + `contact@verifiermondevis.fr` post-revue + script `ai-prepare-reviews` |
+
+### Livré le 2026-06-30 (mega session)
+
+1. **Comparateur de devis V1** EN PROD — migration `comparisons` + helper `verdictEngine.ts` (perimeter commun + score multi-critères 40/25/20/15 + verdict conditionnel + 3 leviers) + 5 endpoints API + 3 pages React (`ComparateurAccueil`/`Nouveau`/`Result`) + bouton "Comparer des devis" dans Dashboard
+2. **3 patches Phase 3.2 V2** : `is_foreign_quote` (Stone Gardens BE), `type_document=estimation_courtier` (FONCIA/syndics), IBAN avec lettre au milieu (Côte Maison Travaux W40 validé OpenIBAN)
+3. **TikTok Pixel** câblé (`D902V4RC77UB3EFMQVB0`) miroir de Meta
+4. **SEO Bloc A — Quick wins** : `@astrojs/sitemap` installé + `sitemap-index.xml` au build + 19 redirects 301 pour consolider l'autorité sur futures URLs cocon + `GmcGatewayBanner` (4 variantes UTM) intégré dans `AnalysisResult.tsx`
+5. **SEO Bloc B — Fondation cocon sémantique** : `src/lib/seo/schemaOrg.ts` (Article/HowTo/FAQ/Breadcrumb/SoftwareApp/Product) + `internalLinking.ts` (17 pages pivots avec topics) + 4 composants SEO (`Breadcrumb`/`TableOfContents`/`FAQ`/`RelatedGuides`) + `PillarPage.tsx` template + page pilier démo `/guides/devis-travaux` (9 sections + 6 FAQs + JSON-LD complet)
+6. **SEO Bloc C — Études VMD différenciatrices** : script `generate-etudes-vmd.ts` génère 5 JSON dans `src/data/etudes-vmd/` + route Astro statique `/etudes-vmd/[slug]` + 3 pages riches en prod (`postes-surfactures` 347 analyses, `prix-variables` 347 analyses, `erreurs-tva` 313 analyses) — les 2 autres (`erreurs-frequentes`, `oublis-frequents`) ont peu de data faute de revues humaines (5-6 corrections)
+7. **Plan complet Observatoire** livré dans le chat (rebrand `/etudes-vmd` → `/observatoire/`, 80-330 pages générées, architecture Materialized Views + script hebdo) — code Quick wins à attaquer demain
 
 ### Ce qui reste
 
-- 🟡 **Phase 1.7 application** (1-2h) — Julien relit `RAPPORT-RECALIBRAGE.md` + écrit SQL d'ajustement fourchettes (script déjà livré)
+- 🟡 **Phase 1.7 application** (1-2h) — Julien relit `RAPPORT-RECALIBRAGE.md` + écrit SQL d'ajustement fourchettes (script déjà livré, peinture/placo/carrelage métiers prioritaires)
 - 🟡 **Phase 1.8 application** (~30 min) — Julien relit `RAPPORT-UNITES.md` + normalisations SQL (script déjà livré)
-- 🟡 **Phase 2.4 — 11 revues restantes** sur 15 cibles (5 faites : Travaux Maçonnerie, Mélier Cognac, Toiture Boxes, ALES n°467, DUBOIS clavier). Phase B `ai-prepare-reviews` accélère désormais la revue.
-- 🟡 **Phase 3.2 activation** — 3 commandes côté Julien : `db push` + `secrets set EXTRACT_V2_ENABLED=shadow` + `functions deploy`. Puis 50-100 analyses naturelles avant `phase3-analyze-shadow`.
-- 🔴 **Phase 3.3-3.4** (~2 semaines) — bascule contrôlée extract_v2 + cleanup + bump `ENGINE_VERSION` → `"2.0.0-refonte"`
-- 🔴 **Phase 4** (2-3 sessions) — verdict tranché 1 ligne / 3 leviers de négociation / détail replié / date devis comme levier (cf. spec dans `BUGS-A-CORRIGER.md` section "Spec produit validée — Maillon 3")
+- 🟡 **Phase 2.4 — 9 revues restantes** sur 15 cibles (6 faites : Travaux Maçonnerie, Mélier Cognac, Toiture Boxes, ALES n°467, DUBOIS clavier, devis_arcs.pdf). Phase B `ai-prepare-reviews` accélère désormais la revue.
+- 🟡 **Phase 3.2 monitoring** — shadow tourne en prod depuis 2026-06-29 (+ 3 patches V2 livrés 2026-06-30). Attendre 50+ analyses naturelles propres, puis `npx tsx scripts/phase3-analyze-shadow.ts` pour vérifier si critères Phase 3.3 atteints (success ≥95% + durée V2 < 1.5×V1 + divergences majeures <10%).
+- 🟡 **2 pages /etudes-vmd vides** : `erreurs-frequentes` + `oublis-frequents` (0 stats car peu de corrections dans la table). À fixer : (a) fallback "Données en cours d'accumulation" si stats.length===0 OU (b) attendre que Phase 2.4 remplisse la table OU (c) élargir la requête pour piocher dans `conclusion_ia.anomalies` direct (pas seulement les revues humaines).
+- 🟡 **Observatoire** — plan complet livré dans chat 2026-06-30. Quick wins (~3h) : rebrand `/etudes-vmd` → `/observatoire`, 6 Materialized Views, templates métier/chantier, extension script `generate-observatoire.ts` → 60 pages d'un coup. Ensuite : 13 régions + 96 départements + 150 prix par job_type (V2/V3).
+- 🔴 **Phase 3.3-3.4** (~2 semaines) — bascule contrôlée extract_v2 + cleanup + bump `ENGINE_VERSION` → `"2.0.0-refonte"`. Pré-requis : nouvelles analyses naturelles propres post-3 patches.
+- 🔴 **Phase 4** (2-3 sessions) — verdict tranché 1 ligne / 3 leviers de négociation / détail replié / date devis comme levier (cf. spec dans `BUGS-A-CORRIGER.md` section "Spec produit validée — Maillon 3"). À démarrer après bascule extract_v2.
 - 🔴 **Phase C — validation auto contrôlée** — à coder quand 50+ revues humaines accumulées dans `analysis_corrections` (calibration confidence IA validatrice vs humain)
 
 ### Ce qui s'ARRÊTE immédiatement (rappel)
