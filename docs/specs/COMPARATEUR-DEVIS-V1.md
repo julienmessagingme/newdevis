@@ -36,9 +36,38 @@ V1 refuse silencieusement les cas suivants (avec message UX dédié) :
 | Périmètre V1 | Cas A seul (mêmes travaux, devis comparables) |
 | Bouton "Comparer" | Sur accueil ET dashboard |
 | Flow upload | Progressif (réutilise upload existant + groupement) |
-| Vue | Tableau desktop / cards mobile |
+| Vue | 4 sections thématiques desktop / cards mobile |
 | Verdict | Conditionnel (Si X : A. Si Y : B. Notre choix par défaut : C parce que…) |
 | Business | 1 comparaison gratuite, paywall au-delà (Pass Sérénité) |
+
+### Mise à jour 2026-06-30 (après revue mockup v1)
+
+**Structure d'affichage retouchée** :
+- ❌ Pas de mega-tableau dense N×M
+- ✅ **4 sections thématiques** : PRIX / ENTREPRISE / POINTS CLEFS / POINTS DE VIGILANCE
+- ✅ Détail postes en **accordion replié** par défaut (l'utilisateur ouvre s'il veut creuser)
+- ✅ Aligner sur design system VMD existant (primary HSL 220 70% 35%, radius 12px, etc.)
+
+**Verdict expert reformulé — VRAIE valeur ajoutée** :
+- ❌ Trivialité bannie : "Si vous voulez le moins cher" (l'utilisateur sait lire un total HT)
+- ✅ Valeur ajoutée = **œil expert sur ce qu'un particulier ne voit pas** :
+  - **Postes manquants** : un devis omet la dépose ou l'évacuation = coût caché à révéler
+  - **Quantités différentes** : artisan A dit 30m², artisan B dit 28m² pour le même sol → 7% d'écart à expliquer
+  - **Qualité matériel** : si un devis précise "Geberit" et l'autre dit "WC suspendu" sans marque → signal fort
+  - **Échéancier** : qui demande quoi quand, qui sécurise mieux le client
+  - **Clauses contractuelles abusives** détectées dans le PDF
+
+**Posture honnêteté — règle absolue** :
+- Si on ne sait pas, on dit "Information non disponible" en gris, on n'invente PAS
+- Si la confiance d'extraction est basse (`confiance_globale=indicatif`), bandeau "Données de ce devis partielles, comparaison indicative"
+- Si on ne peut pas comparer 2 postes (formulations trop différentes), on dit "Non comparable directement"
+- Cohérent avec philosophie refonte : verdict honnête (Maillon 3), comparison_indicative, low_confidence_match
+
+**Wording 3 leviers conditionnels actualisé** :
+- ❌ "Si vous voulez le moins cher" — bannir
+- ✅ "Si vous priorisez la **sécurité juridique** : artisan X (aucune clause litigieuse)"
+- ✅ "Si vous voulez la **maîtrise technique** : artisan Y (Z ans d'expérience + matériel premium)"
+- ✅ "Si vous voulez **du grain à moudre pour négocier** : présentez le devis de B à A pour obtenir 5-7%"
 
 ---
 
