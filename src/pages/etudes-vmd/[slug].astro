@@ -1,0 +1,50 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import EtudeVmdApp from '@/components/app/EtudeVmdApp';
+import { articleSchema, breadcrumbSchema, combineSchemas } from '@/lib/seo/schemaOrg';
+import { getRelatedLinks } from '@/lib/seo/internalLinking';
+
+// Static path generation depuis les JSON committés
+export async function getStaticPaths() {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const dir = path.resolve('./src/data/etudes-vmd');
+  if (!fs.existsSync(dir)) return [];
+
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('_'));
+  return files.map((file) => {
+    const data = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+    return { params: { slug: data.slug }, props: { data } };
+  });
+}
+
+const { data } = Astro.props;
+const url = `https://www.verifiermondevis.fr/etudes-vmd/${data.slug}`;
+
+const breadcrumbs = breadcrumbSchema([
+  { name: 'Accueil', url: 'https://www.verifiermondevis.fr/' },
+  { name: 'Études VMD', url: 'https://www.verifiermondevis.fr/etudes-vmd' },
+  { name: data.title, url },
+]);
+
+const article = articleSchema({
+  title: data.title,
+  description: data.description,
+  url,
+  datePublished: data.lastGenerated,
+  dateModified: data.lastGenerated,
+});
+
+const schemas = combineSchemas(article, breadcrumbs);
+
+const related = getRelatedLinks(['verifier', 'prix'], `/etudes-vmd/${data.slug}`, { count: 4, excludeTypes: ['study'] });
+
+export const prerender = true;
+---
+
+<BaseLayout title={data.title + ' | VerifierMonDevis.fr'} description={data.description}>
+  {schemas.map((schema) => (
+    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+  ))}
+  <EtudeVmdApp data={data} related={related} client:only="react" />
+</BaseLayout>

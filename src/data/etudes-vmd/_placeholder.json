@@ -1,0 +1,10 @@
+{
+  "slug": "_placeholder",
+  "title": "Étude en cours de génération",
+  "description": "Cette étude sera disponible après le premier run du script de génération.",
+  "lastGenerated": "2026-06-30T00:00:00Z",
+  "totalAnalyses": 0,
+  "intro": "Lance npx tsx scripts/seo/generate-etudes-vmd.ts pour générer les vraies études.",
+  "stats": [],
+  "methodology": "—"
+}
