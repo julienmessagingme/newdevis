@@ -79,7 +79,9 @@ interface JobAgg {
   metier: string;
   nature_prix: string;
   unit: string;
-  obs_count: number;
+  obs_count: number;        // total (toutes confidences sauf no_match)
+  obs_count_high: number;   // confidence=high (similarity >= 0.85) — utilisable Phase 1.7
+  obs_count_medium: number; // confidence=medium (0.70-0.85) — bruit a considerer
   obs_total_ht: number;
 }
 
@@ -135,17 +137,30 @@ async function main(): Promise<void> {
       const groups = Array.isArray(raw?.n8n_price_data) ? raw.n8n_price_data : [];
       for (const g of groups) {
         if (!g || typeof g !== "object") continue;
-        const jobType = String(g.job_type ?? "").trim();
+        // Pipeline V3.5 vectoriel : l'identifiant catalogue retenu vit dans
+        // g.catalog_job_types[0] (et duplique dans g.prices[0].job_type).
+        // Le champ g.job_type direct N'EXISTE PAS depuis la bascule V3.5.0 (2026-05-22).
+        const cats = Array.isArray(g.catalog_job_types) ? g.catalog_job_types : [];
+        const jobType = String(cats[0] ?? g.prices?.[0]?.job_type ?? "").trim();
         if (!jobType) continue;
         const devisTotal = typeof g.devis_total_ht === "number" ? g.devis_total_ht : 0;
         if (devisTotal <= 0) continue;
         const entry = catalog.get(jobType);
         if (!entry) continue;
+
+        // Confidence vectorial : high (>= 0.85) = fiable, medium (0.70-0.85) = bruit,
+        // low ou no_match = a exclure. Pour Phase 1.7 on accumule tout sauf no_match
+        // mais on distingue dans le rapport (high seul = signal de qualite recalibrage).
+        const conf = String(g.vectorial?.confidence ?? "unknown");
+        if (conf === "no_match" || conf === "low") continue;
+
         totalGroupsMatched++;
         const key = jobType;
         const existing = jobAgg.get(key);
         if (existing) {
           existing.obs_count++;
+          if (conf === "high") existing.obs_count_high++;
+          else if (conf === "medium") existing.obs_count_medium++;
           existing.obs_total_ht += devisTotal;
         } else {
           jobAgg.set(key, {
@@ -155,6 +170,8 @@ async function main(): Promise<void> {
             nature_prix: entry.nature_prix ?? "?",
             unit: entry.unit ?? "?",
             obs_count: 1,
+            obs_count_high: conf === "high" ? 1 : 0,
+            obs_count_medium: conf === "medium" ? 1 : 0,
             obs_total_ht: devisTotal,
           });
         }
@@ -170,8 +187,17 @@ async function main(): Promise<void> {
     metier: string;
     nb_categories: number;
     nb_obs: number;
+    nb_obs_high: number;
+    nb_obs_medium: number;
     total_ht: number;
-    top_categories: { job_type: string; label: string; obs_count: number; obs_total_ht: number }[];
+    top_categories: {
+      job_type: string;
+      label: string;
+      obs_count: number;
+      obs_count_high: number;
+      obs_count_medium: number;
+      obs_total_ht: number;
+    }[];
   }
   const metierAgg = new Map<string, MetierAgg>();
   for (const j of jobAgg.values()) {
@@ -180,16 +206,22 @@ async function main(): Promise<void> {
       metier: j.metier,
       nb_categories: 0,
       nb_obs: 0,
+      nb_obs_high: 0,
+      nb_obs_medium: 0,
       total_ht: 0,
       top_categories: [],
     };
     m.nb_categories++;
     m.nb_obs += j.obs_count;
+    m.nb_obs_high += j.obs_count_high;
+    m.nb_obs_medium += j.obs_count_medium;
     m.total_ht += j.obs_total_ht;
     m.top_categories.push({
       job_type: j.job_type,
       label: j.label,
       obs_count: j.obs_count,
+      obs_count_high: j.obs_count_high,
+      obs_count_medium: j.obs_count_medium,
       obs_total_ht: j.obs_total_ht,
     });
     metierAgg.set(j.metier, m);
@@ -198,7 +230,11 @@ async function main(): Promise<void> {
     m.top_categories.sort((a, b) => b.obs_count - a.obs_count);
   }
 
-  const sortedMetiers = [...metierAgg.values()].sort((a, b) => b.nb_obs - a.nb_obs);
+  // Tri sur nb_obs_high (signal de qualite max) puis nb_obs (volume brut)
+  const sortedMetiers = [...metierAgg.values()].sort((a, b) => {
+    if (b.nb_obs_high !== a.nb_obs_high) return b.nb_obs_high - a.nb_obs_high;
+    return b.nb_obs - a.nb_obs;
+  });
 
   // 4) Rapport
   const lines: string[] = [];
@@ -213,22 +249,24 @@ async function main(): Promise<void> {
     lines.push(`⚠️ Aucun métier avec assez d'observations pour démarrer.\n`);
   } else {
     const top = sortedMetiers[0];
-    lines.push(`🟢 **Démarre par : \`${top.metier}\`** — ${top.nb_obs} observations sur ${top.nb_categories} catégories (~${Math.round(top.total_ht)}€ HT cumulés).\n`);
-    lines.push(`C'est le métier où tu as le plus de signal. Tu peux lancer ensuite :\n`);
+    lines.push(`🟢 **Démarre par : \`${top.metier}\`** — ${top.nb_obs} observations sur ${top.nb_categories} catégories (~${Math.round(top.total_ht).toLocaleString("fr-FR")}€ HT cumulés).`);
+    lines.push(`   - Signal de qualité : **${top.nb_obs_high} obs HIGH** (similarity ≥ 0.85, fiables)`);
+    lines.push(`   - Bruit : ${top.nb_obs_medium} obs MEDIUM (0.70-0.85, à valider une par une)\n`);
+    lines.push(`C'est le métier où tu as le plus de signal exploitable. Tu peux lancer ensuite :\n`);
     lines.push("```bash");
-    lines.push(`npx tsx scripts/phase1-7-recalibrage-fourchettes.ts --metier ${top.metier}`);
+    lines.push(`npx tsx scripts/phase1-7-recalibrage-fourchettes.ts`);
     lines.push("```");
-    lines.push(`\n(le flag \`--metier\` n'existe peut-être pas encore dans phase1-7 — à ajouter si besoin)\n`);
+    lines.push(`\n(filtre les propositions du rapport sur \`metier="${top.metier}"\` pour ne traiter que celui-ci)\n`);
   }
   lines.push(`---\n`);
 
   lines.push(`## Tableau récapitulatif\n`);
-  lines.push(`| Rang | Métier | Catégories | Observations | Volume €HT cumulé |`);
-  lines.push(`|---:|---|---:|---:|---:|`);
+  lines.push(`| Rang | Métier | Cat. | Obs total | Obs HIGH (fiables) | Obs MED (bruit) | Volume €HT |`);
+  lines.push(`|---:|---|---:|---:|---:|---:|---:|`);
   for (let i = 0; i < sortedMetiers.length; i++) {
     const m = sortedMetiers[i];
     lines.push(
-      `| ${i + 1} | \`${m.metier}\` | ${m.nb_categories} | ${m.nb_obs} | ${Math.round(m.total_ht).toLocaleString("fr-FR")} € |`,
+      `| ${i + 1} | \`${m.metier}\` | ${m.nb_categories} | ${m.nb_obs} | **${m.nb_obs_high}** | ${m.nb_obs_medium} | ${Math.round(m.total_ht).toLocaleString("fr-FR")} € |`,
     );
   }
   lines.push("");
@@ -236,12 +274,12 @@ async function main(): Promise<void> {
   lines.push(`---\n`);
   lines.push(`## Détail par métier (top 5 catégories chacun)\n`);
   for (const m of sortedMetiers) {
-    lines.push(`### \`${m.metier}\` — ${m.nb_obs} obs · ${m.nb_categories} cat · ~${Math.round(m.total_ht).toLocaleString("fr-FR")}€\n`);
-    lines.push(`| job_type | label | obs | total €HT |`);
-    lines.push(`|---|---|---:|---:|`);
+    lines.push(`### \`${m.metier}\` — ${m.nb_obs} obs (${m.nb_obs_high} high · ${m.nb_obs_medium} med) · ${m.nb_categories} cat · ~${Math.round(m.total_ht).toLocaleString("fr-FR")}€\n`);
+    lines.push(`| job_type | label | obs | high | med | total €HT |`);
+    lines.push(`|---|---|---:|---:|---:|---:|`);
     for (const c of m.top_categories.slice(0, 5)) {
       lines.push(
-        `| \`${c.job_type}\` | ${c.label.slice(0, 60)} | ${c.obs_count} | ${Math.round(c.obs_total_ht).toLocaleString("fr-FR")} |`,
+        `| \`${c.job_type}\` | ${c.label.slice(0, 60)} | ${c.obs_count} | **${c.obs_count_high}** | ${c.obs_count_medium} | ${Math.round(c.obs_total_ht).toLocaleString("fr-FR")} |`,
       );
     }
     if (m.top_categories.length > 5) {
