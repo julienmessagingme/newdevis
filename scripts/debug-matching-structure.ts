@@ -60,10 +60,22 @@ for (const a of data ?? []) {
     console.log("    keys :", Object.keys(g).join(", "));
     console.log("    job_type :", g.job_type);
     console.log("    job_type_label :", g.job_type_label);
+    console.log("    catalog_job_types :", JSON.stringify(g.catalog_job_types));
+    console.log("    prices.length :", Array.isArray(g.prices) ? g.prices.length : "?");
+    if (Array.isArray(g.prices) && g.prices.length > 0) {
+      console.log("    prices[0] keys :", Object.keys(g.prices[0]).join(", "));
+      console.log("    prices[0].job_type :", g.prices[0].job_type);
+      console.log("    prices[0].label :", g.prices[0].label);
+    }
     console.log("    vectorial :", g.vectorial ? Object.keys(g.vectorial).join(", ") : "(absent)");
     if (g.vectorial) {
-      console.log("    vectorial.job_type :", g.vectorial.job_type);
       console.log("    vectorial.confidence :", g.vectorial.confidence);
+      console.log("    vectorial.top_similarity :", g.vectorial.top_similarity);
+      if (Array.isArray(g.vectorial.all_candidates) && g.vectorial.all_candidates.length > 0) {
+        console.log("    vectorial.all_candidates.length :", g.vectorial.all_candidates.length);
+        console.log("    vectorial.all_candidates[0] keys :", Object.keys(g.vectorial.all_candidates[0]).join(", "));
+        console.log("    vectorial.all_candidates[0].job_type :", g.vectorial.all_candidates[0].job_type);
+      }
     }
     console.log("    devis_total_ht :", g.devis_total_ht);
   }
