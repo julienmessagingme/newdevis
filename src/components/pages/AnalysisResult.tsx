@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } fro
 import { trackEvent } from "@/lib/integrations/amplitude";
 import { trackPixelOnce } from "@/lib/integrations/metaPixel";
 import { trackTikTokOnce } from "@/lib/integrations/tiktokPixel";
+import GmcGatewayBanner from "@/components/cta/GmcGatewayBanner";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -1306,6 +1307,14 @@ const AnalysisResult = () => {
             deterministicAnomalyCount={deterministicAnomalyCount}
             deterministicSurvalueCount={deterministicSurvalueCount}
           />
+        )}
+
+        {/* Passerelle GMC — affichée seulement aux comptes permanents (pas aux anonymes
+            qui doivent d'abord créer un compte). Apparait après le verdict, avant le bloc Entreprise. */}
+        {!isAnonymous && (
+          <div className="mb-6">
+            <GmcGatewayBanner variant="post-analysis" />
+          </div>
         )}
 
         {isAnonymous && (

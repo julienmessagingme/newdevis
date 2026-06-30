@@ -80,5 +80,5 @@ Disallow: /
 User-agent: Bytespider
 Disallow: /
 
-# Sitemaps
-Sitemap: https://www.verifiermondevis.fr/sitemap.xml
+# Sitemaps (Astro @astrojs/sitemap génère sitemap-index.xml)
+Sitemap: https://www.verifiermondevis.fr/sitemap-index.xml
