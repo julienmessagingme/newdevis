@@ -211,8 +211,19 @@ function aggregateObservations(
     for (const g of priceData) {
       if (!g || typeof g !== "object") continue;
       groupsTotal++;
-      const jobType: string | undefined = g.job_type;
+      // Pipeline V3.5 vectoriel : l'identifiant catalogue retenu vit dans
+      // g.catalog_job_types[0] (et duplique dans g.prices[0].job_type).
+      // Le champ g.job_type direct N'EXISTE PAS depuis la bascule V3.5.0 (2026-05-22).
+      const cats = Array.isArray(g.catalog_job_types) ? g.catalog_job_types : [];
+      const jobType: string | undefined = cats[0] ?? g.prices?.[0]?.job_type ?? undefined;
       if (!jobType || typeof jobType !== "string") continue;
+
+      // Filtre confidence HIGH (>= 0.77 selon recalibrage seuils 2026-06-30)
+      // pour ne PAS polluer le recalibrage des fourchettes avec des matchs incertains.
+      // Voir docs/refonte/RAPPORT-TUNING-SEUILS.md.
+      const sim = typeof g.vectorial?.top_similarity === "number" ? g.vectorial.top_similarity : null;
+      if (sim === null || sim < 0.77) continue;
+
       const devisTotal = typeof g.devis_total_ht === "number" ? g.devis_total_ht : 0;
       const qty = typeof g.main_quantity === "number" && g.main_quantity > 0 ? g.main_quantity : 0;
       if (devisTotal <= 0 || qty <= 0) continue;
