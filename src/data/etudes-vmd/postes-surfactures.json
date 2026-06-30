@@ -1,0 +1,81 @@
+{
+  "slug": "postes-surfactures",
+  "title": "Les postes les plus surfacturés sur les devis travaux",
+  "description": "Top 10 des postes où le prix devis dépasse le plus le prix marché. Données réelles sur 347 devis.",
+  "lastGenerated": "2026-06-30T16:51:42.154Z",
+  "totalAnalyses": 347,
+  "intro": "Tous les postes ne sont pas surfacturés de la même façon. Sur 347 devis analysés et 2273 groupes matchés au catalogue marché, voici les 10 postes où l'écart médian entre prix devis et prix marché moyen est le plus élevé.",
+  "stats": [
+    {
+      "rank": 1,
+      "label": "Evacuation gravats",
+      "value": "+550%",
+      "subtitle": "Médiane sur 8 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 550% le prix marché moyen sur ce poste."
+    },
+    {
+      "rank": 2,
+      "label": "Peinture SDB pièces humides",
+      "value": "+300%",
+      "subtitle": "Médiane sur 13 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 300% le prix marché moyen sur ce poste."
+    },
+    {
+      "rank": 3,
+      "label": "Démolition cloison",
+      "value": "+167%",
+      "subtitle": "Médiane sur 8 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 167% le prix marché moyen sur ce poste."
+    },
+    {
+      "rank": 4,
+      "label": "Pose radiateur électrique à inertie (hors fourniture)",
+      "value": "+165%",
+      "subtitle": "Médiane sur 4 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 165% le prix marché moyen sur ce poste."
+    },
+    {
+      "rank": 5,
+      "label": "Dépose carrelage",
+      "value": "+75%",
+      "subtitle": "Médiane sur 3 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 75% le prix marché moyen sur ce poste."
+    },
+    {
+      "rank": 6,
+      "label": "Frais de déplacement",
+      "value": "+71%",
+      "subtitle": "Médiane sur 4 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 71% le prix marché moyen sur ce poste."
+    },
+    {
+      "rank": 7,
+      "label": "Ajout prise",
+      "value": "+56%",
+      "subtitle": "Médiane sur 3 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 56% le prix marché moyen sur ce poste."
+    },
+    {
+      "rank": 8,
+      "label": "Pose carrelage sol (hors fourniture)",
+      "value": "+45%",
+      "subtitle": "Médiane sur 10 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 45% le prix marché moyen sur ce poste."
+    },
+    {
+      "rank": 9,
+      "label": "Peinture salle de bain (pièce)",
+      "value": "+43%",
+      "subtitle": "Médiane sur 7 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 43% le prix marché moyen sur ce poste."
+    },
+    {
+      "rank": 10,
+      "label": "Pose faïence murale (hors fourniture)",
+      "value": "+23%",
+      "subtitle": "Médiane sur 8 devis observés",
+      "context": "Le prix devis dépasse en moyenne de 23% le prix marché moyen sur ce poste."
+    }
+  ],
+  "methodology": "Pour chaque poste matché au catalogue avec confidence HIGH (similarity ≥ 0.77, Phase 1.7), calcul du ratio (prix devis / prix marché moyen). Médiane des ratios par poste, filtrée sur ≥ 3 observations."
+}

@@ -1,0 +1,10 @@
+{
+  "slug": "oublis-frequents",
+  "title": "Les postes les plus fréquemment oubliés des devis travaux",
+  "description": "Postes que les artisans omettent le plus souvent — et que vous retrouverez en supplément sur la facture.",
+  "lastGenerated": "2026-06-30T16:51:42.679Z",
+  "totalAnalyses": 6,
+  "intro": "Certains postes sont systématiquement omis des devis pour faire baisser le total HT affiché. Ils apparaissent ensuite sur la facture en \"supplément\". Voici les 10 oublis les plus fréquents sur 6 devis revus par notre expert.",
+  "stats": [],
+  "methodology": "Analyse textuelle des notes expertes dans analysis_corrections. Détection de patterns 'manqu*' / 'oubli*' / 'absent' combinés avec mots-clés métiers."
+}

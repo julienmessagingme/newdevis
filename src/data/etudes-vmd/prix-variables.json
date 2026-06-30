@@ -1,0 +1,81 @@
+{
+  "slug": "prix-variables",
+  "title": "Les prix les plus variables d'un devis à l'autre",
+  "description": "Top 10 des postes où le prix unitaire varie le plus selon l'artisan. Comparez avant de signer.",
+  "lastGenerated": "2026-06-30T16:51:42.595Z",
+  "totalAnalyses": 347,
+  "intro": "Pour le même poste, les artisans peuvent facturer du simple au triple. Voici les 10 postes où la variabilité de prix est la plus forte sur 347 devis analysés. Demandez toujours 3 devis sur ces postes — l'écart peut atteindre plusieurs milliers d'euros.",
+  "stats": [
+    {
+      "rank": 1,
+      "label": "Peinture porte",
+      "value": "×208.8",
+      "subtitle": "de 40 € à 8350 € (médiane 40 €)",
+      "context": "Sur 9 devis observés, l'amplitude max/min est de ×208.8."
+    },
+    {
+      "rank": 2,
+      "label": "Démolition cloison",
+      "value": "×32.6",
+      "subtitle": "de 40 € à 1305 € (médiane 80 €)",
+      "context": "Sur 10 devis observés, l'amplitude max/min est de ×32.6."
+    },
+    {
+      "rank": 3,
+      "label": "Dépose carrelage",
+      "value": "×16.5",
+      "subtitle": "de 33 € à 540 € (médiane 540 €)",
+      "context": "Sur 11 devis observés, l'amplitude max/min est de ×16.5."
+    },
+    {
+      "rank": 4,
+      "label": "Pose carrelage sol (hors fourniture)",
+      "value": "×15.0",
+      "subtitle": "de 30 € à 450 € (médiane 80 €)",
+      "context": "Sur 12 devis observés, l'amplitude max/min est de ×15.0."
+    },
+    {
+      "rank": 5,
+      "label": "Faux plafond plâtre BA13 (fourni+posé)",
+      "value": "×4.0",
+      "subtitle": "de 20 € à 79 € (médiane 55 €)",
+      "context": "Sur 84 devis observés, l'amplitude max/min est de ×4.0."
+    },
+    {
+      "rank": 6,
+      "label": "Remplacement chauffe-eau (pose)",
+      "value": "×3.1",
+      "subtitle": "de 545 € à 1665 € (médiane 545 €)",
+      "context": "Sur 8 devis observés, l'amplitude max/min est de ×3.1."
+    },
+    {
+      "rank": 7,
+      "label": "Peinture plafond",
+      "value": "×2.9",
+      "subtitle": "de 10 € à 29 € (médiane 10 €)",
+      "context": "Sur 7 devis observés, l'amplitude max/min est de ×2.9."
+    },
+    {
+      "rank": 8,
+      "label": "Pose receveur douche",
+      "value": "×2.8",
+      "subtitle": "de 225 € à 630 € (médiane 225 €)",
+      "context": "Sur 10 devis observés, l'amplitude max/min est de ×2.8."
+    },
+    {
+      "rank": 9,
+      "label": "Doublage plâtre BA13 sur isolation (fourni+posé)",
+      "value": "×2.0",
+      "subtitle": "de 30 € à 60 € (médiane 50 €)",
+      "context": "Sur 10 devis observés, l'amplitude max/min est de ×2.0."
+    },
+    {
+      "rank": 10,
+      "label": "Peinture SDB pièces humides",
+      "value": "×1.9",
+      "subtitle": "de 80 € à 150 € (médiane 80 €)",
+      "context": "Sur 13 devis observés, l'amplitude max/min est de ×1.9."
+    }
+  ],
+  "methodology": "Pour chaque poste avec ≥ 5 observations, calcul du ratio max/min des prix unitaires. Tri décroissant. Seuls les matchings catalogue HIGH (similarity ≥ 0.77) sont pris en compte pour éviter le bruit."
+}
