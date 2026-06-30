@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Shield,
   BarChart3,
+  Scale,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -241,24 +242,43 @@ const Dashboard = () => {
           </a>
         )}
 
-        {/* Quick Action */}
-        <a href="/nouvelle-analyse" className="block mb-8">
-          <div className="bg-card border-2 border-dashed border-primary/30 rounded-2xl p-6 hover:border-primary hover:bg-accent/50 transition-all duration-200 cursor-pointer group">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
-                <Plus className="h-7 w-7 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">
-                  Analyser un nouveau devis
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Téléchargez un devis PDF ou photo pour obtenir votre score
-                </p>
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <a href="/nouvelle-analyse" className="block">
+            <div className="bg-card border-2 border-dashed border-primary/30 rounded-2xl p-6 hover:border-primary hover:bg-accent/50 transition-all duration-200 cursor-pointer group h-full">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
+                  <Plus className="h-7 w-7 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Analyser un nouveau devis
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    PDF ou photo pour obtenir votre score
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        </a>
+          </a>
+          <a href="/comparateur" className="block">
+            <div className="bg-card border-2 border-dashed border-primary/30 rounded-2xl p-6 hover:border-primary hover:bg-accent/50 transition-all duration-200 cursor-pointer group h-full">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
+                  <Scale className="h-7 w-7 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Comparer des devis
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Choisissez 2 à 4 devis pour le même chantier
+                  </p>
+                </div>
+              </div>
+            </div>
+          </a>
+        </div>
 
         {/* Analyses List */}
         <div>

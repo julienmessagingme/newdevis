@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ComparateurResultApp from '@/components/app/ComparateurResultApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Résultat de comparaison | VerifierMonDevis.fr"
+  description="Verdict expert sur votre comparaison de devis."
+  noindex={true}
+>
+  <ComparateurResultApp client:only="react" />
+</BaseLayout>
