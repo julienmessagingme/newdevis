@@ -45,16 +45,22 @@ const EMBEDDING_DIM = 768;
 /**
  * Seuils de classification confidence (cosine similarity, [0, 1]).
  *
- * Calibrés à dire d'expert lors du design Phase C. À ré-évaluer après Phase E
- * (shadow run sur 50 devis) — si trop de "low" sur des vrais matchs, baisser
- * MEDIUM. Si trop de "high" sur des matchs douteux, monter HIGH.
+ * Calibrage v1 (2026-05-22, design Phase C) : HIGH=0.85, MEDIUM=0.70.
+ * Mauvaise calibration : sur 941 matchings réels analysés 2026-06-30
+ * (scripts/tune-vectorial-thresholds.ts), 0 matching n'atteignait HIGH=0.85.
+ * Max observé : 0.8496. Médiane : 0.7642. Asymétrie inhérente "texte court
+ * (catalogue) vs texte long (devis)" qui empêche structurellement d'atteindre 0.85.
  *
- *   ≥ 0.85 → "high"     : match très fiable (synonyme catalogue quasi-exact)
- *   0.70-0.85 → "medium": match plausible, à valider visuellement
+ * Recalibrage v2 (2026-06-30) : HIGH=0.77 (40.7% de l'historique bascule en HIGH,
+ * 383 obs au lieu de 0). MEDIUM=0.70 inchangé (seul 2.8% des obs en dessous,
+ * c'est cohérent avec "vraiment incertain"). NO_MATCH inchangé.
+ *
+ *   ≥ 0.77 → "high"     : match très fiable (synonyme catalogue quasi-exact)
+ *   0.70-0.77 → "medium": match plausible, à valider visuellement
  *   0.50-0.70 → "low"   : match incertain, badge rouge "match imprécis"
  *   < 0.50 → "no_match" : on ne renvoie aucun match, carte "Non comparable"
  */
-const CONFIDENCE_HIGH = 0.85;
+const CONFIDENCE_HIGH = 0.77;
 const CONFIDENCE_MEDIUM = 0.70;
 const NO_MATCH_THRESHOLD = 0.50;
 

@@ -148,10 +148,26 @@ async function main(): Promise<void> {
         const entry = catalog.get(jobType);
         if (!entry) continue;
 
-        // Confidence vectorial : high (>= 0.85) = fiable, medium (0.70-0.85) = bruit,
-        // low ou no_match = a exclure. Pour Phase 1.7 on accumule tout sauf no_match
-        // mais on distingue dans le rapport (high seul = signal de qualite recalibrage).
-        const conf = String(g.vectorial?.confidence ?? "unknown");
+        // Confidence vectorial : on RECALCULE selon les nouveaux seuils v2 (2026-06-30)
+        // car les analyses passees ont leur confidence figee a "medium" dans raw_text
+        // (calibrage v1 design : HIGH=0.85 jamais atteint en pratique).
+        //
+        // Seuils v2 (alignes sur market-matcher-vectorial.ts):
+        //   HIGH >= 0.77   (au lieu de 0.85)
+        //   MEDIUM >= 0.70
+        //   sinon : exclu
+        //
+        // Si vectorial.top_similarity est absent (analyses pre-V3.5), fallback
+        // sur le confidence stocke.
+        const sim = typeof g.vectorial?.top_similarity === "number" ? g.vectorial.top_similarity : null;
+        let conf: string;
+        if (sim !== null) {
+          if (sim >= 0.77) conf = "high";
+          else if (sim >= 0.70) conf = "medium";
+          else conf = "low";
+        } else {
+          conf = String(g.vectorial?.confidence ?? "unknown");
+        }
         if (conf === "no_match" || conf === "low") continue;
 
         totalGroupsMatched++;
