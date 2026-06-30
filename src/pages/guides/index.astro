@@ -1,0 +1,39 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import HubPageApp from '@/components/app/HubPageApp';
+import { breadcrumbSchema } from '@/lib/seo/schemaOrg';
+
+const url = 'https://www.verifiermondevis.fr/guides';
+const title = "Tous les guides VerifierMonDevis";
+const description = "Comprendre, comparer, négocier, signer ou refuser un devis travaux. Tous nos guides experts mis à jour en 2026.";
+
+const breadcrumbs = breadcrumbSchema([
+  { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+  { name: "Guides", url },
+]);
+
+const props = {
+  breadcrumb: [{ name: "Guides", href: "/guides" }],
+  title,
+  intro: description,
+  children: [
+    { href: "/guides/devis-travaux", title: "Le guide complet du devis travaux", excerpt: "Comprendre, comparer, négocier, signer ou refuser. Le pilier de référence.", topics: ["devis"], type: "pillar" },
+    { href: "/guides/comprendre-un-devis", title: "Comprendre un devis ligne à ligne", excerpt: "Unités, prix unitaires, forfaits, TVA, options : tout décrypter.", topics: ["devis"], type: "guide" },
+    { href: "/guides/comparer-plusieurs-devis", title: "Comparer plusieurs devis : la méthode", excerpt: "Au-delà du prix : postes, quantités, matériel, clauses.", topics: ["comparateur"], type: "guide" },
+    { href: "/guides/negocier-un-devis", title: "Négocier un devis travaux", excerpt: "5 leviers concrets pour obtenir 3 à 10% de remise.", topics: ["devis", "negociation"], type: "guide" },
+    { href: "/guides/refuser-un-devis", title: "Refuser un devis (sans frais)", excerpt: "Cadre légal, délais, modèles de réponse.", topics: ["devis", "litige"], type: "guide" },
+    { href: "/guides/signer-un-devis", title: "Signer un devis en sécurité", excerpt: "7 vérifications avant signature.", topics: ["devis"], type: "guide" },
+    { href: "/guides/choisir-un-artisan", title: "Choisir un artisan : la checklist", excerpt: "SIRET, assurance, avis, références.", topics: ["artisan"], type: "guide" },
+    { href: "/guides/comprendre-le-verdict-vmd", title: "Comment lire le verdict VMD", excerpt: "Vert, orange, rouge : ce que chacun veut dire.", topics: ["verifier"], type: "guide" },
+    { href: "/guides/aides-energetiques", title: "Aides énergétiques 2026", excerpt: "MaPrimeRénov', CEE, éco-PTZ : estimez vos droits.", topics: ["aides"], type: "guide" },
+  ],
+  showGmcGateway: true,
+};
+
+export const prerender = false;
+---
+
+<BaseLayout title={title + " | VerifierMonDevis.fr"} description={description}>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbs)} />
+  <HubPageApp {...props} client:only="react" />
+</BaseLayout>

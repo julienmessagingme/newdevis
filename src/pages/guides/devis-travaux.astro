@@ -1,0 +1,46 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import GuideDevisTravauxApp from '@/components/app/GuideDevisTravauxApp';
+import { articleSchema, faqSchema, breadcrumbSchema, combineSchemas } from '@/lib/seo/schemaOrg';
+
+const url = 'https://www.verifiermondevis.fr/guides/devis-travaux';
+const title = "Le guide complet du devis travaux 2026 : tout savoir";
+const description = "Comprendre, comparer, négocier, signer ou refuser un devis travaux. Mentions obligatoires, 7 pièges classiques, méthode experte. Mis à jour en 2026.";
+
+const breadcrumbs = breadcrumbSchema([
+  { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+  { name: "Guides", url: "https://www.verifiermondevis.fr/guides" },
+  { name: "Devis travaux", url },
+]);
+
+const article = articleSchema({
+  title,
+  description,
+  url,
+  datePublished: "2026-06-30",
+  dateModified: new Date().toISOString().slice(0, 10),
+});
+
+const faqs = faqSchema([
+  { q: "Un devis est-il obligatoire pour des travaux ?", a: "Oui, pour tous les travaux BTP dont le montant dépasse 1 500 € TTC (arrêté du 2 mars 1990)." },
+  { q: "Combien de temps un devis est-il valable ?", a: "3 mois en général. La durée de validité doit être explicitement mentionnée sur le devis (art. L111-1 du Code de la consommation)." },
+  { q: "Quel acompte maximum demander ?", a: "La norme du métier est 30% maximum à la signature." },
+  { q: "Comment vérifier si un artisan est sérieux ?", a: "Vérifications : SIRET valide, assurance décennale et RC Pro, avis Google ≥ 4/5, 3 références de chantiers récents." },
+  { q: "Puis-je négocier le prix après signature ?", a: "Non, une fois signé le devis devient un contrat ferme. Négociez AVANT la signature." },
+  { q: "Que faire si mon devis a une clause illégale ?", a: "Demandez le retrait par email avant signature. Les clauses 'pas de rétractation' ou 'modification unilatérale du prix' sont nulles légalement." },
+]);
+
+const schemas = combineSchemas(article, breadcrumbs, faqs);
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title={title + " | VerifierMonDevis.fr"}
+  description={description}
+>
+  {schemas.map((schema) => (
+    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+  ))}
+  <GuideDevisTravauxApp client:only="react" />
+</BaseLayout>
