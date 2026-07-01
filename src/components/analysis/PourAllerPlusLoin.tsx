@@ -68,7 +68,7 @@ export default function PourAllerPlusLoin() {
         </a>
 
         <a
-          href="https://www.gerermonchantier.fr/mon-chantier"
+          href="https://www.gerermonchantier.fr/"
           className="group bg-card border border-border rounded-xl p-4 flex items-start gap-3 hover:border-primary/40 hover:shadow-sm transition-all"
         >
           <Hammer className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />

@@ -379,7 +379,7 @@ export default function ComparateurResult() {
             <div className="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">Analyser un autre devis</div>
             <div className="text-xs text-muted-foreground">Vérification gratuite en 30 s</div>
           </a>
-          <a href="https://www.gerermonchantier.fr/mon-chantier" className="group block p-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+          <a href="https://www.gerermonchantier.fr/" className="group block p-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
             <div className="font-semibold text-sm mb-1">Piloter mon chantier</div>
             <div className="text-xs opacity-80">Budget, planning, artisans</div>
           </a>
