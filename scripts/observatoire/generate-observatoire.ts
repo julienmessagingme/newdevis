@@ -30,6 +30,50 @@ const OUTPUT_DIR = join(ROOT, "src", "data", "observatoire");
 const METIERS_DIR = join(OUTPUT_DIR, "metiers");
 const CHANTIERS_DIR = join(OUTPUT_DIR, "chantiers");
 
+/**
+ * Overrides SEO manuels par slug. Les slugs non listés utilisent le template
+ * default. Écrit à la main pour titre/description CTR-optimisés (chiffres,
+ * année, bénéfice), synchro avec l'audit SEO business.
+ * NB : {nb} est remplacé par row.nb_devis au moment du build.
+ */
+const SEO_OVERRIDES: Record<string, { title: string; description: string }> = {
+  // Chantiers TOP (haute priorité SEO)
+  "salle-de-bain": {
+    title: "Prix rénovation salle de bain 2026 : {nb} devis analysés",
+    description: "Salle de bain : quelle fourchette de prix en 2026 ? Postes qui varient le plus, erreurs à éviter, sur {nb} devis analysés par VerifierMonDevis.",
+  },
+  isolation: {
+    title: "Prix isolation 2026 : fourchette sur {nb} devis analysés",
+    description: "Isolation combles, murs, sols : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, aides MaPrimeRénov' et CEE.",
+  },
+  peinture: {
+    title: "Prix peinture 2026 : fourchette au m² sur {nb} devis",
+    description: "Peinture intérieure ou extérieure : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts entre finitions et pièges à éviter.",
+  },
+  chauffage: {
+    title: "Prix chauffage 2026 : fourchette sur {nb} devis analysés",
+    description: "Chaudière, pompe à chaleur, poêle : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, aides MaPrimeRénov' et CEE.",
+  },
+  cuisine: {
+    title: "Prix rénovation cuisine 2026 : fourchette sur {nb} devis",
+    description: "Cuisine équipée avec pose : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus.",
+  },
+};
+
+function applySeoOverride(
+  slug: string,
+  defaultTitle: string,
+  defaultDesc: string,
+  nb: number,
+): { title: string; description: string } {
+  const o = SEO_OVERRIDES[slug];
+  if (!o) return { title: defaultTitle, description: defaultDesc };
+  return {
+    title: o.title.replace(/\{nb\}/g, String(nb)),
+    description: o.description.replace(/\{nb\}/g, String(nb)),
+  };
+}
+
 function loadEnvFile(name: string): boolean {
   const p = join(ROOT, name);
   if (!existsSync(p)) return false;
@@ -521,8 +565,12 @@ async function generateMetierPages(): Promise<{ generated: number; empty: number
       slug,
       metier: row.metier,
       metier_label: label,
-      title: `${label} : prix moyens & anomalies observées`,
-      description: `Statistiques réelles sur ${row.nb_devis} devis analysés dans le métier ${label} : prix moyens, écarts, postes surfacturés.`,
+      ...applySeoOverride(
+        slug,
+        `Prix ${label.toLowerCase()} 2026 : fourchette sur ${row.nb_devis} devis`,
+        `${label} : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.`,
+        row.nb_devis,
+      ),
       lastGenerated: new Date().toISOString(),
       intro: `Analyse fondée sur ${row.nb_devis} devis réels contenant au moins une ligne du métier ${label} avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.`,
       kpis: {
@@ -586,8 +634,12 @@ async function generateChantierPages(): Promise<{ generated: number; empty: numb
       slug,
       chantier_type: row.chantier_type,
       chantier_label: meta.label,
-      title: `${meta.label} : prix moyens & points de vigilance`,
-      description: `Statistiques réelles sur ${row.nb_devis} devis ${meta.label.toLowerCase()} analysés : prix moyens, points de vigilance, erreurs fréquentes.`,
+      ...applySeoOverride(
+        slug,
+        `Prix ${meta.label.toLowerCase()} 2026 : fourchette sur ${row.nb_devis} devis`,
+        `${meta.label} : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.`,
+        row.nb_devis,
+      ),
       lastGenerated: new Date().toISOString(),
       intro: `Étude basée sur ${row.nb_devis} devis réels contenant des travaux de type ${meta.label.toLowerCase()}. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.`,
       kpis: {

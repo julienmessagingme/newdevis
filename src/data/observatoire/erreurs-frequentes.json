@@ -1,7 +1,7 @@
 {
   "slug": "erreurs-frequentes",
-  "title": "Les erreurs les plus fréquentes dans les devis travaux",
-  "description": "Top 10 des erreurs détectées par notre IA sur 5 devis analysés. Données réelles, mises à jour mensuellement.",
+  "title": "Erreurs fréquentes sur les devis travaux (étude en cours)",
+  "description": "Les erreurs et incohérences fréquemment détectées sur les devis analysés par VerifierMonDevis. Étude en cours d'enrichissement.",
   "lastGenerated": "2026-06-30T16:51:40.704Z",
   "totalAnalyses": 5,
   "intro": "Sur 5 devis analysés et validés par notre expert, 3 contiennent au moins une anomalie. Voici les 10 erreurs les plus fréquentes, classées par occurrence.",
