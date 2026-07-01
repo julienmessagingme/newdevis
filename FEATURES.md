@@ -145,6 +145,38 @@ Tout signup envoie un champ `signup_source` (`verifiermondevis` ou `gerermonchan
 
 L'accès GMC est aujourd'hui **par allowlist hardcodée** (`src/lib/gmcAccess.ts` : julien + Johan). Quand Stripe sera prêt, sera remplacé par lecture DB (colonne `subscriptions.has_gmc_access`) avec proposition d'onboarding 15 jours gratuits.
 
+### Observatoire des devis travaux (cocon SEO complet, live 2026-07-01)
+
+Rubrique publique `/observatoire` qui expose les statistiques calculées sur les devis analysés par VMD. Positionnée comme angle unique **impossible à copier par les concurrents** (Travaux.com, HabitatPresto n'ont pas nos données).
+
+**Ce que le visiteur voit** :
+- **Hub `/observatoire`** — 3 quick actions (Analyser gratuitement / Comparer 2 devis / Piloter mon chantier vers landing GMC) + 3 sections (études thématiques / chantiers ≥15 devis / métiers ≥15 devis) + méthodologie honnête.
+- **Pages étude** (`/observatoire/postes-surfactures`, `/erreurs-tva`, `/prix-variables`, `/erreurs-frequentes`, `/oublis-frequents`) : classement top 10 avec valeur + `nb_obs` transparent.
+- **Pages chantier** (`/observatoire/chantiers/{slug}` × 16) : fourchette prix P25/P75, points de vigilance, erreurs fréquentes. Filtrées ≥15 devis dans le hub, les autres restent indexées avec bandeau "en cours d'enrichissement".
+- **Pages métier** (`/observatoire/metiers/{slug}` × 29) : KPIs, distribution prix, top 5 postes surfacturés.
+- **Pages index** `/observatoire/chantiers` et `/observatoire/metiers` : liste complète triée par volume avec section "Les plus analysés" vs "En cours d'enrichissement".
+
+**Ce qui rassure** (crédibilité intentionnellement mesurée) :
+- **Chip `ObservatoireChip`** en tête de chaque page : "N devis analysés · Actualisé le [date] · Analysé par Johan BRIDEY, co-fondateur" — signal E-E-A-T + fraîcheur.
+- **Disclaimer `ObservatoireDisclaimer`** en pied : "Statistiques calculées sur les devis analysés par VerifierMonDevis. Ne représentent pas le marché national mais un échantillon utile pour situer votre propre devis." Assume l'échantillon petit, ne prétend pas à la référence nationale.
+- **Titres CTR** : template "Prix [X] 2026 : fourchette sur [N] devis analysés" — année + chiffre + bénéfice, jamais clickbait.
+- **20 pages top optimisées** : `SEO_OVERRIDES` dans `generate-observatoire.ts` protège les titres personnalisés à chaque regen.
+
+**Ce qui fait circuler** (cocon sémantique) :
+- **Header VMD** (3 versions cohérentes : Astro, React, GMC-landing) : "📊 Observatoire des prix" en tête du dropdown "En savoir plus" desktop + mobile.
+- **Footer VMD** : "Observatoire des prix travaux" en 1re position Navigation.
+- **Homepage VMD** : nouveau bloc "L'Observatoire des devis travaux" avec 8 cards (4 chantiers TOP + 2 études + 1 métier + 1 hub).
+- **Auto-maillage cross-Observatoire** : chaque page Obs affiche via `ObservatoireCrossLinks` un bloc "Pour aller plus loin" avec 5 catégories (Métiers concernés + Chantiers similaires + Guide + CTA Analyse + CTA Comparateur + bannière GMC conditionnée gros œuvre). Le mapping éditorial (`src/lib/seo/observatoireCrossLinks.ts`) associe 16 chantiers × 28 métiers de façon lisible.
+- **Post-verdict Analyse** : `PourAllerPlusLoin` (bloc encadré dans `AnalysisResult.tsx`) propose 4 rebonds (Observatoire / Comparateur / Guide / GMC) après chaque verdict rendu.
+- **Post-comparateur** : section pied de `ComparateurResult.tsx` avec 4 cards équivalentes.
+
+**Sitemap / SEO structuré** :
+- 45 pages Obs + hub + 2 index = 48 URLs indexables, toutes en `prerender=true` (SSG au build).
+- Schema.org `Article` + `BreadcrumbList` sur chaque page. Auteur = Johan BRIDEY (signal E-E-A-T).
+- Titles ~55-65 chars content + " | VerifierMonDevis.fr" (22 chars) = 75-87 chars total, sous le seuil SERP.
+
+📖 Historique + audit + roadmap : `WIP.md` § "Cocon SEO Observatoire — Sprints 1 & 2 livrés 2026-07-01".
+
 ### Landing publicitaire `/beta` (acquisition pub) — live 2026-06-11
 
 Page d'atterrissage dédiée au **trafic pub** (Meta/Insta, cible particuliers travaux), servie sur `gerermonchantier.fr/beta` (`src/pages/beta.astro`). Offre « Essayez gratuitement pendant 1 mois, sans carte bancaire ». Structure : bandeau CTA navy en haut + hero « Tout votre chantier en un seul coup d'œil » + 4 sections produit (Planning IA, Comparateur de devis, Simulateur d'aides, Journal IA) avec captures, + bandeau CTA de clôture. Tous les CTA → `/mon-chantier/nouveau`. **`noindex`** (évite le duplicate avec gmc-home). Réutilise les composants `gmc-landing` (Header/Footer) ; design issu du handoff Claude Design `14_landing_gmc_v2`. Captures dans `public/images/gmc/beta/`.

@@ -11,6 +11,43 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🟢 Cocon SEO Observatoire — Sprints 1 & 2 livrés 2026-07-01
+
+Objectif : passer les 43k impressions Google/mois en clics, muscler la crédibilité, câbler le maillage entre les 6 univers (Home, Analyse, Comparateur, Blog, Observatoire, GMC).
+
+**Sprint 1 — CTR + crédibilité + fondations** (commits `765fde1`, `92f0f60`) :
+- **20 pages Observatoire titles/metas CTR-optimisés** (template "Prix [X] 2026 : fourchette sur [N] devis") : 5 études + 5 métiers TOP + 5 chantiers TOP + 5 chantiers additionnels. `SEO_OVERRIDES` dans `scripts/observatoire/generate-observatoire.ts` pour que les prochaines regens gardent les titles personnalisés + template default CTR-optimisé sur métiers/chantiers non-TOP.
+- **Composants standardisés** : `ObservatoireChip` (N devis · date FR · Johan BRIDEY co-fondateur), `ObservatoireDisclaimer` (méthodo honnête, échantillon VMD ≠ marché national). Intégrés dans 3 templates (`EtudeVmdPage`, `ObservatoireMetierPage`, `ObservatoireChantierPage`).
+- **Wordings survendus retirés** : hub, footerHtml, 45 intros JSON (`confidence HIGH ≥ 0.77` jargon → wording naturel).
+
+**Sprint 2 — Cocon sémantique circulation** (commits `c261bf2` + fixes `10423dc` + `0dbce50`) :
+- **Header/Footer/Home** : lien "📊 Observatoire des prix" en tête du dropdown "En savoir plus" (desktop + mobile, 3 headers cohérents), Footer Navigation avec 4 nouvelles URLs top, section Homepage "L'Observatoire des devis travaux" avec 8 cards.
+- **Hub `/observatoire` refondu SSG** : chip fraîcheur + 3 quick actions (Analyser / Comparer / Piloter chantier) + 3 sections (Études / Chantiers ≥15 devis / Métiers ≥15 devis) + méthodologie.
+- **Auto-maillage Observatoire** : helper `src/lib/seo/observatoireCrossLinks.ts` (mapping éditorial 16 chantiers × 28 métiers) + composant `ObservatoireCrossLinks` (5 catégories : Métiers concernés + Chantiers similaires + Guide + 2 CTA Analyse/Comparateur + bannière GMC conditionnée gros œuvre).
+- **Post-verdict Analyse** : `PourAllerPlusLoin` (4 rebonds Observatoire / Comparateur / Guide / GMC) intégré dans `AnalysisResult.tsx` avant le disclaimer.
+- **Post-comparateur** : section "Pour aller plus loin" pied de `ComparateurResult.tsx` (4 cards).
+- **Fix hub vide + 404** : `prerender=false` remis à `true` (cf. piège CLAUDE.md 2026-07-01) + création pages index `/observatoire/chantiers` et `/observatoire/metiers` (breadcrumbs des templates y pointaient).
+- **Fix CTA GMC pour non-connectés** : les 3 CTA "Piloter mon chantier" (hub Obs, PourAllerPlusLoin, ComparateurResult) pointent désormais vers `gerermonchantier.fr/` (landing avec offre 30j) et plus vers `/mon-chantier` (page vide sans mention essai).
+
+**Reste** :
+- 🟠 **Détection `chantier_type` post-analyse** : le pipeline analyse ne détecte pas encore le type de chantier → `PourAllerPlusLoin` propose des liens génériques Observatoire. Quand la détection sera câblée, le helper `getPourAllerPlusLoinLinks(chantierSlug)` (déjà écrit) prendra un slug et personnalisera Observatoire + Comparateur.
+- 🟠 **Blog cross-links** : `/blog` n'a pas encore de bloc "Pour aller plus loin" — pas prioritaire tant que le blog est peu visité (à câbler quand articles B1-B10 seront écrits).
+- 🟠 **Page méthodologie dédiée `/observatoire/methodologie`** : pas encore créée — objection journalistique évitée par le disclaimer actuel + attribution auteur, mais page dédiée = signal E-E-A-T fort.
+
+---
+
+## 🟢 Bug fix "Ajouter un intervenant" GMC — livré 2026-07-01
+
+Bug signalé par Julien : les 3 boutons "Ajouter un artisan" / "Ajouter un intervenant" du cockpit home (quick action + card grand format + card "+" du panneau) redirigeaient vers l'onglet Contacts qui ne créait qu'une fiche contact isolée, sans lot → l'intervenant n'apparaissait jamais dans la home. Ce constat contredit la mention historique "AddIntervenantModal dormant" du WIP monétisation GMC.
+
+**Fix bidirectionnel (commit `9c87c1b`)** :
+- **Sens Home → Intervenant** : `AddIntervenantModal` **ravivée** (plus dormante). Écran 1 : preset ou nom perso crée le lot. **Nouvel écran 2** : "Coordonnées de l'artisan (optionnel)" — POST contact lié au lot (`contact_category=artisan`, `role=nom du lot`). Skip possible via "Plus tard". `onAddIntervenant` dans `ChantierCockpit.tsx` fait maintenant `setShowAddIntervenant(true)` au lieu de `navigateTo('contacts')`. Callback `onContactAdded` rafraîchit `contactsCount` → stepper "Saisir les artisans" se décoche auto.
+- **Sens Contacts → Intervenant** : `ContactsSection.handleSave` étend l'auto-création de lot aux artisans (`cat === 'artisan' && !lotId` → lot nommé d'après le rôle, fallback nom entreprise). Comme déjà géré pour architecte/MOE/BET. Callback `onLotCreated` → `addLot` dans ChantierCockpit → apparition immédiate dans la home sans refetch.
+
+**⚠️ Décision produit à trancher** : Julien voulait initialement une SEULE surface d'ajout (Contacts). Maintenant DEUX surfaces produisent lot+contact (modal + Contacts). À valider : garder les 2 chemins pour la souplesse, OU simplifier en désactivant à nouveau la modal (garder le fix Contacts). État actuel = dual-flow.
+
+---
+
 ## 🟢 Poste de pilotage portefeuille multi-chantier (offre Multi) — livré 2026-06-24, QA visuelle en attente
 
 Surface `/mon-chantier/portefeuille` réservée au palier Multi, lecture seule, single-owner. **5 phases livrées + poussées** (commits `5c81fc2` → `a609037`), gates verts à chaque phase (vitest 68/68, tsc Δ0, build OK), reviewers séparés PASS (phases 1-4) + revue finale stricte. Construit via la skill `feature-loop`.
