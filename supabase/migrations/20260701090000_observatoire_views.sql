@@ -66,7 +66,14 @@ groups AS (
     g.value->'vectorial'->>'top_similarity' AS similarity_str,
     g.value->'catalog_job_types'->>0 AS catalog_job_type
   FROM parsed p,
-  LATERAL jsonb_array_elements(COALESCE(p.raw->'n8n_price_data', '[]'::jsonb)) g
+  LATERAL jsonb_array_elements(
+    -- Defense : certaines analyses ont n8n_price_data mal forme (objet au lieu d'array).
+    -- jsonb_typeof filtre les non-array pour eviter l'erreur 22023.
+    CASE
+      WHEN jsonb_typeof(p.raw->'n8n_price_data') = 'array' THEN p.raw->'n8n_price_data'
+      ELSE '[]'::jsonb
+    END
+  ) g
   WHERE p.raw IS NOT NULL
 )
 SELECT
@@ -246,7 +253,13 @@ exploded AS (
     an.value->>'titre' AS titre,
     an.value->>'explication' AS explication
   FROM parsed p,
-  LATERAL jsonb_array_elements(COALESCE(p.conclusion->'anomalies', '[]'::jsonb)) an
+  LATERAL jsonb_array_elements(
+    -- Defense : conclusion.anomalies peut etre absent, null ou objet.
+    CASE
+      WHEN jsonb_typeof(p.conclusion->'anomalies') = 'array' THEN p.conclusion->'anomalies'
+      ELSE '[]'::jsonb
+    END
+  ) an
   WHERE p.conclusion IS NOT NULL
 )
 SELECT
