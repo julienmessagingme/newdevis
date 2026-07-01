@@ -1,0 +1,53 @@
+{
+  "slug": "menuiserie-vitrages",
+  "metier": "menuiserie_vitrages",
+  "metier_label": "Menuiserie & vitrages",
+  "title": "Menuiserie & vitrages : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 81 devis analysés dans le métier Menuiserie & vitrages : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.526Z",
+  "intro": "Analyse fondée sur 81 devis réels contenant au moins une ligne du métier Menuiserie & vitrages avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 81,
+    "nb_lignes": 115,
+    "prix_moyen": 1859.05,
+    "prix_median": 1300,
+    "prix_min": 35,
+    "prix_max": 26075.8,
+    "prix_p25": 746.89,
+    "prix_p75": 2376.71,
+    "panier_moyen": 4344.13,
+    "ratio_moyen_vs_marche": 2.61
+  },
+  "postesSurfactures": [
+    {
+      "label": "Pose porte de garage (MO)",
+      "ratio_median": 6.034,
+      "nb_obs": 3
+    },
+    {
+      "label": "Pose fenêtre (hors fourniture)",
+      "ratio_median": 4.37,
+      "nb_obs": 4
+    },
+    {
+      "label": "Pose fenêtre",
+      "ratio_median": 3.223,
+      "nb_obs": 13
+    },
+    {
+      "label": "Fenêtre PVC double vitrage (fourni+posé)",
+      "ratio_median": 2.505,
+      "nb_obs": 4
+    },
+    {
+      "label": "Porte Interieure Bloc",
+      "ratio_median": 2.396,
+      "nb_obs": 3
+    }
+  ],
+  "conseils": [
+    "Le type de vitrage (double, triple, à isolation renforcée VIR) doit être précisé.",
+    "Uw ≤ 1.3 W/m².K minimum pour la RE2020.",
+    "Marques attendues : Schüco, K-line, Lapeyre, Bouvet, Millet."
+  ]
+}

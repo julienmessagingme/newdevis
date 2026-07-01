@@ -1,0 +1,53 @@
+{
+  "slug": "toiture-couverture",
+  "metier": "toiture_couverture",
+  "metier_label": "Toiture & couverture",
+  "title": "Toiture & couverture : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 57 devis analysés dans le métier Toiture & couverture : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.532Z",
+  "intro": "Analyse fondée sur 57 devis réels contenant au moins une ligne du métier Toiture & couverture avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 57,
+    "nb_lignes": 76,
+    "prix_moyen": 299.68,
+    "prix_median": 49.25,
+    "prix_min": 6,
+    "prix_max": 4000,
+    "prix_p25": 24.52,
+    "prix_p75": 177.74,
+    "panier_moyen": 4551.07,
+    "ratio_moyen_vs_marche": 4.9
+  },
+  "postesSurfactures": [
+    {
+      "label": "Toiture - démoussage + traitement",
+      "ratio_median": 1.273,
+      "nb_obs": 5
+    },
+    {
+      "label": "Isolation toiture par intérieur en pente",
+      "ratio_median": 1.155,
+      "nb_obs": 3
+    },
+    {
+      "label": "Écran de sous-toiture HPV (fourni+posé)",
+      "ratio_median": 1.15,
+      "nb_obs": 3
+    },
+    {
+      "label": "Toiture - réfection complète",
+      "ratio_median": 0.887,
+      "nb_obs": 12
+    },
+    {
+      "label": "Couverture tuile terre cuite (fourni+posé)",
+      "ratio_median": 0.816,
+      "nb_obs": 5
+    }
+  ],
+  "conseils": [
+    "Type de tuile ou ardoise précisé (Terreal, Redland, Eternit, Umicore Zinc).",
+    "Écran sous-toiture HPV inclus ?",
+    "Chevêtres, gouttières et descentes à lister séparément."
+  ]
+}

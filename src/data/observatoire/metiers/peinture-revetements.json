@@ -1,0 +1,54 @@
+{
+  "slug": "peinture-revetements",
+  "metier": "peinture_revetements",
+  "metier_label": "Peinture & revêtements",
+  "title": "Peinture & revêtements : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 61 devis analysés dans le métier Peinture & revêtements : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.529Z",
+  "intro": "Analyse fondée sur 61 devis réels contenant au moins une ligne du métier Peinture & revêtements avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 61,
+    "nb_lignes": 111,
+    "prix_moyen": 617.43,
+    "prix_median": 50,
+    "prix_min": 2.99,
+    "prix_max": 14666.67,
+    "prix_p25": 20,
+    "prix_p75": 484.23,
+    "panier_moyen": 2953.1,
+    "ratio_moyen_vs_marche": 17.672
+  },
+  "postesSurfactures": [
+    {
+      "label": "Reprise fissures / microfissures",
+      "ratio_median": 150,
+      "nb_obs": 3
+    },
+    {
+      "label": "Reprise plâtre",
+      "ratio_median": 16.688,
+      "nb_obs": 5
+    },
+    {
+      "label": "Peinture SDB pièces humides",
+      "ratio_median": 4,
+      "nb_obs": 15
+    },
+    {
+      "label": "Peinture murs",
+      "ratio_median": 0.975,
+      "nb_obs": 24
+    },
+    {
+      "label": "Peinture porte",
+      "ratio_median": 0.875,
+      "nb_obs": 14
+    }
+  ],
+  "conseils": [
+    "Demandez toujours la marque de la peinture proposée (Tollens, Sikkens, Dulux, Farrow & Ball).",
+    "Vérifiez si l'enduit et le lissage sont inclus dans le prix au m² ou facturés à part.",
+    "Le nombre de couches (2 minimum) doit être précisé.",
+    "L'écart de prix entre 2 devis peut atteindre 40% sur la peinture — comparez au moins 3 devis."
+  ]
+}

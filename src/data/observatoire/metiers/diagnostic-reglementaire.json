@@ -1,0 +1,29 @@
+{
+  "slug": "diagnostic-reglementaire",
+  "metier": "diagnostic_reglementaire",
+  "metier_label": "diagnostic reglementaire",
+  "title": "diagnostic reglementaire : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 7 devis analysés dans le métier diagnostic reglementaire : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.522Z",
+  "intro": "Analyse fondée sur 7 devis réels contenant au moins une ligne du métier diagnostic reglementaire avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 7,
+    "nb_lignes": 7,
+    "prix_moyen": 1883.17,
+    "prix_median": 500,
+    "prix_min": 146.3,
+    "prix_max": 6800,
+    "prix_p25": 265,
+    "prix_p75": 2602.94,
+    "panier_moyen": 2008.57,
+    "ratio_moyen_vs_marche": 2.469
+  },
+  "postesSurfactures": [
+    {
+      "label": "Diagnostic électricité",
+      "ratio_median": 2.5,
+      "nb_obs": 4
+    }
+  ],
+  "conseils": []
+}

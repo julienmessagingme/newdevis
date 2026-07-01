@@ -1,0 +1,47 @@
+{
+  "slug": "demolition-depose",
+  "metier": "demolition_depose",
+  "metier_label": "Démolition & dépose",
+  "title": "Démolition & dépose : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 68 devis analysés dans le métier Démolition & dépose : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.521Z",
+  "intro": "Analyse fondée sur 68 devis réels contenant au moins une ligne du métier Démolition & dépose avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 68,
+    "nb_lignes": 84,
+    "prix_moyen": 587.66,
+    "prix_median": 194.26,
+    "prix_min": 10,
+    "prix_max": 4368.32,
+    "prix_p25": 100,
+    "prix_p75": 596.07,
+    "panier_moyen": 1525.66,
+    "ratio_moyen_vs_marche": 17.776
+  },
+  "postesSurfactures": [
+    {
+      "label": "Démolition légère (cloison/revêtement)",
+      "ratio_median": 19.825,
+      "nb_obs": 13
+    },
+    {
+      "label": "Démolition cloison plâtre",
+      "ratio_median": 16.8,
+      "nb_obs": 7
+    },
+    {
+      "label": "Evacuation gravats",
+      "ratio_median": 6.5,
+      "nb_obs": 17
+    },
+    {
+      "label": "Démolition cloison",
+      "ratio_median": 2.667,
+      "nb_obs": 15
+    }
+  ],
+  "conseils": [
+    "Le coût d'évacuation des gravats doit apparaître (benne, transport en déchetterie).",
+    "Un forfait 'démolition' vague est un signal — demandez le détail."
+  ]
+}

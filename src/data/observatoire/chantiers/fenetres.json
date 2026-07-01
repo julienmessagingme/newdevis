@@ -1,0 +1,29 @@
+{
+  "slug": "fenetres",
+  "chantier_type": "fenetres",
+  "chantier_label": "Fenêtres",
+  "title": "Fenêtres : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 2 devis fenêtres analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.684Z",
+  "intro": "Étude basée sur 2 devis réels contenant des travaux de type fenêtres. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 2,
+    "nb_lignes": 2,
+    "ligne_moyenne": 688,
+    "prix_moyen_unitaire": 536,
+    "prix_median": 536,
+    "prix_p25": 344,
+    "prix_p75": 728,
+    "prix_min": 152,
+    "prix_max": 920
+  },
+  "pointsVigilance": [
+    "Uw ≤ 1.3 W/m².K pour la RE2020 et l'accès aux aides.",
+    "Marque + certification Acotherm ou NF.",
+    "Dépose de l'ancienne menuiserie incluse ?"
+  ],
+  "erreursFrequentes": [
+    "Uw non précisé — signal de fenêtres bas de gamme.",
+    "Volet roulant et fenêtre chiffrés dans la même ligne sans détail."
+  ]
+}

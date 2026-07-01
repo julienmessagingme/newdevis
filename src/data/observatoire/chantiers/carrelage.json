@@ -1,0 +1,28 @@
+{
+  "slug": "carrelage",
+  "chantier_type": "carrelage",
+  "chantier_label": "Carrelage",
+  "title": "Carrelage : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 44 devis carrelage analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.680Z",
+  "intro": "Étude basée sur 44 devis réels contenant des travaux de type carrelage. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 44,
+    "nb_lignes": 97,
+    "ligne_moyenne": 1460.35,
+    "prix_moyen_unitaire": 266.29,
+    "prix_median": 80,
+    "prix_p25": 25,
+    "prix_p75": 239.26,
+    "prix_min": 0.44,
+    "prix_max": 3272.73
+  },
+  "pointsVigilance": [
+    "Surface en m² précisée, pas de forfait.",
+    "Prix de la faïence + prix de la pose séparés.",
+    "Ragréage / préparation du support inclus ?"
+  ],
+  "erreursFrequentes": [
+    "Étanchéité sous carrelage (SPEC) oubliée en pièce humide."
+  ]
+}

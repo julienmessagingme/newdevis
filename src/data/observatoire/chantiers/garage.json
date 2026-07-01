@@ -1,0 +1,27 @@
+{
+  "slug": "garage",
+  "chantier_type": "garage",
+  "chantier_label": "Garage",
+  "title": "Garage : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 4 devis garage analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.684Z",
+  "intro": "Étude basée sur 4 devis réels contenant des travaux de type garage. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 4,
+    "nb_lignes": 4,
+    "ligne_moyenne": 2857.78,
+    "prix_moyen_unitaire": 2857.78,
+    "prix_median": 3343,
+    "prix_p25": 2278.78,
+    "prix_p75": 3922,
+    "prix_min": 823.13,
+    "prix_max": 3922
+  },
+  "pointsVigilance": [
+    "Porte de garage : type (basculante, sectionnelle, enroulable) et motorisation.",
+    "Isolation et étanchéité du toit si extension."
+  ],
+  "erreursFrequentes": [
+    "Éclairage et prise dans le garage souvent oubliés."
+  ]
+}

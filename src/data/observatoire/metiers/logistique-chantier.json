@@ -1,0 +1,32 @@
+{
+  "slug": "logistique-chantier",
+  "metier": "logistique_chantier",
+  "metier_label": "Logistique de chantier",
+  "title": "Logistique de chantier : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 44 devis analysés dans le métier Logistique de chantier : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.525Z",
+  "intro": "Analyse fondée sur 44 devis réels contenant au moins une ligne du métier Logistique de chantier avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 44,
+    "nb_lignes": 54,
+    "prix_moyen": 745.88,
+    "prix_median": 212.8,
+    "prix_min": 20,
+    "prix_max": 15655.5,
+    "prix_p25": 93.43,
+    "prix_p75": 478.75,
+    "panier_moyen": 915.83,
+    "ratio_moyen_vs_marche": 98.022
+  },
+  "postesSurfactures": [
+    {
+      "label": "Nettoyage fin de chantier",
+      "ratio_median": 57.5,
+      "nb_obs": 23
+    }
+  ],
+  "conseils": [
+    "Frais de déplacement et protection du chantier à modérer.",
+    "Un forfait > 5% du total pour la logistique est suspect."
+  ]
+}

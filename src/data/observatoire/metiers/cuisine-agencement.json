@@ -1,0 +1,48 @@
+{
+  "slug": "cuisine-agencement",
+  "metier": "cuisine_agencement",
+  "metier_label": "Cuisine & agencement",
+  "title": "Cuisine & agencement : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 28 devis analysés dans le métier Cuisine & agencement : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.520Z",
+  "intro": "Analyse fondée sur 28 devis réels contenant au moins une ligne du métier Cuisine & agencement avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 28,
+    "nb_lignes": 56,
+    "prix_moyen": 1346.51,
+    "prix_median": 284.73,
+    "prix_min": 0.83,
+    "prix_max": 7500,
+    "prix_p25": 66.24,
+    "prix_p75": 2316.67,
+    "panier_moyen": 2482.19,
+    "ratio_moyen_vs_marche": 5.004
+  },
+  "postesSurfactures": [
+    {
+      "label": "Pose plan de travail cuisine",
+      "ratio_median": 27.867,
+      "nb_obs": 3
+    },
+    {
+      "label": "Pose crédence carrelage",
+      "ratio_median": 1.717,
+      "nb_obs": 3
+    },
+    {
+      "label": "Pose meuble SDB",
+      "ratio_median": 1.091,
+      "nb_obs": 8
+    },
+    {
+      "label": "Crédence carrelage cuisine (fourni+posé)",
+      "ratio_median": 0.187,
+      "nb_obs": 4
+    }
+  ],
+  "conseils": [
+    "Marque de la cuisine (Schmidt, Mobalpa, Ikea, Cuisinella, Cuisines Plus).",
+    "Différencier fourniture et pose.",
+    "Électroménager et plan de travail listés séparément."
+  ]
+}

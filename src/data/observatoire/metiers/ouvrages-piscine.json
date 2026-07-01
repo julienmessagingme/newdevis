@@ -1,0 +1,29 @@
+{
+  "slug": "ouvrages-piscine",
+  "metier": "ouvrages_piscine",
+  "metier_label": "ouvrages piscine",
+  "title": "ouvrages piscine : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 8 devis analysés dans le métier ouvrages piscine : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.528Z",
+  "intro": "Analyse fondée sur 8 devis réels contenant au moins une ligne du métier ouvrages piscine avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 8,
+    "nb_lignes": 13,
+    "prix_moyen": 11674.21,
+    "prix_median": 1675,
+    "prix_min": 16.36,
+    "prix_max": 98210,
+    "prix_p25": 40.14,
+    "prix_p75": 7800,
+    "panier_moyen": 13918.23,
+    "ratio_moyen_vs_marche": 76.348
+  },
+  "postesSurfactures": [
+    {
+      "label": "Terrassement piscine (excavation)",
+      "ratio_median": 0.973,
+      "nb_obs": 4
+    }
+  ],
+  "conseils": []
+}

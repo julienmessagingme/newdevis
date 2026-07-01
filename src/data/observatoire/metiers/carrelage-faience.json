@@ -1,0 +1,53 @@
+{
+  "slug": "carrelage-faience",
+  "metier": "carrelage_faience",
+  "metier_label": "Carrelage & faïence",
+  "title": "Carrelage & faïence : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 55 devis analysés dans le métier Carrelage & faïence : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.480Z",
+  "intro": "Analyse fondée sur 55 devis réels contenant au moins une ligne du métier Carrelage & faïence avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 55,
+    "nb_lignes": 126,
+    "prix_moyen": 344.74,
+    "prix_median": 80,
+    "prix_min": 0.44,
+    "prix_max": 5300,
+    "prix_p25": 25,
+    "prix_p75": 216.27,
+    "panier_moyen": 1702.49,
+    "ratio_moyen_vs_marche": 7.729
+  },
+  "postesSurfactures": [
+    {
+      "label": "Dépose carrelage",
+      "ratio_median": 27,
+      "nb_obs": 17
+    },
+    {
+      "label": "Pose plinthes carrelage",
+      "ratio_median": 1.872,
+      "nb_obs": 10
+    },
+    {
+      "label": "Carrelage standard (fourni+posé)",
+      "ratio_median": 1.708,
+      "nb_obs": 12
+    },
+    {
+      "label": "Pose carrelage sol (hors fourniture)",
+      "ratio_median": 1.455,
+      "nb_obs": 19
+    },
+    {
+      "label": "Faïence salle de bain (fourni+posé)",
+      "ratio_median": 1.242,
+      "nb_obs": 7
+    }
+  ],
+  "conseils": [
+    "Les quantités doivent être précisées en m², pas en forfait.",
+    "Vérifiez le prix du carrelage lui-même (achat) séparé de la pose.",
+    "L'étanchéité sous carrelage en pièce humide (SPEC) doit être listée."
+  ]
+}

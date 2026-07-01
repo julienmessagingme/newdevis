@@ -1,0 +1,47 @@
+{
+  "slug": "ouvrages-vrd",
+  "metier": "ouvrages_vrd",
+  "metier_label": "Ouvrages VRD",
+  "title": "Ouvrages VRD : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 23 devis analysés dans le métier Ouvrages VRD : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.529Z",
+  "intro": "Analyse fondée sur 23 devis réels contenant au moins une ligne du métier Ouvrages VRD avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 23,
+    "nb_lignes": 34,
+    "prix_moyen": 9124.92,
+    "prix_median": 233.32,
+    "prix_min": 4.03,
+    "prix_max": 168005.5,
+    "prix_p25": 47.35,
+    "prix_p75": 1787.5,
+    "panier_moyen": 13002.6,
+    "ratio_moyen_vs_marche": 150.841
+  },
+  "postesSurfactures": [
+    {
+      "label": "Pose enrobé",
+      "ratio_median": 50,
+      "nb_obs": 3
+    },
+    {
+      "label": "Terrassement (léger)",
+      "ratio_median": 18.495,
+      "nb_obs": 14
+    },
+    {
+      "label": "Terrasse bois",
+      "ratio_median": 3.125,
+      "nb_obs": 5
+    },
+    {
+      "label": "Étanchéité terrasse",
+      "ratio_median": 0.631,
+      "nb_obs": 3
+    }
+  ],
+  "conseils": [
+    "Terrassement au m³ ou forfait ? Le m³ est plus transparent.",
+    "Évacuation des déblais incluse ou en supplément ?"
+  ]
+}

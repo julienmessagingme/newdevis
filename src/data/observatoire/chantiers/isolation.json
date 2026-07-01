@@ -1,0 +1,29 @@
+{
+  "slug": "isolation",
+  "chantier_type": "isolation",
+  "chantier_label": "Isolation",
+  "title": "Isolation : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 66 devis isolation analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.685Z",
+  "intro": "Étude basée sur 66 devis réels contenant des travaux de type isolation. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 66,
+    "nb_lignes": 99,
+    "ligne_moyenne": 3303.1,
+    "prix_moyen_unitaire": 353.99,
+    "prix_median": 80,
+    "prix_p25": 50,
+    "prix_p75": 420,
+    "prix_min": 3.58,
+    "prix_max": 4368.32
+  },
+  "pointsVigilance": [
+    "Épaisseur de l'isolant obligatoire (100/145/200mm minimum).",
+    "R (résistance thermique) à préciser pour bénéficier des aides.",
+    "Marque : Isover, Knauf, Rockwool, Ursa, Actis."
+  ],
+  "erreursFrequentes": [
+    "Isolation en '10 cm de laine' sans marque ni classement thermique.",
+    "Pare-vapeur / frein-vapeur oublié."
+  ]
+}

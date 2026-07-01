@@ -1,0 +1,28 @@
+{
+  "slug": "terrasse",
+  "chantier_type": "terrasse",
+  "chantier_label": "Terrasse",
+  "title": "Terrasse : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 22 devis terrasse analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.686Z",
+  "intro": "Étude basée sur 22 devis réels contenant des travaux de type terrasse. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 22,
+    "nb_lignes": 34,
+    "ligne_moyenne": 11765.85,
+    "prix_moyen_unitaire": 7618.11,
+    "prix_median": 163.32,
+    "prix_p25": 40.14,
+    "prix_p75": 1350,
+    "prix_min": 4.03,
+    "prix_max": 168005.5
+  },
+  "pointsVigilance": [
+    "Type de dalle (béton / bois / composite / grès cérame).",
+    "Structure porteuse (dalles béton, plots, plots réglables).",
+    "Étanchéité en cas de terrasse sur pièce habitable."
+  ],
+  "erreursFrequentes": [
+    "Terrassement / préparation du support sous-évalué."
+  ]
+}

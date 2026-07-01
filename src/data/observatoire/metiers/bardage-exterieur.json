@@ -1,0 +1,29 @@
+{
+  "slug": "bardage-exterieur",
+  "metier": "bardage_exterieur",
+  "metier_label": "bardage exterieur",
+  "title": "bardage exterieur : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 7 devis analysés dans le métier bardage exterieur : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.478Z",
+  "intro": "Analyse fondée sur 7 devis réels contenant au moins une ligne du métier bardage exterieur avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 7,
+    "nb_lignes": 8,
+    "prix_moyen": 1771.44,
+    "prix_median": 985.63,
+    "prix_min": 149.34,
+    "prix_max": 3932.8,
+    "prix_p25": 151.26,
+    "prix_p75": 3895.3,
+    "panier_moyen": 3656.2,
+    "ratio_moyen_vs_marche": 20.84
+  },
+  "postesSurfactures": [
+    {
+      "label": "Pose bardage bois",
+      "ratio_median": 11.596,
+      "nb_obs": 8
+    }
+  ],
+  "conseils": []
+}

@@ -1,0 +1,43 @@
+{
+  "slug": "chauffage",
+  "metier": "chauffage",
+  "metier_label": "Chauffage",
+  "title": "Chauffage : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 37 devis analysés dans le métier Chauffage : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.519Z",
+  "intro": "Analyse fondée sur 37 devis réels contenant au moins une ligne du métier Chauffage avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 37,
+    "nb_lignes": 47,
+    "prix_moyen": 1512.21,
+    "prix_median": 545,
+    "prix_min": 17.87,
+    "prix_max": 10651.32,
+    "prix_p25": 288.94,
+    "prix_p75": 1585,
+    "panier_moyen": 2117.14,
+    "ratio_moyen_vs_marche": 2.896
+  },
+  "postesSurfactures": [
+    {
+      "label": "Pose radiateur électrique",
+      "ratio_median": 9.786,
+      "nb_obs": 4
+    },
+    {
+      "label": "Pose radiateur électrique à inertie (hors fourniture)",
+      "ratio_median": 2.649,
+      "nb_obs": 4
+    },
+    {
+      "label": "Remplacement chauffe-eau (pose)",
+      "ratio_median": 1.048,
+      "nb_obs": 15
+    }
+  ],
+  "conseils": [
+    "Marque de la chaudière ou de la PAC obligatoire (Atlantic, Saunier Duval, De Dietrich, Vaillant, Daikin, Frisquet).",
+    "Le SAV + garantie fabricant doit être listé.",
+    "Coefficient de performance (COP) à préciser pour une PAC."
+  ]
+}

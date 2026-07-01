@@ -1,0 +1,23 @@
+{
+  "slug": "ouvrages-ascenseur",
+  "metier": "ouvrages_ascenseur",
+  "metier_label": "ouvrages ascenseur",
+  "title": "ouvrages ascenseur : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 1 devis analysés dans le métier ouvrages ascenseur : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.527Z",
+  "intro": "Analyse fondée sur 1 devis réels contenant au moins une ligne du métier ouvrages ascenseur avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 1,
+    "nb_lignes": 1,
+    "prix_moyen": 261.2,
+    "prix_median": 261.2,
+    "prix_min": 261.2,
+    "prix_max": 261.2,
+    "prix_p25": 261.2,
+    "prix_p75": 261.2,
+    "panier_moyen": 6556,
+    "ratio_moyen_vs_marche": null
+  },
+  "postesSurfactures": [],
+  "conseils": []
+}

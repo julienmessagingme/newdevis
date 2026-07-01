@@ -1,0 +1,26 @@
+{
+  "slug": "renovation-globale",
+  "metier": "forfait_renovation_globale",
+  "metier_label": "Rénovation globale",
+  "title": "Rénovation globale : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 20 devis analysés dans le métier Rénovation globale : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.525Z",
+  "intro": "Analyse fondée sur 20 devis réels contenant au moins une ligne du métier Rénovation globale avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 20,
+    "nb_lignes": 29,
+    "prix_moyen": 1351.41,
+    "prix_median": 506.82,
+    "prix_min": 61.18,
+    "prix_max": 8913.33,
+    "prix_p25": 195.08,
+    "prix_p75": 975,
+    "panier_moyen": 2556.44,
+    "ratio_moyen_vs_marche": 0.103
+  },
+  "postesSurfactures": [],
+  "conseils": [
+    "Un forfait global > 5000€ sans détail est un signal d'alerte.",
+    "Exigez le détail par corps de métier pour comparer réellement."
+  ]
+}

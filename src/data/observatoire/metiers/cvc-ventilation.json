@@ -1,0 +1,33 @@
+{
+  "slug": "cvc-ventilation",
+  "metier": "cvc_ventilation",
+  "metier_label": "CVC & ventilation",
+  "title": "CVC & ventilation : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 31 devis analysés dans le métier CVC & ventilation : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.521Z",
+  "intro": "Analyse fondée sur 31 devis réels contenant au moins une ligne du métier CVC & ventilation avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 31,
+    "nb_lignes": 38,
+    "prix_moyen": 2817,
+    "prix_median": 760,
+    "prix_min": 88.62,
+    "prix_max": 14424.78,
+    "prix_p25": 312.57,
+    "prix_p75": 3900,
+    "panier_moyen": 6639.71,
+    "ratio_moyen_vs_marche": 5.565
+  },
+  "postesSurfactures": [
+    {
+      "label": "Pose extracteur SDB/WC",
+      "ratio_median": 10.054,
+      "nb_obs": 4
+    }
+  ],
+  "conseils": [
+    "Type de VMC précisé (simple flux / double flux hygro-B).",
+    "Marque : Aldes, Atlantic, Nather, Zehnder.",
+    "Pour une clim, préciser le nombre d'unités intérieures."
+  ]
+}

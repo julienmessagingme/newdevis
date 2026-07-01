@@ -1,0 +1,53 @@
+{
+  "slug": "plomberie-sanitaires",
+  "metier": "plomberie_sanitaires",
+  "metier_label": "Plomberie & sanitaires",
+  "title": "Plomberie & sanitaires : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 53 devis analysés dans le métier Plomberie & sanitaires : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.530Z",
+  "intro": "Analyse fondée sur 53 devis réels contenant au moins une ligne du métier Plomberie & sanitaires avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 53,
+    "nb_lignes": 108,
+    "prix_moyen": 755.66,
+    "prix_median": 290,
+    "prix_min": 3.58,
+    "prix_max": 10759,
+    "prix_p25": 225,
+    "prix_p75": 696.88,
+    "panier_moyen": 1518.38,
+    "ratio_moyen_vs_marche": 8.103
+  },
+  "postesSurfactures": [
+    {
+      "label": "Nettoyage haute pression canalisations",
+      "ratio_median": 116.818,
+      "nb_obs": 3
+    },
+    {
+      "label": "Reprise tuyauterie / soudure",
+      "ratio_median": 6.012,
+      "nb_obs": 4
+    },
+    {
+      "label": "Création arrivée d'eau",
+      "ratio_median": 4.769,
+      "nb_obs": 3
+    },
+    {
+      "label": "Création réseau évacuation (fourni+posé)",
+      "ratio_median": 3.938,
+      "nb_obs": 4
+    },
+    {
+      "label": "Plomberie : petite intervention",
+      "ratio_median": 2.071,
+      "nb_obs": 10
+    }
+  ],
+  "conseils": [
+    "Les marques de matériel (Grohe, Geberit, Villeroy & Boch) doivent apparaître explicitement.",
+    "Différenciez toujours la pose (main d'œuvre) et la fourniture.",
+    "Un devis SDB complet doit inclure : dépose existant + étanchéité + raccordements + évacuation."
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "slug": "electricite",
+  "chantier_type": "electricite",
+  "chantier_label": "Électricité",
+  "title": "Électricité : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 26 devis électricité analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.683Z",
+  "intro": "Étude basée sur 26 devis réels contenant des travaux de type électricité. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 26,
+    "nb_lignes": 56,
+    "ligne_moyenne": 2964.3,
+    "prix_moyen_unitaire": 960.93,
+    "prix_median": 137.2,
+    "prix_p25": 104.79,
+    "prix_p75": 524.25,
+    "prix_min": 13.49,
+    "prix_max": 13200
+  },
+  "pointsVigilance": [
+    "Nombre de circuits, prises, points lumineux détaillés.",
+    "Consuel obligatoire (à la charge du client ou du pro ?).",
+    "Marque du tableau : Legrand, Schneider Electric, Hager."
+  ],
+  "erreursFrequentes": [
+    "Saignées et rebouchages à chiffrer à part."
+  ]
+}

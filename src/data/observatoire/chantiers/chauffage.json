@@ -1,0 +1,28 @@
+{
+  "slug": "chauffage",
+  "chantier_type": "chauffage",
+  "chantier_label": "Chauffage",
+  "title": "Chauffage : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 37 devis chauffage analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.681Z",
+  "intro": "Étude basée sur 37 devis réels contenant des travaux de type chauffage. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 37,
+    "nb_lignes": 47,
+    "ligne_moyenne": 2117.14,
+    "prix_moyen_unitaire": 1512.21,
+    "prix_median": 545,
+    "prix_p25": 288.94,
+    "prix_p75": 1585,
+    "prix_min": 17.87,
+    "prix_max": 10651.32
+  },
+  "pointsVigilance": [
+    "Marque + modèle de la chaudière ou PAC obligatoire.",
+    "Régulation (thermostat connecté, sondes) incluse ?",
+    "Mise en service et garantie précisées ?"
+  ],
+  "erreursFrequentes": [
+    "Radiateurs et raccordements sous-estimés."
+  ]
+}

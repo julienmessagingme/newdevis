@@ -1,0 +1,29 @@
+{
+  "slug": "piscine",
+  "chantier_type": "piscine",
+  "chantier_label": "Piscine",
+  "title": "Piscine : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 6 devis piscine analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.685Z",
+  "intro": "Étude basée sur 6 devis réels contenant des travaux de type piscine. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 6,
+    "nb_lignes": 9,
+    "ligne_moyenne": 18036.89,
+    "prix_moyen_unitaire": 16773.01,
+    "prix_median": 5050,
+    "prix_p25": 1675,
+    "prix_p75": 9130,
+    "prix_min": 16.36,
+    "prix_max": 98210
+  },
+  "pointsVigilance": [
+    "Type : coque polyester, béton, ou liner ?",
+    "Filtration : marque + type (à sable / cartouche).",
+    "Système de traitement de l'eau détaillé (chlore, sel, UV)."
+  ],
+  "erreursFrequentes": [
+    "Local technique / abri de filtration souvent en supplément.",
+    "Sécurité obligatoire (alarme, barrière, couverture) parfois oubliée."
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "slug": "prestations-intellectuelles",
+  "metier": "prestations_intellectuelles",
+  "metier_label": "Prestations intellectuelles",
+  "title": "Prestations intellectuelles : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 20 devis analysés dans le métier Prestations intellectuelles : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.530Z",
+  "intro": "Analyse fondée sur 20 devis réels contenant au moins une ligne du métier Prestations intellectuelles avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 20,
+    "nb_lignes": 21,
+    "prix_moyen": 456.25,
+    "prix_median": 304.21,
+    "prix_min": 47.9,
+    "prix_max": 1700,
+    "prix_p25": 52,
+    "prix_p75": 760,
+    "panier_moyen": 1360.49,
+    "ratio_moyen_vs_marche": 6.083
+  },
+  "postesSurfactures": [
+    {
+      "label": "Menuisier (taux horaire)",
+      "ratio_median": 4.056,
+      "nb_obs": 21
+    }
+  ],
+  "conseils": [
+    "Maîtrise d'œuvre : 5 à 12% du montant travaux, à négocier.",
+    "Attention aux estimations de courtier — ce n'est pas un devis d'artisan."
+  ]
+}

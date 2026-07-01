@@ -1,0 +1,23 @@
+{
+  "slug": "charpente-bois",
+  "metier": "charpente_bois",
+  "metier_label": "charpente bois",
+  "title": "charpente bois : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 2 devis analysés dans le métier charpente bois : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.481Z",
+  "intro": "Analyse fondée sur 2 devis réels contenant au moins une ligne du métier charpente bois avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 2,
+    "nb_lignes": 2,
+    "prix_moyen": 80.5,
+    "prix_median": 80.5,
+    "prix_min": 31,
+    "prix_max": 130,
+    "prix_p25": 55.75,
+    "prix_p75": 105.25,
+    "panier_moyen": 647.5,
+    "ratio_moyen_vs_marche": 1.004
+  },
+  "postesSurfactures": [],
+  "conseils": []
+}

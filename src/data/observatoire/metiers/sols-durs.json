@@ -1,0 +1,23 @@
+{
+  "slug": "sols-durs",
+  "metier": "sols_durs",
+  "metier_label": "sols durs",
+  "title": "sols durs : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 3 devis analysés dans le métier sols durs : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.531Z",
+  "intro": "Analyse fondée sur 3 devis réels contenant au moins une ligne du métier sols durs avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 3,
+    "nb_lignes": 3,
+    "prix_moyen": 49.31,
+    "prix_median": 46.47,
+    "prix_min": 26.48,
+    "prix_max": 75,
+    "prix_p25": 36.47,
+    "prix_p75": 60.73,
+    "panier_moyen": 6687.5,
+    "ratio_moyen_vs_marche": 0.548
+  },
+  "postesSurfactures": [],
+  "conseils": []
+}

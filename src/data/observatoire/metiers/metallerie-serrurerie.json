@@ -1,0 +1,34 @@
+{
+  "slug": "metallerie-serrurerie",
+  "metier": "metallerie_serrurerie",
+  "metier_label": "metallerie serrurerie",
+  "title": "metallerie serrurerie : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 7 devis analysés dans le métier metallerie serrurerie : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.526Z",
+  "intro": "Analyse fondée sur 7 devis réels contenant au moins une ligne du métier metallerie serrurerie avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 7,
+    "nb_lignes": 7,
+    "prix_moyen": 775.25,
+    "prix_median": 160,
+    "prix_min": 32,
+    "prix_max": 4215,
+    "prix_p25": 84.89,
+    "prix_p75": 425,
+    "panier_moyen": 4077.14,
+    "ratio_moyen_vs_marche": 12.417
+  },
+  "postesSurfactures": [
+    {
+      "label": "Pose clôture rigide",
+      "ratio_median": 2.667,
+      "nb_obs": 3
+    },
+    {
+      "label": "Pose clôture",
+      "ratio_median": 0.909,
+      "nb_obs": 3
+    }
+  ],
+  "conseils": []
+}

@@ -1,0 +1,53 @@
+{
+  "slug": "maconnerie-structure",
+  "metier": "maconnerie_structure",
+  "metier_label": "Maçonnerie & structure",
+  "title": "Maçonnerie & structure : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 54 devis analysés dans le métier Maçonnerie & structure : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.525Z",
+  "intro": "Analyse fondée sur 54 devis réels contenant au moins une ligne du métier Maçonnerie & structure avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 54,
+    "nb_lignes": 69,
+    "prix_moyen": 1012.03,
+    "prix_median": 200,
+    "prix_min": 3,
+    "prix_max": 16000,
+    "prix_p25": 52.67,
+    "prix_p75": 1000,
+    "panier_moyen": 4964.22,
+    "ratio_moyen_vs_marche": 7.355
+  },
+  "postesSurfactures": [
+    {
+      "label": "Ragréage autonivelant chape liquide",
+      "ratio_median": 24.091,
+      "nb_obs": 4
+    },
+    {
+      "label": "Création muret",
+      "ratio_median": 12.727,
+      "nb_obs": 5
+    },
+    {
+      "label": "Rebouchage / reprise maçonnerie",
+      "ratio_median": 6.171,
+      "nb_obs": 12
+    },
+    {
+      "label": "Étanchéité toiture plate membrane PVC/TPO",
+      "ratio_median": 3.171,
+      "nb_obs": 3
+    },
+    {
+      "label": "Dalle béton intérieur",
+      "ratio_median": 1.294,
+      "nb_obs": 3
+    }
+  ],
+  "conseils": [
+    "Attention aux forfaits gonflés sur les dépose/évacuation.",
+    "Un devis de maçonnerie sérieuse détaille : dépose + étaiement + réfection + finitions.",
+    "Consultez systématiquement 3 devis sur ce type de travaux structurels."
+  ]
+}

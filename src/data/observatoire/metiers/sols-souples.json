@@ -1,0 +1,48 @@
+{
+  "slug": "sols-souples",
+  "metier": "sols_souples",
+  "metier_label": "Sols souples",
+  "title": "Sols souples : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 24 devis analysés dans le métier Sols souples : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.531Z",
+  "intro": "Analyse fondée sur 24 devis réels contenant au moins une ligne du métier Sols souples avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 24,
+    "nb_lignes": 39,
+    "prix_moyen": 128.7,
+    "prix_median": 55,
+    "prix_min": 0.51,
+    "prix_max": 664.57,
+    "prix_p25": 35,
+    "prix_p75": 170,
+    "panier_moyen": 1927.73,
+    "ratio_moyen_vs_marche": 4.654
+  },
+  "postesSurfactures": [
+    {
+      "label": "Ponçage vitrification",
+      "ratio_median": 10.714,
+      "nb_obs": 8
+    },
+    {
+      "label": "Parquet stratifié standard (fourni+posé)",
+      "ratio_median": 1.496,
+      "nb_obs": 3
+    },
+    {
+      "label": "Pose parquet collé (hors fourniture)",
+      "ratio_median": 0.939,
+      "nb_obs": 7
+    },
+    {
+      "label": "Pose plinthes",
+      "ratio_median": 0.73,
+      "nb_obs": 8
+    }
+  ],
+  "conseils": [
+    "Type de parquet (massif, contrecollé, stratifié) précisé.",
+    "Marque + classement d'usage (23, 32, 33).",
+    "Préparation du support (ragréage, sous-couche) incluse ?"
+  ]
+}

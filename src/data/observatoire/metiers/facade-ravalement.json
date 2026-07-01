@@ -1,0 +1,38 @@
+{
+  "slug": "facade-ravalement",
+  "metier": "facade_ravalement",
+  "metier_label": "Façade & ravalement",
+  "title": "Façade & ravalement : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 11 devis analysés dans le métier Façade & ravalement : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.524Z",
+  "intro": "Analyse fondée sur 11 devis réels contenant au moins une ligne du métier Façade & ravalement avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 11,
+    "nb_lignes": 11,
+    "prix_moyen": 1639.07,
+    "prix_median": 1250,
+    "prix_min": 25,
+    "prix_max": 5600,
+    "prix_p25": 585,
+    "prix_p75": 2354.55,
+    "panier_moyen": 2372.79,
+    "ratio_moyen_vs_marche": 57.849
+  },
+  "postesSurfactures": [
+    {
+      "label": "Peinture façade (simple)",
+      "ratio_median": 35.714,
+      "nb_obs": 3
+    },
+    {
+      "label": "Enduit façade",
+      "ratio_median": 16.606,
+      "nb_obs": 4
+    }
+  ],
+  "conseils": [
+    "Type d'enduit précisé (RPE, RSE, hydraulique, minéral).",
+    "Nettoyage, réparation, enduit : 3 postes distincts.",
+    "Échafaudage inclus ?"
+  ]
+}

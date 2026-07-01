@@ -1,0 +1,28 @@
+{
+  "slug": "peinture",
+  "chantier_type": "peinture",
+  "chantier_label": "Peinture",
+  "title": "Peinture : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 49 devis peinture analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.685Z",
+  "intro": "Étude basée sur 49 devis réels contenant des travaux de type peinture. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 49,
+    "nb_lignes": 85,
+    "ligne_moyenne": 3383.39,
+    "prix_moyen_unitaire": 680.15,
+    "prix_median": 38.33,
+    "prix_p25": 15,
+    "prix_p75": 178.67,
+    "prix_min": 2.99,
+    "prix_max": 14666.67
+  },
+  "pointsVigilance": [
+    "Nombre de couches (2 minimum).",
+    "Marque : Tollens, Sikkens, Dulux, Farrow & Ball.",
+    "Préparation des supports (enduit, ponçage) incluse ?"
+  ],
+  "erreursFrequentes": [
+    "Absence de lissage ou d'enduit préparatoire."
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "slug": "placo-isolation",
+  "metier": "placo_isolation",
+  "metier_label": "Placo & isolation",
+  "title": "Placo & isolation : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 48 devis analysés dans le métier Placo & isolation : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.529Z",
+  "intro": "Analyse fondée sur 48 devis réels contenant au moins une ligne du métier Placo & isolation avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 48,
+    "nb_lignes": 172,
+    "prix_moyen": 278.18,
+    "prix_median": 55,
+    "prix_min": 10,
+    "prix_max": 25420.67,
+    "prix_p25": 50,
+    "prix_p75": 60,
+    "panier_moyen": 2422.46,
+    "ratio_moyen_vs_marche": 6.404
+  },
+  "postesSurfactures": [
+    {
+      "label": "Isolation phonique plafond",
+      "ratio_median": 11.471,
+      "nb_obs": 3
+    },
+    {
+      "label": "Doublage placo",
+      "ratio_median": 3.118,
+      "nb_obs": 10
+    },
+    {
+      "label": "Pose BA13 (pose)",
+      "ratio_median": 1.652,
+      "nb_obs": 4
+    },
+    {
+      "label": "Isolation combles perdus",
+      "ratio_median": 1.319,
+      "nb_obs": 3
+    },
+    {
+      "label": "Bandes + joints",
+      "ratio_median": 1.272,
+      "nb_obs": 5
+    }
+  ],
+  "conseils": [
+    "Précisez le type de placo (BA13 standard, hydrofuge BA13H, phonique).",
+    "Épaisseur d'isolant à indiquer clairement (100/145/200mm laine de verre ou laine de roche).",
+    "Attention aux devis qui parlent de 'placo' sans préciser l'isolant : c'est le poste le plus couramment sous-chiffré."
+  ]
+}

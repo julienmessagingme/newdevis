@@ -1,0 +1,28 @@
+{
+  "slug": "cloture",
+  "chantier_type": "cloture",
+  "chantier_label": "Clôture",
+  "title": "Clôture : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 5 devis clôture analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.682Z",
+  "intro": "Étude basée sur 5 devis réels contenant des travaux de type clôture. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 5,
+    "nb_lignes": 5,
+    "ligne_moyenne": 3552.68,
+    "prix_moyen_unitaire": 3031.42,
+    "prix_median": 885.71,
+    "prix_p25": 818.18,
+    "prix_p75": 1044,
+    "prix_min": 56,
+    "prix_max": 12353.22
+  },
+  "pointsVigilance": [
+    "Longueur en ml + hauteur précisées.",
+    "Type de matériau (bois, PVC, aluminium, panneaux rigides).",
+    "Portail motorisé ou manuel ?"
+  ],
+  "erreursFrequentes": [
+    "Terrassement / plots béton oubliés."
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "slug": "stores-occultation",
+  "metier": "stores_occultation",
+  "metier_label": "Stores & occultation",
+  "title": "Stores & occultation : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 14 devis analysés dans le métier Stores & occultation : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.532Z",
+  "intro": "Analyse fondée sur 14 devis réels contenant au moins une ligne du métier Stores & occultation avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 14,
+    "nb_lignes": 16,
+    "prix_moyen": 1495.16,
+    "prix_median": 852.7,
+    "prix_min": 150,
+    "prix_max": 5829.8,
+    "prix_p25": 617.11,
+    "prix_p75": 1934,
+    "panier_moyen": 3165.93,
+    "ratio_moyen_vs_marche": 7.403
+  },
+  "postesSurfactures": [
+    {
+      "label": "Volet roulant (fourni+pose)",
+      "ratio_median": 0.848,
+      "nb_obs": 7
+    }
+  ],
+  "conseils": [
+    "Marque du volet (Bubendorff, Franciaflex, Somfy pour la motorisation).",
+    "Type (volet roulant, battant, coulissant)."
+  ]
+}

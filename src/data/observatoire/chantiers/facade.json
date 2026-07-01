@@ -1,0 +1,28 @@
+{
+  "slug": "facade",
+  "chantier_type": "facade",
+  "chantier_label": "Façade",
+  "title": "Façade : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 9 devis façade analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.683Z",
+  "intro": "Étude basée sur 9 devis réels contenant des travaux de type façade. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 9,
+    "nb_lignes": 10,
+    "ligne_moyenne": 3675.87,
+    "prix_moyen_unitaire": 2168.06,
+    "prix_median": 1864.55,
+    "prix_p25": 151.26,
+    "prix_p75": 3920.3,
+    "prix_min": 149.34,
+    "prix_max": 5600
+  },
+  "pointsVigilance": [
+    "Échafaudage : location + montage/démontage à préciser.",
+    "Type d'enduit (RPE / RSE / minéral) et classe de résistance."
+  ],
+  "erreursFrequentes": [
+    "Absence de nettoyage préalable (haute pression, biocide).",
+    "Retouches et réparations façonnées avant enduit non chiffrées."
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "slug": "ouvrages-paysagisme",
+  "metier": "ouvrages_paysagisme",
+  "metier_label": "ouvrages paysagisme",
+  "title": "ouvrages paysagisme : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 4 devis analysés dans le métier ouvrages paysagisme : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.528Z",
+  "intro": "Analyse fondée sur 4 devis réels contenant au moins une ligne du métier ouvrages paysagisme avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 4,
+    "nb_lignes": 6,
+    "prix_moyen": 13016.39,
+    "prix_median": 3077.4,
+    "prix_min": 22.19,
+    "prix_max": 61328,
+    "prix_p25": 1850,
+    "prix_p75": 7633.7,
+    "panier_moyen": 16410.22,
+    "ratio_moyen_vs_marche": 358.241
+  },
+  "postesSurfactures": [],
+  "conseils": []
+}

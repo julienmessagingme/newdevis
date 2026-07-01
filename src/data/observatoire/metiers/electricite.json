@@ -1,0 +1,53 @@
+{
+  "slug": "electricite",
+  "metier": "electricite",
+  "metier_label": "Électricité",
+  "title": "Électricité : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 28 devis analysés dans le métier Électricité : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.524Z",
+  "intro": "Analyse fondée sur 28 devis réels contenant au moins une ligne du métier Électricité avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 28,
+    "nb_lignes": 58,
+    "prix_moyen": 933.14,
+    "prix_median": 137.2,
+    "prix_min": 13.49,
+    "prix_max": 13200,
+    "prix_p25": 103.18,
+    "prix_p75": 493.92,
+    "panier_moyen": 2867.42,
+    "ratio_moyen_vs_marche": 13.786
+  },
+  "postesSurfactures": [
+    {
+      "label": "Saignées / rebouchage (élec)",
+      "ratio_median": 10.161,
+      "nb_obs": 8
+    },
+    {
+      "label": "Électricien taux horaire",
+      "ratio_median": 2.308,
+      "nb_obs": 9
+    },
+    {
+      "label": "Ajout prise",
+      "ratio_median": 1.466,
+      "nb_obs": 4
+    },
+    {
+      "label": "Éclairage extérieur (point)",
+      "ratio_median": 1.413,
+      "nb_obs": 3
+    },
+    {
+      "label": "Point lumineux",
+      "ratio_median": 0.97,
+      "nb_obs": 15
+    }
+  ],
+  "conseils": [
+    "Marque du tableau (Legrand, Schneider Electric, Hager) à préciser.",
+    "Nombre de circuits + protection différentielle à détailler.",
+    "Consuel obligatoire pour tout ajout de circuit — vérifier son inclusion dans le devis."
+  ]
+}

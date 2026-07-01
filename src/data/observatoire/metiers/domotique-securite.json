@@ -1,0 +1,23 @@
+{
+  "slug": "domotique-securite",
+  "metier": "domotique_securite",
+  "metier_label": "domotique securite",
+  "title": "domotique securite : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 1 devis analysés dans le métier domotique securite : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.523Z",
+  "intro": "Analyse fondée sur 1 devis réels contenant au moins une ligne du métier domotique securite avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 1,
+    "nb_lignes": 1,
+    "prix_moyen": 178.95,
+    "prix_median": 178.95,
+    "prix_min": 178.95,
+    "prix_max": 178.95,
+    "prix_p25": 178.95,
+    "prix_p75": 178.95,
+    "panier_moyen": 178.95,
+    "ratio_moyen_vs_marche": 1.278
+  },
+  "postesSurfactures": [],
+  "conseils": []
+}

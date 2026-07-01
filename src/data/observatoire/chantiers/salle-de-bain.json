@@ -1,0 +1,30 @@
+{
+  "slug": "salle-de-bain",
+  "chantier_type": "salle-de-bain",
+  "chantier_label": "Salle de bain",
+  "title": "Salle de bain : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 56 devis salle de bain analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.686Z",
+  "intro": "Étude basée sur 56 devis réels contenant des travaux de type salle de bain. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 56,
+    "nb_lignes": 173,
+    "ligne_moyenne": 1486.53,
+    "prix_moyen_unitaire": 795.75,
+    "prix_median": 280,
+    "prix_p25": 106.89,
+    "prix_p75": 794.2,
+    "prix_min": 3.13,
+    "prix_max": 8950
+  },
+  "pointsVigilance": [
+    "L'étanchéité sous carrelage (SPEC ou SEL) doit être présente.",
+    "Vérifiez la marque du mitigeur, du receveur et du meuble vasque.",
+    "Le raccordement de la ventilation (VMC ou extracteur) doit apparaître."
+  ],
+  "erreursFrequentes": [
+    "Absence de ligne dépose de l'existant → coût caché.",
+    "Forfait plomberie global sans détail des postes.",
+    "Faïence à 25€/m² alors que la moyenne est autour de 45€/m² posé — matériel bas de gamme suspect."
+  ]
+}

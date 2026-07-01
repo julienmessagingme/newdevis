@@ -1,0 +1,28 @@
+{
+  "slug": "plomberie",
+  "chantier_type": "plomberie",
+  "chantier_label": "Plomberie",
+  "title": "Plomberie : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 21 devis plomberie analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.686Z",
+  "intro": "Étude basée sur 21 devis réels contenant des travaux de type plomberie. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 21,
+    "nb_lignes": 26,
+    "ligne_moyenne": 2778.17,
+    "prix_moyen_unitaire": 1025.82,
+    "prix_median": 430.74,
+    "prix_p25": 212.59,
+    "prix_p75": 676.88,
+    "prix_min": 41.9,
+    "prix_max": 10759
+  },
+  "pointsVigilance": [
+    "Longueur des tuyauteries à préciser (cuivre / PER / multicouche).",
+    "Marques : Grohe, Hansgrohe, Geberit.",
+    "Raccordement des évacuations détaillé."
+  ],
+  "erreursFrequentes": [
+    "Percements muraux et rebouchages souvent oubliés."
+  ]
+}

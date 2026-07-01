@@ -1,0 +1,29 @@
+{
+  "slug": "toiture",
+  "chantier_type": "toiture",
+  "chantier_label": "Toiture",
+  "title": "Toiture : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 35 devis toiture analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.687Z",
+  "intro": "Étude basée sur 35 devis réels contenant des travaux de type toiture. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 35,
+    "nb_lignes": 52,
+    "ligne_moyenne": 5950.37,
+    "prix_moyen_unitaire": 427.65,
+    "prix_median": 103.57,
+    "prix_p25": 41.13,
+    "prix_p75": 279.31,
+    "prix_min": 6,
+    "prix_max": 4000
+  },
+  "pointsVigilance": [
+    "Marque et type de tuile ou d'ardoise précisés.",
+    "Écran sous-toiture HPV inclus (obligatoire pour la RE2020).",
+    "Les gouttières et descentes en zinc doivent apparaître à part."
+  ],
+  "erreursFrequentes": [
+    "Absence de traitement des chevêtres autour des fenêtres de toit.",
+    "Zinguerie sous-évaluée : gouttière zinc = 40-70€/ml posé."
+  ]
+}

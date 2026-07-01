@@ -1,0 +1,29 @@
+{
+  "slug": "cuisine",
+  "chantier_type": "cuisine",
+  "chantier_label": "Cuisine",
+  "title": "Cuisine : prix moyens & points de vigilance",
+  "description": "Statistiques réelles sur 22 devis cuisine analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "lastGenerated": "2026-07-01T11:31:26.682Z",
+  "intro": "Étude basée sur 22 devis réels contenant des travaux de type cuisine. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "kpis": {
+    "nb_devis": 22,
+    "nb_lignes": 39,
+    "ligne_moyenne": 2838.17,
+    "prix_moyen_unitaire": 1605.81,
+    "prix_median": 275,
+    "prix_p25": 39.42,
+    "prix_p75": 3344,
+    "prix_min": 0.83,
+    "prix_max": 7500
+  },
+  "pointsVigilance": [
+    "L'installation de la crédence, du plan de travail et de l'évier doit être distinguée.",
+    "Le raccordement des arrivées d'eau et gaz est-il inclus ?",
+    "Vérifiez si l'électroménager est fourni ou seulement posé."
+  ],
+  "erreursFrequentes": [
+    "Prise en charge du démontage de l'ancienne cuisine à préciser.",
+    "L'évacuation des ancienss meubles + gravats est souvent oubliée."
+  ]
+}

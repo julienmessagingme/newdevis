@@ -1,0 +1,23 @@
+{
+  "slug": "ouvrages-anc",
+  "metier": "ouvrages_anc",
+  "metier_label": "ouvrages anc",
+  "title": "ouvrages anc : prix moyens & anomalies observées",
+  "description": "Statistiques réelles sur 3 devis analysés dans le métier ouvrages anc : prix moyens, écarts, postes surfacturés.",
+  "lastGenerated": "2026-07-01T11:31:26.527Z",
+  "intro": "Analyse fondée sur 3 devis réels contenant au moins une ligne du métier ouvrages anc avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "kpis": {
+    "nb_devis": 3,
+    "nb_lignes": 3,
+    "prix_moyen": 3854.2,
+    "prix_median": 1011.2,
+    "prix_min": 681.4,
+    "prix_max": 9870,
+    "prix_p25": 846.3,
+    "prix_p75": 5440.6,
+    "panier_moyen": 3854.2,
+    "ratio_moyen_vs_marche": null
+  },
+  "postesSurfactures": [],
+  "conseils": []
+}
