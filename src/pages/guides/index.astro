@@ -18,16 +18,16 @@ const props = {
   intro: description,
   subPages: [
     { href: "/guides/devis-travaux", title: "Le guide complet du devis travaux", excerpt: "Comprendre, comparer, négocier, signer ou refuser. Le pilier de référence.", topics: ["devis"], type: "pillar" },
-    { href: "/guides/comprendre-un-devis", title: "Comprendre un devis ligne à ligne", excerpt: "Unités, prix unitaires, forfaits, TVA, options : tout décrypter.", topics: ["devis"], type: "guide" },
-    { href: "/guides/comparer-plusieurs-devis", title: "Comparer plusieurs devis : la méthode", excerpt: "Au-delà du prix : postes, quantités, matériel, clauses.", topics: ["comparateur"], type: "guide" },
-    { href: "/guides/negocier-un-devis", title: "Négocier un devis travaux", excerpt: "5 leviers concrets pour obtenir 3 à 10% de remise.", topics: ["devis", "negociation"], type: "guide" },
-    { href: "/guides/refuser-un-devis", title: "Refuser un devis (sans frais)", excerpt: "Cadre légal, délais, modèles de réponse.", topics: ["devis", "litige"], type: "guide" },
-    { href: "/guides/signer-un-devis", title: "Signer un devis en sécurité", excerpt: "7 vérifications avant signature.", topics: ["devis"], type: "guide" },
-    { href: "/guides/choisir-un-artisan", title: "Choisir un artisan : la checklist", excerpt: "SIRET, assurance, avis, références.", topics: ["artisan"], type: "guide" },
-    { href: "/guides/comprendre-le-verdict-vmd", title: "Comment lire le verdict VMD", excerpt: "Vert, orange, rouge : ce que chacun veut dire.", topics: ["verifier"], type: "guide" },
-    { href: "/guides/aides-energetiques", title: "Aides énergétiques 2026", excerpt: "MaPrimeRénov', CEE, éco-PTZ : estimez vos droits.", topics: ["aides"], type: "guide" },
+    { href: "/observatoire", title: "L'Observatoire des devis travaux", excerpt: "Statistiques réelles : prix par métier, erreurs fréquentes, postes surfacturés.", topics: ["verifier", "prix"], type: "study" },
+    { href: "/verifier-devis-travaux", title: "Vérifier un devis avec notre IA", excerpt: "Analyse gratuite en 30 secondes contre 891 prix marché.", topics: ["devis", "verifier"], type: "tool" },
+    { href: "/comparateur", title: "Comparer plusieurs devis", excerpt: "Analysez plusieurs devis pour un même chantier avec un verdict expert.", topics: ["comparateur", "devis"], type: "tool" },
   ],
   showGmcGateway: true,
+  footerHtml: `
+    <h2>D'autres guides thématiques en préparation</h2>
+    <p>Nous préparons des guides dédiés sur les sous-sujets clés : comprendre un devis ligne à ligne, la méthode pour comparer plusieurs devis, les leviers de négociation, refuser un devis sans frais, signer en sécurité, choisir un artisan, lire un verdict VMD, et les aides énergétiques.</p>
+    <p>En attendant, le <a href="/guides/devis-travaux">guide pilier du devis travaux</a> couvre l'essentiel de ces sujets, et <a href="/observatoire">l'Observatoire</a> publie les statistiques réelles issues des analyses.</p>
+  `,
 };
 
 export const prerender = false;

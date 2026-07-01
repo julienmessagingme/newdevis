@@ -19,6 +19,41 @@
       "source": "/etudes-vmd/:slug",
       "destination": "/observatoire/:slug",
       "permanent": true
+    },
+    {
+      "source": "/verifier-mon-devis",
+      "destination": "/verifier-devis-travaux",
+      "permanent": true
+    },
+    {
+      "source": "/prix-travaux",
+      "destination": "/prix-travaux-maison",
+      "permanent": true
+    },
+    {
+      "source": "/prix-travaux/renovation-maison",
+      "destination": "/prix-travaux-maison",
+      "permanent": true
+    },
+    {
+      "source": "/gestion-de-chantier",
+      "destination": "/application-gestion-chantier",
+      "permanent": true
+    },
+    {
+      "source": "/comparateurs/plateformes",
+      "destination": "/comparateur",
+      "permanent": true
+    },
+    {
+      "source": "/litiges",
+      "destination": "/observatoire/erreurs-frequentes",
+      "permanent": true
+    },
+    {
+      "source": "/litiges/surcout",
+      "destination": "/observatoire/postes-surfactures",
+      "permanent": true
     }
   ],
   "headers": [
