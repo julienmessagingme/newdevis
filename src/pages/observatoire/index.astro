@@ -25,7 +25,7 @@ const props = {
   breadcrumb: [{ name: 'Observatoire', href: '/observatoire' }],
   title,
   intro: description,
-  children: studies.map((s: any) => ({
+  subPages: studies.map((s: any) => ({
     href: `/observatoire/${s.slug}`,
     title: s.title,
     excerpt: s.description,

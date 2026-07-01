@@ -15,8 +15,10 @@ interface Props {
   breadcrumb: BreadcrumbSegment[];
   title: string;
   intro: string;
-  /** Sous-pages affichées comme cards */
-  children: InternalLink[];
+  /** Sous-pages affichées comme cards. Renommé de "children" pour éviter
+   * la collision avec le mot-clé React `children` qui capturait la prop
+   * quand elle était spread depuis Astro. */
+  subPages: InternalLink[];
   /** Bannière GMC visible */
   showGmcGateway?: boolean;
   /** Texte introductif riche en pied de page */
@@ -33,7 +35,7 @@ export default function HubPage(props: Props) {
         <p className="text-base md:text-lg text-muted-foreground leading-relaxed">{props.intro}</p>
       </header>
 
-      <RelatedGuides items={props.children} title="" />
+      <RelatedGuides items={props.subPages ?? []} title="" />
 
       {props.footerHtml && (
         <article
