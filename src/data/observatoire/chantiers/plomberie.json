@@ -5,7 +5,7 @@
   "title": "Plomberie : prix moyens & points de vigilance",
   "description": "Statistiques réelles sur 21 devis plomberie analysés : prix moyens, points de vigilance, erreurs fréquentes.",
   "lastGenerated": "2026-07-01T11:31:26.686Z",
-  "intro": "Étude basée sur 21 devis réels contenant des travaux de type plomberie. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "intro": "Nous avons analysé 21 devis contenant des travaux de type plomberie. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 21,
     "nb_lignes": 26,

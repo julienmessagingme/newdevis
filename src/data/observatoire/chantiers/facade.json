@@ -5,7 +5,7 @@
   "title": "Façade : prix moyens & points de vigilance",
   "description": "Statistiques réelles sur 9 devis façade analysés : prix moyens, points de vigilance, erreurs fréquentes.",
   "lastGenerated": "2026-07-01T11:31:26.683Z",
-  "intro": "Étude basée sur 9 devis réels contenant des travaux de type façade. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "intro": "Nous avons analysé 9 devis contenant des travaux de type façade. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 9,
     "nb_lignes": 10,

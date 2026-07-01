@@ -10,8 +10,10 @@
 import Breadcrumb from "@/components/seo/Breadcrumb";
 import RelatedGuides from "@/components/seo/RelatedGuides";
 import GmcGatewayBanner from "@/components/cta/GmcGatewayBanner";
+import ObservatoireChip from "@/components/seo/ObservatoireChip";
+import ObservatoireDisclaimer from "@/components/seo/ObservatoireDisclaimer";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, BarChart3, Calendar, Database, Hammer } from "lucide-react";
+import { ArrowRight, Database } from "lucide-react";
 import type { InternalLink } from "@/lib/seo/internalLinking";
 
 export interface ChantierData {
@@ -48,12 +50,6 @@ function fmtEUR(n: number | null | undefined): string {
 }
 
 export default function ObservatoireChantierPage({ data, related }: Props) {
-  const lastDate = new Date(data.lastGenerated).toLocaleDateString("fr-FR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
   const hasData = data.kpis.nb_lignes > 0;
 
   return (
@@ -67,23 +63,17 @@ export default function ObservatoireChantierPage({ data, related }: Props) {
       />
 
       <div className="inline-flex items-center gap-2 bg-accent border border-primary/20 text-primary text-xs font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full mb-4">
-        <Database className="h-3.5 w-3.5" /> Prix réels observés
+        <Database className="h-3.5 w-3.5" /> Nos analyses de devis
       </div>
 
       <header className="max-w-3xl mb-8">
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">{data.title}</h1>
         <p className="text-base md:text-lg text-muted-foreground leading-relaxed mb-4">{data.intro}</p>
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <BarChart3 className="h-3.5 w-3.5" /> {data.kpis.nb_devis} devis observés
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Hammer className="h-3.5 w-3.5" /> {data.kpis.nb_lignes} lignes matchées
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5" /> Mis à jour le {lastDate}
-          </span>
-        </div>
+        <ObservatoireChip
+          nbDevis={data.kpis.nb_devis}
+          nbLignes={data.kpis.nb_lignes}
+          lastGenerated={data.lastGenerated}
+        />
       </header>
 
       {!hasData ? (
@@ -169,6 +159,8 @@ export default function ObservatoireChantierPage({ data, related }: Props) {
           <a href="/comparateur">Comparer plusieurs devis</a>
         </Button>
       </div>
+
+      <ObservatoireDisclaimer />
 
       <RelatedGuides items={related} title="À explorer aussi" />
 

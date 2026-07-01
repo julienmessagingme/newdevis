@@ -4,8 +4,8 @@ import HubPageApp from '@/components/app/HubPageApp';
 import { breadcrumbSchema } from '@/lib/seo/schemaOrg';
 
 const url = 'https://www.verifiermondevis.fr/observatoire';
-const title = "Observatoire des devis travaux : statistiques réelles";
-const description = "L'Observatoire des devis travaux VerifierMonDevis : études, statistiques prix par métier, par région, par type de chantier. Basé sur des centaines de devis réels analysés.";
+const title = "Observatoire des devis travaux : nos analyses en chiffres";
+const description = "L'Observatoire VerifierMonDevis : études, statistiques prix par métier et par type de chantier, calculées à partir des devis analysés par notre outil.";
 
 const breadcrumbs = breadcrumbSchema([
   { name: 'Accueil', url: 'https://www.verifiermondevis.fr/' },
@@ -33,11 +33,10 @@ const props = {
     type: 'study',
   })),
   footerHtml: `
-    <h2>Un observatoire alimenté par la réalité, pas par la théorie</h2>
-    <p>L'Observatoire VMD publie des statistiques calculées sur les devis réellement analysés par notre IA et validés par notre expert humain. Pas de cherry-picking, pas de manipulation : c'est ce que nos outils mesurent vraiment.</p>
-    <p>Les données sont régénérées régulièrement avec les nouveaux devis. Plus le temps passe, plus elles sont précises et représentatives.</p>
+    <h2>Comment nous construisons ces statistiques</h2>
+    <p>Chaque chiffre publié ici est calculé à partir des devis analysés par VerifierMonDevis. Nous ne prétendons pas représenter le marché national : nous publions ce que nos outils mesurent réellement sur notre échantillon.</p>
+    <p>Les données sont régénérées chaque mois avec les nouveaux devis. Plus notre base grandit, plus les fourchettes deviennent précises.</p>
     <p>Le code de génération est ouvert et auditable : <code>scripts/observatoire/generate-observatoire.ts</code>.</p>
-    <p><em>Prochaines rubriques prévues : prix par métier, prix par type de chantier, statistiques régionales, anomalies structurées.</em></p>
   `,
   showGmcGateway: true,
 };

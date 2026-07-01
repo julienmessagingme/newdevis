@@ -2,10 +2,10 @@
   "slug": "menuiserie-vitrages",
   "metier": "menuiserie_vitrages",
   "metier_label": "Menuiserie & vitrages",
-  "title": "Menuiserie & vitrages : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 81 devis analysés dans le métier Menuiserie & vitrages : prix moyens, écarts, postes surfacturés.",
+  "title": "Prix menuiserie 2026 : fourchette sur 81 devis analysés",
+  "description": "Prix fenêtres, portes et vitrages en 2026 : fourchette réelle des devis analysés par VerifierMonDevis, écarts entre matériaux, pièges à éviter.",
   "lastGenerated": "2026-07-01T11:31:26.526Z",
-  "intro": "Analyse fondée sur 81 devis réels contenant au moins une ligne du métier Menuiserie & vitrages avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "intro": "Nous avons analysé 81 devis contenant au moins une ligne du métier Menuiserie & vitrages. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 81,
     "nb_lignes": 115,

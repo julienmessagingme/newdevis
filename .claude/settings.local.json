@@ -459,7 +459,8 @@
       "Bash(npx --yes tsx -e \"import\\('./src/lib/analyse/extract/reconciliation.ts'\\).then\\(r => { const out = r.reconcileLigne\\({id_hierarchique:'1.1',libelle:'test',quantite:85,unite:'m2',prix_unitaire:30,montant_total:2550}\\); console.log\\('arithmetique_valide:', out.arithmetique_valide\\); console.log\\('prix_unitaire source:', out.prix_unitaire_confidence.source\\); }\\);\")",
       "Bash(npm test *)",
       "Bash(git branch *)",
-      "Bash(grep -v \"node_modules\\\\|tsx\\)$\")"
+      "Bash(grep -v \"node_modules\\\\|tsx\\)$\")",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

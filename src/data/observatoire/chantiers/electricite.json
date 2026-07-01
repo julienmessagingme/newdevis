@@ -2,10 +2,10 @@
   "slug": "electricite",
   "chantier_type": "electricite",
   "chantier_label": "Électricité",
-  "title": "Électricité : prix moyens & points de vigilance",
-  "description": "Statistiques réelles sur 26 devis électricité analysés : prix moyens, points de vigilance, erreurs fréquentes.",
+  "title": "Prix rénovation électrique 2026 : sur 26 devis analysés",
+  "description": "Rénovation électrique complète ou partielle : combien prévoir en 2026 ? Fourchette des devis analysés, tableau, prises, luminaires, aides.",
   "lastGenerated": "2026-07-01T11:31:26.683Z",
-  "intro": "Étude basée sur 26 devis réels contenant des travaux de type électricité. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.",
+  "intro": "Nous avons analysé 26 devis contenant des travaux de type électricité. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 26,
     "nb_lignes": 56,

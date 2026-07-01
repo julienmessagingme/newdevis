@@ -5,7 +5,7 @@
   "title": "sols durs : prix moyens & anomalies observées",
   "description": "Statistiques réelles sur 3 devis analysés dans le métier sols durs : prix moyens, écarts, postes surfacturés.",
   "lastGenerated": "2026-07-01T11:31:26.531Z",
-  "intro": "Analyse fondée sur 3 devis réels contenant au moins une ligne du métier sols durs avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "intro": "Nous avons analysé 3 devis contenant au moins une ligne du métier sols durs. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 3,
     "nb_lignes": 3,

@@ -58,6 +58,39 @@ const SEO_OVERRIDES: Record<string, { title: string; description: string }> = {
     title: "Prix rénovation cuisine 2026 : fourchette sur {nb} devis",
     description: "Cuisine équipée avec pose : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus.",
   },
+  toiture: {
+    title: "Prix rénovation toiture 2026 : fourchette sur {nb} devis",
+    description: "Réfection toiture complète ou partielle : combien prévoir en 2026 ? Fourchette des devis analysés, ardoise, tuile, zinc, aides mobilisables.",
+  },
+  carrelage: {
+    title: "Prix carrelage 2026 : fourchette au m² sur {nb} devis",
+    description: "Pose carrelage et faïence : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, dépose et primaire à surveiller.",
+  },
+  electricite: {
+    title: "Prix rénovation électrique 2026 : sur {nb} devis analysés",
+    description: "Rénovation électrique complète ou partielle : combien prévoir en 2026 ? Fourchette des devis analysés, tableau, prises, luminaires, aides.",
+  },
+  // Métiers TOP (haute priorité SEO)
+  "menuiserie-vitrages": {
+    title: "Prix menuiserie 2026 : fourchette sur {nb} devis analysés",
+    description: "Prix fenêtres, portes et vitrages en 2026 : fourchette réelle des devis analysés par VerifierMonDevis, écarts entre matériaux, pièges à éviter.",
+  },
+  "peinture-revetements": {
+    title: "Prix peinture 2026 : fourchette au m² sur {nb} devis",
+    description: "Prix peinture, papier peint, revêtements de sol : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts entre finitions.",
+  },
+  "toiture-couverture": {
+    title: "Prix toiture 2026 : fourchette au m² sur {nb} devis",
+    description: "Réfection toiture, couverture, zinguerie : combien au m² en 2026 ? Fourchette des devis analysés, ardoise, tuile, zinc, matériaux comparés.",
+  },
+  "carrelage-faience": {
+    title: "Prix carrelage 2026 : fourchette au m² sur {nb} devis",
+    description: "Prix pose carrelage sol et faïence : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, dépose et primaire à surveiller.",
+  },
+  "plomberie-sanitaires": {
+    title: "Prix plomberie 2026 : fourchette sur {nb} devis analysés",
+    description: "Plomberie, sanitaires, robinetterie : combien coûte une intervention en 2026 ? Fourchette des devis analysés, alertes sur les postes à risque.",
+  },
 };
 
 function applySeoOverride(
@@ -572,7 +605,7 @@ async function generateMetierPages(): Promise<{ generated: number; empty: number
         row.nb_devis,
       ),
       lastGenerated: new Date().toISOString(),
-      intro: `Analyse fondée sur ${row.nb_devis} devis réels contenant au moins une ligne du métier ${label} avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.`,
+      intro: `Nous avons analysé ${row.nb_devis} devis contenant au moins une ligne du métier ${label}. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.`,
       kpis: {
         nb_devis: row.nb_devis,
         nb_lignes: row.nb_lignes,
@@ -641,7 +674,7 @@ async function generateChantierPages(): Promise<{ generated: number; empty: numb
         row.nb_devis,
       ),
       lastGenerated: new Date().toISOString(),
-      intro: `Étude basée sur ${row.nb_devis} devis réels contenant des travaux de type ${meta.label.toLowerCase()}. Tous les chiffres proviennent des analyses effectivement réalisées par notre outil.`,
+      intro: `Nous avons analysé ${row.nb_devis} devis contenant des travaux de type ${meta.label.toLowerCase()}. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.`,
       kpis: {
         nb_devis: row.nb_devis,
         nb_lignes: row.nb_lignes,

@@ -5,7 +5,7 @@
   "title": "Chauffage : prix moyens & anomalies observées",
   "description": "Statistiques réelles sur 37 devis analysés dans le métier Chauffage : prix moyens, écarts, postes surfacturés.",
   "lastGenerated": "2026-07-01T11:31:26.519Z",
-  "intro": "Analyse fondée sur 37 devis réels contenant au moins une ligne du métier Chauffage avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "intro": "Nous avons analysé 37 devis contenant au moins une ligne du métier Chauffage. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 37,
     "nb_lignes": 47,

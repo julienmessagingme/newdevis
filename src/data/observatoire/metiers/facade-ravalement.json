@@ -5,7 +5,7 @@
   "title": "Façade & ravalement : prix moyens & anomalies observées",
   "description": "Statistiques réelles sur 11 devis analysés dans le métier Façade & ravalement : prix moyens, écarts, postes surfacturés.",
   "lastGenerated": "2026-07-01T11:31:26.524Z",
-  "intro": "Analyse fondée sur 11 devis réels contenant au moins une ligne du métier Façade & ravalement avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "intro": "Nous avons analysé 11 devis contenant au moins une ligne du métier Façade & ravalement. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 11,
     "nb_lignes": 11,

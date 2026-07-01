@@ -2,10 +2,10 @@
   "slug": "plomberie-sanitaires",
   "metier": "plomberie_sanitaires",
   "metier_label": "Plomberie & sanitaires",
-  "title": "Plomberie & sanitaires : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 53 devis analysés dans le métier Plomberie & sanitaires : prix moyens, écarts, postes surfacturés.",
+  "title": "Prix plomberie 2026 : fourchette sur 53 devis analysés",
+  "description": "Plomberie, sanitaires, robinetterie : combien coûte une intervention en 2026 ? Fourchette des devis analysés, alertes sur les postes à risque.",
   "lastGenerated": "2026-07-01T11:31:26.530Z",
-  "intro": "Analyse fondée sur 53 devis réels contenant au moins une ligne du métier Plomberie & sanitaires avec matching catalogue fiable (confidence HIGH ≥ 0.77). Toutes les statistiques ci-dessous sont calculées automatiquement.",
+  "intro": "Nous avons analysé 53 devis contenant au moins une ligne du métier Plomberie & sanitaires. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 53,
     "nb_lignes": 108,
