@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, X, Loader2, AlertTriangle } from 'lucide-react';
+import { Plus, X, Loader2, AlertTriangle, ArrowLeft, User } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 
 // ── Intervenants preset ───────────────────────────────────────────────────────
@@ -114,7 +114,13 @@ interface ConfirmState {
   justification: string;
 }
 
-export default function AddIntervenantModal({ chantierId, token, existingNoms, existingJobTypes, projectName, onClose, onAdded }: {
+interface CreatedLotState {
+  lotId: string;
+  nom: string;
+  emoji: string;
+}
+
+export default function AddIntervenantModal({ chantierId, token, existingNoms, existingJobTypes, projectName, onClose, onAdded, onContactAdded }: {
   chantierId: string;
   token: string;
   existingNoms: string[];
@@ -122,10 +128,17 @@ export default function AddIntervenantModal({ chantierId, token, existingNoms, e
   projectName: string;
   onClose: () => void;
   onAdded: (lot: LotChantier) => void;
+  /** Signal parent que la fiche contact a été créée (pour rafraîchir compteur contacts + carnet). */
+  onContactAdded?: () => void;
 }) {
   const [customNom, setCustomNom] = useState('');
   const [adding, setAdding] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const [createdLot, setCreatedLot] = useState<CreatedLotState | null>(null);
+  const [contactForm, setContactForm] = useState({
+    nom: '', email: '', telephone: '', siret: '', notes: '',
+  });
+  const [savingContact, setSavingContact] = useState(false);
 
   async function add(nom: string, emoji: string, jobType: string) {
     if (adding) return;
@@ -148,7 +161,8 @@ export default function AddIntervenantModal({ chantierId, token, existingNoms, e
         };
         onAdded(lot);
         toast.success(`${emoji} ${nom} ajouté`);
-        onClose();
+        // Passe à l'écran 2 pour ajouter les coordonnées (optionnel)
+        setCreatedLot({ lotId: lot.id, nom, emoji });
       } else {
         toast.error(data.error ?? `Erreur ${res.status}`);
       }
@@ -174,7 +188,155 @@ export default function AddIntervenantModal({ chantierId, token, existingNoms, e
     add(nom, '🔧', 'autre');
   }
 
+  async function saveContact() {
+    if (!createdLot || savingContact) return;
+    const trimmedNom = contactForm.nom.trim();
+    if (!trimmedNom) {
+      toast.error('Le nom de l\'artisan / entreprise est requis.');
+      return;
+    }
+    setSavingContact(true);
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          nom: trimmedNom,
+          email: contactForm.email.trim() || null,
+          telephone: contactForm.telephone.trim() || null,
+          siret: contactForm.siret.trim() || null,
+          notes: contactForm.notes.trim() || null,
+          role: createdLot.nom,
+          contact_category: 'artisan',
+          lot_id: createdLot.lotId,
+        }),
+      });
+      if (res.ok) {
+        toast.success(`Contact ${trimmedNom} ajouté au lot ${createdLot.nom}`);
+        onContactAdded?.();
+        onClose();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? `Erreur ${res.status}`);
+      }
+    } catch {
+      toast.error('Erreur réseau, réessayez.');
+    } finally {
+      setSavingContact(false);
+    }
+  }
+
+  function skipContact() {
+    onClose();
+  }
+
   const available = PRESET_INTERVENANTS.filter(p => !existingNoms.includes(p.nom));
+
+  // ── Écran 2 : coordonnées de l'artisan (optionnel) ────────────────────────
+  if (createdLot) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={skipContact} />
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{createdLot.emoji}</span>
+              <div>
+                <h2 className="font-bold text-gray-900 leading-tight">{createdLot.nom}</h2>
+                <p className="text-xs text-gray-500">Coordonnées de l'artisan (optionnel)</p>
+              </div>
+            </div>
+            <button onClick={skipContact} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+              <X className="h-4 w-4 text-gray-500" />
+            </button>
+          </div>
+
+          <div className="px-5 py-5 space-y-3 max-h-[60vh] overflow-y-auto">
+            <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+              <User className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-800 leading-relaxed">
+                Renseignez les coordonnées de l'artisan qui interviendra sur ce lot.
+                La fiche contact sera créée automatiquement et liée au lot.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Nom / entreprise <span className="text-red-500">*</span></label>
+              <input
+                autoFocus
+                value={contactForm.nom}
+                onChange={e => setContactForm(f => ({ ...f, nom: e.target.value }))}
+                placeholder={`Ex : ${createdLot.nom} SARL, Jean Dupont…`}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Téléphone</label>
+                <input
+                  type="tel"
+                  value={contactForm.telephone}
+                  onChange={e => setContactForm(f => ({ ...f, telephone: e.target.value }))}
+                  placeholder="06 12 34 56 78"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={contactForm.email}
+                  onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="artisan@…"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">SIRET</label>
+              <input
+                value={contactForm.siret}
+                onChange={e => setContactForm(f => ({ ...f, siret: e.target.value }))}
+                placeholder="14 chiffres (optionnel)"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+              <textarea
+                value={contactForm.notes}
+                onChange={e => setContactForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Précisions, disponibilités, recommandations…"
+                rows={2}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 resize-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/60">
+            <button
+              onClick={skipContact}
+              disabled={savingContact}
+              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Plus tard
+            </button>
+            <button
+              onClick={saveContact}
+              disabled={!contactForm.nom.trim() || savingContact}
+              className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              {savingContact ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Créer la fiche contact
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Écran de confirmation (corps de métier incohérent) ────────────────────
   if (confirmState) {

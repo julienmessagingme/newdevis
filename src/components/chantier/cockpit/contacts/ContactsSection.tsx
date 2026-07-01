@@ -48,6 +48,8 @@ interface Props {
   /** Ouvre directement le formulaire "Nouveau contact" au montage (depuis "Ajouter un artisan"). */
   autoOpenAdd?: boolean;
   onAutoOpenConsumed?: () => void;
+  /** Notifie le parent quand un lot est auto-créé depuis Contacts (artisan/architecte sans lot). */
+  onLotCreated?: (lot: { id: string; nom: string }) => void;
 }
 
 // ── Unified contact row ─────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ interface UnifiedContact {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-export default function ContactsSection({ chantierId, token, autoOpenAdd, onAutoOpenConsumed }: Props) {
+export default function ContactsSection({ chantierId, token, autoOpenAdd, onAutoOpenConsumed, onLotCreated }: Props) {
   const [contacts, setContacts]               = useState<Contact[]>([]);
   const [analyseArtisans, setAnalyseArtisans] = useState<AnalyseArtisan[]>([]);
   const [lots, setLots]                       = useState<Lot[]>([]);
@@ -248,7 +250,11 @@ export default function ContactsSection({ chantierId, token, autoOpenAdd, onAuto
           headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
           body: JSON.stringify({ nom: name }),
         });
-        if (r.ok) { const nl = await r.json(); lotId = nl.lot?.id ?? nl.id ?? ''; }
+        if (r.ok) {
+          const nl = await r.json();
+          lotId = nl.lot?.id ?? nl.id ?? '';
+          if (lotId) onLotCreated?.({ id: lotId, nom: name });
+        }
       }
     }
 
@@ -277,6 +283,33 @@ export default function ContactsSection({ chantierId, token, autoOpenAdd, onAuto
         if (lotRes.ok) {
           const newLot = await lotRes.json();
           lotId = newLot.lot?.id ?? newLot.id ?? '';
+          if (lotId) onLotCreated?.({ id: lotId, nom: lotNames[cat]! });
+        }
+      }
+    }
+
+    // Auto-create lot for artisan without lot :
+    // le rôle (menuisier, plombier…) devient le nom du lot, sinon fallback sur le nom entreprise.
+    // Objectif : un artisan créé depuis Contacts apparaît immédiatement comme intervenant
+    // dans la home cockpit, sans double saisie.
+    if (cat === 'artisan' && !lotId) {
+      const roleName = form.role?.trim();
+      const entrepriseName = form.nom?.trim();
+      const lotName = roleName || entrepriseName || 'Artisan';
+      // Réutilise un lot existant si déjà présent avec ce nom (évite doublons).
+      const existingLot = lots.find(l => l.nom.trim().toLowerCase() === lotName.toLowerCase());
+      if (existingLot) {
+        lotId = existingLot.id;
+      } else {
+        const lotRes = await fetch(`/api/chantier/${chantierId}/lots`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nom: lotName }),
+        });
+        if (lotRes.ok) {
+          const newLot = await lotRes.json();
+          lotId = newLot.lot?.id ?? newLot.id ?? '';
+          if (lotId) onLotCreated?.({ id: lotId, nom: lotName });
         }
       }
     }

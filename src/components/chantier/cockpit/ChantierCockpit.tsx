@@ -448,7 +448,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
             onGoToAssistant={() => navigateTo('assistant')}
             onGoToTresorerie={() => navigateTo('tresorerie')}
             onGoToDocuments={() => navigateTo('documents')}
-            onAddIntervenant={() => { setContactsAutoOpen(true); navigateTo('contacts'); }}
+            onAddIntervenant={() => setShowAddIntervenant(true)}
             onDeleteLot={deleteLot}
             onDeleteDoc={handleDeleteDoc}
             onGoToDiy={() => navigateTo('diy')}
@@ -507,7 +507,23 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
       case 'contacts':
         return chantierId && token ? (
-          <ContactsSection chantierId={chantierId} token={token} autoOpenAdd={contactsAutoOpen} onAutoOpenConsumed={() => setContactsAutoOpen(false)} />
+          <ContactsSection
+            chantierId={chantierId}
+            token={token}
+            autoOpenAdd={contactsAutoOpen}
+            onAutoOpenConsumed={() => setContactsAutoOpen(false)}
+            onLotCreated={(lot) => {
+              // Un lot a été auto-créé depuis Contacts (artisan/architecte/MOE/BET sans lot).
+              // On l'injecte dans le state parent pour qu'il apparaisse immédiatement
+              // dans la home cockpit (panneau Intervenants) sans refetch complet.
+              addLot({
+                id: lot.id,
+                nom: lot.nom,
+                statut: 'a_trouver' as const,
+                ordre: 999,
+              });
+            }}
+          />
         ) : null;
 
       case 'messagerie':
@@ -864,6 +880,14 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
           projectName={result.nom ?? ''}
           onClose={() => setShowAddIntervenant(false)}
           onAdded={addLot}
+          onContactAdded={() => {
+            // Refetch contacts pour mettre à jour contactsCount (stepper "Saisir les artisans")
+            // + refresh de la liste dans l'onglet Contacts au prochain affichage.
+            fetch('/api/chantier/' + chantierId + '/contacts', { headers: { Authorization: 'Bearer ' + token } })
+              .then(r => (r.ok ? r.json() : null))
+              .then(d => { if (d) setContactsCount((d.contacts ?? []).length); })
+              .catch(() => {});
+          }}
         />
       )}
 
