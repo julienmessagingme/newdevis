@@ -74,7 +74,14 @@ const Header = () => {
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
             {dropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-48 rounded-lg border bg-white shadow-lg py-1 z-50">
+              <div className="absolute top-full left-0 mt-1 w-56 rounded-lg border bg-white shadow-lg py-1 z-50">
+                <a href="/observatoire" className="block px-4 py-2 text-sm font-medium text-primary hover:bg-primary/5 transition-colors">
+                  📊 Observatoire des prix
+                </a>
+                <a href="/guides/devis-travaux" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                  Guide du devis travaux
+                </a>
+                <hr className="my-1 border-border" />
                 <a href="/blog" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
                   Blog
                 </a>
@@ -178,6 +185,12 @@ const Header = () => {
               </button>
               {mobileSubOpen && (
                 <div className="flex flex-col gap-3 pl-4 mt-3">
+                  <a href="/observatoire" className="text-sm font-medium text-primary" onClick={() => setMobileMenuOpen(false)}>
+                    📊 Observatoire des prix
+                  </a>
+                  <a href="/guides/devis-travaux" className="text-sm text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
+                    Guide du devis travaux
+                  </a>
                   <a href="/blog" className="text-sm text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
                     Blog
                   </a>

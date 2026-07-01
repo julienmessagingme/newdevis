@@ -460,7 +460,8 @@
       "Bash(npm test *)",
       "Bash(git branch *)",
       "Bash(grep -v \"node_modules\\\\|tsx\\)$\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(grep -n \"BlockDevis\\\\|FeedbackModal\\\\|<\\\\/main\\\\|export default\\\\|return.*ChevronsUp\\\\|ScrollToTop\" src/components/pages/AnalysisResult.tsx)"
     ]
   }
 }

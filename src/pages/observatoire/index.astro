@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import HubPageApp from '@/components/app/HubPageApp';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
 import { breadcrumbSchema } from '@/lib/seo/schemaOrg';
 
 const url = 'https://www.verifiermondevis.fr/observatoire';
@@ -12,39 +13,163 @@ const breadcrumbs = breadcrumbSchema([
   { name: 'Observatoire', url },
 ]);
 
-// Liste les études disponibles depuis src/data/observatoire
 const fs = await import('node:fs');
 const path = await import('node:path');
-const dir = path.resolve('./src/data/observatoire');
-const files = fs.existsSync(dir)
-  ? fs.readdirSync(dir).filter((f: string) => f.endsWith('.json') && !f.startsWith('_'))
-  : [];
-const studies = files.map((f: string) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8')));
 
-const props = {
-  breadcrumb: [{ name: 'Observatoire', href: '/observatoire' }],
-  title,
-  intro: description,
-  subPages: studies.map((s: any) => ({
-    href: `/observatoire/${s.slug}`,
-    title: s.title,
-    excerpt: s.description,
-    topics: ['verifier', 'prix'],
-    type: 'study',
-  })),
-  footerHtml: `
-    <h2>Comment nous construisons ces statistiques</h2>
-    <p>Chaque chiffre publié ici est calculé à partir des devis analysés par VerifierMonDevis. Nous ne prétendons pas représenter le marché national : nous publions ce que nos outils mesurent réellement sur notre échantillon.</p>
-    <p>Les données sont régénérées chaque mois avec les nouveaux devis. Plus notre base grandit, plus les fourchettes deviennent précises.</p>
-    <p>Le code de génération est ouvert et auditable : <code>scripts/observatoire/generate-observatoire.ts</code>.</p>
-  `,
-  showGmcGateway: true,
-};
+// Charge toutes les études (études globales)
+const studiesDir = path.resolve('./src/data/observatoire');
+const studyFiles = fs.existsSync(studiesDir)
+  ? fs.readdirSync(studiesDir).filter((f: string) => f.endsWith('.json') && !f.startsWith('_'))
+  : [];
+const studies = studyFiles.map((f: string) => JSON.parse(fs.readFileSync(path.join(studiesDir, f), 'utf-8')));
+
+// Charge les métiers avec nb_devis
+const metiersDir = path.resolve('./src/data/observatoire/metiers');
+const metierFiles = fs.existsSync(metiersDir)
+  ? fs.readdirSync(metiersDir).filter((f: string) => f.endsWith('.json'))
+  : [];
+const metiers = metierFiles
+  .map((f: string) => JSON.parse(fs.readFileSync(path.join(metiersDir, f), 'utf-8')))
+  .filter((m: any) => (m.kpis?.nb_devis ?? 0) >= 15)
+  .sort((a: any, b: any) => (b.kpis?.nb_devis ?? 0) - (a.kpis?.nb_devis ?? 0));
+
+// Charge les chantiers avec nb_devis
+const chantiersDir = path.resolve('./src/data/observatoire/chantiers');
+const chantierFiles = fs.existsSync(chantiersDir)
+  ? fs.readdirSync(chantiersDir).filter((f: string) => f.endsWith('.json'))
+  : [];
+const chantiers = chantierFiles
+  .map((f: string) => JSON.parse(fs.readFileSync(path.join(chantiersDir, f), 'utf-8')))
+  .filter((c: any) => (c.kpis?.nb_devis ?? 0) >= 15)
+  .sort((a: any, b: any) => (b.kpis?.nb_devis ?? 0) - (a.kpis?.nb_devis ?? 0));
+
+const totalDevis = studies.find((s: any) => s.slug === 'postes-surfactures')?.totalAnalyses ?? 300;
+const lastUpdated = studies[0]?.lastGenerated
+  ? new Date(studies[0].lastGenerated).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })
+  : null;
 
 export const prerender = false;
 ---
 
 <BaseLayout title={title + ' | VerifierMonDevis.fr'} description={description}>
   <script type="application/ld+json" set:html={JSON.stringify(breadcrumbs)} />
-  <HubPageApp {...props} client:only="react" />
+  <AstroHeader />
+
+  <main class="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
+    <!-- Breadcrumb -->
+    <nav class="text-xs text-muted-foreground mb-6">
+      <a href="/" class="hover:text-foreground">Accueil</a>
+      <span class="mx-1.5">/</span>
+      <span class="text-foreground">Observatoire</span>
+    </nav>
+
+    <!-- Hero -->
+    <header class="max-w-3xl mb-10">
+      <div class="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full mb-4">
+        📊 Basé sur nos analyses de devis réelles
+      </div>
+      <h1 class="text-3xl md:text-4xl font-bold tracking-tight mb-3">
+        L'Observatoire des devis travaux
+      </h1>
+      <p class="text-base md:text-lg text-muted-foreground leading-relaxed mb-4">
+        {description}
+      </p>
+      <div class="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <span class="inline-flex items-center gap-1">📊 {totalDevis} devis analysés</span>
+        {lastUpdated && <span class="inline-flex items-center gap-1">📅 Actualisé le {lastUpdated}</span>}
+        <span class="inline-flex items-center gap-1">👤 Analysé par Johan BRIDEY, co-fondateur</span>
+      </div>
+    </header>
+
+    <!-- Actions rapides -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-12">
+      <a href="/nouvelle-analyse" class="group bg-primary text-primary-foreground rounded-xl p-5 flex items-center justify-between hover:bg-primary/90 transition-colors">
+        <div>
+          <div class="font-semibold">Analyser mon devis gratuitement</div>
+          <div class="text-xs opacity-80">30 secondes, comparaison automatique</div>
+        </div>
+        <span class="text-xl group-hover:translate-x-1 transition-transform">→</span>
+      </a>
+      <a href="/comparateur/nouveau" class="group bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary/40 transition-colors">
+        <div>
+          <div class="font-semibold">Comparer 2 devis</div>
+          <div class="text-xs text-muted-foreground">Analyse comparative multi-artisans</div>
+        </div>
+        <span class="text-xl text-muted-foreground group-hover:translate-x-1 transition-transform">→</span>
+      </a>
+      <a href="https://www.gerermonchantier.fr/mon-chantier" class="group bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary/40 transition-colors">
+        <div>
+          <div class="font-semibold">Piloter mon chantier</div>
+          <div class="text-xs text-muted-foreground">Budget, planning, artisans</div>
+        </div>
+        <span class="text-xl text-muted-foreground group-hover:translate-x-1 transition-transform">→</span>
+      </a>
+    </section>
+
+    <!-- Études -->
+    {studies.length > 0 && (
+      <section class="mb-12">
+        <h2 class="text-xl font-bold tracking-tight mb-4">Nos études thématiques</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {studies.map((s: any) => (
+            <a href={`/observatoire/${s.slug}`} class="group block p-5 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
+              <h3 class="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">{s.title}</h3>
+              <p class="text-xs text-muted-foreground line-clamp-2">{s.description}</p>
+              {s.totalAnalyses && (
+                <p class="text-xs text-muted-foreground mt-2">Basée sur {s.totalAnalyses} devis analysés</p>
+              )}
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- Top chantiers -->
+    {chantiers.length > 0 && (
+      <section class="mb-12">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold tracking-tight">Prix par type de chantier</h2>
+          <span class="text-xs text-muted-foreground">{chantiers.length} chantiers</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {chantiers.map((c: any) => (
+            <a href={`/observatoire/chantiers/${c.slug}`} class="group block p-4 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
+              <h3 class="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">Prix {c.chantier_label.toLowerCase()}</h3>
+              <p class="text-xs text-muted-foreground">{c.kpis.nb_devis} devis analysés</p>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- Top métiers -->
+    {metiers.length > 0 && (
+      <section class="mb-12">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold tracking-tight">Prix par métier</h2>
+          <span class="text-xs text-muted-foreground">{metiers.length} métiers</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {metiers.map((m: any) => (
+            <a href={`/observatoire/metiers/${m.slug}`} class="group block p-4 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
+              <h3 class="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">Prix {m.metier_label.toLowerCase()}</h3>
+              <p class="text-xs text-muted-foreground">{m.kpis.nb_devis} devis analysés</p>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- Méthodologie honnête -->
+    <section class="my-12 border-t border-border pt-8">
+      <h2 class="text-lg font-bold mb-3">Comment nous construisons ces statistiques</h2>
+      <div class="prose prose-sm max-w-3xl text-muted-foreground">
+        <p>Chaque chiffre publié ici est calculé à partir des devis analysés par VerifierMonDevis. Nous ne prétendons pas représenter le marché national : nous publions ce que nos outils mesurent réellement sur notre échantillon.</p>
+        <p>Les données sont régénérées chaque mois avec les nouveaux devis. Plus notre base grandit, plus les fourchettes deviennent précises.</p>
+        <p>Le code de génération est ouvert et auditable : <code>scripts/observatoire/generate-observatoire.ts</code>.</p>
+      </div>
+    </section>
+  </main>
+
+  <AstroFooter />
 </BaseLayout>

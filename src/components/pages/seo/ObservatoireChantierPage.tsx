@@ -8,13 +8,12 @@
  */
 
 import Breadcrumb from "@/components/seo/Breadcrumb";
-import RelatedGuides from "@/components/seo/RelatedGuides";
-import GmcGatewayBanner from "@/components/cta/GmcGatewayBanner";
 import ObservatoireChip from "@/components/seo/ObservatoireChip";
 import ObservatoireDisclaimer from "@/components/seo/ObservatoireDisclaimer";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Database } from "lucide-react";
+import ObservatoireCrossLinks from "@/components/seo/ObservatoireCrossLinks";
+import { Database } from "lucide-react";
 import type { InternalLink } from "@/lib/seo/internalLinking";
+import { getObservatoireCrossLinks } from "@/lib/seo/observatoireCrossLinks";
 
 export interface ChantierData {
   slug: string;
@@ -41,7 +40,7 @@ export interface ChantierData {
 
 interface Props {
   data: ChantierData;
-  related: InternalLink[];
+  related?: InternalLink[];
 }
 
 function fmtEUR(n: number | null | undefined): string {
@@ -49,8 +48,9 @@ function fmtEUR(n: number | null | undefined): string {
   return Math.round(n).toLocaleString("fr-FR") + " €";
 }
 
-export default function ObservatoireChantierPage({ data, related }: Props) {
+export default function ObservatoireChantierPage({ data }: Props) {
   const hasData = data.kpis.nb_lignes > 0;
+  const crossLinks = getObservatoireCrossLinks("chantier", data.slug);
 
   return (
     <main className="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-12">
@@ -149,24 +149,18 @@ export default function ObservatoireChantierPage({ data, related }: Props) {
         </>
       )}
 
-      <div className="my-10 flex flex-wrap justify-center gap-3">
-        <Button asChild size="lg">
-          <a href="/nouvelle-analyse">
-            Vérifier mon devis {data.chantier_label.toLowerCase()} <ArrowRight className="ml-2 h-4 w-4" />
-          </a>
-        </Button>
-        <Button asChild size="lg" variant="outline">
-          <a href="/comparateur">Comparer plusieurs devis</a>
-        </Button>
-      </div>
+      <ObservatoireCrossLinks
+        type="chantier"
+        slug={data.slug}
+        metiers={crossLinks.metiers}
+        chantiers={crossLinks.chantiers}
+        guide={crossLinks.guide}
+        analyse={crossLinks.analyse}
+        comparateur={crossLinks.comparateur}
+        gmcRelevant={crossLinks.gmcRelevant}
+      />
 
       <ObservatoireDisclaimer />
-
-      <RelatedGuides items={related} title="À explorer aussi" />
-
-      <div className="mt-10">
-        <GmcGatewayBanner variant="guide" />
-      </div>
     </main>
   );
 }

@@ -6,13 +6,12 @@
  */
 
 import Breadcrumb from "@/components/seo/Breadcrumb";
-import RelatedGuides from "@/components/seo/RelatedGuides";
-import GmcGatewayBanner from "@/components/cta/GmcGatewayBanner";
 import ObservatoireChip from "@/components/seo/ObservatoireChip";
 import ObservatoireDisclaimer from "@/components/seo/ObservatoireDisclaimer";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Database, HourglassIcon } from "lucide-react";
+import ObservatoireCrossLinks from "@/components/seo/ObservatoireCrossLinks";
+import { Database, HourglassIcon } from "lucide-react";
 import type { InternalLink } from "@/lib/seo/internalLinking";
+import { getObservatoireCrossLinks } from "@/lib/seo/observatoireCrossLinks";
 
 export interface EtudeData {
   slug: string;
@@ -33,10 +32,11 @@ export interface EtudeData {
 
 interface Props {
   data: EtudeData;
-  related: InternalLink[];
+  related?: InternalLink[];
 }
 
-export default function EtudeVmdPage({ data, related }: Props) {
+export default function EtudeVmdPage({ data }: Props) {
+  const crossLinks = getObservatoireCrossLinks("etude", data.slug);
   return (
     <main className="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-12">
       <Breadcrumb segments={[
@@ -110,21 +110,18 @@ export default function EtudeVmdPage({ data, related }: Props) {
         </section>
       )}
 
-      <div className="my-10 flex justify-center">
-        <Button asChild size="lg">
-          <a href="/nouvelle-analyse">
-            Vérifier mon propre devis <ArrowRight className="ml-2 h-4 w-4" />
-          </a>
-        </Button>
-      </div>
+      <ObservatoireCrossLinks
+        type="etude"
+        slug={data.slug}
+        metiers={crossLinks.metiers}
+        chantiers={crossLinks.chantiers}
+        guide={crossLinks.guide}
+        analyse={crossLinks.analyse}
+        comparateur={crossLinks.comparateur}
+        gmcRelevant={crossLinks.gmcRelevant}
+      />
 
       <ObservatoireDisclaimer />
-
-      <RelatedGuides items={related} title="Études et guides liés" />
-
-      <div className="mt-10">
-        <GmcGatewayBanner variant="guide" />
-      </div>
     </main>
   );
 }

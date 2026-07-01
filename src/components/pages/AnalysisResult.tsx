@@ -3,6 +3,7 @@ import { trackEvent } from "@/lib/integrations/amplitude";
 import { trackPixelOnce } from "@/lib/integrations/metaPixel";
 import { trackTikTokOnce } from "@/lib/integrations/tiktokPixel";
 import GmcGatewayBanner from "@/components/cta/GmcGatewayBanner";
+import PourAllerPlusLoin from "@/components/analysis/PourAllerPlusLoin";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -1483,6 +1484,9 @@ const AnalysisResult = () => {
             <OcrDebugPanel analysisId={analysis.id} />
           </Suspense>
         )}
+
+        {/* Pour aller plus loin — cocon sémantique post-verdict */}
+        <PourAllerPlusLoin />
 
         {/* Disclaimer */}
         <div className="bg-muted/50 border border-border rounded-xl p-5 mb-8">

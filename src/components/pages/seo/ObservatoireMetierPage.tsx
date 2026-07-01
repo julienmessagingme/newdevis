@@ -15,13 +15,12 @@
  */
 
 import Breadcrumb from "@/components/seo/Breadcrumb";
-import RelatedGuides from "@/components/seo/RelatedGuides";
-import GmcGatewayBanner from "@/components/cta/GmcGatewayBanner";
 import ObservatoireChip from "@/components/seo/ObservatoireChip";
 import ObservatoireDisclaimer from "@/components/seo/ObservatoireDisclaimer";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Database, TrendingUp } from "lucide-react";
+import ObservatoireCrossLinks from "@/components/seo/ObservatoireCrossLinks";
+import { Database, TrendingUp } from "lucide-react";
 import type { InternalLink } from "@/lib/seo/internalLinking";
+import { getObservatoireCrossLinks } from "@/lib/seo/observatoireCrossLinks";
 
 export interface MetierData {
   slug: string;                     // "peinture-revetements"
@@ -53,7 +52,7 @@ export interface MetierData {
 
 interface Props {
   data: MetierData;
-  related: InternalLink[];
+  related?: InternalLink[];
 }
 
 function fmtEUR(n: number | null | undefined): string {
@@ -68,8 +67,9 @@ function fmtPct(ratio: number | null | undefined): string {
   return sign + Math.round(pct) + "%";
 }
 
-export default function ObservatoireMetierPage({ data, related }: Props) {
+export default function ObservatoireMetierPage({ data }: Props) {
   const hasData = data.kpis.nb_lignes > 0;
+  const crossLinks = getObservatoireCrossLinks("metier", data.slug);
 
   return (
     <main className="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-12">
@@ -247,25 +247,18 @@ export default function ObservatoireMetierPage({ data, related }: Props) {
         </>
       )}
 
-      {/* CTA */}
-      <div className="my-10 flex flex-wrap justify-center gap-3">
-        <Button asChild size="lg">
-          <a href="/nouvelle-analyse">
-            Vérifier mon devis {data.metier_label.toLowerCase()} <ArrowRight className="ml-2 h-4 w-4" />
-          </a>
-        </Button>
-        <Button asChild size="lg" variant="outline">
-          <a href="/comparateur">Comparer plusieurs devis</a>
-        </Button>
-      </div>
+      <ObservatoireCrossLinks
+        type="metier"
+        slug={data.slug}
+        metiers={crossLinks.metiers}
+        chantiers={crossLinks.chantiers}
+        guide={crossLinks.guide}
+        analyse={crossLinks.analyse}
+        comparateur={crossLinks.comparateur}
+        gmcRelevant={crossLinks.gmcRelevant}
+      />
 
       <ObservatoireDisclaimer />
-
-      <RelatedGuides items={related} title="À explorer aussi" />
-
-      <div className="mt-10">
-        <GmcGatewayBanner variant="guide" />
-      </div>
     </main>
   );
 }

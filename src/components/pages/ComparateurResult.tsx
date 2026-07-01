@@ -362,6 +362,29 @@ export default function ComparateurResult() {
           </Button>
         )}
       </div>
+
+      {/* Pour aller plus loin — cocon post-comparateur */}
+      <section className="mt-10 border-t border-border pt-8">
+        <h2 className="text-lg font-bold mb-4">Pour aller plus loin</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <a href="/observatoire" className="group block p-4 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
+            <div className="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">Voir les prix marché</div>
+            <div className="text-xs text-muted-foreground">Fourchettes par métier et chantier</div>
+          </a>
+          <a href="/guides/devis-travaux" className="group block p-4 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
+            <div className="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">Le guide du devis travaux</div>
+            <div className="text-xs text-muted-foreground">Comprendre, négocier, signer</div>
+          </a>
+          <a href="/nouvelle-analyse" className="group block p-4 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
+            <div className="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">Analyser un autre devis</div>
+            <div className="text-xs text-muted-foreground">Vérification gratuite en 30 s</div>
+          </a>
+          <a href="https://www.gerermonchantier.fr/mon-chantier" className="group block p-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+            <div className="font-semibold text-sm mb-1">Piloter mon chantier</div>
+            <div className="text-xs opacity-80">Budget, planning, artisans</div>
+          </a>
+        </div>
+      </section>
     </div>
   );
 }
