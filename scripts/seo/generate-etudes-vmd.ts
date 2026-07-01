@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..");
-const OUTPUT_DIR = join(ROOT, "src", "data", "etudes-vmd");
+const OUTPUT_DIR = join(ROOT, "src", "data", "observatoire");
 
 function loadEnvFile(name: string): boolean {
   const p = join(ROOT, name);

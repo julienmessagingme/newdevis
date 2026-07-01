@@ -9,6 +9,16 @@
       "source": "/Messaging%20Me",
       "destination": "/",
       "permanent": true
+    },
+    {
+      "source": "/etudes-vmd",
+      "destination": "/observatoire",
+      "permanent": true
+    },
+    {
+      "source": "/etudes-vmd/:slug",
+      "destination": "/observatoire/:slug",
+      "permanent": true
     }
   ],
   "headers": [

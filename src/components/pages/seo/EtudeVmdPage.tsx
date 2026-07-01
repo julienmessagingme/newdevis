@@ -42,8 +42,8 @@ export default function EtudeVmdPage({ data, related }: Props) {
   return (
     <main className="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-12">
       <Breadcrumb segments={[
-        { name: "Études VMD", href: "/etudes-vmd" },
-        { name: data.title, href: `/etudes-vmd/${data.slug}` },
+        { name: "Observatoire", href: "/observatoire" },
+        { name: data.title, href: `/observatoire/${data.slug}` },
       ]} />
 
       {/* Badge "Données réelles" */}

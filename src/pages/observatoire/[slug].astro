@@ -8,7 +8,7 @@ import { getRelatedLinks } from '@/lib/seo/internalLinking';
 export async function getStaticPaths() {
   const fs = await import('node:fs');
   const path = await import('node:path');
-  const dir = path.resolve('./src/data/etudes-vmd');
+  const dir = path.resolve('./src/data/observatoire');
   if (!fs.existsSync(dir)) return [];
 
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('_'));
@@ -19,11 +19,11 @@ export async function getStaticPaths() {
 }
 
 const { data } = Astro.props;
-const url = `https://www.verifiermondevis.fr/etudes-vmd/${data.slug}`;
+const url = `https://www.verifiermondevis.fr/observatoire/${data.slug}`;
 
 const breadcrumbs = breadcrumbSchema([
   { name: 'Accueil', url: 'https://www.verifiermondevis.fr/' },
-  { name: 'Études VMD', url: 'https://www.verifiermondevis.fr/etudes-vmd' },
+  { name: 'Observatoire', url: 'https://www.verifiermondevis.fr/observatoire' },
   { name: data.title, url },
 ]);
 
@@ -37,7 +37,7 @@ const article = articleSchema({
 
 const schemas = combineSchemas(article, breadcrumbs);
 
-const related = getRelatedLinks(['verifier', 'prix'], `/etudes-vmd/${data.slug}`, { count: 4, excludeTypes: ['study'] });
+const related = getRelatedLinks(['verifier', 'prix'], `/observatoire/${data.slug}`, { count: 4, excludeTypes: ['study'] });
 
 export const prerender = true;
 ---

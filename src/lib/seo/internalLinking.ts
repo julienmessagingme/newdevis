@@ -155,14 +155,14 @@ export const INTERNAL_PAGES: InternalLink[] = [
 
   // ─── Études VMD (données réelles) ──────────────────────────────────────
   {
-    href: "/etudes-vmd/erreurs-frequentes",
+    href: "/observatoire/erreurs-frequentes",
     title: "Étude VMD : les erreurs les plus fréquentes",
     excerpt: "Données réelles sur 348 devis analysés. Quels métiers, quels postes.",
     topics: ["verifier", "prix"],
     type: "study",
   },
   {
-    href: "/etudes-vmd/postes-surfactures",
+    href: "/observatoire/postes-surfactures",
     title: "Étude VMD : les postes les plus surfacturés",
     excerpt: "Top 10 des postes où l'écart entre devis et marché est le plus élevé.",
     topics: ["prix", "verifier"],

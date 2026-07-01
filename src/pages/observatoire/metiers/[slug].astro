@@ -1,0 +1,49 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ObservatoireMetierApp from '@/components/app/ObservatoireMetierApp';
+import { articleSchema, breadcrumbSchema, combineSchemas } from '@/lib/seo/schemaOrg';
+import { getRelatedLinks } from '@/lib/seo/internalLinking';
+
+export async function getStaticPaths() {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const dir = path.resolve('./src/data/observatoire/metiers');
+  if (!fs.existsSync(dir)) return [];
+
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('_'));
+  return files.map((file) => {
+    const data = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+    return { params: { slug: data.slug }, props: { data } };
+  });
+}
+
+const { data } = Astro.props;
+const url = `https://www.verifiermondevis.fr/observatoire/metiers/${data.slug}`;
+
+const breadcrumbs = breadcrumbSchema([
+  { name: 'Accueil', url: 'https://www.verifiermondevis.fr/' },
+  { name: 'Observatoire', url: 'https://www.verifiermondevis.fr/observatoire' },
+  { name: 'Métiers', url: 'https://www.verifiermondevis.fr/observatoire/metiers' },
+  { name: data.metier_label, url },
+]);
+
+const article = articleSchema({
+  title: data.title,
+  description: data.description,
+  url,
+  datePublished: data.lastGenerated,
+  dateModified: data.lastGenerated,
+});
+
+const schemas = combineSchemas(article, breadcrumbs);
+const related = getRelatedLinks(['verifier', 'prix'], `/observatoire/metiers/${data.slug}`, { count: 4 });
+
+export const prerender = true;
+---
+
+<BaseLayout title={data.title + ' | VerifierMonDevis.fr'} description={data.description}>
+  {schemas.map((schema) => (
+    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+  ))}
+  <ObservatoireMetierApp data={data} related={related} client:only="react" />
+</BaseLayout>
