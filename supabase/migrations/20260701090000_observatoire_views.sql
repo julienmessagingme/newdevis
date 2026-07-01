@@ -103,7 +103,11 @@ WHERE g.catalog_job_type IS NOT NULL
   AND g.main_quantity IS NOT NULL AND g.main_quantity > 0
   AND (g.similarity_str IS NULL OR g.similarity_str::NUMERIC >= 0.77);
 
-CREATE UNIQUE INDEX IF NOT EXISTS mv_observatoire_base_pk
+-- Index NON unique : une meme analyse peut contenir plusieurs lignes du meme
+-- catalog_job_type (ex: faux_plafond_ba13 dans 2 pieces differentes).
+-- Consequence : REFRESH MATERIALIZED VIEW CONCURRENTLY inaccessible sur cette MV
+-- mais le REFRESH classique fonctionne parfaitement.
+CREATE INDEX IF NOT EXISTS mv_observatoire_base_analysis_idx
   ON public.mv_observatoire_base (analysis_id, catalog_job_type);
 
 CREATE INDEX IF NOT EXISTS mv_observatoire_base_metier_idx
