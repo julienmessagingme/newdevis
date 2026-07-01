@@ -48,7 +48,7 @@ const lastUpdated = studies[0]?.lastGenerated
   ? new Date(studies[0].lastGenerated).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })
   : null;
 
-export const prerender = false;
+export const prerender = true;
 ---
 
 <BaseLayout title={title + ' | VerifierMonDevis.fr'} description={description}>

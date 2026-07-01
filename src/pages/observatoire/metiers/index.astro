@@ -1,0 +1,93 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+import { breadcrumbSchema } from '@/lib/seo/schemaOrg';
+
+const url = 'https://www.verifiermondevis.fr/observatoire/metiers';
+const title = "Prix par metier : fourchettes reelles sur devis 2026";
+const description = "Prix menuiserie, peinture, toiture, carrelage, plomberie : fourchettes calculees sur les devis analyses par VerifierMonDevis.";
+
+const breadcrumbs = breadcrumbSchema([
+  { name: 'Accueil', url: 'https://www.verifiermondevis.fr/' },
+  { name: 'Observatoire', url: 'https://www.verifiermondevis.fr/observatoire' },
+  { name: 'Metiers', url },
+]);
+
+const fs = await import('node:fs');
+const path = await import('node:path');
+const dir = path.resolve('./src/data/observatoire/metiers');
+const files = fs.existsSync(dir)
+  ? fs.readdirSync(dir).filter((f: string) => f.endsWith('.json') && !f.startsWith('_'))
+  : [];
+
+const all = files
+  .map((f: string) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8')))
+  .sort((a: any, b: any) => (b.kpis?.nb_devis ?? 0) - (a.kpis?.nb_devis ?? 0));
+
+const rich = all.filter((m: any) => (m.kpis?.nb_devis ?? 0) >= 15);
+const enConstruction = all.filter((m: any) => (m.kpis?.nb_devis ?? 0) < 15);
+
+export const prerender = true;
+---
+
+<BaseLayout title={title + ' | VerifierMonDevis.fr'} description={description}>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbs)} />
+  <AstroHeader />
+
+  <main class="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-12">
+    <nav class="text-xs text-muted-foreground mb-6">
+      <a href="/" class="hover:text-foreground">Accueil</a>
+      <span class="mx-1.5">/</span>
+      <a href="/observatoire" class="hover:text-foreground">Observatoire</a>
+      <span class="mx-1.5">/</span>
+      <span class="text-foreground">Metiers</span>
+    </nav>
+
+    <header class="max-w-3xl mb-8">
+      <h1 class="text-3xl md:text-4xl font-bold tracking-tight mb-3">
+        Prix par metier
+      </h1>
+      <p class="text-base md:text-lg text-muted-foreground leading-relaxed">
+        Fourchettes de prix calculees a partir des devis analyses par VerifierMonDevis, classees par volume d'analyses.
+      </p>
+    </header>
+
+    {rich.length > 0 && (
+      <section class="mb-10">
+        <h2 class="text-lg font-bold mb-4">Metiers les plus analyses</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {rich.map((m: any) => (
+            <a href={`/observatoire/metiers/${m.slug}`} class="group block p-4 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
+              <h3 class="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">Prix {m.metier_label.toLowerCase()}</h3>
+              <p class="text-xs text-muted-foreground">{m.kpis.nb_devis} devis analyses</p>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {enConstruction.length > 0 && (
+      <section class="mb-10">
+        <h2 class="text-lg font-bold mb-4">En cours d'enrichissement</h2>
+        <p class="text-xs text-muted-foreground mb-3">Ces metiers ont peu de devis analyses — les fourchettes seront affinees a mesure que la base grandit.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {enConstruction.map((m: any) => (
+            <a href={`/observatoire/metiers/${m.slug}`} class="group block p-4 rounded-xl bg-muted/40 border border-border/60 hover:border-primary/40 transition-colors">
+              <h3 class="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">Prix {m.metier_label.toLowerCase()}</h3>
+              <p class="text-xs text-muted-foreground">{m.kpis?.nb_devis ?? 0} devis</p>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <div class="mt-10 flex flex-wrap gap-3">
+      <a href="/observatoire" class="text-sm font-medium text-primary hover:underline">← Retour a l'Observatoire</a>
+      <span class="text-muted-foreground">·</span>
+      <a href="/observatoire/chantiers" class="text-sm font-medium text-primary hover:underline">Voir les prix par chantier</a>
+    </div>
+  </main>
+
+  <AstroFooter />
+</BaseLayout>
