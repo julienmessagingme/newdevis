@@ -449,7 +449,17 @@
       "Bash(awk 'length\\($0\\) > 2000 {print NR\": \"length\\($0\\)\" chars\"}' CLAUDE.md)",
       "Bash(awk 'length\\($0\\) > 1500 {print NR\": \"length\\($0\\)\" chars\"}' CLAUDE.md)",
       "Bash(awk 'NR>=311 && NR<=315 {print NR\": \"substr\\($0, 1, 100\\)}' CLAUDE.md)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(awk -F',' '{print $5}')",
+      "Bash(awk -F',' '{printf \"%s | %s | %s | %s\\\\n\", $5, $3, $4, $10}')",
+      "Bash(awk -F',' '{printf \"%s|%s|%s\\\\n\", $1, $5, $3}')",
+      "Bash(awk -F',' '{printf \"%s | %s | %s | %s\\\\n\", $1, $5, $3, $9}')",
+      "Bash(awk -F, '{printf \"%s | %s | %s\\\\n\", $1, $3, $NF}')",
+      "Bash(npx --yes tsx --eval \"const r = await import\\('./src/lib/analyse/extract/reconciliation.ts'\\); const out = r.reconcileLigne\\({id_hierarchique:'1.1',libelle:'test',quantite:85,unite:'m2',prix_unitaire:30,montant_total:2550}\\); console.log\\(JSON.stringify\\(out, null, 2\\)\\);\")",
+      "Bash(npx --yes tsx -e \"import\\('./src/lib/analyse/extract/reconciliation.ts'\\).then\\(r => { const out = r.reconcileLigne\\({id_hierarchique:'1.1',libelle:'test',quantite:85,unite:'m2',prix_unitaire:30,montant_total:2550}\\); console.log\\('arithmetique_valide:', out.arithmetique_valide\\); console.log\\('prix_unitaire source:', out.prix_unitaire_confidence.source\\); }\\);\")",
+      "Bash(npm test *)",
+      "Bash(git branch *)",
+      "Bash(grep -v \"node_modules\\\\|tsx\\)$\")"
     ]
   }
 }
