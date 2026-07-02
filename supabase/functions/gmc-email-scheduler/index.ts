@@ -203,7 +203,10 @@ Deno.serve(async (req: Request) => {
   const { data: subs, error } = await sb
     .from("gmc_subscriptions")
     .select("user_id, status, plan, trial_started_at, trial_ends_at, current_period_end, multi_intent_at, stripe_subscription_id")
-    .in("status", ["trial", "active", "past_due", "expired"]);
+    .in("status", ["trial", "active", "past_due", "expired"])
+    // RGPD : exclut les users qui ont demande la desinscription (email_opt_out=true).
+    // La colonne a un DEFAULT FALSE via la migration 20260702 donc pas besoin de gerer NULL.
+    .eq("email_opt_out", false);
 
   if (error) {
     console.error("[scheduler] query subs:", error.message);

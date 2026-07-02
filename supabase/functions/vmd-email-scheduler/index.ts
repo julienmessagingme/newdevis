@@ -83,7 +83,10 @@ Deno.serve(async (req: Request) => {
   const { data: signups, error } = await sb
     .from("vmd_signups")
     .select("user_id, created_at")
-    .gte("created_at", sinceIso);
+    .gte("created_at", sinceIso)
+    // RGPD : exclut les users qui ont demande la desinscription (email_opt_out=true).
+    // La colonne a un DEFAULT FALSE via la migration 20260702 donc pas besoin de gerer NULL.
+    .eq("email_opt_out", false);
 
   if (error) {
     console.error("[vmd-scheduler] query signups:", error.message);
