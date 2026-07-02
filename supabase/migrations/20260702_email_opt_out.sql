@@ -34,6 +34,7 @@ as $$
 declare
   v_user_id uuid;
   v_updated integer := 0;
+  v_row_count integer;
 begin
   select id into v_user_id from auth.users where lower(email) = lower(p_email) limit 1;
   if v_user_id is null then
@@ -45,14 +46,16 @@ begin
          email_opt_out_at = coalesce(email_opt_out_at, now())
    where user_id = v_user_id
      and email_opt_out = false;
-  get diagnostics v_updated = row_count;
+  get diagnostics v_row_count = row_count;
+  v_updated := v_updated + v_row_count;
 
   update public.vmd_signups
      set email_opt_out = true,
          email_opt_out_at = coalesce(email_opt_out_at, now())
    where user_id = v_user_id
      and email_opt_out = false;
-  get diagnostics v_updated = v_updated + row_count;
+  get diagnostics v_row_count = row_count;
+  v_updated := v_updated + v_row_count;
 
   return v_updated;
 end;
