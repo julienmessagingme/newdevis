@@ -26,6 +26,9 @@ export interface GmcEmailVars {
   lien_desinscription?: string;
   lien_mentions?: string;
   lien_avis?: string;
+  /** Si fourni, le lien de desinscription pointe vers /desinscription?u=<user_id>
+   * (1 clic = opt-out enregistre en base RGPD). Sinon fallback mailto. */
+  user_id?: string;
 }
 
 interface EmailDef {
@@ -486,7 +489,11 @@ export function renderGmcEmail(
     date_renouvellement: escText(vars.date_renouvellement ?? "prochainement"),
     montant: escText(vars.montant ?? "12 €"),
     lien_cta: escAttr(vars.lien_cta ?? "https://www.gerermonchantier.fr/mon-chantier"),
-    lien_desinscription: escAttr(vars.lien_desinscription ?? "mailto:contact@gerermonchantier.fr?subject=Désinscription"),
+    lien_desinscription: escAttr(vars.lien_desinscription ?? (
+      vars.user_id
+        ? `https://www.gerermonchantier.fr/desinscription?u=${encodeURIComponent(vars.user_id)}`
+        : "mailto:contact@gerermonchantier.fr?subject=Désinscription"
+    )),
     lien_mentions: escAttr(vars.lien_mentions ?? "https://www.gerermonchantier.fr/mentions-legales"),
     lien_avis: escAttr(vars.lien_avis ?? "https://www.gerermonchantier.fr/avis"),
   };

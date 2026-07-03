@@ -1,0 +1,171 @@
+---
+// Page publique de désinscription 1-click (RGPD Phase 2).
+// URL type : /desinscription?u=<user_uuid>
+//
+// - Lit user_id depuis query
+// - Résout email via auth.users (service_role)
+// - Appelle mark_email_opt_out(email) → flippe email_opt_out sur gmc_subscriptions + vmd_signups
+// - Affiche page de confirmation
+//
+// Sert les 2 domaines (verifiermondevis.fr + gerermonchantier.fr) car même build Vercel.
+
+export const prerender = false;
+
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+import { createClient } from '@supabase/supabase-js';
+
+const url = new URL(Astro.request.url);
+const userId = url.searchParams.get('u') ?? '';
+
+type State = 'ok' | 'not_found' | 'missing' | 'error';
+let state: State = 'missing';
+let email = '';
+
+// Détection du brand pour adapter les textes (envoyé depuis quelle marque).
+const host = Astro.request.headers.get('host') ?? '';
+const isGmc = host.includes('gerermonchantier');
+const brandLabel = isGmc ? 'GérerMonChantier' : 'VerifierMonDevis';
+
+if (userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+  const SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+  const SERVICE_ROLE = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (SUPABASE_URL && SERVICE_ROLE) {
+    try {
+      const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      // Recupere l'email pour affichage + verifie que le uuid existe.
+      const { data: ud, error: uerr } = await sb.auth.admin.getUserById(userId);
+      if (uerr || !ud?.user?.email) {
+        state = 'not_found';
+      } else {
+        email = ud.user.email;
+        const { data, error } = await sb.rpc('mark_email_opt_out', { p_email: email });
+        if (error) {
+          console.error('[desinscription] rpc error', error.message);
+          state = 'error';
+        } else {
+          // La fonction retourne 0 (user pas dans les tables) ou 1-2 (flippé).
+          // Dans les 2 cas on considere l'opt-out comme actif : soit c'est fait,
+          // soit il n'y avait deja rien a flipper.
+          state = 'ok';
+          console.log('[desinscription] opt-out ok, tables flippees:', data);
+        }
+      }
+    } catch (e) {
+      console.error('[desinscription] fatal', (e as Error).message);
+      state = 'error';
+    }
+  } else {
+    console.error('[desinscription] missing supabase env');
+    state = 'error';
+  }
+} else if (userId) {
+  // UUID present mais malforme.
+  state = 'not_found';
+}
+
+const title = 'Désinscription | ' + brandLabel;
+const description = 'Confirmation de désinscription de nos communications par email.';
+---
+
+<BaseLayout title={title} description={description} noindex={true}>
+  <AstroHeader />
+  <main class="max-w-2xl mx-auto px-4 py-16">
+    {state === 'ok' && (
+      <div class="text-center">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-6">
+          <svg class="w-8 h-8 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <h1 class="text-2xl md:text-3xl font-bold mb-3">Désinscription confirmée</h1>
+        <p class="text-muted-foreground mb-2">
+          {email
+            ? `L'adresse ${email} ne recevra plus d'emails de ${brandLabel}.`
+            : `Vous ne recevrez plus d'emails de ${brandLabel}.`}
+        </p>
+        <p class="text-sm text-muted-foreground mb-8">
+          Cet opt-out s'applique aux séquences de bienvenue, d'engagement et de conversion (VerifierMonDevis et GérerMonChantier). Les emails contractuels liés à un paiement en cours restent envoyés (obligation légale).
+        </p>
+        <a href="/" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+          Retour à l'accueil
+        </a>
+      </div>
+    )}
+
+    {state === 'not_found' && (
+      <div class="text-center">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 mb-6">
+          <svg class="w-8 h-8 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <h1 class="text-2xl md:text-3xl font-bold mb-3">Lien invalide</h1>
+        <p class="text-muted-foreground mb-2">
+          Ce lien de désinscription n'est pas valide ou a expiré.
+        </p>
+        <p class="text-sm text-muted-foreground mb-8">
+          Si vous souhaitez toujours vous désinscrire, envoyez-nous un email à
+          {isGmc
+            ? <a href="mailto:contact@gerermonchantier.fr?subject=Désinscription" class="text-primary hover:underline">contact@gerermonchantier.fr</a>
+            : <a href="mailto:contact@verifiermondevis.fr?subject=Désinscription" class="text-primary hover:underline">contact@verifiermondevis.fr</a>
+          } avec pour sujet « Désinscription ». Nous traiterons votre demande sous 48 h.
+        </p>
+        <a href="/" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+          Retour à l'accueil
+        </a>
+      </div>
+    )}
+
+    {state === 'missing' && (
+      <div class="text-center">
+        <h1 class="text-2xl md:text-3xl font-bold mb-3">Gérer mes emails</h1>
+        <p class="text-muted-foreground mb-6">
+          Pour vous désinscrire, cliquez sur le lien présent en bas de chacun de nos emails ou contactez-nous.
+        </p>
+        <p class="text-sm text-muted-foreground mb-8">
+          Envoyez un email à
+          {isGmc
+            ? <a href="mailto:contact@gerermonchantier.fr?subject=Désinscription" class="text-primary hover:underline">contact@gerermonchantier.fr</a>
+            : <a href="mailto:contact@verifiermondevis.fr?subject=Désinscription" class="text-primary hover:underline">contact@verifiermondevis.fr</a>
+          } avec pour sujet « Désinscription » et nous traiterons votre demande sous 48 h.
+        </p>
+        <a href="/" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+          Retour à l'accueil
+        </a>
+      </div>
+    )}
+
+    {state === 'error' && (
+      <div class="text-center">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-6">
+          <svg class="w-8 h-8 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+        </div>
+        <h1 class="text-2xl md:text-3xl font-bold mb-3">Une erreur est survenue</h1>
+        <p class="text-muted-foreground mb-2">
+          Nous n'avons pas pu enregistrer votre désinscription automatiquement.
+        </p>
+        <p class="text-sm text-muted-foreground mb-8">
+          Merci d'envoyer un email à
+          {isGmc
+            ? <a href="mailto:contact@gerermonchantier.fr?subject=Désinscription" class="text-primary hover:underline">contact@gerermonchantier.fr</a>
+            : <a href="mailto:contact@verifiermondevis.fr?subject=Désinscription" class="text-primary hover:underline">contact@verifiermondevis.fr</a>
+          } — nous traiterons votre demande sous 48 h.
+        </p>
+        <a href="/" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+          Retour à l'accueil
+        </a>
+      </div>
+    )}
+  </main>
+  <AstroFooter />
+</BaseLayout>

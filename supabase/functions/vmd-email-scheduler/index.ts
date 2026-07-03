@@ -146,7 +146,10 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (insErr || !ins) continue;
 
-    const { subject, html } = renderVmdEmail(pick, { prenom });
+    const { subject, html } = renderVmdEmail(pick, {
+      prenom,
+      user_id: s.user_id, // lien desinscription 1-click (Phase 2 RGPD)
+    });
     const ok = await sendEmail(email, subject, html);
     if (ok) {
       sent++;

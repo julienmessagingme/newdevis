@@ -264,6 +264,7 @@ Deno.serve(async (req: Request) => {
       prenom,
       nom_chantier: nomChantier,
       lien_cta: ctaFor(pick.id),
+      user_id: s.user_id, // lien desinscription 1-click (Phase 2 RGPD)
       ...(pick.vars ?? {}),
     });
     const ok = await sendEmail(email, subject, html);

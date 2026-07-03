@@ -10,6 +10,9 @@ export interface VmdEmailVars {
   prenom?: string;
   lien_desinscription?: string;
   lien_mentions?: string;
+  /** Si fourni, le lien de desinscription pointe vers /desinscription?u=<user_id>
+   * (1 clic = opt-out enregistre en base RGPD). Sinon fallback mailto. */
+  user_id?: string;
 }
 
 interface EmailDef { subject: string; preheader: string; }
@@ -65,7 +68,11 @@ export function renderVmdEmail(
   const prenom = String(vars.prenom ?? '').trim();
   const map: Record<string, string> = {
     prenom: prenom ? ' ' + escText(prenom) : '',
-    lien_desinscription: escAttr(vars.lien_desinscription ?? 'mailto:contact@verifiermondevis.fr?subject=Désinscription'),
+    lien_desinscription: escAttr(vars.lien_desinscription ?? (
+      vars.user_id
+        ? `https://www.verifiermondevis.fr/desinscription?u=${encodeURIComponent(vars.user_id)}`
+        : 'mailto:contact@verifiermondevis.fr?subject=Désinscription'
+    )),
     lien_mentions: escAttr(vars.lien_mentions ?? 'https://www.verifiermondevis.fr/mentions-legales'),
   };
   const html = TEMPLATES[id].replace(/\{\{(\w+)\}\}/g, (m, k) => (k in map ? map[k] : m));

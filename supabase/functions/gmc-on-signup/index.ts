@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
         prenom,
         nom_chantier: meta.nom_chantier ?? "",
         lien_cta: APP_URL,
-        lien_desinscription: "mailto:contact@gerermonchantier.fr?subject=Désinscription",
+        user_id: userId, // lien desinscription 1-click (Phase 2 RGPD) — override le fallback mailto du template
       });
       await sendEmail([email], subject, html);
     }

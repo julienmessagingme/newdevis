@@ -87,7 +87,10 @@ Deno.serve(async (req: Request) => {
 
     // 2) Welcome utilisateur — template `vmd_welcome`.
     if (email) {
-      const { subject, html } = renderVmdEmail("vmd_welcome", { prenom });
+      const { subject, html } = renderVmdEmail("vmd_welcome", {
+        prenom,
+        user_id: userId, // lien desinscription 1-click (Phase 2 RGPD)
+      });
       await sendEmail([email], subject, html);
     }
 
