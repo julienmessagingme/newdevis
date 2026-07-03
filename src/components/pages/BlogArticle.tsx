@@ -8,6 +8,7 @@ import Footer from "@/components/layout/Footer";
 import SEOHead from "@/components/SEOHead";
 import ArticleContent from "@/components/blog/ArticleContent";
 import BlogCTA from "@/components/blog/BlogCTA";
+import BlogPourAllerPlusLoin from "@/components/blog/BlogPourAllerPlusLoin";
 import { calculateReadingTime, formatArticleDate, getCTAUrl } from "@/lib/blog/blogUtils";
 
 interface BlogPost {
@@ -328,6 +329,9 @@ const BlogArticle = () => {
 
                 {/* Bottom CTA */}
                 <BlogCTA variant="bottom" />
+
+                {/* Pour aller plus loin — cocon sémantique post-lecture */}
+                <BlogPourAllerPlusLoin />
               </div>
             </div>
           </section>
