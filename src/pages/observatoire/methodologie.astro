@@ -1,0 +1,196 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+import { breadcrumbSchema, articleSchema, combineSchemas } from '@/lib/seo/schemaOrg';
+
+export const prerender = true;
+
+const url = 'https://www.verifiermondevis.fr/observatoire/methodologie';
+const title = "Méthodologie de l'Observatoire des devis travaux";
+const description = "Comment nous analysons les devis, calculons les fourchettes de prix et gérons les limites de notre échantillon. Transparence totale sur notre démarche.";
+
+const breadcrumbs = breadcrumbSchema([
+  { name: 'Accueil', url: 'https://www.verifiermondevis.fr/' },
+  { name: 'Observatoire', url: 'https://www.verifiermondevis.fr/observatoire' },
+  { name: 'Méthodologie', url },
+]);
+
+const article = articleSchema({
+  title,
+  description,
+  url,
+  datePublished: '2026-07-03',
+  dateModified: new Date().toISOString().slice(0, 10),
+});
+
+const schemas = combineSchemas(breadcrumbs, article);
+
+// Calcul dynamique du nb de devis analysés (source cohérente avec le hub)
+const fs = await import('node:fs');
+const path = await import('node:path');
+const studiesDir = path.resolve('./src/data/observatoire');
+const studyFiles = fs.existsSync(studiesDir)
+  ? fs.readdirSync(studiesDir).filter((f: string) => f.endsWith('.json') && !f.startsWith('_'))
+  : [];
+const studies = studyFiles.map((f: string) => JSON.parse(fs.readFileSync(path.join(studiesDir, f), 'utf-8')));
+const totalDevis = studies.find((s: any) => s.slug === 'postes-surfactures')?.totalAnalyses ?? 300;
+---
+
+<BaseLayout title={title + ' | VerifierMonDevis.fr'} description={description}>
+  {schemas.map((schema) => (
+    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+  ))}
+  <AstroHeader />
+
+  <main class="max-w-3xl mx-auto px-4 md:px-6 py-8 md:py-12">
+    <!-- Breadcrumb -->
+    <nav class="text-xs text-muted-foreground mb-6">
+      <a href="/" class="hover:text-foreground">Accueil</a>
+      <span class="mx-1.5">/</span>
+      <a href="/observatoire" class="hover:text-foreground">Observatoire</a>
+      <span class="mx-1.5">/</span>
+      <span class="text-foreground">Méthodologie</span>
+    </nav>
+
+    <header class="mb-10">
+      <h1 class="text-3xl md:text-4xl font-bold tracking-tight mb-3">
+        Méthodologie de l'Observatoire
+      </h1>
+      <p class="text-base md:text-lg text-muted-foreground leading-relaxed">
+        Comment nous calculons les fourchettes de prix publiées, quelles sont les limites de notre échantillon, comment nous protégeons vos données. Transparence intégrale — le code de génération est ouvert et auditable.
+      </p>
+    </header>
+
+    <!-- Chip crédibilité (harmonisé avec les pages Observatoire) -->
+    <div class="mb-10 border border-border rounded-xl bg-muted/30 p-5">
+      <div class="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
+        <span>📊 Basé sur {totalDevis} devis analysés à ce jour</span>
+        <span>🔄 Régénéré chaque mois avec les nouveaux devis</span>
+        <span>👤 Analysé par Johan BRIDEY, co-fondateur</span>
+      </div>
+    </div>
+
+    <article class="prose prose-slate max-w-none">
+
+      <h2 id="source-donnees">1. D'où viennent les données</h2>
+      <p>
+        Chaque chiffre de l'Observatoire est calculé à partir des <strong>devis réellement analysés par notre outil</strong>. Un utilisateur upload un devis PDF sur <a href="/nouvelle-analyse">verifiermondevis.fr</a>, notre IA en extrait automatiquement les lignes de travaux (description, prix unitaire, quantité, unité), et le résultat vient alimenter notre base.
+      </p>
+      <p>
+        <strong>Nous ne collectons rien d'autre.</strong> Ni scraping de sites concurrents, ni catalogues éditeurs achetés, ni estimations théoriques. Les devis sont anonymisés avant agrégation : aucune donnée personnelle de l'utilisateur ou de l'artisan n'apparaît dans les statistiques publiées.
+      </p>
+
+      <h2 id="ce-que-nous-mesurons">2. Ce que nous mesurons</h2>
+      <p>Pour chaque ligne de devis analysée, nous stockons :</p>
+      <ul>
+        <li><strong>Le prix unitaire</strong> (prix HT par m², par mètre linéaire, par unité ou par forfait)</li>
+        <li><strong>L'unité</strong> (m², ml, U, forfait)</li>
+        <li><strong>Le métier</strong> concerné (menuiserie, plomberie, carrelage, …)</li>
+        <li><strong>Le type de chantier</strong> (salle de bain, cuisine, isolation, …)</li>
+        <li><strong>Le score de confiance IA</strong> attribué à ce matching (voir §3)</li>
+      </ul>
+      <p>
+        À partir de ces lignes, nous calculons pour chaque métier et chaque type de chantier : le prix médian, la fourchette habituelle (P25–P75), le nombre de devis distincts et le nombre de lignes matchées.
+      </p>
+
+      <h2 id="confiance-ia">3. Comment l'IA identifie les postes de travaux</h2>
+      <p>
+        Notre outil s'appuie sur un catalogue interne de <strong>plusieurs centaines de références de postes de travaux</strong> (avec fourchettes prix marché associées). Quand une ligne de devis arrive, l'IA doit décider à quel poste catalogue elle correspond.
+      </p>
+      <p>Deux types de matching :</p>
+      <ul>
+        <li><strong>Match de haute confiance</strong> — la description de la ligne correspond très clairement à un poste catalogue. Ces lignes sont retenues pour le calcul des fourchettes.</li>
+        <li><strong>Match incertain</strong> — la description est ambiguë ou hors catalogue. Ces lignes sont conservées pour info mais <strong>exclues des statistiques publiées</strong>.</li>
+      </ul>
+      <p>
+        Ce filtrage évite qu'une ligne mal identifiée (ex : "pose porte" catégorisée par erreur en "pose fenêtre") ne pollue les moyennes. C'est ce qui protège la fiabilité des chiffres, au prix d'un échantillon publié plus restreint que l'échantillon brut.
+      </p>
+
+      <h2 id="revue-humaine">4. La revue humaine</h2>
+      <p>
+        Les analyses les plus sensibles (verdict ROUGE, écart supérieur à 2 000 €, entreprise à risque juridique) passent par une <strong>revue expert</strong> avant d'être communiquées à l'utilisateur. Chaque revue nourrit un jeu de données "gold standard" qui améliore continuellement la précision du système.
+      </p>
+      <p>
+        Cette double vérification (IA + humain) constitue notre différenciant face aux comparateurs automatisés du marché : nous préférons vérifier moins de devis, mais avec une qualité garantie.
+      </p>
+
+      <h2 id="fourchettes">5. Comment nous calculons les fourchettes de prix</h2>
+      <p>Pour chaque poste et chaque type de chantier, nous publions :</p>
+      <ul>
+        <li>
+          <strong>Le prix médian</strong> — la valeur qui coupe l'échantillon en deux (50 % au-dessus, 50 % en-dessous). Nous préférons la médiane à la moyenne car elle est moins sensible aux valeurs extrêmes.
+        </li>
+        <li>
+          <strong>La fourchette habituelle (P25–P75)</strong> — l'intervalle qui contient 50 % des devis observés. Si votre devis se situe dans cette plage, il est dans la norme.
+        </li>
+        <li>
+          <strong>Le nombre de devis analysés</strong> — pour que vous jugiez la solidité de la statistique.
+        </li>
+      </ul>
+      <p>
+        Nous n'appliquons pas de coefficient géographique, pas d'inflation projetée, pas de "correction" éditoriale. Ce sont les prix bruts observés sur notre échantillon.
+      </p>
+
+      <h2 id="limites">6. Limites reconnues</h2>
+      <p>Nous sommes un jeune observatoire. Nos données présentent plusieurs biais qu'il faut connaître :</p>
+      <ul>
+        <li>
+          <strong>Biais de sélection</strong> — les particuliers qui utilisent VerifierMonDevis soupçonnent souvent un problème sur leur devis. Notre échantillon inclut donc mécaniquement plus de devis "à vérifier" que la moyenne du marché.
+        </li>
+        <li>
+          <strong>Biais géographique</strong> — nos utilisateurs sont concentrés dans les grandes agglomérations françaises. Les zones rurales et les DOM-TOM sont sous-représentés.
+        </li>
+        <li>
+          <strong>Biais saisonnier</strong> — les prix de certains postes (isolation, toiture) varient selon la saison. Notre échantillon lisse ces variations.
+        </li>
+        <li>
+          <strong>Échantillon partiel</strong> — {totalDevis} devis analysés représentent une fraction du marché français (plusieurs millions de devis par an). Pour les postes rares (extension bois, ANC, monte-escalier), l'échantillon est trop restreint pour publier une fourchette fiable — dans ce cas nous affichons "Données en cours d'enrichissement".
+        </li>
+        <li>
+          <strong>Nous ne sommes pas la référence nationale</strong> — nous n'avons pas l'ambition de représenter l'ensemble du marché français. Nous publions ce que <em>nos outils mesurent réellement sur notre échantillon</em>. Utilisez ces fourchettes pour situer votre devis, pas comme vérité absolue.
+        </li>
+      </ul>
+
+      <h2 id="frequence-maj">7. Fréquence de mise à jour</h2>
+      <p>
+        Les statistiques sont régénérées <strong>chaque mois</strong> avec les nouveaux devis analysés. La date exacte de dernière mise à jour est affichée en tête de chaque page. Le processus est entièrement automatisé — nous ne "sélectionnons" pas les devis à inclure.
+      </p>
+
+      <h2 id="code-source">8. Code source et auditabilité</h2>
+      <p>
+        Le code qui génère les statistiques est ouvert et auditable dans notre dépôt privé (contactez-nous pour une revue). Le fichier de génération principal est <code>scripts/observatoire/generate-observatoire.ts</code>. Toute anomalie que vous détecteriez dans les chiffres peut être remontée à <a href="mailto:contact@verifiermondevis.fr">contact@verifiermondevis.fr</a> — nous corrigerons publiquement.
+      </p>
+
+      <h2 id="gouvernance">9. Gouvernance</h2>
+      <p>
+        L'Observatoire est un projet de <strong>VerifierMonDevis</strong>, fondé par <strong>Julien DUMAS</strong> et <strong>Johan BRIDEY</strong>. Les analyses expertes qui alimentent la revue humaine sont conduites par Johan BRIDEY (co-fondateur, expert en analyse de devis travaux). Aucune influence commerciale externe n'entre dans les fourchettes publiées — nous n'avons pas de partenariat avec des artisans ou des courtiers qui aurait un intérêt à orienter les prix.
+      </p>
+
+      <h2 id="donnees-personnelles">10. Vos données</h2>
+      <p>
+        Les devis uploadés par les utilisateurs sont stockés de façon sécurisée sur nos serveurs. Aucune information nominative (nom du particulier, nom de l'artisan, SIRET, adresse) n'apparaît dans les statistiques agrégées publiées sur l'Observatoire. Consultez notre <a href="/confidentialite">Politique de confidentialité</a> pour le détail complet.
+      </p>
+      <p>
+        Vous pouvez à tout moment demander la suppression de vos devis en nous contactant, ou vous désinscrire des communications par email via le lien en pied de chacun de nos emails.
+      </p>
+
+      <h2 id="questions">Une question sur nos chiffres ?</h2>
+      <p>
+        Écrivez-nous à <a href="mailto:contact@verifiermondevis.fr">contact@verifiermondevis.fr</a>. Nous répondons personnellement à toute demande de journaliste, artisan, courtier ou chercheur souhaitant creuser une statistique publiée.
+      </p>
+    </article>
+
+    <div class="mt-12 border-t border-border pt-8 flex flex-wrap gap-3">
+      <a href="/observatoire" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+        Retour à l'Observatoire
+      </a>
+      <a href="/nouvelle-analyse" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-card border border-border text-sm font-semibold hover:border-primary/40 transition-colors">
+        Analyser mon devis gratuitement
+      </a>
+    </div>
+
+  </main>
+
+  <AstroFooter />
+</BaseLayout>

@@ -13,7 +13,10 @@ export default function ObservatoireDisclaimer() {
         Ces statistiques sont calculées à partir des devis analysés par
         VerifierMonDevis. Elles ne représentent pas le marché national mais un
         échantillon utile pour situer votre propre devis. Nous mettons à jour
-        ces données chaque mois.
+        ces données chaque mois.{" "}
+        <a href="/observatoire/methodologie" className="text-primary font-medium hover:underline whitespace-nowrap">
+          Notre méthodologie →
+        </a>
       </p>
     </aside>
   );
