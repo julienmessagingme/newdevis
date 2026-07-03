@@ -4,6 +4,7 @@ import { trackPixelOnce } from "@/lib/integrations/metaPixel";
 import { trackTikTokOnce } from "@/lib/integrations/tiktokPixel";
 import GmcGatewayBanner from "@/components/cta/GmcGatewayBanner";
 import PourAllerPlusLoin from "@/components/analysis/PourAllerPlusLoin";
+import { detectChantierSlug } from "@/lib/analyse/detectChantierType";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -541,6 +542,20 @@ const AnalysisResult = () => {
   const companyData = useMemo(() => analysis ? extractCompanyData(analysis) : null, [analysis]);
   const totalHT = useMemo(() => calculateTotalHT(analysis?.types_travaux), [analysis?.types_travaux]);
   const visibleBlocks = useMemo(() => getVisibleBlocks(analysis?.domain || "travaux"), [analysis?.domain]);
+
+  // Detection type de chantier depuis les lignes extraites — nourrit PourAllerPlusLoin
+  // pour personnaliser les liens Observatoire + Comparateur (fourchette prix chantier
+  // détecté). Null si aucun signal net -> liens génériques conservés.
+  const detectedChantierSlug = useMemo(() => {
+    if (!analysis?.raw_text) return null;
+    try {
+      const parsed = JSON.parse(analysis.raw_text);
+      const travaux = parsed?.extracted?.travaux ?? parsed?.extracted_data?.travaux;
+      return detectChantierSlug(Array.isArray(travaux) ? travaux : null);
+    } catch {
+      return null;
+    }
+  }, [analysis]);
 
   // V3.4.28 (2026-05-22) — Détection du flag hors_scope BTP depuis conclusion_ia.
   // Quand set (devis réparation vélo/auto/électroménager/médical/…), on masque
@@ -1485,8 +1500,9 @@ const AnalysisResult = () => {
           </Suspense>
         )}
 
-        {/* Pour aller plus loin — cocon sémantique post-verdict */}
-        <PourAllerPlusLoin />
+        {/* Pour aller plus loin — cocon sémantique post-verdict (personnalisé si un
+            type de chantier a été détecté depuis les lignes du devis). */}
+        <PourAllerPlusLoin chantierSlug={detectedChantierSlug} />
 
         {/* Disclaimer */}
         <div className="bg-muted/50 border border-border rounded-xl p-5 mb-8">
