@@ -411,8 +411,12 @@ function ConclusionDisplay({
       {/* V3.4.13 — Encadré "Comparaison indicative" en remplacement du hero
           quand le catalogue marché sous-couvre la prestation (overprice > +50%
           SANS anomalie identifiée poste par poste). Cas typique : assainissement
-          réhabilitation, prestations très techniques, lots regroupés. */}
-      {isComparisonIndicative && !isVerdictSigner && !isForeignQuote && !isCourtierEstimation && (
+          réhabilitation, prestations très techniques, lots regroupés.
+          V3.5.2 (2026-07-03) — Fix bug cohérence (WIP:220-225) : si des anomalies
+          sont détectées (IA `anomCount` OU déterministe `detAnomCount`), on masque
+          l'encadré. Le verdict d'anomalie prime, sinon 2 messages contradictoires
+          affichés sur le même écran ("Aucune anomalie" vs 3 cartes 🔴). */}
+      {isComparisonIndicative && !isVerdictSigner && !isForeignQuote && !isCourtierEstimation && anomCount === 0 && (detAnomCount ?? 0) === 0 && (
         <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 px-4 py-3.5">
           <p className="text-sm font-semibold text-amber-900 leading-snug">
             <span aria-hidden="true">ℹ️ </span>

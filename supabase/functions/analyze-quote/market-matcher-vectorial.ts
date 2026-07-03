@@ -581,10 +581,24 @@ export async function matchSingleLineVectorial(
     unit: workItem.unit,
   };
 
+  // V3.5.2 — Fix bug forfaits (WIP:210-218) : quand workItem.unit === null
+  // (Gemini n'a pas extrait d'unité), le fallback `top.unit` du catalogue
+  // donnait souvent "m²" -> le forfait "Coffrage placo 325 €" devenait
+  // "1 m² à 325 €" -> ratio × 4 du marché -> fausse anomalie 🔴.
+  // Detection forfait via description/unité AVANT le fallback catalogue.
+  const descLower = (workItem.description || "").toLowerCase();
+  const unitLower = (workItem.unit || "").toLowerCase().trim();
+  const isForfaitByDesc = /\b(forfait|prestation\s+globale|installation\s+compl[eè]te|tout\s+compris|au\s+forfait)\b/i.test(descLower);
+  const isForfaitByUnit = /^(forfait|f|ff|fft|ens|ensemble|global)$/i.test(unitLower);
+  const isForfaitLike = isForfaitByDesc || isForfaitByUnit;
+  // Priorité : unit extraite Gemini > forfait détecté par description > unit catalogue > "u".
+  // Conservateur : si Gemini a bien extrait l'unité, on la garde même si description mentionne "forfait".
+  const mainUnit = workItem.unit ?? (isForfaitLike ? "forfait" : (top.unit ?? "u"));
+
   const result: VectorialJobTypePriceResult = {
     job_type_label: top.label,
     catalog_job_types: [top.job_type],
-    main_unit: workItem.unit ?? top.unit ?? "u",
+    main_unit: mainUnit,
     main_quantity: workItem.quantity ?? 1,
     devis_lines: [devisLine],
     devis_total_ht: workItem.amount_ht,
