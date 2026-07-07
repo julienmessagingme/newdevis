@@ -250,13 +250,29 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
   // V3.5.6 (2026-05-31) — acompte_cumule_excessif ajouté à la liste : un
   // acompte cumulé > 50% AVANT réception est un signal très fort de défaillance
   // imminente de l'entreprise + atteinte aux protections consommateur.
+  //
+  // V3.5.3 (2026-07-03) — Garde "petit devis" pour acompte_cumule_excessif :
+  // sur un devis < 1 500 € HT, l'exposition financière absolue reste faible
+  // (max ~1 350 € en risque). Le wording "ne signez pas / entreprise défaillante"
+  // devient disproportionné et alarmiste. Cas d'origine : devis clavier VELUX
+  // 372 € HT avec 40% + 50% avant travaux → verdict "à risque" injustifié
+  // (Julien 2026-07-04, feedback devis demo.pdf).
+  //
+  // Effet : le flag reste vu par Gemini (peut alimenter action_avant_signature
+  // "conditions de paiement à négocier"), mais ne force plus le verdict ROUGE.
+  // Le pipeline retombe sur la logique prix standard.
+  // Les autres hard blocks (radiée, siret, assurance, cash, iban) restent
+  // critiques quelle que soit la taille — pas de garde.
+  const SMALL_QUOTE_HT_THRESHOLD = 1500;
+  const isSmallQuote = input.total_amount > 0 && input.total_amount < SMALL_QUOTE_HT_THRESHOLD;
+
   const is_hard_block = (
     flags.entreprise_radiee      ||
     flags.siret_invalide         ||
     flags.absence_assurance      ||
     flags.paiement_cash_suspect  ||
     flags.iban_suspect           ||
-    flags.acompte_cumule_excessif
+    (flags.acompte_cumule_excessif && !isSmallQuote)
   );
 
   if (is_hard_block) {

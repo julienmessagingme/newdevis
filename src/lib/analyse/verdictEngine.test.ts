@@ -241,6 +241,84 @@ check(
   true,
 );
 
+// ── V3.5.3 — Garde "petit devis" sur acompte_cumule_excessif ─────────────────
+console.log("\n[V3.5.3 — garde petit devis acompte_cumule_excessif]");
+
+// Cas 1 — Petit devis 372€ avec acompte_cumule_excessif seul → NE PAS hard block
+// (cas d'origine : devis clavier VELUX 372€ HT, 40%+50% avant travaux)
+const vSmallAcompte = computeVerdict({
+  total_amount: 372,
+  market_estimate_min: 350, market_estimate_max: 400,
+  anomalies_major_count: 0, anomalies_total_count: 0,
+  company_risk: "low",
+  flags: { ...SAFE_FLAGS, acompte_cumule_excessif: true },
+});
+check("petit devis 372€ + acompte excessif → PAS hard block", vSmallAcompte.is_hard_block, false);
+check("petit devis 372€ + acompte excessif → verdict != refuser", vSmallAcompte.verdict === "refuser", false);
+
+// Cas 2 — Devis limite 1499€ (juste sous le seuil) → garde active
+const vJustBelowThreshold = computeVerdict({
+  total_amount: 1499,
+  market_estimate_min: 1400, market_estimate_max: 1600,
+  anomalies_major_count: 0, anomalies_total_count: 0,
+  company_risk: "low",
+  flags: { ...SAFE_FLAGS, acompte_cumule_excessif: true },
+});
+check("devis 1499€ + acompte excessif → PAS hard block (garde active)", vJustBelowThreshold.is_hard_block, false);
+
+// Cas 3 — Devis 1500€ (seuil exact) → hard block (garde INACTIVE, comportement standard)
+const vAtThreshold = computeVerdict({
+  total_amount: 1500,
+  market_estimate_min: 1400, market_estimate_max: 1600,
+  anomalies_major_count: 0, anomalies_total_count: 0,
+  company_risk: "low",
+  flags: { ...SAFE_FLAGS, acompte_cumule_excessif: true },
+});
+check("devis 1500€ + acompte excessif → hard block (garde INACTIVE)", vAtThreshold.is_hard_block, true);
+check("devis 1500€ + acompte excessif → verdict refuser", vAtThreshold.verdict, "refuser");
+
+// Cas 4 — Gros devis 10 000€ + acompte excessif → hard block préservé
+const vLargeAcompte = computeVerdict({
+  total_amount: 10_000,
+  market_estimate_min: 8_000, market_estimate_max: 12_000,
+  anomalies_major_count: 0, anomalies_total_count: 0,
+  company_risk: "low",
+  flags: { ...SAFE_FLAGS, acompte_cumule_excessif: true },
+});
+check("gros devis 10 000€ + acompte excessif → hard block", vLargeAcompte.is_hard_block, true);
+check("gros devis 10 000€ + acompte excessif → refuser", vLargeAcompte.verdict, "refuser");
+
+// Cas 5 — Petit devis + AUTRE flag critique (entreprise radiée) → hard block préservé
+const vSmallWithOtherFlag = computeVerdict({
+  total_amount: 372,
+  market_estimate_min: 350, market_estimate_max: 400,
+  anomalies_major_count: 0, anomalies_total_count: 0,
+  company_risk: "low",
+  flags: { ...SAFE_FLAGS, acompte_cumule_excessif: true, entreprise_radiee: true },
+});
+check("petit devis + entreprise radiée → hard block via radiée", vSmallWithOtherFlag.is_hard_block, true);
+check("petit devis + entreprise radiée → refuser", vSmallWithOtherFlag.verdict, "refuser");
+
+// Cas 6 — Petit devis + acompte excessif + absence assurance → hard block via assurance
+const vSmallWithMissingInsurance = computeVerdict({
+  total_amount: 500,
+  market_estimate_min: 450, market_estimate_max: 550,
+  anomalies_major_count: 0, anomalies_total_count: 0,
+  company_risk: "low",
+  flags: { ...SAFE_FLAGS, acompte_cumule_excessif: true, absence_assurance: true },
+});
+check("petit devis + absence assurance → hard block via assurance", vSmallWithMissingInsurance.is_hard_block, true);
+
+// Cas 7 — Petit devis total_amount=0 (extraction ratée) → comportement conservateur (hard block)
+const vSmallZero = computeVerdict({
+  total_amount: 0,
+  market_estimate_min: 0, market_estimate_max: 0,
+  anomalies_major_count: 0, anomalies_total_count: 0,
+  company_risk: "low",
+  flags: { ...SAFE_FLAGS, acompte_cumule_excessif: true },
+});
+check("total_amount=0 + acompte excessif → hard block (garde exige > 0)", vSmallZero.is_hard_block, true);
+
 // ── Résumé ────────────────────────────────────────────────────────────────────
 console.log(`\n${"─".repeat(40)}`);
 console.log(`${passed + failed} tests — ${passed} ✓ passed, ${failed} ✗ failed`);
