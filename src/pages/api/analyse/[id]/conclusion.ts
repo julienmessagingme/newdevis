@@ -331,6 +331,7 @@ const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 import type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
+import { detectPrestationIntellectuelleReglementee } from "@/lib/analyse/detectPrestationIntellectuelle";
 export type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
@@ -849,6 +850,17 @@ function buildGroupSummary(priceData: unknown[]): string {
               : ""
             : "";
 
+      // V3.5.4 (2026-07-08) — Option A "surface implicite" : quand main_unit=forfait
+      // et la description mentionne "N m² murs+plafond", on affiche l'estimation
+      // du prix unitaire au m² pour que Gemini puisse comparer au marché au m².
+      const implicitSurface = (group as { implicit_surface?: {
+        base_m2: number; effective_m2: number; surface_type: string;
+        confidence: string; estimated_unit_price: number;
+      } | null }).implicit_surface;
+      const surfaceLine = implicitSurface && implicitSurface.confidence !== "low"
+        ? `  🔎 Surface implicite détectée: ${implicitSurface.base_m2} m² (${implicitSurface.surface_type}, conf. ${implicitSurface.confidence}) → ${implicitSurface.effective_m2} m² effectifs → prix unitaire estimé = ${implicitSurface.estimated_unit_price.toFixed(2)} €/m². Compare cette estimation au marché du métier concerné pour juger si le forfait est cohérent au m².`
+        : null;
+
       return [
         `POSTE: ${displayLabel}${positionLabel}`,
         `  Quantité: ${qty} ${unit}`,
@@ -859,7 +871,8 @@ function buildGroupSummary(priceData: unknown[]): string {
           : "  Référence marché: hors catalogue",
         `  Écart vs moyenne: ${ecartVsAvg}`,
         `  Lignes: ${lignes || "—"}`,
-      ].join("\n");
+        surfaceLine,
+      ].filter(Boolean).join("\n");
     })
     .join("\n\n");
 }
@@ -1365,6 +1378,61 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
   } catch {
     // raw_text invalide — continue avec le flow normal (qui re-tentera lui aussi le parse)
+  }
+
+  // ── V3.5.4 (2026-07-08) — BYPASS PRESTATION INTELLECTUELLE RÉGLEMENTÉE ──────
+  // Cas d'origine FARAUD.pdf (Julien 2026-07-08) : devis géomètre-expert
+  // 2 250€ HT avec 40% signature + 50% avant plan borné = standard du métier.
+  // Hard block acompte_cumule_excessif basculait le verdict à "ne pas signer"
+  // alors que ces conditions de paiement sont la NORME pour les prestations
+  // intellectuelles réglementées (géomètre, architecte DPLG, notaire, BET,
+  // MOE, expert judiciaire, diagnostiqueur immobilier…).
+  //
+  // Détection sur description des lignes + activité entreprise + raison sociale.
+  // On bypass hero surcout accusatoire + hard block acompte + wording adapté.
+  try {
+    const parsed = JSON.parse(analysis.raw_text || "{}");
+    const prestationIntel = detectPrestationIntellectuelleReglementee(parsed);
+    if (prestationIntel) {
+      console.log(`[conclusion] PRESTATION INTELLECTUELLE BYPASS — métier="${prestationIntel.metier}"`);
+      const totalHt =
+        Number((parsed?.extracted?.totaux as Record<string, unknown> | undefined)?.ht) ||
+        Number((parsed?.extracted_data?.totaux as Record<string, unknown> | undefined)?.ht) ||
+        0;
+      const prestationConclusion: ConclusionData & { engine_version: string } = {
+        verdict_global:      "dans_la_norme",
+        phrase_intro:        `Ce devis concerne une prestation de ${prestationIntel.metier} — c'est une prestation intellectuelle réglementée, pas un devis de travaux BTP. Les conditions de paiement (acompte à la signature + solde à la livraison du livrable) sont le standard du métier et ne doivent pas être interprétées comme un signal de risque financier.${totalHt > 0 ? ` Montant : ${totalHt.toLocaleString("fr-FR")} € HT.` : ""}`,
+        anomalies:           [],
+        justifications:      `Les honoraires de ${prestationIntel.metier} sont encadrés par la profession (barèmes indicatifs ordre / chambre) et non par le catalogue prix marché VMD (calibré pour le BTP). Pour comparer, demandez 2-3 devis auprès d'autres professionnels de la même profession.`,
+        has_anomalies:       false,
+        verdict_decisionnel: "signer_avec_negociation",
+        surcout_global:      { min: 0, max: 0 },
+        niveau_risque:       "modéré",
+        actions_avant_signature: [
+          `Vérifier que le professionnel est bien inscrit à l'Ordre / Chambre / Compagnie de sa profession (ex: Ordre des géomètres-experts pour un GE, Ordre des architectes pour un architecte DPLG).`,
+          `Demander à un ou deux autres professionnels de la même profession un devis comparable pour cadrer la fourchette de prix.`,
+          `Vérifier que la mission est décrite avec précision (livrable attendu, délai, périmètre) et que les conditions de paiement correspondent aux étapes du dossier.`,
+        ],
+        verdict_reasons: {
+          summary: `Prestation ${prestationIntel.metier} — hors scope catalogue BTP`,
+          reasons: [
+            `Il s'agit d'une prestation intellectuelle réglementée, pas d'un devis d'artisan travaux.`,
+            `Les conditions de paiement (acompte élevé, échelonnement par phase) sont la norme du métier et non un signal de risque.`,
+          ],
+          context: [
+            `Notre catalogue de prix marché est calibré pour le BTP. Pour cadrer le prix, demander plusieurs devis auprès de professionnels de la même profession.`,
+          ],
+        },
+        comparison_indicative: true,
+        prestation_intellectuelle: { metier: prestationIntel.metier },
+        generated_at: new Date().toISOString(),
+        engine_version: ENGINE_VERSION,
+      };
+      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, prestationConclusion as unknown as Record<string, unknown>);
+      return jsonOk({ conclusion: prestationConclusion, cached: false });
+    }
+  } catch {
+    // raw_text invalide — continue
   }
 
   // ── V3.4.28 (2026-05-22) — BYPASS DEVIS HORS-SCOPE BTP ──────────────────────

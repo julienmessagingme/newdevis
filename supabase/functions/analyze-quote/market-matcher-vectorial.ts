@@ -31,6 +31,7 @@
  */
 
 import { fetchGeminiWithRetry } from "../_shared/gemini-fetch.ts";
+import { extractImplicitSurface } from "./extractImplicitSurface.ts";
 import type {
   WorkItemFull,
   DevisLineDetail,
@@ -110,6 +111,23 @@ export interface VectorialMatchMeta {
  */
 export interface VectorialJobTypePriceResult extends JobTypePriceResult {
   vectorial?: VectorialMatchMeta;
+  /**
+   * V3.5.4 (2026-07-08) — Option A "surface implicite" : quand main_unit="forfait"
+   * mais la description mentionne une surface (ex: "Peinture pièce ~12m² murs+plafond"),
+   * on extrait l'estimation par regex et on la propage jusqu'au verdict expert.
+   * Permet à Gemini de recalculer un prix unitaire estimé et de le comparer au
+   * marché au m², au lieu de comparer 2500€ à un forfait catalogue générique.
+   * null si aucune surface exploitable détectée. */
+  implicit_surface?: {
+    base_m2: number;
+    effective_m2: number;
+    surface_type: string;
+    multiplier: number;
+    confidence: string;
+    detected_from: string;
+    /** Prix unitaire estimé = devis_total_ht / effective_m2 (arrondi 0.01). */
+    estimated_unit_price: number;
+  } | null;
 }
 
 // ── RPC return type (from search_market_prices_v2) ─────────────────────────
@@ -595,6 +613,21 @@ export async function matchSingleLineVectorial(
   // Conservateur : si Gemini a bien extrait l'unité, on la garde même si description mentionne "forfait".
   const mainUnit = workItem.unit ?? (isForfaitLike ? "forfait" : (top.unit ?? "u"));
 
+  // V3.5.4 (2026-07-08) — Option A "surface implicite" : si main_unit=forfait
+  // (Gemini n'a pas extrait d'unité + description contient "forfait", ou l'unité
+  // extraite est "forfait"), tenter d'extraire une surface implicite depuis la
+  // description ("Peinture pièce ~12m² murs+plafond"). Si trouvée, on calcule
+  // le prix unitaire estimé et on l'attache au result pour que le verdict expert
+  // puisse comparer au marché au m² au lieu du forfait générique.
+  let implicit_surface: VectorialJobTypePriceResult["implicit_surface"] = null;
+  if (mainUnit === "forfait" || isForfaitLike) {
+    const surfaceEst = extractImplicitSurface(workItem.description);
+    if (surfaceEst && surfaceEst.confidence !== "low" && surfaceEst.effective_m2 > 0 && workItem.amount_ht > 0) {
+      const estimated_unit_price = Math.round((workItem.amount_ht / surfaceEst.effective_m2) * 100) / 100;
+      implicit_surface = { ...surfaceEst, estimated_unit_price };
+    }
+  }
+
   const result: VectorialJobTypePriceResult = {
     job_type_label: top.label,
     catalog_job_types: [top.job_type],
@@ -623,6 +656,7 @@ export async function matchSingleLineVectorial(
       confidence,
       all_candidates: allCandidates,
     },
+    implicit_surface,
   };
 
   // V3.5.11 Phase 1 — fire-and-forget audit log pour analyse ex-post + Phase 2

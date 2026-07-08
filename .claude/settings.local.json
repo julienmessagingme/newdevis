@@ -461,7 +461,8 @@
       "Bash(git branch *)",
       "Bash(grep -v \"node_modules\\\\|tsx\\)$\")",
       "Bash(python3 -c ' *)",
-      "Bash(grep -n \"BlockDevis\\\\|FeedbackModal\\\\|<\\\\/main\\\\|export default\\\\|return.*ChevronsUp\\\\|ScrollToTop\" src/components/pages/AnalysisResult.tsx)"
+      "Bash(grep -n \"BlockDevis\\\\|FeedbackModal\\\\|<\\\\/main\\\\|export default\\\\|return.*ChevronsUp\\\\|ScrollToTop\" src/components/pages/AnalysisResult.tsx)",
+      "Bash(grep -n \"PRICE_DATA\\\\|priceData.*=.*JSON\\\\|\\\\`Postes\\\\|marché:\\\\|Postes détectés\\\\|- job_type_label\\\\|Postes.*devis\" src/pages/api/analyse/\\\\[id\\\\]/conclusion.ts)"
     ]
   }
 }

@@ -109,6 +109,20 @@ export interface ConclusionData {
     reason: string;
   };
 
+  /**
+   * V3.5.4 (2026-07-08) — Prestation intellectuelle réglementée (géomètre-expert,
+   * architecte DPLG, notaire, huissier, BET, MOE indépendant, diagnostiqueur,
+   * expert judiciaire, économiste de construction…). Ces prestations ont des
+   * conditions de paiement standards (acompte élevé) qui ne doivent PAS
+   * déclencher le hard block acompte_cumule_excessif. Cas d'origine : devis
+   * FARAUD.pdf géomètre-expert 2 250€ avec 40+50% acompte -> verdict "à risque"
+   * disproportionné (Julien 2026-07-08).
+   */
+  prestation_intellectuelle?: {
+    /** Libellé du métier détecté (ex: "géomètre-expert", "architecte DPLG"). */
+    metier: string;
+  };
+
   // ── Métadonnée ─────────────────────────────────────────────────────────────
   generated_at: string;
 }
