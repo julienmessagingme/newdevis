@@ -113,6 +113,7 @@ gh run view <RUN_ID> --log
 - **PowerShell + secrets** : toujours `gh secret set --body "..."`, jamais `printf | gh secret set` ni `echo | ...` (PowerShell ajoute un newline).
 - **GA4 Property ID ≠ Measurement ID `G-XXX`** : l'ID numérique est dans Admin → Property → Property Settings.
 - **Resend free tier = 1 domaine vérifié** : on réutilise le compte `auto-wa-agents` (domaine vérifié = `messagingme.app`), donc `from_address: agent@messagingme.app`. Les destinataires peuvent être n'importe où.
+- **⚠️ NE JAMAIS repasser l'expéditeur sur `onboarding@resend.dev`** (le sandbox partagé de Resend). Resend renvoie un `id` de succès mais ne délivre pas réellement vers une boîte tierce → le workflow reste vert alors que Julien ne reçoit rien. Incident 2026-07-09 : mails silencieusement non délivrés depuis ~le 22/06 à cause de ce sender. Toujours envoyer depuis le domaine vérifié `messagingme.app`.
 
 ---
 
