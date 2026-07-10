@@ -1,0 +1,255 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Breadcrumb from '@/components/seo/Breadcrumb';
+import FAQ from '@/components/seo/FAQ';
+import {
+  articleSchema,
+  breadcrumbSchema,
+  faqSchema,
+  combineSchemas,
+} from '@/lib/seo/schemaOrg';
+import { getCategory, getLiveCategories } from '@/lib/seo/centreAideConfig';
+import { ArrowRight, CalendarDays, Clock, User } from 'lucide-react';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('centre-aide');
+  return entries.map((entry) => {
+    // entry.id ressemble à "artisans/artisan-ne-repond-plus" (sans .md en Astro 5).
+    const parts = entry.id.replace(/\.md$/, '').split('/');
+    const categorie = parts[0];
+    const slug = parts.slice(1).join('/');
+    return {
+      params: { categorie, slug },
+      props: { entry, articleSlug: slug },
+    };
+  });
+}
+
+const { entry, articleSlug } = Astro.props;
+const category = getCategory(Astro.params.categorie!);
+
+if (!category) {
+  return Astro.redirect('/centre-aide');
+}
+
+const { Content, headings } = await render(entry);
+
+const canonical = `https://www.gerermonchantier.fr/centre-aide/${category.slug}/${articleSlug}`;
+const authorName = 'Johan BRIDEY';
+const title = entry.data.seoTitle ?? `${entry.data.title} | Centre d'aide GérerMonChantier`;
+const description = entry.data.seoDescription ?? entry.data.excerpt;
+
+const publishedAt = entry.data.publishedAt;
+const updatedAt = entry.data.updatedAt ?? publishedAt;
+
+// Reading time approximation (~200 mots/minute).
+const wordCount = entry.body.split(/\s+/).filter(Boolean).length;
+const readingTime = Math.max(1, Math.round(wordCount / 200));
+
+// TOC : uniquement les H2 (H3 utilisés dans les procédures numérotées deviennent bruit).
+const tocHeadings = headings.filter((h) => h.depth === 2);
+
+// CTA GMC (hook article override sinon défaut catégorie).
+const gmcHook = entry.data.gmcCta?.hook ?? category.gmcModule.hook;
+const gmcCtaLabel = category.gmcModule.cta;
+const gmcHref = category.gmcModule.href;
+
+// Cross-links VMD (article override sinon défaut catégorie).
+const vmdLinks = entry.data.vmdLinks ?? category.vmdCrossLinks;
+
+// "Les autres problèmes avec les artisans" — max 5 autres de la même catégorie.
+function slugFromEntryId(id: string): string {
+  return id.replace(/\.md$/, '').split('/').slice(1).join('/');
+}
+const allEntries = await getCollection('centre-aide');
+const relatedInCategory = allEntries
+  .filter((e) => {
+    const [cat] = e.id.split('/');
+    return cat === category.slug && slugFromEntryId(e.id) !== articleSlug;
+  })
+  .slice(0, 5)
+  .map((e) => ({
+    slug: slugFromEntryId(e.id),
+    title: e.data.title,
+    excerpt: e.data.excerpt,
+  }));
+
+const breadcrumbs = breadcrumbSchema([
+  { name: 'Accueil', url: 'https://www.gerermonchantier.fr/' },
+  { name: "Centre d'aide", url: 'https://www.gerermonchantier.fr/centre-aide' },
+  { name: category.label, url: `https://www.gerermonchantier.fr/centre-aide/${category.slug}` },
+  { name: entry.data.title, url: canonical },
+]);
+
+const article = articleSchema({
+  title: entry.data.title,
+  description,
+  url: canonical,
+  imageUrl: entry.data.ogImage,
+  datePublished: publishedAt,
+  dateModified: updatedAt,
+  authorName,
+});
+
+const faqLd = entry.data.faq.length > 0 ? faqSchema(entry.data.faq) : null;
+const schemas = combineSchemas(article, breadcrumbs, faqLd);
+
+const formattedUpdated = new Date(updatedAt).toLocaleDateString('fr-FR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
+export const prerender = true;
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  canonical={canonical}
+  ogType="article"
+  ogImage={entry.data.ogImage}
+  siteName="GérerMonChantier.fr"
+>
+  {schemas.map((schema) => (
+    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+  ))}
+
+  <main class="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
+    <Breadcrumb
+      segments={[
+        { name: "Centre d'aide", href: '/centre-aide' },
+        { name: category.label, href: `/centre-aide/${category.slug}` },
+        { name: entry.data.title, href: `/centre-aide/${category.slug}/${articleSlug}` },
+      ]}
+    />
+
+    <header class="mb-8 md:mb-10">
+      <div class="inline-flex items-center gap-2 text-xs uppercase tracking-wider font-bold text-primary mb-3">
+        <span aria-hidden="true">{category.icon}</span> {category.label}
+      </div>
+      <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-tight mb-4">
+        {entry.data.title}
+      </h1>
+      <p class="text-base md:text-lg text-muted-foreground leading-relaxed mb-6">
+        {entry.data.excerpt}
+      </p>
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground pt-4 border-t border-border">
+        <span class="inline-flex items-center gap-1.5">
+          <User className="h-3.5 w-3.5" /> Par {authorName} — co-fondateur
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <CalendarDays className="h-3.5 w-3.5" /> Mis à jour le {formattedUpdated}
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <Clock className="h-3.5 w-3.5" /> {readingTime} min de lecture
+        </span>
+      </div>
+    </header>
+
+    {tocHeadings.length > 2 && (
+      <nav
+        aria-label="Sommaire"
+        class="bg-card border border-border rounded-lg p-5 mb-10"
+      >
+        <div class="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+          Sommaire
+        </div>
+        <ol class="space-y-1.5 text-sm">
+          {tocHeadings.map((h) => (
+            <li>
+              <a href={`#${h.slug}`} class="text-foreground hover:text-primary">
+                {h.text}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    )}
+
+    <article
+      class="prose prose-slate max-w-none
+             prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-foreground
+             prose-h2:text-2xl md:prose-h2:text-3xl prose-h2:mt-12 prose-h2:mb-4
+             prose-h3:text-lg md:prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3
+             prose-p:text-foreground/85 prose-p:leading-relaxed
+             prose-a:text-primary prose-a:no-underline hover:prose-a:underline
+             prose-strong:text-foreground prose-strong:font-semibold
+             prose-ul:my-4 prose-ol:my-4
+             prose-li:my-1
+             prose-blockquote:border-l-primary prose-blockquote:bg-accent/40 prose-blockquote:py-1 prose-blockquote:not-italic
+             prose-code:text-foreground prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-normal prose-code:text-sm before:prose-code:content-none after:prose-code:content-none"
+    >
+      <Content />
+    </article>
+
+    {entry.data.faq.length > 0 && <FAQ items={entry.data.faq} />}
+
+    <section class="mt-12 bg-gradient-to-br from-primary/5 via-accent to-primary/10 border border-primary/20 rounded-xl p-6 md:p-8">
+      <div class="grid md:grid-cols-[1fr_auto] gap-6 items-center">
+        <div>
+          <div class="text-xs uppercase tracking-wider font-bold text-primary mb-2">
+            Module GérerMonChantier — {category.label}
+          </div>
+          <p class="text-base md:text-lg font-medium text-foreground leading-relaxed">
+            {gmcHook}
+          </p>
+        </div>
+        <a
+          href={gmcHref}
+          class="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-5 py-3 font-semibold text-sm hover:opacity-90 whitespace-nowrap"
+        >
+          {gmcCtaLabel} <ArrowRight className="h-4 w-4" />
+        </a>
+      </div>
+      <p class="text-[11px] text-muted-foreground mt-3 md:mt-4 text-center md:text-left">
+        Gratuit 30 jours — aucune carte requise
+      </p>
+    </section>
+
+    {vmdLinks.length > 0 && (
+      <section class="mt-10">
+        <h2 class="text-xs uppercase tracking-wider font-bold text-muted-foreground mb-3">
+          Aller plus loin sur VerifierMonDevis
+        </h2>
+        <ul class="grid gap-2 sm:grid-cols-2">
+          {vmdLinks.map((link) => (
+            <li>
+              <a
+                href={link.href}
+                class="block bg-card border border-border rounded-lg px-4 py-3 text-sm hover:border-primary transition-colors"
+              >
+                <span class="text-foreground font-medium">{link.label}</span>
+                <span class="text-muted-foreground"> ↗</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {relatedInCategory.length > 0 && (
+      <section class="mt-12 pt-10 border-t border-border">
+        <h2 class="text-lg md:text-xl font-bold text-foreground mb-5">
+          Les autres problèmes {category.label.toLowerCase()}
+        </h2>
+        <ul class="grid gap-3 md:grid-cols-2">
+          {relatedInCategory.map((r) => (
+            <li>
+              <a
+                href={`/centre-aide/${category.slug}/${r.slug}`}
+                class="block bg-card border border-border rounded-lg p-4 hover:border-primary transition-colors"
+              >
+                <div class="font-semibold text-sm text-foreground mb-1">{r.title}</div>
+                <p class="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                  {r.excerpt}
+                </p>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+  </main>
+</BaseLayout>

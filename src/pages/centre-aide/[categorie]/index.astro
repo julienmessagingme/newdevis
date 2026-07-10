@@ -1,0 +1,91 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import CentreAideCategoryHubPage from '@/components/pages/seo/CentreAideCategoryHubPage';
+import {
+  CATEGORY_ORDER,
+  getCategory,
+  getLiveCategories,
+} from '@/lib/seo/centreAideConfig';
+import { breadcrumbSchema } from '@/lib/seo/schemaOrg';
+
+export async function getStaticPaths() {
+  // Une route par catégorie déclarée dans la config (live + coming_soon).
+  // Les coming_soon rendent une landing noindex "Bientôt".
+  return CATEGORY_ORDER.map((slug) => ({ params: { categorie: slug } }));
+}
+
+const { categorie } = Astro.params;
+const category = getCategory(categorie!);
+
+if (!category) {
+  return Astro.redirect('/centre-aide');
+}
+
+const canonical = `https://www.gerermonchantier.fr/centre-aide/${category.slug}`;
+
+// Charge les articles de la catégorie depuis la Content Collection.
+// Filtre par dossier parent (le dossier = la catégorie).
+const allEntries = await getCollection('centre-aide');
+const entries = allEntries.filter((entry) => {
+  const parts = entry.id.split('/');
+  return parts[0] === category.slug;
+});
+
+// Estimation reading time approximative (200 mots/min).
+function estimateReadingTime(body: string): number {
+  const words = body.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+// Slug de l'article dérivé du filename (dernier segment du path, sans extension).
+function slugFromId(id: string): string {
+  return id.replace(/\.md$/, '').split('/').pop() ?? id;
+}
+
+const articles = entries
+  .map((entry) => ({
+    slug: slugFromId(entry.id),
+    title: entry.data.title,
+    excerpt: entry.data.excerpt,
+    updatedAt: entry.data.updatedAt ?? entry.data.publishedAt,
+    readingTime: estimateReadingTime(entry.body),
+    tags: entry.data.tags,
+  }))
+  .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+
+const isComingSoon = category.status === 'coming_soon';
+
+const title = isComingSoon
+  ? `${category.label} — Section en préparation`
+  : `${category.label} — Centre d'aide GérerMonChantier`;
+
+const description = isComingSoon
+  ? `${category.intro} Section en cours de rédaction — les articles arrivent bientôt.`
+  : category.intro;
+
+const breadcrumbs = breadcrumbSchema([
+  { name: 'Accueil', url: 'https://www.gerermonchantier.fr/' },
+  { name: "Centre d'aide", url: 'https://www.gerermonchantier.fr/centre-aide' },
+  { name: category.label, url: canonical },
+]);
+
+const liveCategories = getLiveCategories();
+
+export const prerender = true;
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  canonical={canonical}
+  siteName="GérerMonChantier.fr"
+  noindex={isComingSoon}
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbs)} />
+  <CentreAideCategoryHubPage
+    category={category}
+    articles={articles}
+    liveCategories={liveCategories}
+  />
+</BaseLayout>

@@ -1,0 +1,30 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import CentreAideMainHubPage from '@/components/pages/seo/CentreAideMainHubPage';
+import { getAllCategories } from '@/lib/seo/centreAideConfig';
+import { breadcrumbSchema } from '@/lib/seo/schemaOrg';
+
+const canonical = 'https://www.gerermonchantier.fr/centre-aide';
+const title = "Centre d'aide chantier — GérerMonChantier";
+const description =
+  "Résoudre les vrais problèmes de chantier : artisans qui ne répondent plus, budget qui dérape, planning décalé, litiges. Procédures amiables et juridiques, mises à jour en 2026.";
+
+const categories = getAllCategories();
+
+const breadcrumbs = breadcrumbSchema([
+  { name: "Accueil", url: "https://www.gerermonchantier.fr/" },
+  { name: "Centre d'aide", url: canonical },
+]);
+
+export const prerender = true;
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  canonical={canonical}
+  siteName="GérerMonChantier.fr"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbs)} />
+  <CentreAideMainHubPage categories={categories} />
+</BaseLayout>
