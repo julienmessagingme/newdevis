@@ -4,6 +4,7 @@ import { trackPixelOnce } from "@/lib/integrations/metaPixel";
 import { trackTikTokOnce } from "@/lib/integrations/tiktokPixel";
 import GmcGatewayBanner from "@/components/cta/GmcGatewayBanner";
 import PourAllerPlusLoin from "@/components/analysis/PourAllerPlusLoin";
+import AvisEtPreparation from "@/components/analysis/AvisEtPreparation";
 import { detectChantierSlug } from "@/lib/analyse/detectChantierType";
 import { Button } from "@/components/ui/button";
 import {
@@ -1187,53 +1188,44 @@ const AnalysisResult = () => {
           {backLabel}
         </a>
 
-        {/* ── Barre de contexte (compacte) ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 p-4 bg-card border border-border rounded-xl">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
-              <FileText className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-medium text-sm text-foreground leading-tight truncate">{analysis.file_name}</p>
-              <p className="text-xs text-muted-foreground">
-                Analysé le {new Date(analysis.created_at).toLocaleDateString("fr-FR")}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {getScoreBadge(effectiveScore, analysis.status)}
-            <a
-              href={`/comprendre-score?fromAnalysis=true&analysisId=${id}`}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 whitespace-nowrap"
-            >
-              Comprendre
-            </a>
-          </div>
-        </div>
-
-        {/* ── Score ROUGE — motifs critiques (si applicable) ── */}
-        {effectiveScore === "ROUGE" && (() => {
-          const criteresRougesTop: string[] = (() => {
-            try { return JSON.parse(analysis.raw_text || "")?.scoring?.criteres_rouges ?? []; }
-            catch { return []; }
+        {/* ── Bandeau de contexte (Bible Produit VMD §5.1) ─────────────────
+             Une seule ligne discrète. Pas de badge de score, pas de lien
+             « Comprendre ». Le nom du fichier + le montant + l'objet + la
+             date suffisent à situer le devis.                             */}
+        {(() => {
+          const parsed = (() => {
+            try { return JSON.parse(analysis.raw_text || ""); } catch { return null; }
           })();
-          if (!criteresRougesTop.length) return null;
+          const entrepriseNom: string | null =
+            parsed?.extracted?.entreprise?.nom ??
+            parsed?.extracted_data?.entreprise?.nom ??
+            null;
+          const totalTTC: number | null =
+            parsed?.extracted?.totaux?.ttc ??
+            parsed?.extracted_data?.totaux?.ttc ??
+            null;
+          const objet: string | null =
+            parsed?.extracted?.objet ??
+            parsed?.extracted_data?.objet ??
+            null;
+          const bits: string[] = [];
+          if (entrepriseNom) bits.push(entrepriseNom);
+          if (typeof totalTTC === "number" && totalTTC > 0) {
+            bits.push(`${totalTTC.toLocaleString("fr-FR")} € TTC`);
+          }
+          if (objet) bits.push(objet);
+          const summary = bits.length > 0 ? bits.join(" · ") : analysis.file_name;
           return (
-            <div className="flex items-start gap-3 p-4 mb-4 bg-red-50 border border-red-200 rounded-xl">
-              <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-red-800 text-sm mb-1">Anomalie(s) critique(s) détectée(s)</p>
-                <ul className="space-y-0.5">
-                  {criteresRougesTop.map((c, i) => (
-                    <li key={i} className="text-xs text-red-700 flex items-start gap-1.5">
-                      <span className="shrink-0 mt-0.5">•</span><span>{c}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+            <p className="mb-8 text-xs text-muted-foreground">
+              {summary}
+            </p>
           );
         })()}
+
+        {/* Bannière « Anomalie(s) critique(s) » retirée — les motifs critiques
+            sont désormais portés par AvisSurLeDevis dans un ton posé (Bible
+            Produit VMD §5, verdict « Nous vous invitons à ne pas signer sans
+            clarification »).                                                    */}
 
         {/* ── Bannière analyse adaptée ── */}
         {isAdaptedAnalysis && <AdaptedAnalysisBanner mode={analysisMode} />}
@@ -1307,45 +1299,68 @@ const AnalysisResult = () => {
         )}
 
         {/* ══════════════════════════════════════════════════════
-            BLOC 1 — VERDICT EXPERT (premier bloc, above the fold)
+            BLOC PRINCIPAL — Notre lecture + Préparation du rendez-vous
+            (Bible Produit VMD §3 : bloc 1 « avis » + bloc 2 « préparation »
+            + bloc 4 « pourquoi » + invitation à partager)
         ══════════════════════════════════════════════════════ */}
-        {visibleBlocks.includes("prix_marche") && cachedN8NData && (
-          <ConclusionIA
-            analysisId={analysis.id}
-            conclusionIaRaw={analysis.conclusion_ia ?? null}
-            onVerdictReady={(raw) => {
-              setConclusionIaLive(raw);
-              // Meta + TikTok Pixel — conversion "analyse terminée", 1x par analyse (no-op si cookies refusés)
-              trackPixelOnce(`lead_${analysis.id}`, 'Lead', { content_name: 'analyse_devis' });
-              trackTikTokOnce(`submitform_${analysis.id}`, 'SubmitForm', { content_name: 'analyse_devis' });
-            }}
-            onCopy={openFeedback}
-            deterministicAnomalyCount={deterministicAnomalyCount}
-            deterministicSurvalueCount={deterministicSurvalueCount}
-          />
-        )}
-
-        {/* Passerelle GMC — affichée seulement aux comptes permanents (pas aux anonymes
-            qui doivent d'abord créer un compte). Apparait après le verdict, avant le bloc Entreprise. */}
-        {!isAnonymous && (
-          <div className="mb-6">
-            <GmcGatewayBanner variant="post-analysis" />
-          </div>
-        )}
+        {visibleBlocks.includes("prix_marche") && cachedN8NData && (() => {
+          const parsed = (() => {
+            try { return JSON.parse(analysis.raw_text || ""); } catch { return null; }
+          })();
+          const entrepriseName: string | null =
+            parsed?.extracted?.entreprise?.nom ??
+            parsed?.extracted_data?.entreprise?.nom ??
+            null;
+          const criticalReasons: string[] = (() => {
+            try {
+              const scoreData = typeof analysis.score === "string"
+                ? JSON.parse(analysis.score)
+                : (analysis.score as Record<string, unknown> | null) || {};
+              const rouges = Array.isArray(scoreData?.criteres_rouges)
+                ? (scoreData.criteres_rouges as string[])
+                : [];
+              if (rouges.length > 0) return rouges;
+              return parsed?.scoring?.criteres_rouges ?? [];
+            } catch { return []; }
+          })();
+          return (
+            <AvisEtPreparation
+              analysisId={analysis.id}
+              conclusionIaRaw={analysis.conclusion_ia ?? null}
+              pointsOk={analysis.points_ok || []}
+              alertes={analysis.alertes || []}
+              entrepriseName={entrepriseName}
+              criticalReasons={criticalReasons}
+              onVerdictReady={(raw) => {
+                setConclusionIaLive(raw);
+                // Meta + TikTok Pixel — conversion "analyse terminée", 1x par analyse.
+                trackPixelOnce(`lead_${analysis.id}`, 'Lead', { content_name: 'analyse_devis' });
+                trackTikTokOnce(`submitform_${analysis.id}`, 'SubmitForm', { content_name: 'analyse_devis' });
+              }}
+              onCopy={openFeedback}
+            />
+          );
+        })()}
 
         {isAnonymous && (
-          <div className="mb-6 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-3">
+          <div className="mt-6 mb-6 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-3">
             <Lock className="h-4 w-4 text-primary flex-shrink-0" />
-            <span className="text-sm font-medium text-primary">Analyse prix marché verrouillée — créez un compte pour y accéder</span>
+            <span className="text-sm font-medium text-primary">Analyse détaillée verrouillée — créez un compte pour y accéder</span>
           </div>
         )}
 
         {/* ══════════════════════════════════════════════════════
-            BLOC 2 — ENTREPRISE (fiabilité artisan)
-            V3.4.28 — Masqué si hors-scope BTP : les checks RGE/santé financière/
-            qualifications artisan ne s'appliquent pas à un magasin de vélo ou
-            un cabinet médical, et le badge ORANGE devient trompeur.
+            ALLER PLUS LOIN — Bible Produit VMD §3, bloc 5
+            Toute la partie détaillée reste disponible mais est repliée
+            par défaut. Un intitulé sobre sert de séparateur visuel.
         ══════════════════════════════════════════════════════ */}
+        <div className="mt-10 mb-4 pt-6 border-t border-border/60">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/50">
+            Aller plus loin
+          </h2>
+        </div>
+
+        {/* Entreprise (fiabilité artisan) */}
         {visibleBlocks.includes("entreprise") && !isHorsScopeBtp && (
           <BlockEntreprise
             pointsOk={analysis.points_ok || []}
@@ -1425,10 +1440,11 @@ const AnalysisResult = () => {
           />
         )}
 
-        {/* ══════════════════════════════════════════════════════
-            BLOC 5 — CONTEXTE DU CHANTIER
-        ══════════════════════════════════════════════════════ */}
-        {visibleBlocks.includes("contexte") && (
+        {/* Contexte du chantier et Urbanisme — retirés du parcours principal.
+            Ces blocs n'aident pas directement à décider si le devis est cohérent
+            ni à préparer la conversation avec l'artisan (Bible Produit VMD §5).
+            Code conservé pour rétro-compatibilité admin / rollback rapide. */}
+        {false && visibleBlocks.includes("contexte") && (
           <BlockContexte
             siteContext={analysis.site_context as any}
             pointsOk={analysis.points_ok || []}
@@ -1438,45 +1454,14 @@ const AnalysisResult = () => {
             defaultOpen={false}
           />
         )}
-
-        {/* Urbanisme & Formalités CERFA */}
-        {visibleBlocks.includes("urbanisme") && (
+        {false && visibleBlocks.includes("urbanisme") && (
           <BlockUrbanisme initialWorkType={analysis.work_type} />
         )}
 
-        {/* Points conformes & vigilance résiduels */}
-        {remainingPointsOk.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-6 mb-6 card-shadow">
-            <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-score-green" />
-              Autres points conformes
-            </h2>
-            <ul className="space-y-3">
-              {remainingPointsOk.map((point, index) => (
-                <li key={index} className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-score-green mt-0.5 flex-shrink-0" />
-                  <span className="text-foreground">{point}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {remainingAlertes.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-6 mb-6 card-shadow">
-            <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-score-orange" />
-              Autres points de vigilance
-            </h2>
-            <ul className="space-y-3">
-              {remainingAlertes.map((alerte, index) => (
-                <li key={index} className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-score-orange mt-0.5 flex-shrink-0" />
-                  <span className="text-foreground">{alerte}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* « Autres points conformes » et « Autres points de vigilance » —
+            retirés. Les points structurants sont désormais portés soit par
+            l'avis, soit par la fiche « Préparez votre rendez-vous »
+            (Bible Produit VMD §5 : « les doublons disparaissent »). */}
 
         {/* V3.4.23 (2026-05-21) — Blocs retirés pour simplification UI :
             - BLOC 6 "Indice Stratégique Immobilier" (IVP/IPI / StrategicBadge) :
@@ -1500,29 +1485,28 @@ const AnalysisResult = () => {
           </Suspense>
         )}
 
-        {/* Pour aller plus loin — cocon sémantique post-verdict (personnalisé si un
-            type de chantier a été détecté depuis les lignes du devis). */}
-        <PourAllerPlusLoin chantierSlug={detectedChantierSlug} />
+        {/* PourAllerPlusLoin retiré — le cocon sémantique de fin d'analyse
+            entrait en concurrence avec la lecture calme demandée par la Bible
+            Produit VMD §5 (« CTAs multiples en pied »). Composant conservé
+            dans le repo pour rappel / rollback. */}
+        {false && <PourAllerPlusLoin chantierSlug={detectedChantierSlug} />}
 
-        {/* Disclaimer */}
-        <div className="bg-muted/50 border border-border rounded-xl p-5 mb-8">
-          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">⚠️ Avertissement important</h3>
-          <div className="text-xs text-muted-foreground space-y-2">
-            <p>L'analyse fournie par VerifierMonDevis.fr est <strong className="text-foreground">automatisée</strong> et repose sur les informations figurant sur le devis transmis.</p>
-            <p>Cette analyse constitue une <strong className="text-foreground">aide à la décision</strong> et une <strong className="text-foreground">information indicative</strong>.</p>
-            <p>VerifierMonDevis.fr <strong className="text-foreground">n'évalue pas les artisans</strong> et ne porte aucun jugement sur leur probité ou leur compétence.</p>
-          </div>
+        {/* Signature de pied de page — Bible Produit VMD §5.6.
+            Une seule ligne discrète qui ancre la posture VMD. */}
+        <div className="mt-12 pt-6 border-t border-border/60 text-center">
+          <p className="text-[13px] text-muted-foreground leading-relaxed">
+            VerifierMonDevis — l'avis d'un expert avant votre signature.
+          </p>
+          <p className="text-[11px] text-muted-foreground/70 mt-1.5 leading-relaxed max-w-lg mx-auto">
+            Cet outil a été conçu pour aider les particuliers à mieux dialoguer avec les artisans, sans jamais s'y opposer.
+          </p>
         </div>
 
-        {/* V3.4.15+ — Trustpilot Review Collector in-body supprimé.
-            Trustpilot apparaît désormais UNIQUEMENT dans le step "done" de
-            FeedbackModal après un feedback positif (👍 "Oui, vraiment"). Évite
-            de demander un avis avant que le user ait pu juger l'analyse. */}
-
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <a href={isPermanent ? "/tableau-de-bord" : "/"}><Button variant="outline" size="lg"><ArrowLeft className="h-4 w-4 mr-2" />{isPermanent ? "Tableau de bord" : "Accueil"}</Button></a>
-          <a href="/nouvelle-analyse"><Button size="lg">Analyser un autre devis</Button></a>
+        {/* Nouvelle analyse — un seul geste utile en fin de parcours. */}
+        <div className="mt-6 flex justify-center">
+          <a href="/nouvelle-analyse">
+            <Button variant="outline" size="lg">Analyser un autre devis</Button>
+          </a>
         </div>
       </main>
     </div>
