@@ -861,7 +861,7 @@ function buildGroupSummary(priceData: unknown[]): string {
       // V3.5.4 (2026-07-08) — Option A "surface implicite" : quand main_unit=forfait
       // et la description mentionne "N m² murs+plafond", on affiche l'estimation
       // du prix unitaire au m² pour que Gemini puisse comparer au marché au m².
-      const implicitSurface = (group as { implicit_surface?: {
+      const implicitSurface = (g as { implicit_surface?: {
         base_m2: number; effective_m2: number; surface_type: string;
         confidence: string; estimated_unit_price: number;
       } | null }).implicit_surface;
