@@ -126,23 +126,37 @@ export default function AvisEtPreparation({
 
 function LoadingState() {
   return (
-    <div className="rounded-2xl border border-border bg-card px-6 py-8 md:px-8 md:py-10">
+    <div className="rounded-2xl border border-border/70 bg-card/50 px-6 py-8 md:px-8 md:py-10">
       <div className="flex items-center gap-3 text-foreground/70">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        <p className="text-sm">Nous relisons votre devis.</p>
+        <p className="text-[15px]">Nous relisons votre devis.</p>
       </div>
     </div>
   );
 }
 
+/**
+ * Erreur de génération de la conclusion — l'utilisateur voit encore la
+ * partie « Aller plus loin » (entreprise / postes / sécurité) intacte,
+ * donc on reste posé et pédagogique plutôt qu'alarmiste.
+ */
 function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
+  const isSessionIssue = /session|token|expiré|expiree/i.test(error);
+  const title = isSessionIssue
+    ? "Votre session doit être rafraîchie."
+    : "Nous n'avons pas pu terminer cette relecture à l'instant.";
+  const body = isSessionIssue
+    ? "Rechargez la page pour la reprendre — nous conservons toutes les données de votre devis."
+    : "Réessayez dans quelques secondes. Vos données restent intactes, la partie détaillée ci-dessous reste consultable.";
+
   return (
-    <div className="rounded-2xl border border-rose-200 bg-rose-50/60 px-6 py-6 md:px-8 md:py-8">
+    <div className="rounded-2xl border border-amber-200/70 bg-amber-50/60 px-6 py-6 md:px-8 md:py-8">
       <div className="flex items-start gap-3">
-        <AlertCircle className="h-5 w-5 text-rose-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
+        <AlertCircle className="h-5 w-5 text-amber-700 flex-shrink-0 mt-0.5" aria-hidden="true" />
         <div className="flex-1">
-          <p className="text-sm font-medium text-rose-900">{error}</p>
-          <div className="mt-3">
+          <p className="text-[15px] font-medium text-amber-950 leading-relaxed">{title}</p>
+          <p className="mt-1.5 text-[14px] text-amber-900/80 leading-relaxed">{body}</p>
+          <div className="mt-4">
             <Button variant="outline" size="sm" onClick={onRetry}>
               Réessayer
             </Button>
