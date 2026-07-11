@@ -1147,6 +1147,12 @@ const AnalysisResult = () => {
             </span>
           </a>
           <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="px-2 sm:px-3">
+              <a href={backHref} onClick={handleBackClick}>
+                <ArrowLeft className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">{backLabel}</span>
+              </a>
+            </Button>
             {!isPremium && (
               <a href="/pass-serenite" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all text-sm font-semibold text-white shadow-sm">
                 Pass Sérénité
@@ -1182,11 +1188,6 @@ const AnalysisResult = () => {
       <main className="container py-8 max-w-4xl">
         {/* Funnel Stepper */}
         <FunnelStepper currentStep={isPermanent ? 3 : 2} />
-
-        <a href={backHref} onClick={handleBackClick} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
-          <ArrowLeft className="h-4 w-4" />
-          {backLabel}
-        </a>
 
         {/* ── Bandeau de contexte (Bible Produit VMD §5.1) ─────────────────
              Une seule ligne discrète. Pas de badge de score, pas de lien
