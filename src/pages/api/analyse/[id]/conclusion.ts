@@ -1,5 +1,13 @@
 export const prerender = false;
-export const config = { maxDuration: 60 };
+// 2026-07-11 — Bug prod : sur les devis TCE lourds (Tous Corps d'État,
+// 20-30k€, beaucoup de postes), Gemini 2.5-flash prend 45-65s à répondre.
+// L'AbortController interne est déjà à 80s (ligne ~2032) mais Vercel coupait
+// la fonction à 60s AVANT la fin de l'appel Gemini → réponse HTTP tronquée
+// sans body JSON → le hook côté client affichait un fallback générique.
+// 90s laisse la marge à Gemini + post-processing sans dépasser le budget
+// Vercel Pro (jusqu'à 300s). Aucune règle métier touchée, uniquement le
+// budget d'exécution du serverless.
+export const config = { maxDuration: 90 };
 
 /**
  * POST /api/analyse/[id]/conclusion
