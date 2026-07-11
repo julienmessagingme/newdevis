@@ -71,8 +71,10 @@ const featureMenu = [
       Connexion
     </a>
 
-    {/* User dropdown (utilisateur logué) — révélé par JS si auth-token en localStorage */}
-    <div id="gmc-user-dropdown" class="relative hidden">
+    {/* User dropdown (utilisateur logué) — révélé par JS si auth-token en localStorage.
+        Desktop uniquement : sur mobile les actions (Mes chantiers / Déconnexion) vivent
+        dans le menu burger (sinon le dropdown + CTA + burger débordent la largeur). */}
+    <div id="gmc-user-dropdown" class="relative hidden max-md:!hidden">
       <button
         id="gmc-user-trigger"
         type="button"
@@ -132,6 +134,9 @@ const featureMenu = [
       ))}
       <a href="/#tarifs" class="py-2.5 cursor-pointer hover:text-[#1B3FA1] border-t border-gray-100 mt-1 pt-3">Tarifs</a>
       <a id="gmc-mobile-login" href="/connexion" class="py-2.5 cursor-pointer hover:text-[#1B3FA1]">Connexion</a>
+      {/* Entrées connecté (révélées par JS) — accès dashboard + déconnexion sur mobile */}
+      <a id="gmc-mobile-chantier" href="/mon-chantier" class="hidden py-2.5 cursor-pointer hover:text-[#1B3FA1] border-t border-gray-100 mt-1 pt-3">🏗️ Mes chantiers</a>
+      <button id="gmc-mobile-signout" type="button" class="hidden text-left py-2.5 text-red-600 hover:text-red-700 font-medium">Déconnexion</button>
     </nav>
   </div>
 </header>
@@ -184,6 +189,10 @@ const featureMenu = [
       // masquait le lien aux vrais abonnés, qui ne pouvaient donc pas rejoindre
       // leur tableau de bord depuis le header.
       document.getElementById('gmc-user-chantier-link')?.classList.remove('hidden');
+
+      // Mobile : révèle Mes chantiers + Déconnexion dans le menu burger
+      document.getElementById('gmc-mobile-chantier')?.classList.remove('hidden');
+      document.getElementById('gmc-mobile-signout')?.classList.remove('hidden');
     }
   } catch {
     // Mode privé strict ou similaire — non bloquant, on garde le bouton Connexion
@@ -213,10 +222,12 @@ const featureMenu = [
   });
 
   // ── Sign out (helper partagé qui gère le cross-domain) ──────────────────
-  document.getElementById('gmc-signout-btn')?.addEventListener('click', async () => {
+  const handleSignOut = async () => {
     const { signOutCrossDomain } = await import('@/lib/auth/signOut');
     await signOutCrossDomain('/');
-  });
+  };
+  document.getElementById('gmc-signout-btn')?.addEventListener('click', handleSignOut);
+  document.getElementById('gmc-mobile-signout')?.addEventListener('click', handleSignOut);
 
   // ── Menu mobile ──────────────────────────────────────────────────────────
   const mobileBtn = document.getElementById('gmc-mobile-menu-btn');
