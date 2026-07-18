@@ -64,34 +64,75 @@ function isClarificationOrNegotiation(action: string): boolean {
 }
 
 /**
+ * Nettoie une chaîne des scories de wording admin qui peuvent traîner dans
+ * points_ok / alertes / actions_avant_signature :
+ *   - Emojis 🔴 🟠 🟡 🟢 🔵 (ronds de sévérité)
+ *   - Emojis ⚠ ⚡ ❗ ‼ (avertissements)
+ *   - Puces • ● en tête
+ *   - « Un point à faire préciser : à l'artisan / à l'entreprise / au professionnel »
+ *   - Espaces multiples
+ */
+function stripAdminScoriae(s: string): string {
+  return s
+    .replace(/[\u{1F534}\u{1F7E0}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26A0}\u{26A1}\u{2757}\u{203C}]️?/gu, "")
+    .replace(/^[\s•●▪▫◦]+/g, "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Enlève le préfixe verbal + la référence à l'artisan/entreprise/etc. pour
+ * garder uniquement le contenu utile. Convertit une action impérative
+ * ("Demandez à l'artisan de préciser X") en groupe nominal courant
+ * ("préciser X" / "la surface de peinture" / etc.).
+ */
+function stripImperativePrefix(action: string): string {
+  let rest = action.trim().replace(/\s+/g, " ");
+  // 1. Retire le verbe impératif au début (Demandez / Exigez / etc.)
+  rest = rest.replace(DEMANDER_PREFIXES, "").trim();
+  // 2. Retire la mention du destinataire de l'action
+  rest = rest.replace(/^(?:à\s+l[''`]?(?:artisan|artisane|entreprise|entrepreneur|professionnel)|au\s+(?:professionnel|prestataire|maître\s+d[''`]?œuvre))\s*/i, "").trim();
+  // 3. Retire "de" ou "d'" résiduel après le retrait du destinataire
+  rest = rest.replace(/^d[e']\s*/i, "").trim();
+  return rest;
+}
+
+/**
  * Transforme une action impérative ("Demandez X") en formulation
  * "contexte / question prononçable" plus bienveillante.
  */
 function reformulateAsQuestion(action: string): { context: string; question: string } {
-  const trimmed = action.trim().replace(/\s+/g, " ");
+  const cleaned = stripAdminScoriae(action);
 
-  // Cas : "Demandez à l'artisan de préciser X"
-  const demanderMatch = trimmed.match(DEMANDER_PREFIXES);
-  if (demanderMatch) {
-    const rest = trimmed.slice(demanderMatch[0].length).trim().replace(/^de\s+/, "");
-    // Extraire le sujet
-    const context = `Un point à faire préciser : ${rest.charAt(0).toLowerCase()}${rest.slice(1)}`;
-    const question = `« Pouvez-vous me préciser ce point ? »`;
-    return { context, question };
-  }
-
-  // Cas : "Négociez X"
-  if (/^négoc|^negoc/i.test(trimmed)) {
-    const rest = trimmed.replace(/^négoc(?:iez|ier)\s*/i, "").replace(/^negoc(?:iez|ier)\s*/i, "");
+  // Cas : "Négociez X" → traitement dédié
+  if (/^négoc|^negoc/i.test(cleaned)) {
+    const rest = cleaned
+      .replace(/^négoc(?:iez|ier)\s*/i, "")
+      .replace(/^negoc(?:iez|ier)\s*/i, "")
+      .trim();
     return {
-      context: rest ? `Un point à ouvrir à la discussion : ${rest.charAt(0).toLowerCase()}${rest.slice(1)}` : "Un point à ouvrir à la discussion.",
+      context: rest ? `Point à ouvrir à la discussion : ${rest.charAt(0).toLowerCase()}${rest.slice(1)}` : "Un point à ouvrir à la discussion.",
       question: `« Est-ce que ce poste peut être ajusté ? »`,
     };
   }
 
-  // Cas générique : garde l'action telle quelle en contexte
+  // Cas : "Demandez à l'artisan de préciser X" → nettoie puis reformule
+  const demanderMatch = cleaned.match(DEMANDER_PREFIXES);
+  if (demanderMatch) {
+    const rest = stripImperativePrefix(cleaned);
+    if (!rest) {
+      return {
+        context: "Un point à faire préciser.",
+        question: `« Pouvez-vous me préciser ce point ? »`,
+      };
+    }
+    const context = `Point à faire préciser : ${rest.charAt(0).toLowerCase()}${rest.slice(1)}`;
+    return { context, question: `« Pouvez-vous me préciser ce point ? »` };
+  }
+
+  // Cas générique : garde l'action nettoyée en contexte
   return {
-    context: trimmed,
+    context: cleaned,
     question: `« Pouvez-vous m'en dire un peu plus sur ce point ? »`,
   };
 }
@@ -152,13 +193,49 @@ export function buildPreparationSections(
   const standardActions = actions.filter(isStandardAction);
   const alertesStandards = alertes.filter((a) => isStandardAction(a));
   const combined = Array.from(new Set([...standardActions, ...alertesStandards]));
-  const aNePasOublier = combined.slice(0, 3);
+  // Nettoie chaque item (emojis, puces, préfixes impératifs traînants)
+  // puis produit un texte prononçable au discours indirect naturel.
+  const aNePasOublier = combined
+    .slice(0, 3)
+    .map((raw) => reformulateStandardItem(raw))
+    .filter((s) => s.length > 0);
 
   return {
     rappelPourOuvrir,
     aDemander,
     aNePasOublier,
   };
+}
+
+/**
+ * Reformule un item "standard" (attestation, planning, assurance…) pour la
+ * section « Ce qu'il ne faut pas oublier ». Enlève les emojis, les préfixes
+ * « Demandez à l'artisan… » et convertit en groupe nominal court.
+ *
+ * Exemples :
+ *   "🔴 Comptes non accessibles publiquement (dernier exercice…)"
+ *      → "Comptes non accessibles publiquement"
+ *   "Demandez à l'entreprise de justifier l'absence de publication…"
+ *      → "Une justification de l'absence de publication…"
+ *   "Demandez l'attestation d'assurance décennale valide pour 2026"
+ *      → "L'attestation d'assurance décennale valide pour 2026"
+ */
+function reformulateStandardItem(raw: string): string {
+  let s = stripAdminScoriae(raw);
+  // Retire les parenthèses de contexte historique (« dernier exercice… »)
+  // qui alourdissent le mail. On garde 1 seule idée par item.
+  const parenIdx = s.indexOf(" (");
+  if (parenIdx > 20) s = s.slice(0, parenIdx);
+  // Retire l'impératif + destinataire
+  const demanderMatch = s.match(DEMANDER_PREFIXES);
+  if (demanderMatch) {
+    const rest = stripImperativePrefix(s);
+    if (rest) {
+      // "l'attestation décennale" → "L'attestation décennale"
+      return rest.charAt(0).toUpperCase() + rest.slice(1);
+    }
+  }
+  return s;
 }
 
 /**

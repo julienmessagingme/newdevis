@@ -232,6 +232,20 @@ function WrittenChannel({
 // Reformulation pure — aucune donnée nouvelle.
 // ═══════════════════════════════════════════════════════════════════
 
+/**
+ * Retire le préfixe « Point à faire préciser : » / « Point à ouvrir à la
+ * discussion : » ajouté par preparationBuilder pour la fiche visuelle, afin
+ * de ne pas polluer le mail (où le contexte de la phrase le porte déjà).
+ */
+function cleanContextForMail(context: string): string {
+  const s = context
+    .replace(/^(?:Un\s+)?[Pp]oint\s+à\s+faire\s+préciser\s*[:—-]\s*/i, "")
+    .replace(/^(?:Un\s+)?[Pp]oint\s+à\s+ouvrir\s+à\s+la\s+discussion\s*[:—-]\s*/i, "")
+    .trim();
+  // Capitalise la première lettre (une fois le préfixe retiré)
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function buildWrittenMessages(
   sections: ReturnType<typeof buildPreparationSections>,
   prenom: string | null,
@@ -239,22 +253,49 @@ function buildWrittenMessages(
   const salut = prenom ? `Bonjour ${prenom},` : "Bonjour,";
   const signature = "\n\nBien cordialement,";
 
-  const points = sections.aDemander.map((item, i) => `${i + 1}. ${item.context}`).join("\n");
-  const oublis = sections.aNePasOublier.length > 0
-    ? `\n\nJ'en profite pour vous demander :\n${sections.aNePasOublier.map((o) => `• ${o}`).join("\n")}`
+  const pointsCleaned = sections.aDemander.map((item) => cleanContextForMail(item.context));
+  const oubliCleaned = sections.aNePasOublier
+    .map((o) => o.trim())
+    .filter((s) => s.length > 0);
+
+  const pointsBlock = pointsCleaned.length > 0
+    ? pointsCleaned.map((p, i) => `${i + 1}. ${p}`).join("\n")
     : "";
 
-  const mail = points
-    ? `${salut}\n\nMerci pour votre devis. Avant de le signer, j'aurais besoin de revenir avec vous sur ${sections.aDemander.length === 1 ? "un point" : "quelques points"} :\n\n${points}${oublis}${signature}`
-    : `${salut}\n\nMerci pour votre devis. Avant de m'engager, j'aurais besoin d'un point rapide avec vous.${oublis}${signature}`;
+  // Section « à ne pas oublier » — rendue en phrase fluide plutôt qu'en
+  // puces avec verbe impératif redondant. Si un seul item, phrase simple ;
+  // sinon liste courte en tirets, introduite par une transition naturelle.
+  let oublisBlock = "";
+  if (oubliCleaned.length === 1) {
+    oublisBlock = `\n\nEnfin, pourriez-vous me transmettre ${oubliCleaned[0].toLowerCase()} ?`;
+  } else if (oubliCleaned.length > 1) {
+    oublisBlock = `\n\nEnfin, quelques éléments à me transmettre avant signature :\n${oubliCleaned.map((o) => `- ${o}`).join("\n")}`;
+  }
 
-  const sms = points
-    ? `${salut} Merci pour votre devis. Avant de signer, ${sections.aDemander.length === 1 ? "un point à voir avec vous" : "quelques points à voir avec vous"} : ${sections.aDemander.map((item) => item.context).join(" ; ")}. Merci !`
-    : `${salut} Merci pour votre devis. Avant de m'engager, j'aurais besoin d'un point rapide avec vous. Merci !`;
+  const intro = pointsCleaned.length === 1
+    ? "Merci pour votre devis. Avant de le signer, j'aurais un point à voir avec vous :"
+    : pointsCleaned.length > 1
+    ? "Merci pour votre devis. Avant de le signer, j'aurais quelques points à voir avec vous :"
+    : "Merci pour votre devis. Avant de m'engager, j'aurais besoin d'un point rapide avec vous.";
 
+  const mail = pointsBlock
+    ? `${salut}\n\n${intro}\n\n${pointsBlock}${oublisBlock}${signature}`
+    : `${salut}\n\n${intro}${oublisBlock}${signature}`;
+
+  // SMS — plus court, sans puces
+  const smsPoints = pointsCleaned.length > 0
+    ? ` ${pointsCleaned.join(" ; ")}.`
+    : "";
+  const smsOublis = oubliCleaned.length > 0
+    ? ` À me transmettre également : ${oubliCleaned.join(", ")}.`
+    : "";
+  const sms = `${salut} Merci pour votre devis. Avant de signer, ${pointsCleaned.length > 0 ? (pointsCleaned.length === 1 ? "un point à voir avec vous" : "quelques points à voir avec vous") : "j'aurais besoin d'un point rapide avec vous"} :${smsPoints}${smsOublis} Merci !`;
+
+  // WhatsApp — variante du mail, ton plus détendu
   const whatsapp = mail
     .replace(/\n\nBien cordialement,/, "\n\nMerci d'avance 🙏")
-    .replace(/Bonjour,/, "Bonjour 👋");
+    .replace(/^Bonjour,/, "Bonjour 👋")
+    .replace(/^Bonjour ([^,]+),/, "Bonjour $1 👋");
 
   return { mail, sms, whatsapp };
 }

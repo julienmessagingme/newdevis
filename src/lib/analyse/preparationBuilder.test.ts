@@ -60,6 +60,57 @@ describe("preparationBuilder — buildPreparationSections", () => {
     expect(aDemander[0].question).toMatch(/«.*»/);
   });
 
+  it("retire 'à l'artisan' / 'à l'entreprise' après le verbe impératif", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez à l'artisan un devis détaillé avec unités précisées",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+    // Ne doit PAS commencer par « à l'artisan » ou « à l'entreprise »
+    expect(aDemander[0].context).not.toMatch(/à\s+l['']?(artisan|entreprise)/i);
+    expect(aDemander[0].context.toLowerCase()).toContain("devis détaillé");
+  });
+
+  it("nettoie les emojis colorés (🔴 🟠) et puces qui traînent dans les alertes", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez à l'entreprise l'attestation d'assurance décennale valide pour 2026",
+      ],
+    };
+    const alertes = [
+      "🔴 Comptes non accessibles publiquement (dernier exercice connu : 2016)",
+      "🟠 Note Google 3.3/5 — réputation à surveiller",
+    ];
+    // Force le passage en section 3 via le keyword "assurance" / "décennale"
+    const { aNePasOublier } = buildPreparationSections(conclusion, [], alertes);
+    // Aucun item ne doit contenir d'emoji couleur ou de puce
+    for (const item of aNePasOublier) {
+      expect(item).not.toMatch(/[🔴🟠🟡🟢🔵⚠]/u);
+      expect(item.trim()).not.toMatch(/^[•●▪▫]/);
+    }
+  });
+
+  it("ne double pas le verbe impératif dans la section « à ne pas oublier »", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez à l'entreprise de justifier l'absence de publication de ses comptes",
+        "Demandez l'attestation d'assurance décennale",
+      ],
+    };
+    const { aNePasOublier } = buildPreparationSections(conclusion, [], []);
+    // Aucun item ne doit commencer par un verbe impératif de demande
+    for (const item of aNePasOublier) {
+      expect(item).not.toMatch(/^(demand(?:ez|er)|exig(?:ez|er)|réclam)/i);
+    }
+    // Doit contenir des groupes nominaux (attestation, justification, etc.)
+    expect(aNePasOublier.length).toBeGreaterThanOrEqual(1);
+  });
+
   it("classe les actions standard (attestation, décennale, planning) en section 3", () => {
     const conclusion = {
       ...baseConclusion,
