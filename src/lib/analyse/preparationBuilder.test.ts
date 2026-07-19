@@ -27,37 +27,79 @@ const baseConclusion: ConclusionData = {
 };
 
 describe("preparationBuilder — buildPreparationSections", () => {
-  it("produit une ouverture positive quand deux points_ok pertinents", () => {
+  it("produit une ouverture fusionnée sans doublon 'l'entreprise'", () => {
     const { rappelPourOuvrir } = buildPreparationSections(
       baseConclusion,
       ["Entreprise active depuis 2014", "Note Google 4.6/5 sur 47 avis"],
       [],
     );
-    expect(rappelPourOuvrir).toContain("l'entreprise est établie de longue date");
-    expect(rappelPourOuvrir).toContain("l'entreprise a un bon profil");
+    expect(rappelPourOuvrir).not.toBeNull();
+    // Une seule mention de "L'entreprise" (fusion élégante)
+    const occurrences = (rappelPourOuvrir!.match(/L['']entreprise/gi) ?? []).length;
+    expect(occurrences).toBe(1);
+    expect(rappelPourOuvrir).toContain("établie depuis longtemps");
+    expect(rappelPourOuvrir).toContain("bien notée");
   });
 
-  it("produit une ouverture par défaut sur verdict signer sans point_ok", () => {
+  it("ne scénarise pas la conversation avec l'artisan", () => {
+    const { rappelPourOuvrir } = buildPreparationSections(
+      baseConclusion,
+      ["Entreprise active depuis 2014"],
+      [],
+    );
+    expect(rappelPourOuvrir).not.toBeNull();
+    // Aucun méta-conseil scénarisé
+    expect(rappelPourOuvrir).not.toMatch(/bonne base de conversation/i);
+    expect(rappelPourOuvrir).not.toMatch(/mieux vaut le lui dire/i);
+    expect(rappelPourOuvrir).not.toMatch(/en ouverture/i);
+    expect(rappelPourOuvrir).not.toMatch(/correspond à votre projet/i);
+  });
+
+  it("silence assumé quand aucun point_ok tangible (même verdict signer)", () => {
     const conclusion = { ...baseConclusion, verdict_decisionnel: "signer" as const };
     const { rappelPourOuvrir } = buildPreparationSections(conclusion, [], []);
-    expect(rappelPourOuvrir).toContain("bonne base de conversation");
+    // Silence — pas d'invention de phrase générique
+    expect(rappelPourOuvrir).toBeNull();
   });
 
-  it("n'invente pas d'ouverture sur un verdict à risque sans données", () => {
+  it("silence sur verdict à risque sans données positives", () => {
     const conclusion = { ...baseConclusion, verdict_decisionnel: "ne_pas_signer" as const };
     const { rappelPourOuvrir } = buildPreparationSections(conclusion, [], []);
     expect(rappelPourOuvrir).toBeNull();
   });
 
-  it("reformule les actions de type 'demandez X' en question prononçable", () => {
+  it("reformule sans préfixe 'Point à faire préciser :' redondant", () => {
     const conclusion = {
       ...baseConclusion,
       actions_avant_signature: ["Demandez la surface exacte du poste peinture"],
     };
     const { aDemander } = buildPreparationSections(conclusion, [], []);
     expect(aDemander).toHaveLength(1);
-    expect(aDemander[0].context).toMatch(/à faire préciser/i);
+    // Le préfixe est retiré — le titre de section porte l'intention
+    expect(aDemander[0].context).not.toMatch(/^Point à faire préciser/i);
+    expect(aDemander[0].context).not.toMatch(/^Point à ouvrir à la discussion/i);
+    // Le contenu factuel reste (avec majuscule initiale)
+    expect(aDemander[0].context.toLowerCase()).toContain("surface exacte");
     expect(aDemander[0].question).toMatch(/«.*»/);
+  });
+
+  it("filtre les items purement informatifs de la section « à ne pas oublier »", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez l'attestation d'assurance décennale",
+      ],
+    };
+    const alertes = [
+      "Acompte modéré (50%). Un acompte ≤ 30% est généralement recommandé. Cela reste une pratique courante.",
+    ];
+    const { aNePasOublier } = buildPreparationSections(conclusion, [], alertes);
+    // Aucun item ne doit contenir de wording informatif "pratique courante"
+    for (const item of aNePasOublier) {
+      expect(item).not.toMatch(/pratique courante/i);
+      expect(item).not.toMatch(/généralement recommandé/i);
+      expect(item).not.toMatch(/cela reste/i);
+    }
   });
 
   it("retire 'à l'artisan' / 'à l'entreprise' après le verbe impératif", () => {

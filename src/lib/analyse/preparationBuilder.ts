@@ -74,10 +74,32 @@ function isClarificationOrNegotiation(action: string): boolean {
  */
 function stripAdminScoriae(s: string): string {
   return s
-    .replace(/[\u{1F534}\u{1F7E0}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26A0}\u{26A1}\u{2757}\u{203C}]️?/gu, "")
-    .replace(/^[\s•●▪▫◦]+/g, "")
+    // Emojis colorés / symboles à couleur (blocs Unicode « Miscellaneous Symbols » et « Supplemental Symbols » + variation selector)
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2100}-\u{214F}\u{FE0F}\u{20E3}]/gu, "")
+    .replace(/^[\s•●▪▫◦→›»]+/g, "")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+/**
+ * Détecte les items purement informatifs (ne demandent aucune action) qui
+ * n'ont rien à faire dans la section « Ce qu'il ne faut pas oublier ».
+ * Exemples : « Acompte modéré (50%). Cela reste une pratique courante. »
+ */
+const INFORMATIF_MARKERS = [
+  "généralement recommandé",
+  "pratique courante",
+  "reste une pratique",
+  "à titre indicatif",
+  "cela reste",
+  "à titre informatif",
+  "reste dans la norme",
+  "sans particularité",
+  "reste standard",
+];
+function isPurelyInformative(s: string): boolean {
+  const lower = s.toLowerCase();
+  return INFORMATIF_MARKERS.some((kw) => lower.includes(kw));
 }
 
 /**
@@ -100,6 +122,11 @@ function stripImperativePrefix(action: string): string {
 /**
  * Transforme une action impérative ("Demandez X") en formulation
  * "contexte / question prononçable" plus bienveillante.
+ *
+ * Note : le contexte ne préfixe plus « Point à faire préciser : » ni
+ * « Point à ouvrir à la discussion : » — le titre de section (« Ce que vous
+ * pouvez lui demander ») porte déjà cette intention et 3 items préfixés
+ * de la même façon étaient inutilement répétitifs.
  */
 function reformulateAsQuestion(action: string): { context: string; question: string } {
   const cleaned = stripAdminScoriae(action);
@@ -111,7 +138,7 @@ function reformulateAsQuestion(action: string): { context: string; question: str
       .replace(/^negoc(?:iez|ier)\s*/i, "")
       .trim();
     return {
-      context: rest ? `Point à ouvrir à la discussion : ${rest.charAt(0).toLowerCase()}${rest.slice(1)}` : "Un point à ouvrir à la discussion.",
+      context: rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : "Poste à ouvrir à la discussion.",
       question: `« Est-ce que ce poste peut être ajusté ? »`,
     };
   }
@@ -122,39 +149,45 @@ function reformulateAsQuestion(action: string): { context: string; question: str
     const rest = stripImperativePrefix(cleaned);
     if (!rest) {
       return {
-        context: "Un point à faire préciser.",
+        context: "Point à clarifier.",
         question: `« Pouvez-vous me préciser ce point ? »`,
       };
     }
-    const context = `Point à faire préciser : ${rest.charAt(0).toLowerCase()}${rest.slice(1)}`;
-    return { context, question: `« Pouvez-vous me préciser ce point ? »` };
+    return {
+      context: rest.charAt(0).toUpperCase() + rest.slice(1),
+      question: `« Pouvez-vous me préciser ce point ? »`,
+    };
   }
 
   // Cas générique : garde l'action nettoyée en contexte
   return {
-    context: cleaned,
+    context: cleaned.charAt(0).toUpperCase() + cleaned.slice(1),
     question: `« Pouvez-vous m'en dire un peu plus sur ce point ? »`,
   };
 }
 
 /**
- * Simplifie un point_ok pour l'intégrer dans une phrase d'ouverture.
- * Ex : "Entreprise active depuis 2014, 47 avis Google (4,6/5)"
- *      -> "l'entreprise a un bon profil"
+ * Simplifie un point_ok pour l'intégrer dans une phrase d'ouverture SOBRE.
+ * Retourne { key, text } — la clé sert à dédupliquer sémantiquement (éviter
+ * plusieurs phrases « l'entreprise ... l'entreprise ... »).
+ *
+ * Les textes NE commencent PAS tous par « l'entreprise » pour permettre une
+ * fusion élégante (« établie depuis longtemps et bien notée » plutôt que
+ * « l'entreprise est établie depuis longtemps et l'entreprise est bien notée »).
  */
-function simplifyPointOk(point: string): string | null {
+function simplifyPointOk(point: string): { key: string; short: string } | null {
   const lower = point.toLowerCase();
   if (lower.includes("assurance") || lower.includes("décennale") || lower.includes("decennale") || lower.includes("rge") || lower.includes("qualib")) {
-    return "les certifications et assurances sont en règle";
+    return { key: "cert", short: "certifications et assurances en règle" };
   }
   if (lower.includes("avis") || lower.includes("note") || lower.includes("google")) {
-    return "l'entreprise a un bon profil";
+    return { key: "avis", short: "bien notée par ses clients" };
   }
   if (lower.includes("ancien") || lower.includes("depuis") || lower.includes("siret") || lower.includes("actif")) {
-    return "l'entreprise est établie de longue date";
+    return { key: "anciennete", short: "établie depuis longtemps" };
   }
   if (lower.includes("paiement") || lower.includes("acompte") || lower.includes("iban")) {
-    return "les conditions de paiement sont classiques";
+    return { key: "paiement", short: "conditions de paiement classiques" };
   }
   return null;
 }
@@ -166,21 +199,27 @@ export function buildPreparationSections(
 ): PreparationSections {
   const actions = conclusion.actions_avant_signature ?? [];
 
-  // ── Section 1 — Ouverture ──────────────────────────────────────────────
-  const positives = pointsOk
-    .map(simplifyPointOk)
-    .filter((s): s is string => s !== null);
-
-  const uniquePositives = Array.from(new Set(positives)).slice(0, 2);
+  // ── Section 1 — Rappel d'ouverture ─────────────────────────────────────
+  // Une phrase courte et factuelle. AUCUN méta-conseil de type « c'est une
+  // bonne base de conversation, mieux vaut le lui dire ». On ne scénarise
+  // pas la conversation du user avec son artisan — on lui donne un fait
+  // rassurant, il en fait ce qu'il veut. Section masquée s'il n'y a rien
+  // de tangible à mettre en avant (silence assumé, cf. Bible §11 principe #4).
+  const positivesMap = new Map<string, string>();
+  for (const p of pointsOk) {
+    const simp = simplifyPointOk(p);
+    if (simp && !positivesMap.has(simp.key)) positivesMap.set(simp.key, simp.short);
+  }
+  const uniquePositives = [...positivesMap.values()].slice(0, 2);
 
   let rappelPourOuvrir: string | null = null;
   if (uniquePositives.length >= 2) {
-    rappelPourOuvrir = `Le devis correspond à votre projet, ${uniquePositives.join(" et ")}. C'est une bonne base de conversation — mieux vaut le lui dire en ouverture.`;
+    rappelPourOuvrir = `L'entreprise est ${uniquePositives.join(" et ")}.`;
   } else if (uniquePositives.length === 1) {
-    rappelPourOuvrir = `Sur l'ensemble, ${uniquePositives[0]}. C'est une bonne base pour ouvrir la discussion.`;
-  } else if (conclusion.verdict_decisionnel === "signer") {
-    rappelPourOuvrir = "Le devis correspond à votre projet et les points principaux sont dans les habitudes du métier. C'est une bonne base de conversation.";
+    rappelPourOuvrir = `L'entreprise est ${uniquePositives[0]}.`;
   }
+  // Silence si aucun positif tangible — même en cas de verdict « signer ».
+  // Une phrase générique inventée ne rassure personne.
 
   // ── Section 2 — Ce que vous pouvez lui demander ────────────────────────
   const aDemander = actions
@@ -190,15 +229,17 @@ export function buildPreparationSections(
     .map(reformulateAsQuestion);
 
   // ── Section 3 — Ce qu'il ne faut pas oublier ───────────────────────────
-  const standardActions = actions.filter(isStandardAction);
-  const alertesStandards = alertes.filter((a) => isStandardAction(a));
+  // Ne garde QUE des items actionables (à demander, à vérifier, à obtenir).
+  // Les items purement informatifs (« pratique courante », « à titre
+  // indicatif », etc.) sont filtrés — ils n'ont pas leur place dans une
+  // section titrée « à ne pas oublier » (rien à oublier de faire).
+  const standardActions = actions.filter(isStandardAction).filter((a) => !isPurelyInformative(a));
+  const alertesStandards = alertes.filter((a) => isStandardAction(a)).filter((a) => !isPurelyInformative(a));
   const combined = Array.from(new Set([...standardActions, ...alertesStandards]));
-  // Nettoie chaque item (emojis, puces, préfixes impératifs traînants)
-  // puis produit un texte prononçable au discours indirect naturel.
   const aNePasOublier = combined
     .slice(0, 3)
     .map((raw) => reformulateStandardItem(raw))
-    .filter((s) => s.length > 0);
+    .filter((s) => s.length > 0 && !isPurelyInformative(s));
 
   return {
     rappelPourOuvrir,
