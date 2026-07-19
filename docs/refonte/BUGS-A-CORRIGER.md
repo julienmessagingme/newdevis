@@ -84,6 +84,22 @@
   - Sortie attendue : classification `non_comparable` (ou `low_confidence_match`) — pas `anomalie_marche`. Le poste apparaît dans une section "Comparaison non applicable" et n'entre PAS dans le compte d'anomalies du verdict global.
 - **Statut** : 🔴 à corriger (Phase 4). Mitigation immédiate : la garde V3.5.11 `low_confidence_match` rattrape une partie des cas (similarity < 0.85). Mais le pattern forfait est si massif qu'il déborde quand même.
 
+### 2026-07-11 — PACKAGE-MULTI-ELEMENTS-AVEC-MAX-DESCRIPTEURS
+
+- **Signalé par** : Julien (revue devis SDB fort351, 2026-07-14)
+- **Analyse ID** : `e205bc1a-8d7e-4340-9d31-c3f3dd50dbd2` (b8f6f03c2b697b3c8bea4c0160c25871fedcca10daf786839be5c268d17a.pdf)
+- **Symptôme observé** : Une ligne 4.1.1 « Fournitures ET pose : - receveur de douche (300€ max) - colonne de douche (200€ max) - paroi (300€ max) - meuble vasque suspendu (350€ max) - mitigeur (80€ max) - miroir LED (100€ max) - sèche-serviette électrique (250€ max) - WC simple (250€ max) » facturée **4 200 € en 1 unité forfait**. Gemini a extrait les prix « max » descripteurs, les a **sommés** (~1 830 €), et généré une anomalie « Miroir LED (fourni+posé) — la somme des prix maximums des éléments listés est bien inférieure au prix total facturé (1 850 € vs 4 200 €) ». Ce n'est pas absurde en soi : les 4 200 € couvrent un forfait fourniture + pose de **8 éléments installés** en douche italienne complète (matériel max ~1 830 € + pose + accessoires + raccords ≈ 2 300 €).
+- **Cause racine** : Les mentions « (300€ max) » dans les descripteurs de ligne sont des **indications de gamme pour l'acheteur** (choix haut de gamme du budget prévu), pas des prix théoriques du poste. Gemini les traite comme des composants de prix agrégés et fait un contrôle brut (somme = ? total) sans tenir compte de :
+  - la nature « fourniture ET pose » de la ligne
+  - la présence de main d'œuvre / accessoires / raccords hors matériel
+  - la sémantique du token « max » qui indique un plafond de choix, pas un total attendu
+- **Maillon concerné** : 1 (Lire juste — la sémantique des sous-éléments est mal comprise) + 3 (Verdict honnête — l'anomalie n'aurait pas dû être générée)
+- **Phase qui corrige** : 3 (extract_v2 doit reconnaître ces packages avec sous-éléments décrits en « prix max ») + 4 (verdict expert ne remonte plus d'anomalie sur ce type de ligne)
+- **Cas test à passer** :
+  - Input : ligne forfait 1 unité 4 200 € avec descripteur listant 8 sous-éléments chacun avec « (prix max €) »
+  - Sortie attendue : le poste est classé « package multi-éléments non décomposé » — ni « anomalie » ni « comparaison automatique ». Une action ciblée peut proposer : « Demandez le détail chiffré poste par poste : receveur X €, colonne Y €, pose Z €… pour vérifier chaque élément individuellement. »
+- **Statut** : 🔴 à corriger (Phase 3 + Phase 4). Note : ce cas est un excellent training data pour extract_v2 — la ligne montre à la fois la structure hiérarchique (parent 4.1 + enfant 4.1.1) et la présence de descripteurs avec prix max qui ne doivent PAS être traités comme composants.
+
 ### 2026-06-29 — DEVIS-DATE-NON-EXTRAIT-COMME-LEVIER
 
 - **Signalé par** : Julien (revue devis Mélier Cognac 2024)
