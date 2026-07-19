@@ -83,6 +83,75 @@ describe("preparationBuilder — buildPreparationSections", () => {
     expect(aDemander[0].question).toMatch(/«.*»/);
   });
 
+  it("« Vérifiez le numéro QualiPAC » devient une question à l'artisan spécifique", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Vérifiez la validité du numéro QualiPAC (QPAC/E-E208236) mentionné sur le devis pour confirmer les qualifications",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+    // La question doit contenir « Pouvez-vous me confirmer » + le sujet
+    expect(aDemander[0].question).toMatch(/Pouvez-vous me confirmer/i);
+    expect(aDemander[0].question).toMatch(/numéro QualiPAC/i);
+    // La scorie « mentionné sur le devis » doit être retirée
+    expect(aDemander[0].question).not.toMatch(/mentionné sur le devis/i);
+    // Aucune trace d'impératif adressé au user
+    expect(aDemander[0].question).not.toMatch(/^Vérifiez/i);
+  });
+
+  it("« Assurez-vous que X » devient une question à l'artisan, pas un auto-conseil", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Assurez-vous qu'un acompte est prévu et que le solde est lié à la réception des travaux",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander.length).toBeGreaterThanOrEqual(1);
+    // Question doit contenir « Pouvez-vous me préciser »
+    expect(aDemander[0].question).toMatch(/Pouvez-vous me préciser/i);
+    // Aucune trace de l'auto-conseil au user
+    expect(aDemander[0].question).not.toMatch(/^Assurez-vous/i);
+    expect(aDemander[0].question).not.toMatch(/^assurez-vous/i);
+  });
+
+  it("coupe les auto-conseils « et assurez-vous que » dans la section 3", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez les modalités de paiement, notamment le paiement par chèque à réception, et assurez-vous qu'un acompte est prévu et que le solde est lié à la réception",
+      ],
+    };
+    const { aDemander, aNePasOublier } = buildPreparationSections(conclusion, [], []);
+    // Cet item passe en section 2 (non-standard). Le contenu ne doit
+    // contenir « assurez-vous » nulle part (auto-conseil coupé).
+    const all = [
+      ...aDemander.map((x) => x.context + " " + x.question),
+      ...aNePasOublier,
+    ].join(" ").toLowerCase();
+    expect(all).not.toContain("assurez-vous");
+    expect(all).not.toContain("assurez vous");
+  });
+
+  it("« Demandez l'attestation décennale » devient « me transmettre » et non « me préciser »", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez l'attestation d'assurance décennale à jour pour les pompes à chaleur",
+      ],
+    };
+    // Actions "assurance/décennale" sont classées en section 3 (standard).
+    // Vérifions le format section 3 nettoyé.
+    const { aNePasOublier } = buildPreparationSections(conclusion, [], []);
+    expect(aNePasOublier.length).toBeGreaterThanOrEqual(1);
+    // Ne commence pas par « Demandez »
+    expect(aNePasOublier[0]).not.toMatch(/^Demandez/i);
+    // Commence par un groupe nominal capitalisé (L'attestation, Une attestation, etc.)
+    expect(aNePasOublier[0]).toMatch(/^(L['']|Une |Les |Votre |Vos |Un )/);
+  });
+
   it("filtre les items purement informatifs de la section « à ne pas oublier »", () => {
     const conclusion = {
       ...baseConclusion,

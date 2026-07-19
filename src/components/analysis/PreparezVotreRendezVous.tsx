@@ -233,17 +233,12 @@ function WrittenChannel({
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Retire le préfixe « Point à faire préciser : » / « Point à ouvrir à la
- * discussion : » ajouté par preparationBuilder pour la fiche visuelle, afin
- * de ne pas polluer le mail (où le contexte de la phrase le porte déjà).
+ * Retire les guillemets français « » des questions produites par
+ * preparationBuilder pour la fiche visuelle. Dans le mail, les questions
+ * s'insèrent directement dans le texte, pas besoin des guillemets.
  */
-function cleanContextForMail(context: string): string {
-  const s = context
-    .replace(/^(?:Un\s+)?[Pp]oint\s+à\s+faire\s+préciser\s*[:—-]\s*/i, "")
-    .replace(/^(?:Un\s+)?[Pp]oint\s+à\s+ouvrir\s+à\s+la\s+discussion\s*[:—-]\s*/i, "")
-    .trim();
-  // Capitalise la première lettre (une fois le préfixe retiré)
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function stripFrenchQuotes(question: string): string {
+  return question.replace(/^«\s*/, "").replace(/\s*»$/, "").trim();
 }
 
 function buildWrittenMessages(
@@ -253,43 +248,50 @@ function buildWrittenMessages(
   const salut = prenom ? `Bonjour ${prenom},` : "Bonjour,";
   const signature = "\n\nBien cordialement,";
 
-  const pointsCleaned = sections.aDemander.map((item) => cleanContextForMail(item.context));
+  // Section 2 — les items deviennent des QUESTIONS directes à l'artisan
+  // (« Pouvez-vous me confirmer X ? » plutôt que « Vérifiez X »).
+  // On utilise le champ `question` (spécifique au sujet), pas le `context`
+  // (qui reste à l'impératif d'origine).
+  const questionsCleaned = sections.aDemander
+    .map((item) => stripFrenchQuotes(item.question))
+    .filter((s) => s.length > 0);
+
   const oubliCleaned = sections.aNePasOublier
     .map((o) => o.trim())
     .filter((s) => s.length > 0);
 
-  const pointsBlock = pointsCleaned.length > 0
-    ? pointsCleaned.map((p, i) => `${i + 1}. ${p}`).join("\n")
+  const questionsBlock = questionsCleaned.length > 0
+    ? questionsCleaned.map((q, i) => `${i + 1}. ${q}`).join("\n")
     : "";
 
-  // Section « à ne pas oublier » — rendue en phrase fluide plutôt qu'en
-  // puces avec verbe impératif redondant. Si un seul item, phrase simple ;
-  // sinon liste courte en tirets, introduite par une transition naturelle.
+  // Section « à ne pas oublier » — présentée comme une demande de pièces à
+  // transmettre, sans impératif adressé au user (« assurez-vous », « pensez
+  // à ») qui n'a aucun sens envoyé à l'artisan.
   let oublisBlock = "";
   if (oubliCleaned.length === 1) {
-    oublisBlock = `\n\nEnfin, pourriez-vous me transmettre ${oubliCleaned[0].toLowerCase()} ?`;
+    oublisBlock = `\n\nEt pourriez-vous me transmettre ${oubliCleaned[0].toLowerCase()} ?`;
   } else if (oubliCleaned.length > 1) {
-    oublisBlock = `\n\nEnfin, quelques éléments à me transmettre avant signature :\n${oubliCleaned.map((o) => `- ${o}`).join("\n")}`;
+    oublisBlock = `\n\nEt pouvez-vous me transmettre :\n${oubliCleaned.map((o) => `- ${o}`).join("\n")}`;
   }
 
-  const intro = pointsCleaned.length === 1
-    ? "Merci pour votre devis. Avant de le signer, j'aurais un point à voir avec vous :"
-    : pointsCleaned.length > 1
-    ? "Merci pour votre devis. Avant de le signer, j'aurais quelques points à voir avec vous :"
-    : "Merci pour votre devis. Avant de m'engager, j'aurais besoin d'un point rapide avec vous.";
+  const intro = questionsCleaned.length === 1
+    ? "Merci pour votre devis. Avant de le signer, j'aurais une question :"
+    : questionsCleaned.length > 1
+    ? "Merci pour votre devis. Avant de le signer, j'aurais quelques questions :"
+    : "Merci pour votre devis. Avant de m'engager, j'aurais un point rapide avec vous.";
 
-  const mail = pointsBlock
-    ? `${salut}\n\n${intro}\n\n${pointsBlock}${oublisBlock}${signature}`
+  const mail = questionsBlock
+    ? `${salut}\n\n${intro}\n\n${questionsBlock}${oublisBlock}${signature}`
     : `${salut}\n\n${intro}${oublisBlock}${signature}`;
 
-  // SMS — plus court, sans puces
-  const smsPoints = pointsCleaned.length > 0
-    ? ` ${pointsCleaned.join(" ; ")}.`
+  // SMS — condensé mais reste une suite de questions
+  const smsQuestions = questionsCleaned.length > 0
+    ? ` ${questionsCleaned.join(" ")}`
     : "";
   const smsOublis = oubliCleaned.length > 0
-    ? ` À me transmettre également : ${oubliCleaned.join(", ")}.`
+    ? ` Pourriez-vous me transmettre également : ${oubliCleaned.join(", ")} ?`
     : "";
-  const sms = `${salut} Merci pour votre devis. Avant de signer, ${pointsCleaned.length > 0 ? (pointsCleaned.length === 1 ? "un point à voir avec vous" : "quelques points à voir avec vous") : "j'aurais besoin d'un point rapide avec vous"} :${smsPoints}${smsOublis} Merci !`;
+  const sms = `${salut} Merci pour votre devis.${smsQuestions}${smsOublis} Merci d'avance !`;
 
   // WhatsApp — variante du mail, ton plus détendu
   const whatsapp = mail

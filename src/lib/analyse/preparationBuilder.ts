@@ -50,6 +50,55 @@ const STANDARD_KEYWORDS = [
 
 const DEMANDER_PREFIXES = /^(demand(?:ez|er)|exig(?:ez|er)|clarif(?:iez|ier)|précis(?:ez|er)|preciez|precisez|invit(?:ez|er)|fait(?:es|re)\s+préciser|obtenez|réclam(?:ez|er)|reclamez)/i;
 
+/** Verbes impératifs qui deviennent « Pouvez-vous me confirmer … ? » */
+const CONFIRMER_PREFIXES = /^(v[eé]rifi(?:ez|er)|confirm(?:ez|er)|contrôl(?:ez|er)|controlez|valid(?:ez|er))/i;
+/** Verbes impératifs qui deviennent « Pouvez-vous me préciser … ? »
+ *  Couvre les contractions « que » / « qu' » après « Assurez-vous ». */
+const PRECISER_PREFIXES = /^(assurez[\s-]?vous(?:\s+(?:que|qu['']|de))?|assurer[\s-]?vous(?:\s+(?:que|qu['']|de))?)/i;
+/** Verbes impératifs qui deviennent « Pouvez-vous me transmettre … ? » */
+const TRANSMETTRE_PREFIXES = /^(demand(?:ez|er)|obtenez|obtenir|r[eé]clam(?:ez|er)|reclamez)\s+(?:(?:une|un|des|le|la|les|l['']))/i;
+
+/**
+ * Retire les scories rédactionnelles injectées par le moteur qui n'ont pas
+ * leur place dans un message à envoyer à un artisan.
+ * - « mentionné/indiqué/figurant sur le devis »
+ * - « en cours de validité » (courant mais redondant dans une question)
+ * - « notamment » (charge sans apport)
+ * - Espaces multiples.
+ */
+function stripDevisFluff(s: string): string {
+  return s
+    .replace(/\s+(?:mentionn[ée]|indiqu[ée]|figurant|pr[eé]sent[ée])\s+sur\s+le\s+devis/gi, "")
+    .replace(/\s+en\s+cours\s+de\s+validit[ée]/gi, "")
+    .replace(/\s+notamment\b/gi, "")
+    .replace(/\s+,/g, ",")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Coupe un item au premier marqueur d'auto-conseil qui n'a rien à faire
+ * dans un message à l'artisan (« et assurez-vous que… », « n'oubliez pas
+ * de… », « en veillant à… »).
+ */
+function truncateAtSelfGuidance(s: string): string {
+  const markers = [
+    /\s+et\s+assurez[\s-]?vous\s+(?:que|qu['']|de)/i,
+    /\s+en\s+veillant\s+[àa]\s+ce\s+que/i,
+    /\s+en\s+veillant\s+[àa]/i,
+    /\s+n[''']?oubliez\s+pas\s+(?:de|d[''])/i,
+    /\s+pens(?:ez|er)\s+[àa]/i,
+  ];
+  let cut = s;
+  for (const rx of markers) {
+    const m = cut.match(rx);
+    if (m && m.index !== undefined) {
+      cut = cut.slice(0, m.index).replace(/[,\s]+$/, "");
+    }
+  }
+  return cut.trim();
+}
+
 function isStandardAction(action: string): boolean {
   const lower = action.toLowerCase();
   return STANDARD_KEYWORDS.some((kw) => lower.includes(kw));
@@ -120,18 +169,26 @@ function stripImperativePrefix(action: string): string {
 }
 
 /**
- * Transforme une action impérative ("Demandez X") en formulation
- * "contexte / question prononçable" plus bienveillante.
+ * Transforme une action impérative en « contexte factuel » + « question
+ * spécifique » prête à être copiée telle quelle dans un mail à l'artisan.
  *
- * Note : le contexte ne préfixe plus « Point à faire préciser : » ni
- * « Point à ouvrir à la discussion : » — le titre de section (« Ce que vous
- * pouvez lui demander ») porte déjà cette intention et 3 items préfixés
- * de la même façon étaient inutilement répétitifs.
+ * La question était auparavant générique (« Pouvez-vous me préciser ce
+ * point ? ») ; elle intègre désormais le sujet de la question pour être
+ * réellement utilisable en copier-coller.
+ *
+ * Exemples :
+ *   « Vérifiez la validité du numéro QualiPAC mentionné sur le devis »
+ *      → context : « La validité du numéro QualiPAC »
+ *      → question : « Pouvez-vous me confirmer la validité du numéro QualiPAC ? »
+ *
+ *   « Assurez-vous qu'un acompte est prévu »
+ *      → context : « Un acompte est prévu »
+ *      → question : « Pouvez-vous me préciser les modalités de l'acompte ? »
  */
 function reformulateAsQuestion(action: string): { context: string; question: string } {
-  const cleaned = stripAdminScoriae(action);
+  const cleaned = stripDevisFluff(truncateAtSelfGuidance(stripAdminScoriae(action)));
 
-  // Cas : "Négociez X" → traitement dédié
+  // Cas : « Négociez X »
   if (/^négoc|^negoc/i.test(cleaned)) {
     const rest = cleaned
       .replace(/^négoc(?:iez|ier)\s*/i, "")
@@ -143,23 +200,48 @@ function reformulateAsQuestion(action: string): { context: string; question: str
     };
   }
 
-  // Cas : "Demandez à l'artisan de préciser X" → nettoie puis reformule
-  const demanderMatch = cleaned.match(DEMANDER_PREFIXES);
-  if (demanderMatch) {
-    const rest = stripImperativePrefix(cleaned);
-    if (!rest) {
-      return {
-        context: "Point à clarifier.",
-        question: `« Pouvez-vous me préciser ce point ? »`,
-      };
-    }
+  // Cas : « Vérifiez X », « Confirmez X », « Contrôlez X », « Validez X »
+  if (CONFIRMER_PREFIXES.test(cleaned)) {
+    const rest = cleaned.replace(CONFIRMER_PREFIXES, "").trim().replace(/^d[e']\s*/i, "");
+    if (!rest) return { context: "Point à confirmer.", question: `« Pouvez-vous me confirmer ce point ? »` };
+    const lower = rest.charAt(0).toLowerCase() + rest.slice(1);
     return {
       context: rest.charAt(0).toUpperCase() + rest.slice(1),
-      question: `« Pouvez-vous me préciser ce point ? »`,
+      question: `« Pouvez-vous me confirmer ${lower} ? »`,
     };
   }
 
-  // Cas générique : garde l'action nettoyée en contexte
+  // Cas : « Assurez-vous que … » (auto-conseil transformé en question)
+  if (PRECISER_PREFIXES.test(cleaned)) {
+    let rest = cleaned.replace(PRECISER_PREFIXES, "").trim();
+    // Retire un « qu' » / « que » / « d' » / « de » résiduels si le regex
+    // n'a pas capturé la contraction (« Assurez-vous qu'un … »).
+    rest = rest.replace(/^(?:qu['e]\s*|d[e']\s*)/i, "").trim();
+    if (!rest) return { context: "Point à préciser.", question: `« Pouvez-vous me préciser ce point ? »` };
+    const lower = rest.charAt(0).toLowerCase() + rest.slice(1);
+    return {
+      context: rest.charAt(0).toUpperCase() + rest.slice(1),
+      question: `« Pouvez-vous me préciser ${lower} ? »`,
+    };
+  }
+
+  // Cas : « Demandez à l'artisan de préciser X » / « Demandez l'attestation X »
+  const demanderMatch = cleaned.match(DEMANDER_PREFIXES);
+  if (demanderMatch) {
+    const rest = stripImperativePrefix(cleaned);
+    if (!rest) return { context: "Point à clarifier.", question: `« Pouvez-vous me préciser ce point ? »` };
+    const lower = rest.charAt(0).toLowerCase() + rest.slice(1);
+    // Si le sujet ressemble à un document / une pièce à obtenir → « transmettre »
+    const looksLikeDoc = /^(l[e']|la\s|les\s|un\s|une\s|des\s|vos\s|votre\s)/i.test(rest) &&
+                        /\b(attestation|certificat|justificatif|copie|planning|éch[ée]ancier|assurance|kbis|siret)\b/i.test(rest);
+    const verb = looksLikeDoc ? "me transmettre" : "me préciser";
+    return {
+      context: rest.charAt(0).toUpperCase() + rest.slice(1),
+      question: `« Pouvez-vous ${verb} ${lower} ? »`,
+    };
+  }
+
+  // Cas générique : garde l'action nettoyée en contexte, question courte
   return {
     context: cleaned.charAt(0).toUpperCase() + cleaned.slice(1),
     question: `« Pouvez-vous m'en dire un peu plus sur ce point ? »`,
@@ -222,18 +304,33 @@ export function buildPreparationSections(
   // Une phrase générique inventée ne rassure personne.
 
   // ── Section 2 — Ce que vous pouvez lui demander ────────────────────────
+  // Un item va en section 2 s'il est :
+  //   (a) formulé comme une VÉRIFICATION / CONFIRMATION à demander à l'artisan
+  //       (« Vérifiez X », « Assurez-vous que Y ») — même s'il contient un mot
+  //       standard (« acompte », « planning »…) : ces actions sont des questions
+  //       à poser, pas des pièces à obtenir ;
+  //   (b) ou une clarification / négociation classique ;
+  //   (c) ou une action non-standard (autre demande de précision).
+  const inSection2 = new Set<string>();
   const aDemander = actions
-    .filter((a) => !isStandardAction(a))
-    .filter((a) => isClarificationOrNegotiation(a) || !isStandardAction(a))
+    .filter((a) => {
+      const isCheckOrConfirm = CONFIRMER_PREFIXES.test(a) || PRECISER_PREFIXES.test(a);
+      const isNegoOrClarif = isClarificationOrNegotiation(a);
+      const nonStandard = !isStandardAction(a);
+      if (isCheckOrConfirm || isNegoOrClarif || nonStandard) {
+        inSection2.add(a);
+        return true;
+      }
+      return false;
+    })
     .slice(0, 4)
     .map(reformulateAsQuestion);
 
   // ── Section 3 — Ce qu'il ne faut pas oublier ───────────────────────────
-  // Ne garde QUE des items actionables (à demander, à vérifier, à obtenir).
-  // Les items purement informatifs (« pratique courante », « à titre
-  // indicatif », etc.) sont filtrés — ils n'ont pas leur place dans une
-  // section titrée « à ne pas oublier » (rien à oublier de faire).
-  const standardActions = actions.filter(isStandardAction).filter((a) => !isPurelyInformative(a));
+  // Ne garde QUE des pièces à obtenir (attestations, planning, etc.). Les
+  // items déjà remontés en section 2 sont retirés pour éviter le doublon.
+  const standardActions = actions
+    .filter((a) => isStandardAction(a) && !inSection2.has(a) && !isPurelyInformative(a));
   const alertesStandards = alertes.filter((a) => isStandardAction(a)).filter((a) => !isPurelyInformative(a));
   const combined = Array.from(new Set([...standardActions, ...alertesStandards]));
   const aNePasOublier = combined
@@ -263,18 +360,27 @@ export function buildPreparationSections(
  */
 function reformulateStandardItem(raw: string): string {
   let s = stripAdminScoriae(raw);
+  // Coupe au premier auto-conseil (« et assurez-vous que … », « n'oubliez pas
+  // de … », « en veillant à … ») qui n'a rien à faire dans un mail à l'artisan.
+  s = truncateAtSelfGuidance(s);
+  // Nettoie les scories rédactionnelles (« mentionné sur le devis »,
+  // « en cours de validité » redondant, « notamment »).
+  s = stripDevisFluff(s);
   // Retire les parenthèses de contexte historique (« dernier exercice… »)
   // qui alourdissent le mail. On garde 1 seule idée par item.
   const parenIdx = s.indexOf(" (");
   if (parenIdx > 20) s = s.slice(0, parenIdx);
-  // Retire l'impératif + destinataire
+  // Retire l'impératif + destinataire (« Demandez à l'entreprise l'attestation
+  // décennale » → « L'attestation décennale »)
   const demanderMatch = s.match(DEMANDER_PREFIXES);
   if (demanderMatch) {
     const rest = stripImperativePrefix(s);
-    if (rest) {
-      // "l'attestation décennale" → "L'attestation décennale"
-      return rest.charAt(0).toUpperCase() + rest.slice(1);
-    }
+    if (rest) return rest.charAt(0).toUpperCase() + rest.slice(1);
+  }
+  // Idem pour Vérifiez/Confirmez → nettoie le verbe pour donner un groupe nominal
+  if (CONFIRMER_PREFIXES.test(s)) {
+    const rest = s.replace(CONFIRMER_PREFIXES, "").trim().replace(/^d[e']\s*/i, "");
+    if (rest) return rest.charAt(0).toUpperCase() + rest.slice(1);
   }
   return s;
 }
