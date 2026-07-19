@@ -125,28 +125,16 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
       }
     })} />
 
-    <!-- SoftwareApplication — type le mieux reconnu par Google pour les rich snippets de note -->
-    <script type="application/ld+json" set:html={JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "VerifierMonDevis.fr",
-      "url": "https://www.verifiermondevis.fr",
-      "applicationCategory": "BusinessApplication",
-      "operatingSystem": "Web",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "EUR"
-      },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.7",
-        "bestRating": "5",
-        "worstRating": "1",
-        "ratingCount": "24",
-        "reviewCount": "24"
-      }
-    })} />
+    <!-- 2026-07-19 — SoftwareApplication global retiré du BaseLayout.
+         Google Search Console levait « Fiches de marchand » + « Extraits de
+         produits » sur toutes les pages du site (100+ pages non-produit),
+         parce que l'Offer déclaré partout est interprété comme fiche
+         marchand incomplète (availability, priceValidUntil, seller manquants).
+         La note aggregée reste portée par l'Organization ci-dessus, ce qui
+         suffit pour les rich stars.
+         Les vraies pages produit gardent leur propre SoftwareApplication local
+         (analyser-devis-travaux, application-gestion-chantier, application-
+         suivi-travaux) — c'est là que le rich result est légitime. -->
 
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
