@@ -1,0 +1,17 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminUserDetailApp from '@/components/app/AdminUserDetailApp';
+
+export const prerender = false;
+
+// Récupère l'ID/email depuis l'URL (le composant le relit côté client via window.location)
+const rawId = Astro.params.id ?? '';
+---
+
+<BaseLayout
+  title={`Fiche utilisateur ${rawId} | Admin`}
+  description="Vue 360° d'un utilisateur — profil, abonnement, chantiers, activité"
+  noindex={true}
+>
+  <AdminUserDetailApp client:only="react" />
+</BaseLayout>

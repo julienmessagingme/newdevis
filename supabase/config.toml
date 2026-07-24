@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.seo-weekly-report]
 verify_jwt = false
+
+[functions.gmc-weekly-report]
+verify_jwt = false
