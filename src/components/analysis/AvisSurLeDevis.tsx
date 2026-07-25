@@ -179,8 +179,19 @@ export default function AvisSurLeDevis({
       return base || "Le prix, l'entreprise et les conditions de paiement sont dans les habitudes du métier.";
     }
     if (isNegocier && hasMargin) {
-      const chiffre = `aux alentours de ${fmtEUR(midSoft)}, peut-être un peu plus, peuvent être ouverts à la discussion.`;
-      return `Le prix global reste raisonnable, mais quelques prestations semblent au-dessus des habitudes du marché. ${chiffre}`;
+      // Ton adapté au montant absolu : dire « prix global raisonnable » sur
+      // une négo de 6 800 € n'est pas cohérent, on tempère selon l'ordre
+      // de grandeur du chiffre.
+      //   < 1 000 €   → ton soft (petite négo)
+      //   1 000-3 000 → ton neutre
+      //   > 3 000 €   → ton ferme (négo significative)
+      if (midSoft >= 3000) {
+        return `Plusieurs prestations semblent nettement au-dessus des habitudes du marché. Nous estimons qu'environ ${fmtEUR(midSoft)} peuvent être renégociés.`;
+      }
+      if (midSoft >= 1000) {
+        return `Quelques prestations semblent au-dessus des habitudes du marché. Environ ${fmtEUR(midSoft)} peuvent être renégociés.`;
+      }
+      return `Le prix global reste raisonnable, mais quelques prestations semblent au-dessus des habitudes du marché. Aux alentours de ${fmtEUR(midSoft)} peuvent être ouverts à la discussion.`;
     }
     if (isNegocier) {
       return base || "Quelques prestations méritent d'être discutées avec l'artisan avant de signer.";

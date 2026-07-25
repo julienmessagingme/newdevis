@@ -163,8 +163,9 @@ function stripImperativePrefix(action: string): string {
   rest = rest.replace(DEMANDER_PREFIXES, "").trim();
   // 2. Retire la mention du destinataire de l'action
   rest = rest.replace(/^(?:à\s+l[''`]?(?:artisan|artisane|entreprise|entrepreneur|professionnel)|au\s+(?:professionnel|prestataire|maître\s+d[''`]?œuvre))\s*/i, "").trim();
-  // 3. Retire "de" ou "d'" résiduel après le retrait du destinataire
-  rest = rest.replace(/^d[e']\s*/i, "").trim();
+  // 3. Retire un article résiduel : « des »/« du »/« de »/« d' » (ordre longer-first
+  //    pour éviter que « de » matche le début de « des » et laisse « s » orphelin).
+  rest = rest.replace(/^(?:des|du|de\s|d[''])\s*/i, "").trim();
   return rest;
 }
 

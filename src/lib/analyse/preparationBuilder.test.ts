@@ -135,6 +135,33 @@ describe("preparationBuilder — buildPreparationSections", () => {
     expect(all).not.toContain("assurez vous");
   });
 
+  it("« Demandez à l'artisan des précisions sur X » ne laisse pas un « s » orphelin", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez à l'artisan des précisions sur les modèles et marques des équipements",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander.length).toBeGreaterThanOrEqual(1);
+    // Ne doit PAS commencer par « s précisions » (bug du regex ^d[e'] qui ne matchait pas « des »)
+    expect(aDemander[0].context).not.toMatch(/^s\s+précisions/i);
+    // Doit commencer par « Précisions » (« des » entièrement retiré)
+    expect(aDemander[0].context.toLowerCase()).toContain("précisions");
+    // La question aussi doit être propre
+    expect(aDemander[0].question).not.toMatch(/\bs\s+précisions\b/i);
+  });
+
+  it("« Demandez du détail sur X » retire aussi « du »", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: ["Demandez du détail sur le poste plomberie"],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander.length).toBeGreaterThanOrEqual(1);
+    expect(aDemander[0].context).not.toMatch(/^u\s+détail/i);
+  });
+
   it("« Demandez l'attestation décennale » devient « me transmettre » et non « me préciser »", () => {
     const conclusion = {
       ...baseConclusion,
