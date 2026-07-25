@@ -7,8 +7,12 @@
  *  - Test de cohérence des critères de scoring entre runs
  */
 
-const SUPABASE_URL     = "https://vhrhgsqxwvouswjaiczn.supabase.co";
-const SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZocmhnc3F4d3ZvdXN3amFpY3puIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDcyNDMyMSwiZXhwIjoyMDg2MzAwMzIxfQ.cDUFACbZMOsJ906kFcwoINHe2sUCnzA1Xri1qEVd-EI";
+const SUPABASE_URL     = process.env.SUPABASE_URL || "https://vhrhgsqxwvouswjaiczn.supabase.co";
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+if (!SERVICE_ROLE_KEY) {
+  console.error("❌ SUPABASE_SERVICE_ROLE_KEY manquante. Exporte-la avant de lancer : export SUPABASE_SERVICE_ROLE_KEY=...");
+  process.exit(1);
+}
 
 import fs from "node:fs";
 

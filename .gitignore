@@ -40,3 +40,6 @@ issue-body.md
 
 # feature-loop : fichiers d'état de boucle (contrat + progrès), artefact de travail
 .loop/
+
+# Claude Code local settings (peut contenir des règles avec secrets)
+.claude/settings.local.json
