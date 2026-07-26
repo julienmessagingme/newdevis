@@ -65,3 +65,13 @@ verify_jwt = false
 
 [functions.gmc-weekly-report]
 verify_jwt = false
+
+# Fonctions déclenchées par pg_cron (jobs 31 & 35). Passées en verify_jwt=false comme
+# les 8 autres fonctions cron : sans ça, la gateway exige un JWT valide et le cron
+# casserait à la désactivation des clés API legacy (migration sb_secret, 2026-07).
+# TODO durcissement : ajouter un check X-Cron-Secret comme agent-scheduled-tick.
+[functions.gmc-email-scheduler]
+verify_jwt = false
+
+[functions.feedback-spike-alerts]
+verify_jwt = false

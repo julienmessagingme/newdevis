@@ -1,3 +1,4 @@
+// verify_jwt=false (config.toml) — requis pour la migration clés API sb_secret (2026-07). Voir _shared/supabase-key.ts.
 import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================================
 // feedback-spike-alerts — cron d'alerte pic de feedbacks négatifs

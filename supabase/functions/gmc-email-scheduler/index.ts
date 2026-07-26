@@ -1,3 +1,4 @@
+// verify_jwt=false (config.toml) — requis pour la migration clés API sb_secret (2026-07). Voir _shared/supabase-key.ts.
 import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================
 // GMC — gmc-email-scheduler
