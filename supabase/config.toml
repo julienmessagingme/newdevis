@@ -75,3 +75,9 @@ verify_jwt = false
 
 [functions.feedback-spike-alerts]
 verify_jwt = false
+
+# Database Webhook sur INSERT gmc_subscriptions (Bearer legacy codé en dur dans le trigger).
+# verify_jwt=false → le token legacy est ignoré, le webhook survit à la désactivation des
+# clés legacy. TODO durcissement : X-Cron-Secret + nettoyer le JWT du trigger.
+[functions.gmc-on-signup]
+verify_jwt = false

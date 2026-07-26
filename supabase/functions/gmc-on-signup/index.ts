@@ -1,3 +1,4 @@
+// verify_jwt=false (config.toml) — DB webhook Bearer legacy ignoré (migration sb_secret 2026-07).
 import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================
 // GMC — gmc-on-signup
