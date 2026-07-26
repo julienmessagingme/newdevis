@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================
 // GMC — gmc-on-signup
 // Declenchee par un Database Webhook Supabase sur INSERT de gmc_subscriptions.
@@ -12,7 +13,7 @@ import { renderGmcEmail } from "../_shared/gmc-emails.ts";
 
 const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPABASE_URL    = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE    = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SERVICE_ROLE    = serviceRoleKey()!;
 // Secret partage optionnel : si pose (env GMC_SIGNUP_SECRET) + header x-gmc-secret
 // configure sur la webhook, on rejette les appels non signes. Tant qu'il n'est pas
 // pose, la fonction reste ouverte (= comportement actuel, non bloquant).

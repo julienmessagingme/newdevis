@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -13,7 +14,7 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseServiceKey = serviceRoleKey()!;
 
     // Get the JWT from the request
     const authHeader = req.headers.get("Authorization");

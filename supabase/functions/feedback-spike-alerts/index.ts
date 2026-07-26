@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================================
 // feedback-spike-alerts — cron d'alerte pic de feedbacks négatifs
 // ============================================================================
@@ -237,7 +238,7 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseServiceKey = serviceRoleKey()!;
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
     if (!resendApiKey) {

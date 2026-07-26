@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 import type { ExtractedData } from "./types.ts";
 import type { DomainConfig } from "./domain-config.ts";
 import { PipelineError, isPipelineError, repairTruncatedJson, GEMINI_AI_URL } from "./utils.ts";
@@ -26,7 +27,7 @@ export async function callExtractDocument(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Authorization": `Bearer ${serviceRoleKey()}`,
       },
       body: JSON.stringify({
         analysis_id: analysisId,

@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../../_shared/supabase-key.ts";
 // Shared constants, types and helpers for all tool modules.
 // One single source of truth for env vars and helpers used by handlers.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -39,6 +40,6 @@ export function defaultHeaders(): Record<string, string> {
 export function supabaseAdmin(): SupabaseClient {
   return createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    serviceRoleKey() ?? "",
   );
 }

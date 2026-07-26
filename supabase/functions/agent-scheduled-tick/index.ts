@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // agent-scheduled-tick — cron 15min qui fire les rappels programmés.
 //
 // Lit `agent_scheduled_actions WHERE status='pending' AND due_at <= now()`,
@@ -10,7 +11,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabaseKey = serviceRoleKey() ?? "";
 const whapiToken  = Deno.env.get("WHAPI_TOKEN") ?? "";
 // Secret dédié au cron pg_cron — différent de AGENT_SECRET_KEY (utilisé par
 // agent-orchestrator). Permet de révoquer indépendamment.

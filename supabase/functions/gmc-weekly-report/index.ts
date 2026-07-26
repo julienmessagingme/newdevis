@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================================
 // gmc-weekly-report — rapport hebdomadaire GérerMonChantier
 // ============================================================================
@@ -22,7 +23,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SERVICE_KEY  = serviceRoleKey()!;
 const RESEND_KEY   = Deno.env.get("RESEND_API_KEY_VMD") ?? Deno.env.get("RESEND_API_KEY") ?? "";
 const REPORT_TO    = (Deno.env.get("GMC_REPORT_TO") ?? "julien@messagingme.fr,bridey.johan@gmail.com")
   .split(",").map((s) => s.trim()).filter(Boolean);

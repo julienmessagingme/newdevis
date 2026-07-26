@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================
 // VMD — vmd-email-scheduler
 // Cron quotidien (pg_cron) : sequence d'onboarding des nouveaux comptes VMD.
@@ -21,7 +22,7 @@ import { renderVmdEmail, type VmdEmailId } from "../_shared/vmd-emails.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY_VMD") ?? Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPABASE_URL   = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE   = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SERVICE_ROLE   = serviceRoleKey()!;
 const FROM           = "VerifierMonDevis <bonjour@verifiermondevis.fr>";
 const DAY_MS         = 86_400_000;
 // Fenetre d'audience : la sequence se termine a J+18, on scanne ~25j (marge).

@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildContext } from "./context.ts";
@@ -8,7 +9,7 @@ import { captureError } from "../_shared/error-reporter.ts";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabaseKey = serviceRoleKey() ?? "";
 const geminiKey = Deno.env.get("GOOGLE_AI_API_KEY") ?? "";
 const whapiToken = Deno.env.get("WHAPI_TOKEN") ?? "";
 const agentSecretKey = Deno.env.get("AGENT_SECRET_KEY") ?? "";

@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================
 // VMD — vmd-on-signup
 // Declenchee par un Database Webhook Supabase sur INSERT de vmd_signups.
@@ -13,7 +14,7 @@ import { renderVmdEmail } from "../_shared/vmd-emails.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY_VMD") ?? Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPABASE_URL   = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE   = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SERVICE_ROLE   = serviceRoleKey()!;
 // Secret partage optionnel (header x-vmd-secret). Tant qu'il n'est pas pose, ouvert.
 const SIGNUP_SECRET  = Deno.env.get("VMD_SIGNUP_SECRET") ?? "";
 

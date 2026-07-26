@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================
 // GMC — gmc-email-scheduler
 // Cron quotidien (pg_cron) : pilote TOUT le cycle de vie email, d'apres le statut
@@ -29,7 +30,7 @@ import { renderGmcEmail, type GmcEmailId } from "../_shared/gmc-emails.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPABASE_URL   = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE   = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SERVICE_ROLE   = serviceRoleKey()!;
 const FROM           = "GererMonChantier <bonjour@gerermonchantier.fr>";
 const BASE           = "https://www.gerermonchantier.fr";
 const APP_URL        = `${BASE}/mon-chantier`;

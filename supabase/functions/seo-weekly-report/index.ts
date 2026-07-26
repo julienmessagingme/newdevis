@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 // ============================================================================
 // seo-weekly-report — rapport hebdomadaire Google Search Console
 // ============================================================================
@@ -35,7 +36,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SERVICE_KEY  = serviceRoleKey()!;
 const GSC_EMAIL    = Deno.env.get("GSC_SERVICE_ACCOUNT_EMAIL") ?? "";
 const GSC_KEY_RAW  = Deno.env.get("GSC_PRIVATE_KEY") ?? "";
 const GSC_SITE_URL = Deno.env.get("GSC_SITE_URL") ?? "sc-domain:verifiermondevis.fr";

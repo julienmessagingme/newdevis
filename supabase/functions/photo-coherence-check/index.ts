@@ -1,3 +1,4 @@
+import { serviceRoleKey } from "../_shared/supabase-key.ts";
 /**
  * photo-coherence-check — vérifie qu'une photo est affectée à un lot cohérent.
  *
@@ -19,7 +20,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabaseKey = serviceRoleKey() ?? "";
 const geminiKey = Deno.env.get("GOOGLE_AI_API_KEY") ?? "";
 
 serve(async (req) => {
