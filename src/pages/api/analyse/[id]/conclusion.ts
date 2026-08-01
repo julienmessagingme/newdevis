@@ -48,10 +48,13 @@ const ENGINE_VERSION = "1.0.0-refonte";
 //
 // Critères : verdict ROUGE, surcout > 2k€, ≥2 anomalies, ou bypass actif.
 //
-// Email destinataire : bridey.johan@gmail.com uniquement (confirmé par user
-// 2026-06-15). Pas julien@messagingme.fr ici (≠ ADMIN_EMAILS du edge function).
+// Email destinataires : Johan + Julien depuis le 2026-08-02 (Julien signalait
+// ne rien recevoir — le choix initial "Johan seul" du 2026-06-15 était trop
+// restrictif au vu du volume actuel de la Piste C).
+// Aligné avec les autres alertes du projet (system-alerts, feedback-spike,
+// analysis-maintenance, seo-weekly, gmc-weekly).
 // ──────────────────────────────────────────────────────────────────────────────
-const REVIEW_EMAIL_TO = "bridey.johan@gmail.com";
+const REVIEW_EMAIL_TO = ["bridey.johan@gmail.com", "julien@messagingme.fr"];
 const REVIEW_SURCOUT_THRESHOLD = 2000;
 const REVIEW_MIN_ANOMALIES = 2;
 
@@ -264,8 +267,11 @@ async function sendReviewEmail(
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "VerifierMonDevis <onboarding@resend.dev>",
-        to: [REVIEW_EMAIL_TO],
+        // 2026-08-02 — bascule sur domaine vérifié (deliverability Gmail
+        // médiocre depuis onboarding@resend.dev → mails régulièrement en
+        // Promotions/Spam ou filtrés côté corporate).
+        from: "VerifierMonDevis <bonjour@verifiermondevis.fr>",
+        to: REVIEW_EMAIL_TO,
         subject: `🔵 [VerifierMonDevis] Analyse à valider — ${fileName ?? analysisId.slice(0, 8)}`,
         html,
       }),
