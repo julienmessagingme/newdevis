@@ -74,6 +74,18 @@ const REVIEW_MIN_ANOMALIES = 2;
 // docs/refonte/RUSTINES.md, classification 🟠 RUSTINE-PHASE-4.
 const REVIEW_RATIO_THRESHOLD = 5;
 
+// 2026-08-02 — Option 3 (Piste C étendue au bypass incomplete_quote).
+// Cas d'origine : ctrithuong@gmail.com / HEXA BAT 34 403€ TTC — bypass
+// « trop synthétique » déclenché à tort sur devis bien détaillé, feedback
+// négatif inévitable. Cf. docs/refonte/BUGS-A-CORRIGER.md
+// INCOMPLETE-QUOTE-FAUX-POSITIF-SURFACES-INLINE.
+//
+// Sur les gros devis (TTC > 20 000 €), on préfère un filet humain
+// systématique plutôt que de risquer un faux positif silencieux. Sur les
+// petits devis (< 20 000 €), la bannière produit reste suffisante — le
+// coût de traitement humain n'est pas justifié à ce niveau d'enjeu.
+const INCOMPLETE_QUOTE_TTC_THRESHOLD = 20_000;
+
 interface ReviewTrigger {
   reasons: string[];
   shouldReview: boolean;
@@ -128,6 +140,7 @@ function findAberrantRatio(priceData: unknown[]): { worstRatio: number; worstLab
 function detectReviewTriggers(
   conclusion: Record<string, unknown>,
   rawPriceData?: unknown[],
+  totalTTC?: number | null,
 ): ReviewTrigger {
   const reasons: string[] = [];
   const verdictGlobal = String(conclusion.verdict_global ?? "");
@@ -147,10 +160,25 @@ function detectReviewTriggers(
     reasons.push(`anomalies=${anomalies.length}`);
   }
 
-  if (conclusion.is_foreign_quote) reasons.push("bypass=foreign");
-  if (conclusion.is_incomplete_quote) reasons.push("bypass=incomplete");
+  // 2026-08-02 — Bug fix + Option 3.
+  // Les champs conclusion sont `foreign_quote` / `incomplete_quote` — PAS
+  // `is_foreign_quote` / `is_incomplete_quote` qui vivent uniquement dans
+  // extracted côté raw_text. Sans ce fix, les 2 bypass ne déclenchaient
+  // JAMAIS la Piste C. Les gros devis mal lus (ex: HEXA BAT 34k€) passaient
+  // en auto_approved silencieusement — feedback négatif utilisateur derrière.
+  if (conclusion.foreign_quote) reasons.push("bypass=foreign");
   if (conclusion.hors_scope) reasons.push("bypass=hors_scope");
   if (conclusion.estimation_courtier) reasons.push("bypass=courtier");
+
+  // Option 3 : le bypass incomplete_quote passe en pending_review UNIQUEMENT
+  // sur les gros devis (TTC > 20 000 €). Les petits devis synthétiques
+  // restent en auto_approved — la bannière produit reste suffisante et le
+  // coût de traitement humain n'est pas justifié à ce niveau d'enjeu.
+  if (conclusion.incomplete_quote) {
+    if (typeof totalTTC === "number" && totalTTC > INCOMPLETE_QUOTE_TTC_THRESHOLD) {
+      reasons.push(`bypass=incomplete_gros_devis(${Math.round(totalTTC)}€)`);
+    }
+  }
 
   // 🟢 REFONTE 2026-06-23 — trigger ratio aberrant (Phase 0.1)
   if (rawPriceData) {
@@ -263,8 +291,9 @@ async function persistConclusion(
   fileName: string | null,
   conclusion: Record<string, unknown>,
   rawPriceData?: unknown[],
+  totalTTC?: number | null,
 ): Promise<void> {
-  const trigger = detectReviewTriggers(conclusion, rawPriceData);
+  const trigger = detectReviewTriggers(conclusion, rawPriceData, totalTTC);
   const reviewStatus = trigger.shouldReview ? "pending_review" : "auto_approved";
 
   // Tentative 1 — avec review_status (post-migration V3.5.16)
@@ -1310,7 +1339,24 @@ export const POST: APIRoute = async ({ params, request }) => {
         engine_version: ENGINE_VERSION,
       };
 
-      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, incompleteConclusion as unknown as Record<string, unknown>);
+      // Extrait le montant TTC pour la nouvelle règle Piste C (Option 3,
+      // 2026-08-02) : gros devis incomplete → pending_review, petits →
+      // auto_approved silencieux avec la bannière produit.
+      const totalTTCForReview = (() => {
+        const t =
+          (extractedActuel?.totaux as Record<string, unknown> | undefined) ??
+          (extractedLegacy2?.totaux as Record<string, unknown> | undefined);
+        const ttc = typeof t?.ttc === "number" ? t.ttc : null;
+        return ttc && ttc > 0 ? ttc : null;
+      })();
+      await persistConclusion(
+        supabase,
+        analysisId,
+        analysis.file_name ?? null,
+        incompleteConclusion as unknown as Record<string, unknown>,
+        undefined,
+        totalTTCForReview,
+      );
 
       return jsonOk({ conclusion: incompleteConclusion, cached: false });
     }
