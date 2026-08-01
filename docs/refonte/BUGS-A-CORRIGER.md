@@ -100,6 +100,23 @@
   - Sortie attendue : le poste est classé « package multi-éléments non décomposé » — ni « anomalie » ni « comparaison automatique ». Une action ciblée peut proposer : « Demandez le détail chiffré poste par poste : receveur X €, colonne Y €, pose Z €… pour vérifier chaque élément individuellement. »
 - **Statut** : 🔴 à corriger (Phase 3 + Phase 4). Note : ce cas est un excellent training data pour extract_v2 — la ligne montre à la fois la structure hiérarchique (parent 4.1 + enfant 4.1.1) et la présence de descripteurs avec prix max qui ne doivent PAS être traités comme composants.
 
+### 2026-08-01 — INCOMPLETE-QUOTE-FAUX-POSITIF-SURFACES-INLINE
+
+- **Signalé par** : Julien (feedback négatif utilisateur devis HEXA BAT)
+- **Analyse ID** : `d1ddad9d` (devis-d202600056-hexa-bat.pdf, 34 403 € TTC, rénovation totale appartement 55 j, Montpellier)
+- **User** : ctrithuong@gmail.com — feedback négatif enregistré
+- **Symptôme observé** : Le bypass `incomplete_quote` (V3.5.1) se déclenche et l'utilisateur reçoit le message « Ce devis est trop synthétique pour être relu poste par poste » à la place de l'analyse. Or le devis est **bien détaillé** : 19 lignes avec descriptions techniques riches (ossature métallique, isolant 45mm/100mm, BA13 hydro, enduit, jointoiement, trappe 40x40, bloc porte 73cm...), les **surfaces sont EXPLICITEMENT indiquées dans les descriptions** (« Création salle d'eau - 13,23m² », « Coffrage plafond rempant avec isolation - 21.74m² », « Coffrage murs extérieurs avec isolation - 60,61m² », « Ponçage parquet existant 21,74m² », « Salle d'eau : murs + sol = 16,03m² »), et **au moins 2 postes ont des unités catalogue standards** : Peinture 2.8.1 = 84,18 m² × 39 €/m² = 3 283 € ; Climatisation 2.5.1 = 1 u × 1 950 €.
+- **Cause racine** : L'heuristique de détection `incomplete_quote` (probablement Gemini côté extract ou conclusion) regarde uniquement les champs `quantite` / `unite` / `prix_unitaire` des lignes structurées. Comme la majorité des lignes sont en `Qté=1 ens` (forfait par corps de métier), elle conclut à un devis « sous-totaux uniquement ». Elle ignore trois contre-signaux forts :
+  1. Les surfaces mentionnées **dans le texte des descriptions** (regex `\d+[,.]?\d*\s*m[²2]` détecterait ≥ 5 surfaces).
+  2. Au moins 1 poste avec une vraie ligne détaillée (peinture 84,18 m² × 39 €).
+  3. Le nombre de lignes total (19) qui exclut le pattern « 5 sous-totaux corps de métier ».
+- **Maillon concerné** : 1 (Lire juste — la structure hiérarchique + les surfaces inline ne sont pas capturées) + 3 (Verdict honnête — le bypass laisse le user sans avis alors qu'il est analysable)
+- **Phase qui corrige** : 3 (extract_v2 doit reconnaître les surfaces inline dans les descriptions) + 4 (verdict expert ne déclenche `incomplete_quote` que si contre-signaux absents)
+- **Cas test à passer** :
+  - Input : devis ≥ 15 lignes, avec ≥ 3 surfaces mentionnées dans les descriptions (regex m² / ml / u), et ≥ 1 ligne complète (qté ≠ 1 ou unité ≠ "ens/forfait")
+  - Sortie attendue : PAS de bypass `incomplete_quote`. Analyse standard produite avec matching catalogue sur les postes détaillables.
+- **Statut** : 🔴 à corriger (Phase 3 + Phase 4). Mitigation immédiate : régénération manuelle possible via clear de `conclusion_ia` + relance moteur (mais Gemini retomberait probablement sur le même bypass sans fix côté prompt).
+
 ### 2026-06-29 — DEVIS-DATE-NON-EXTRAIT-COMME-LEVIER
 
 - **Signalé par** : Julien (revue devis Mélier Cognac 2024)
