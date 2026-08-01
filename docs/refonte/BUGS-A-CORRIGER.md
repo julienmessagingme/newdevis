@@ -117,6 +117,41 @@
   - Sortie attendue : PAS de bypass `incomplete_quote`. Analyse standard produite avec matching catalogue sur les postes détaillables.
 - **Statut** : 🔴 à corriger (Phase 3 + Phase 4). Mitigation immédiate : régénération manuelle possible via clear de `conclusion_ia` + relance moteur (mais Gemini retomberait probablement sur le même bypass sans fix côté prompt).
 
+### 2026-08-02 — ACOMPTE-SUR-MESURE-VS-BTP
+
+- **Signalé par** : Johan (revue analyse DevisD2026019Sentis-Remi.pdf, 2026-08-01 22:46)
+- **User** : mathos4102@gmail.com
+- **Analyse** : porte d'entrée chalet **sur mesure**, 12 semaines de fabrication, BATIBASE HAUTES ALPES, 2 605 € HT / 2 748 € TTC, IBAN France valide, entreprise notée.
+- **Symptôme observé** : Verdict ROUGE `ne_pas_signer` avec phrase intro « ...un devis à risque en raison de modalités de paiement inacceptables ». Les modalités déclenchantes : 40% à la commande + 40% au début des travaux + 20% solde. Or ces modalités sont la **norme du métier** pour un bien fabriqué sur mesure (menuiserie, cuisine, ébénisterie...). Trois défauts cumulés produisent un verdict injustifié :
+
+  **Défaut 1 — heuristique acompte insensible au contexte produit.**
+  Le seuil « 30% max d'acompte » de la loi conso (art. L114-1 Code conso) s'applique aux **chantiers travaux BTP courants** (peinture, plomberie, maçonnerie), pas aux biens sur mesure fabriqués. Un fabricant de porte / cuisine / meuble sur mesure doit couvrir la matière première spécifique et bloquer un atelier plusieurs semaines — 40-50% à la commande est la norme sectorielle (Bel'M, Zilten, ADI, cuisinistes). Le moteur ne fait pas la distinction et applique le seuil BTP.
+
+  **Défaut 2 — cumul avant pose non calculé.**
+  Le moteur évalue le poste `acompte_à_la_commande = 40%` en isolation → classé « modéré ». Mais le vrai enjeu est le **cumul avant que le bien soit livré/posé** : 40% + 40% = **80% avant délivrance**. C'est ce chiffre qu'il faut évaluer.
+
+  **Défaut 3 — incohérence wording hero vs détail sur la même page.**
+  Le hero affiche « modalités de paiement inacceptables » (verdict rouge, ton alarmiste) et 200 px plus bas le bloc « Conditions de paiement » affiche « Acompte modéré (40%) » comme observation factuelle. Ces deux wordings sont produits par des évaluations moteur distinctes qui ne se parlent pas. L'utilisateur voit deux verdicts opposés et perd confiance dans l'analyse. Bonus incohérence : le prix (correct pour du sur mesure haut de gamme) n'est jamais évoqué — la lecture est écrasée par le verdict acompte.
+
+- **Cause racine** : Combinaison de 3 lacunes de la couche extract/verdict :
+  1. Aucune détection du **contexte produit sur mesure** (mots-clés `sur mesure`, `fabrication X semaines`, `porte / cuisine / meuble` + `délai fabrication`, quantité unique, fournisseur menuisier/cuisiniste).
+  2. Aucun **calcul de cumul jalons avant délivrance** dans l'évaluation acompte (on regarde chaque jalon séparément).
+  3. Aucun **contrat de cohérence** entre les wordings des différents blocs de l'analyse (hero, conditions, poste par poste) — chaque bloc est calculé indépendamment.
+
+- **Maillon concerné** : 1 (Lire juste — le contexte produit doit être extrait) + 3 (Verdict honnête — le seuil doit s'adapter au contexte + les blocs doivent être cohérents entre eux) + 4 (Wording sobre — les 2 wordings contradictoires cassent la crédibilité)
+
+- **Phase qui corrige** : 3 (extract_v2 détecte le contexte sur mesure + le délai fabrication + le cumul acompte) + 4 (verdict honnête différencie BTP standard et bien sur mesure ; contrat de cohérence entre blocs)
+
+- **Cas test à passer** :
+  - Input : devis avec description contenant `sur mesure`, `fabrication X semaines` ou `à commande`, ou fournisseur type menuisier / cuisiniste / ébéniste, et modalités 40% commande + 40% pose + 20% solde
+  - Sortie attendue :
+    - Verdict NON ROUGE (au maximum `eleve_justifie` ou `signer_avec_negociation`) — les modalités 40+40+20 sont la norme métier
+    - Cumul avant délivrance calculé : « 80% avant pose (40% commande + 40% début travaux) — dans la norme sur mesure »
+    - Bloc conditions de paiement cohérent avec le hero (pas « inacceptable » d'un côté et « modéré » de l'autre)
+    - Prix du poste évalué et communiqué (« 2 605 € HT pour porte chalet sur mesure fourniture+pose est dans la fourchette normale du marché »)
+
+- **Statut** : 🔴 à corriger (Phase 3 + Phase 4). Mitigation immédiate : revue humaine (Piste C) — le cas est en pending_review depuis le fix `9e2635b`, l'expert corrige à la main.
+
 ### 2026-06-29 — DEVIS-DATE-NON-EXTRAIT-COMME-LEVIER
 
 - **Signalé par** : Julien (revue devis Mélier Cognac 2024)
