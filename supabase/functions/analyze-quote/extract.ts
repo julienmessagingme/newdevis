@@ -3,6 +3,7 @@ import type { ExtractedData } from "./types.ts";
 import type { DomainConfig } from "./domain-config.ts";
 import { PipelineError, isPipelineError, repairTruncatedJson, GEMINI_AI_URL } from "./utils.ts";
 import { detectQuoteCountry } from "./country.ts";
+import { detectIncompleteQuoteShared } from "./incomplete-quote.ts";
 
 // ============================================================
 // PHASE 1: EXTRACTION WITH EXTRACT-DOCUMENT CALL
@@ -157,36 +158,23 @@ const PHYSICAL_UNIT_NAMES = new Set([
   "pce", "pcs", "p.", "piece", "pièce",
 ]);
 
+// 2026-08-03 — Garde montant ajoutée (cas ATEX, faux positif sur forfaits
+// légitimes) : la logique vit désormais dans incomplete-quote.ts (partagée
+// avec extract_v2.ts, testable via incomplete-quote.test.ts). Le bypass ne
+// se déclenche que si ≥ 70% du MONTANT HT est aussi porté par des lignes
+// sans unité physique — un devis dont le poste principal est quantifié en m²
+// (bardage 80 m² × 142,50 €) n'est PAS un résumé par lot.
 function detectIncompleteQuote(
-  travaux: Array<{ unite: string | null; quantite: number | null }>,
+  travaux: Array<{ unite: string | null; quantite: number | null; montant?: number | null }>,
 ): { is_incomplete: boolean; reason: string } {
-  if (!Array.isArray(travaux) || travaux.length < 5) {
-    return { is_incomplete: false, reason: "" };
-  }
-
-  let noPhysicalUnit = 0;
-  let qtyOneOrNull = 0;
-
-  for (const t of travaux) {
-    const unit = String(t.unite ?? "").trim().toLowerCase();
-    if (!PHYSICAL_UNIT_NAMES.has(unit)) noPhysicalUnit++;
-
-    const qty = t.quantite;
-    if (qty === null || qty === undefined || qty === 1 || qty === 0) qtyOneOrNull++;
-  }
-
-  const total = travaux.length;
-  const noPhysicalRatio = noPhysicalUnit / total;
-  const qtyOneRatio = qtyOneOrNull / total;
-
-  if (noPhysicalRatio >= 0.70 && qtyOneRatio >= 0.70) {
-    return {
-      is_incomplete: true,
-      reason: `${(noPhysicalRatio * 100).toFixed(0)}% lignes sans unité physique + ${(qtyOneRatio * 100).toFixed(0)}% lignes quantité=1/null sur ${total} lignes`,
-    };
-  }
-
-  return { is_incomplete: false, reason: "" };
+  return detectIncompleteQuoteShared(
+    (Array.isArray(travaux) ? travaux : []).map((t) => ({
+      unite: t?.unite,
+      quantite: t?.quantite,
+      montant: t?.montant ?? null,
+    })),
+    PHYSICAL_UNIT_NAMES,
+  );
 }
 
 // ============================================================

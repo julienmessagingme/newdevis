@@ -41,6 +41,7 @@
 import type { ExtractedData, ClauseLitigieuse, DocumentType } from "./types.ts";
 import { PipelineError, repairTruncatedJson } from "./utils.ts";
 import { detectQuoteCountry } from "./country.ts";
+import { detectIncompleteQuoteShared } from "./incomplete-quote.ts";
 import {
   reconcileDevis,
   type LigneInput,
@@ -525,29 +526,22 @@ function parseGeminiJsonV2(raw: string): any {
 // R1 KEPT — Détection devis incomplet
 // ──────────────────────────────────────────────────────────────────────────────
 
+// 2026-08-03 — Garde montant (cas ATEX, cf. BUGS-A-CORRIGER.md
+// INCOMPLETE-QUOTE-FAUX-POSITIF-FORFAITS-LEGITIMES) : logique partagée avec
+// extract.ts dans incomplete-quote.ts. Le bypass exige désormais que ≥ 70% du
+// MONTANT HT soit porté par des lignes sans unité physique — les forfaits
+// légitimes (échafaudage, purge, nettoyage) à côté d'un poste principal
+// quantifié en m² ne déclenchent plus le faux "devis résumé par lot".
 function detectIncompleteV2(lignes: LigneV2[]): { is_incomplete: boolean; reason: string } {
   const travauxLignes = lignes.filter((l) => l.type === "ligne_travaux");
-  if (travauxLignes.length < 5) {
-    return { is_incomplete: false, reason: "" };
-  }
-  const sansUnite = travauxLignes.filter((l) => {
-    const u = (l.unite ?? "").toLowerCase().trim();
-    return u === "" || !PHYSICAL_UNIT_NAMES.has(u);
-  }).length;
-  const qtyTriviale = travauxLignes.filter(
-    (l) => l.quantite === null || l.quantite === 1,
-  ).length;
-
-  const ratioSansUnite = sansUnite / travauxLignes.length;
-  const ratioQtyTriviale = qtyTriviale / travauxLignes.length;
-
-  if (ratioSansUnite >= 0.7 && ratioQtyTriviale >= 0.7) {
-    return {
-      is_incomplete: true,
-      reason: `Devis résumé par lot : ${travauxLignes.length} lignes, ${Math.round(ratioSansUnite * 100)}% sans unité physique, ${Math.round(ratioQtyTriviale * 100)}% qty triviale (1 ou null). Demander à l'artisan un devis détaillé.`,
-    };
-  }
-  return { is_incomplete: false, reason: "" };
+  return detectIncompleteQuoteShared(
+    travauxLignes.map((l) => ({
+      unite: l.unite,
+      quantite: l.quantite,
+      montant: l.montant_total,
+    })),
+    PHYSICAL_UNIT_NAMES,
+  );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
