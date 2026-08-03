@@ -68,6 +68,59 @@ describe("preparationBuilder — buildPreparationSections", () => {
     expect(rappelPourOuvrir).toBeNull();
   });
 
+  // Cas ATEX 2026-08-03 : points_ok mélange ✓ verts et 🟠/ℹ️ non-positifs.
+  // Le rappel disait « établie depuis longtemps et bien notée » alors que le
+  // bloc Entreprise affichait « 2 ans d'existence » + « aucun avis Google ».
+  it("ignore les points 🟠/ℹ️ non-positifs (cas ATEX — entreprise jeune sans avis)", () => {
+    const { rappelPourOuvrir } = buildPreparationSections(
+      baseConclusion,
+      [
+        "✓ Entreprise identifiée : ATEX",
+        "🟠 Entreprise établie depuis 2 ans",
+        "ℹ️ Aucun avis Google trouvé - cela ne préjuge pas de la qualité de l'entreprise",
+        "ℹ️ Aucune donnée financière publiée - la vérification financière n'a pas pu être effectuée",
+        "✓ Mode de paiement traçable accepté",
+        "✓ IBAN valide et domicilié en France",
+      ],
+      [],
+    );
+    // Ne doit JAMAIS sur-affirmer ce que le bloc Entreprise contredit
+    expect(rappelPourOuvrir).not.toMatch(/établie depuis longtemps/);
+    expect(rappelPourOuvrir).not.toMatch(/bien notée/);
+    // Le seul positif tangible restant : conditions de paiement
+    expect(rappelPourOuvrir).toMatch(/paiement/);
+    // Grammaire : la phrase complète « L'entreprise est … »
+    expect(rappelPourOuvrir).toMatch(/^L['']entreprise est /);
+  });
+
+  it("entreprise jeune en clair (« depuis 2 ans » sans marqueur) → pas de rappel ancienneté", () => {
+    const { rappelPourOuvrir } = buildPreparationSections(
+      baseConclusion,
+      ["Entreprise établie depuis 2 ans"],
+      [],
+    );
+    expect(rappelPourOuvrir).toBeNull();
+  });
+
+  it("négation sur les avis (« aucun avis ») ne devient jamais « bien notée »", () => {
+    const { rappelPourOuvrir } = buildPreparationSections(
+      baseConclusion,
+      ["Aucun avis Google trouvé pour cet établissement"],
+      [],
+    );
+    expect(rappelPourOuvrir).toBeNull();
+  });
+
+  it("statut actif sans ancienneté chiffrée → claim modeste « immatriculée et en activité »", () => {
+    const { rappelPourOuvrir } = buildPreparationSections(
+      baseConclusion,
+      ["✓ Entreprise active, SIRET vérifié"],
+      [],
+    );
+    expect(rappelPourOuvrir).toContain("immatriculée et en activité");
+    expect(rappelPourOuvrir).not.toMatch(/établie depuis longtemps/);
+  });
+
   it("reformule sans préfixe 'Point à faire préciser :' redondant", () => {
     const conclusion = {
       ...baseConclusion,

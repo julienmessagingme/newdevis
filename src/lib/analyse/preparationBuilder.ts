@@ -254,23 +254,57 @@ function reformulateAsQuestion(action: string): { context: string; question: str
  * Retourne { key, text } — la clé sert à dédupliquer sémantiquement (éviter
  * plusieurs phrases « l'entreprise ... l'entreprise ... »).
  *
- * Les textes NE commencent PAS tous par « l'entreprise » pour permettre une
- * fusion élégante (« établie depuis longtemps et bien notée » plutôt que
- * « l'entreprise est établie depuis longtemps et l'entreprise est bien notée »).
+ * Chaque `short` doit compléter grammaticalement « L'entreprise est … » pour
+ * permettre une fusion élégante (« établie depuis longtemps et bien notée »).
+ *
+ * 2026-08-03 (cas ATEX) — le tableau points_ok mélange des points ✓ VERTS et
+ * des points 🟠/ℹ️/📍 (avertissements, absences de donnée, contexte). L'ancien
+ * matching par mots-clés transformait « 🟠 Entreprise établie depuis 2 ans »
+ * en « établie depuis longtemps » et « ℹ️ Aucun avis Google trouvé » en
+ * « bien notée par ses clients » — contradiction frontale avec le bloc
+ * Entreprise affiché au-dessus. Garde-fous :
+ *   1. Seuls les points sans marqueur d'alerte (🟠 ⚠ ℹ 📍 ❌ ❗ 🔴) sont éligibles.
+ *   2. Négation → rejet (« aucun avis », « non trouvé », « incertain »…).
+ *   3. « établie depuis longtemps » exige une ancienneté chiffrée ≥ 5 ans ;
+ *      un simple statut actif/SIRET donne « immatriculée et en activité ».
  */
+const NON_POSITIVE_MARKERS = /^\s*(?:🟠|⚠️?|ℹ️?|📍|❌|❗|🔴)/u;
+const NEGATION_PATTERN = /\b(?:aucun[e]?|non\s+(?:trouv|disponible|exploit|v[ée]rifi)|pas\s+d[e'']|incertain|partielle|manquant|impossible)/i;
+
+function extractSeniorityYears(lower: string): number | null {
+  // « depuis 12 ans » / « 12 ans d'existence »
+  const years = lower.match(/(\d{1,2})\s*ans/);
+  if (years) return parseInt(years[1], 10);
+  // « depuis 2014 » / « créée le 18/06/2024 » → années écoulées
+  const year = lower.match(/\b(19\d{2}|20\d{2})\b/);
+  if (year) {
+    const n = new Date().getFullYear() - parseInt(year[1], 10);
+    return n >= 0 && n <= 100 ? n : null;
+  }
+  return null;
+}
+
 function simplifyPointOk(point: string): { key: string; short: string } | null {
+  if (NON_POSITIVE_MARKERS.test(point)) return null;
+  if (NEGATION_PATTERN.test(point)) return null;
   const lower = point.toLowerCase();
   if (lower.includes("assurance") || lower.includes("décennale") || lower.includes("decennale") || lower.includes("rge") || lower.includes("qualib")) {
-    return { key: "cert", short: "certifications et assurances en règle" };
+    return { key: "cert", short: "à jour de ses assurances et certifications" };
   }
   if (lower.includes("avis") || lower.includes("note") || lower.includes("google")) {
     return { key: "avis", short: "bien notée par ses clients" };
   }
-  if (lower.includes("ancien") || lower.includes("depuis") || lower.includes("siret") || lower.includes("actif")) {
-    return { key: "anciennete", short: "établie depuis longtemps" };
+  if (lower.includes("ancien") || lower.includes("depuis")) {
+    const n = extractSeniorityYears(lower);
+    if (n !== null && n >= 5) return { key: "anciennete", short: "établie depuis longtemps" };
+    if (n !== null && n < 3) return null; // entreprise jeune : rien à « rappeler »
+    return { key: "anciennete", short: "immatriculée et en activité" };
+  }
+  if (lower.includes("siret") || lower.includes("actif")) {
+    return { key: "anciennete", short: "immatriculée et en activité" };
   }
   if (lower.includes("paiement") || lower.includes("acompte") || lower.includes("iban")) {
-    return { key: "paiement", short: "conditions de paiement classiques" };
+    return { key: "paiement", short: "claire sur ses conditions de paiement" };
   }
   return null;
 }
