@@ -152,6 +152,20 @@
 
 - **Statut** : 🔴 à corriger (Phase 3 + Phase 4). Mitigation immédiate : revue humaine (Piste C) — le cas est en pending_review depuis le fix `9e2635b`, l'expert corrige à la main.
 
+### 2026-08-03 — INCOMPLETE-QUOTE-FAUX-POSITIF-FORFAITS-LEGITIMES
+
+- **Signalé par** : Johan (revue Piste C, trigger `ratio_aberrant=58.4×`)
+- **Analyse ID** : `d3cc843d` (Devis-SAS Florim-ATEX-D-2026-04115.pdf, ravalement de façade avec bardage Cedral, 17 936 € HT / 21 523 € TTC)
+- **User** : dbaty102@gmail.com (très probablement l'artisan ATEX lui-même — émetteur du devis `dbatyatex@gmail.com`)
+- **Symptôme observé** : Bypass `incomplete_quote` déclenché avec le message « Ce devis est trop synthétique… il manque les quantités précises et le prix unitaire de chaque prestation » alors que le devis est **complet** : 8 lignes, chacune avec colonnes Qté + Prix unitaire HT + Total HT remplies. Le poste principal (bardage Cedral **80 m² × 142,50 €/m²** = 11 400 €, 64 % du devis) et l'option laine de roche (80 m² × 24 €) sont parfaitement quantifiés. Les 6 lignes « 1 unité » sont des **forfaits BTP légitimes** (échafaudage, déplacement, purge, dépose descentes, nettoyage) — pratique normale sur un ravalement. Deuxième couche de bug : le matching vectoriel a produit **5 faux matchs forfait-vs-prix-unitaire** (échafaudage 2 630 € forfait vs 15-45 €/m² × qty 1 → ×58,4 ; descentes EP ×21,7 ; nettoyage ×8,6 ; purge matchée sur « ravalement complet » ×6,9 ; dépose descentes matchée sur « dépose clôture » ×5,3).
+- **Cause racine** : `detectIncompleteQuote` (extract.ts, V3.5.5) compte les **lignes**, pas les **montants** : 6/8 lignes en « unité » qty=1 → 75 % ≥ seuil 70 % sur les 2 critères → bypass. L'heuristique est aveugle au fait que **74 % du montant HT** (13 320 €/17 936 €) est porté par des lignes m² parfaitement quantifiées. Différence avec le cas HEXA BAT (2026-08-01, surfaces inline dans les descriptions) : ici les quantités sont dans les **colonnes structurées** — le faux positif est encore plus flagrant. Côté matching : les forfaits qty=1 sont comparés à des prix unitaires m²/ml catalogue sans conversion (cf. FORFAIT-VS-PRIX-UNITAIRE-CATALOGUE 2026-06-29 — même famille).
+- **Maillon concerné** : 1 (Lire juste — distinguer forfait légitime et devis résumé) + 2 (Comparer — un forfait qty=1 ne doit jamais être comparé à un prix unitaire surfacique) + 3 (Verdict honnête — le bypass a privé l'utilisateur d'une analyse possible)
+- **Phase qui corrige** : 3 (extract_v2) + fix candidat immédiat discutable : **pondérer `detectIncompleteQuote` par montant** — ne déclencher que si ≥ 70 % du **montant HT** est porté par des lignes sans unité physique/quantité.
+- **Cas test à passer** :
+  - Input : devis ≥ 5 lignes dont ≥ 60 % du montant HT porté par des lignes avec unité physique + quantité + prix unitaire (ex. bardage 80 m² × 142,50 €), le reste en forfaits « 1 unité » (échafaudage, purge, nettoyage…)
+  - Sortie attendue : PAS de bypass `incomplete_quote`. Analyse standard : postes m² comparés au catalogue, forfaits classés « non comparable » (JAMAIS d'anomalie ×58 par comparaison forfait vs prix unitaire).
+- **Statut** : 🔴 à corriger (Phase 3). Mitigation appliquée le 2026-08-03 : revue expert « Corriger » (verdict `a_negocier`, surcoût 0-600 € échafaudage) + chirurgie données via service_role (retrait du flag `incomplete_quote` de `conclusion_ia`, réécriture phrase_intro/actions/verdict_reasons honnêtes — vrai point : acompte 40 % > usage 30 % —, passage des 6 groupes forfait en `vectorial.confidence='no_match'` + `prices=[]` pour affichage « Non comparable »).
+
 ### 2026-06-29 — DEVIS-DATE-NON-EXTRAIT-COMME-LEVIER
 
 - **Signalé par** : Julien (revue devis Mélier Cognac 2024)
