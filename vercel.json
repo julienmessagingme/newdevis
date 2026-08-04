@@ -11,7 +11,6 @@
       "permanent": true
     },
     {
-      "_note_2026_08_02": "GSC signale 404 sur des sous-URLs '.../Messaging Me' — le widget MessagingMe injecté dans BaseLayout produit occasionnellement des liens malformés. On redirige les 2 cas remontés par Google.",
       "source": "/centre-aide/litiges/Messaging Me",
       "destination": "/centre-aide/",
       "permanent": true
@@ -32,7 +31,6 @@
       "permanent": true
     },
     {
-      "_note_2026_08_02_bis": "GSC 404 sur ancienne URL ou variante de nom",
       "source": "/verifier-devis-renovation",
       "destination": "/verifier-devis-travaux",
       "permanent": true
