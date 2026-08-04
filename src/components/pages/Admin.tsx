@@ -15,6 +15,7 @@ import RecentDevisTable from "@/components/admin/sections/RecentDevisTable";
 import ReturningUsersSection from "@/components/admin/sections/ReturningUsersSection";
 import FeedbackSection from "@/components/admin/sections/FeedbackSection";
 import AnomaliesSection from "@/components/admin/sections/AnomaliesSection";
+import GmcKPIsSection, { type GmcKpis } from "@/components/admin/sections/GmcKPIsSection";
 
 const Admin = () => {
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,8 @@ const Admin = () => {
   const [recentDevis, setRecentDevis] = useState<Array<{ id: string; file_name: string; file_path: string; created_at: string; score: string | null; status: string }>>([]);
   const [devisLoading, setDevisLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [gmcKpis, setGmcKpis] = useState<GmcKpis | null>(null);
+  const [gmcLoading, setGmcLoading] = useState(false);
 
   const checkAdminAndFetchKPIs = async () => {
     try {
@@ -57,6 +60,7 @@ const Admin = () => {
 
       fetchUsers();
       fetchRecentDevis();
+      fetchGmcKpis();
       const { data, error } = await supabase.functions.invoke("admin-kpis");
 
       if (error) throw error;
@@ -85,6 +89,24 @@ const Admin = () => {
       console.error("Error fetching users:", err);
     } finally {
       setUsersLoading(false);
+    }
+  };
+
+  const fetchGmcKpis = async () => {
+    setGmcLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/admin/gmc-kpis", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) throw new Error("Erreur API");
+      const data = await res.json();
+      setGmcKpis(data);
+    } catch (err) {
+      console.error("Error fetching GMC KPIs:", err);
+    } finally {
+      setGmcLoading(false);
     }
   };
 
@@ -153,6 +175,7 @@ const Admin = () => {
         <h1 className="text-2xl font-bold text-foreground mb-6">Tableau de bord administrateur</h1>
 
         <UsageKPIsSection kpis={kpis} />
+        <GmcKPIsSection kpis={gmcKpis} loading={gmcLoading} />
         <ChartsSection kpis={kpis} />
         <ScoringKPIsSection kpis={kpis} />
         <DocumentsKPIsSection kpis={kpis} />
