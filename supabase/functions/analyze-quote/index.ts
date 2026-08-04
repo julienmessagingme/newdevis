@@ -2,7 +2,7 @@ import { serviceRoleKey } from "../_shared/supabase-key.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { corsHeaders, PipelineError, isPipelineError, computeFileHash, checkCircuitBreaker } from "./utils.ts";
+import { corsHeadersFor, PipelineError, isPipelineError, computeFileHash, checkCircuitBreaker } from "./utils.ts";
 
 // ── Alerte admin immédiate (email Resend) ──────────────────────────────────────
 const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY") ?? "";
@@ -184,6 +184,8 @@ function computeStrategicScores(items: StrategicItem[], matrix: StrategicRow[]) 
 
 // ============ MAIN HANDLER ============
 serve(async (req) => {
+  // CORS dynamique (VMD + GMC) — cf. _shared/cors.ts
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

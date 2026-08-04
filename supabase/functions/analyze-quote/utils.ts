@@ -1,9 +1,8 @@
 // ============ CORS HEADERS ============
+// CORS dynamique (VMD + GMC) — la logique vit dans _shared/cors.ts.
+// index.ts calcule `const corsHeaders = corsHeadersFor(req)` en tête de handler.
 
-export const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://www.verifiermondevis.fr",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+export { corsHeadersFor } from "../_shared/cors.ts";
 
 // ============ PIPELINE ERROR ============
 

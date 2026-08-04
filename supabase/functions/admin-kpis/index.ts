@@ -5,25 +5,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // 2026-08-03 — /admin est servi sur les DEUX domaines (VMD + GMC, même build
 // Vercel). Le CORS hardcodé VMD-only bloquait l'invoke depuis
 // www.gerermonchantier.fr/admin → « Erreur lors du chargement des KPIs ».
-// On reflète l'Origin s'il est dans l'allowlist, fallback VMD sinon.
-const ALLOWED_ORIGINS = new Set([
-  "https://www.verifiermondevis.fr",
-  "https://verifiermondevis.fr",
-  "https://www.gerermonchantier.fr",
-  "https://gerermonchantier.fr",
-  "http://localhost:4321",
-]);
-
-function corsHeadersFor(req: Request): Record<string, string> {
-  const origin = req.headers.get("Origin") ?? "";
-  return {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.has(origin)
-      ? origin
-      : "https://www.verifiermondevis.fr",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Vary": "Origin",
-  };
-}
+// Logique mutualisée dans _shared/cors.ts (allowlist VMD + GMC).
+import { corsHeadersFor } from "../_shared/cors.ts";
 
 serve(async (req) => {
   const corsHeaders = corsHeadersFor(req);

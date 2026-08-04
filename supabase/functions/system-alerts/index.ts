@@ -2,10 +2,7 @@ import { serviceRoleKey } from "../_shared/supabase-key.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://www.verifiermondevis.fr",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeadersFor } from "../_shared/cors.ts";
 
 // 2026-05-21 — Ajout johan en destinataire (alignement avec analysis-maintenance
 // qui envoie déjà aux 2). Le commentaire TODO Resend reste valide : à terme on
@@ -213,6 +210,8 @@ async function sendAlert(alert: Alert, resendApiKey: string): Promise<{ ok: bool
 // ============ HANDLER ============
 
 serve(async (req) => {
+  // CORS dynamique (VMD + GMC) — cf. _shared/cors.ts
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
