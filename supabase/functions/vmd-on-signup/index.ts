@@ -11,6 +11,7 @@ import { serviceRoleKey } from "../_shared/supabase-key.ts";
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderVmdEmail } from "../_shared/vmd-emails.ts";
+import { notifyTelegram } from "../_shared/telegram-notify.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY_VMD") ?? Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPABASE_URL   = Deno.env.get("SUPABASE_URL")!;
@@ -94,6 +95,11 @@ Deno.serve(async (req: Request) => {
       });
       await sendEmail([email], subject, html);
     }
+
+    // 3) Notif Telegram (portable Johan) — best-effort, jamais bloquant.
+    await notifyTelegram(
+      `🆕 Nouvel inscrit VMD\n${email || "(email inconnu)"}${prenom ? ` — ${prenom}` : ""}\nSource : ${source}`,
+    );
 
     return new Response("ok", { status: 200 });
   } catch (e) {

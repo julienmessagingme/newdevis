@@ -24,6 +24,7 @@ export const config = { maxDuration: 90 };
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
+import { notifyTelegram } from "@/lib/integrations/telegramNotify";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
@@ -332,6 +333,11 @@ async function persistConclusion(
     sendReviewEmail(analysisId, fileName, trigger.reasons, conclusion).catch(() => {
       /* déjà loggué dans sendReviewEmail */
     });
+    // Notif Telegram (portable Johan) — await volontaire : un fire-and-forget
+    // pur serait coupé par Vercel dès le return (cf. piège serverless CLAUDE.md).
+    await notifyTelegram(
+      `🔍 Analyse en attente de review\n${fileName ?? "(fichier inconnu)"}\nDéclencheurs : ${trigger.reasons.join(" · ")}\nhttps://www.verifiermondevis.fr/admin/reviews`,
+    );
   }
 }
 

@@ -11,6 +11,7 @@ import { serviceRoleKey } from "../_shared/supabase-key.ts";
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderGmcEmail } from "../_shared/gmc-emails.ts";
+import { notifyTelegram } from "../_shared/telegram-notify.ts";
 
 const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPABASE_URL    = Deno.env.get("SUPABASE_URL")!;
@@ -104,6 +105,11 @@ Deno.serve(async (req: Request) => {
       });
       await sendEmail([email], subject, html);
     }
+
+    // 3) Notif Telegram (portable Johan) — best-effort, jamais bloquant.
+    await notifyTelegram(
+      `🏗️ Nouvel inscrit GMC\n${email || "(email inconnu)"}${prenom ? ` — ${prenom} ${nom}`.trimEnd() : ""}\nSource : ${source || "gerermonchantier"} · essai 30j démarré`,
+    );
 
     return new Response("ok", { status: 200 });
   } catch (e) {
