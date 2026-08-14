@@ -173,6 +173,13 @@ export default function AvisSurLeDevis({
 
   // Phrase explicative (une, courte)
   const bodyText = (() => {
+    // 🟢 Phase 4 — verdict tranché déterministe : quand le moteur fournit
+    // verdict_ligne (motif TOUJOURS nommé), il prime sur les heuristiques
+    // ci-dessous. Fallback intact pour les conclusions pré-Phase 4.
+    const vl = conclusion.verdict_ligne;
+    if (vl?.resume) {
+      return vl.marge ? `${vl.resume} Marge de négociation estimée : ${vl.marge}.` : vl.resume;
+    }
     const base = (conclusion.phrase_intro || "").trim();
     if (isSigner) {
       // Nous ne parlons pas d'écart quand tout est cohérent — silence assumé.

@@ -123,6 +123,30 @@ export interface ConclusionData {
     metier: string;
   };
 
+  // ── Phase 4 (2026-08-15) — Verdict honnête (Maillon 3) ─────────────────────
+  /**
+   * Verdict tranché 1 ligne, assemblé DÉTERMINISTIQUEMENT par leviersBuilder.ts.
+   * Le motif est TOUJOURS nommé — jamais « risque élevé » sans dire lequel.
+   * Absent sur les conclusions antérieures à Phase 4 (fallback UI = phrase_intro).
+   */
+  verdict_ligne?: {
+    decision: "signer" | "signer_avec_negociation" | "ne_pas_signer";
+    resume: string;
+    motif: string;
+    marge: string | null;
+  };
+
+  /**
+   * Max 3 leviers de négociation hiérarchisés (🔴 puissant / 🟠 important /
+   * 🟡 bonus) — remplacent la liste de 6-8 actions dans le chemin de lecture
+   * principal. Absent sur les conclusions pré-Phase 4 (fallback UI = actions).
+   */
+  leviers?: Array<{
+    niveau: "puissant" | "important" | "bonus";
+    titre: string;
+    detail: string;
+  }>;
+
   // ── Métadonnée ─────────────────────────────────────────────────────────────
   generated_at: string;
 }

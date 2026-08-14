@@ -18,6 +18,7 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConclusionIA } from "@/hooks/useConclusionIA";
 import AvisSurLeDevis from "./AvisSurLeDevis";
+import LeviersNegociation from "./LeviersNegociation";
 import PreparezVotreRendezVous from "./PreparezVotreRendezVous";
 import PourquoiCetAvis from "./PourquoiCetAvis";
 import InvitationPartager from "./InvitationPartager";
@@ -107,6 +108,8 @@ export default function AvisEtPreparation({
         totalCount={totalCount}
         criticalReasons={criticalReasons}
       />
+      {/* 🟢 Phase 4 — 3 leviers hiérarchisés (rendu seulement si conclusion.leviers) */}
+      <LeviersNegociation conclusion={conclusion} />
       <PreparezVotreRendezVous
         conclusion={conclusion}
         pointsOk={pointsOk}

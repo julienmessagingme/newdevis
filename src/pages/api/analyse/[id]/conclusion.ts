@@ -25,6 +25,7 @@ import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 import { notifyTelegram } from "@/lib/integrations/telegramNotify";
+import { buildLeviers, buildVerdictLigne } from "@/lib/analyse/leviersBuilder";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
@@ -2695,6 +2696,53 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       // Trace si la garde de cohérence a été déclenchée (utile pour debug / monitoring)
       ...(coherenceEscalated ? { coherence_escalated: true } : {}),
     } as ConclusionData & { engine_version: string; coherence_escalated?: boolean };
+
+    // 🟢 Phase 4 (2026-08-15) — Verdict tranché 1 ligne + 3 leviers hiérarchisés.
+    // Assemblage 100% déterministe depuis les signaux moteur (leviersBuilder.ts) —
+    // jamais de texte LLM libre. Best-effort : un échec ici ne casse jamais la
+    // conclusion (les fallbacks UI = phrase_intro + actions restent servis).
+    try {
+      const clausesRaw = Array.isArray((extractedData as Record<string, unknown>).clauses_litigieuses)
+        ? ((extractedData as Record<string, unknown>).clauses_litigieuses as Array<Record<string, unknown>>)
+            .filter((c) => c && typeof c.type === "string")
+            .map((c) => ({
+              type: String(c.type),
+              gravite: String(c.gravite ?? "orange"),
+              citation: typeof c.citation === "string" ? c.citation : undefined,
+            }))
+        : [];
+      // % d'acompte cumulé avant prestation : parsé depuis le critère V3.5.9
+      // ("... (70% (30% à signature + 40% à livraison_materiaux))"), fallback
+      // acompte simple extrait du devis.
+      const acompteCritere = [...criteres_rouges, ...criteres_oranges].find((c) => /acompte\s+cumul/i.test(c));
+      const acompteMatch = acompteCritere?.match(/\((\d+(?:[.,]\d+)?)\s*%/);
+      const paiementData = (extractedData.paiement as Record<string, unknown>) || {};
+      const acomptePct = acompteMatch
+        ? parseFloat(acompteMatch[1].replace(",", "."))
+        : typeof paiementData.acompte_pct === "number"
+          ? paiementData.acompte_pct
+          : null;
+
+      const p4Signals = {
+        verdict_decisionnel: verdictDecision as "signer" | "signer_avec_negociation" | "ne_pas_signer",
+        total_ht: totalHT,
+        work_type: workType || null,
+        surcout: { min: surcoutMin, max: surcoutMax },
+        anomalies_postes: sanitizedAnomalies.map((a) => a.poste).filter((p): p is string => Boolean(p)),
+        quantites_manquantes: Boolean(hasUnitsMissing),
+        clauses_litigieuses: clausesRaw,
+        acompte_cumule_pct: acomptePct,
+        paiement_especes_seul: criteres_rouges.some((c) => /esp[eè]ces\s+uniquement/i.test(c)),
+        entreprise_risque: preCompanyStatus || null,
+        assurance_absente: Boolean(preFlags.absence_assurance),
+        date_devis: dateDevis,
+      };
+      const leviers = buildLeviers(p4Signals);
+      (conclusionData as ConclusionData).leviers = leviers;
+      (conclusionData as ConclusionData).verdict_ligne = buildVerdictLigne(p4Signals, leviers);
+    } catch (p4Err) {
+      console.warn("[conclusion] Phase 4 enrichment failed:", p4Err instanceof Error ? p4Err.message : p4Err);
+    }
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erreur inconnue";
