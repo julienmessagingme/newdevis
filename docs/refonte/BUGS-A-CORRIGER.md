@@ -115,7 +115,7 @@
 - **Cas test à passer** :
   - Input : devis ≥ 15 lignes, avec ≥ 3 surfaces mentionnées dans les descriptions (regex m² / ml / u), et ≥ 1 ligne complète (qté ≠ 1 ou unité ≠ "ens/forfait")
   - Sortie attendue : PAS de bypass `incomplete_quote`. Analyse standard produite avec matching catalogue sur les postes détaillables.
-- **Statut** : 🔴 à corriger (Phase 3 + Phase 4). Mitigation immédiate : régénération manuelle possible via clear de `conclusion_ia` + relance moteur (mais Gemini retomberait probablement sur le même bypass sans fix côté prompt).
+- **Statut** : 🟢 **corrigé le 2026-08-15** (commit `aa53a8e`, déployé, validé sur le devis d'origine). Module `inline-quantities.ts` (déterministe, regex + gardes) branché dans extract_v2 (moteur primaire depuis la bascule Phase 3.3) : les surfaces écrites dans les descriptions sont remontées vers `quantite`/`unite=m²` AVANT la détection incomplete et la réconciliation. Résultat sur HEXA BAT rejoué : 6 surfaces remontées (13,23/21,74/60,61/21,74/16,03/84,18 m²), `is_incomplete_quote=false`, 14/14 postes comparés au marché, verdict réel « à négocier, surcoût 319-593 € » avec actions ciblées — à la place du faux « devis trop synthétique ». 27 tests anti-régression (`npx tsx supabase/functions/analyze-quote/inline-quantities.test.ts`) couvrant les pièges R=X m².K/W, €/m², 5à7 m2, dimensions. Gardes : remontée uniquement si UNE surface non ambiguë ; `ml` exclu (collision millilitres). Limite : ne bénéficie qu'aux nouvelles analyses (le stock garde ses conclusions).
 
 ### 2026-08-02 — ACOMPTE-SUR-MESURE-VS-BTP
 
