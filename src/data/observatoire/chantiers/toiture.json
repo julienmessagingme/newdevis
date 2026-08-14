@@ -4,18 +4,18 @@
   "chantier_label": "Toiture",
   "title": "Prix rénovation toiture 2026 : fourchette sur 35 devis",
   "description": "Réfection toiture complète ou partielle : combien prévoir en 2026 ? Fourchette des devis analysés, ardoise, tuile, zinc, aides mobilisables.",
-  "lastGenerated": "2026-07-01T11:31:26.687Z",
+  "lastGenerated": "2026-08-14T23:03:13.064Z",
   "intro": "Nous avons analysé 35 devis contenant des travaux de type toiture. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 35,
     "nb_lignes": 52,
-    "ligne_moyenne": 5950.37,
-    "prix_moyen_unitaire": 427.65,
+    "ligne_moyenne": 6805.38,
+    "prix_moyen_unitaire": 1287.86,
     "prix_median": 103.57,
     "prix_p25": 41.13,
-    "prix_p75": 279.31,
+    "prix_p75": 308.73,
     "prix_min": 6,
-    "prix_max": 4000
+    "prix_max": 45000
   },
   "pointsVigilance": [
     "Marque et type de tuile ou d'ardoise précisés.",

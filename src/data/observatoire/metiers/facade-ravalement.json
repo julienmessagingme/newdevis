@@ -2,21 +2,21 @@
   "slug": "facade-ravalement",
   "metier": "facade_ravalement",
   "metier_label": "Façade & ravalement",
-  "title": "Façade & ravalement : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 11 devis analysés dans le métier Façade & ravalement : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.524Z",
-  "intro": "Nous avons analysé 11 devis contenant au moins une ligne du métier Façade & ravalement. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix façade & ravalement 2026 : fourchette sur 13 devis",
+  "description": "Façade & ravalement : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.827Z",
+  "intro": "Nous avons analysé 13 devis contenant au moins une ligne du métier Façade & ravalement. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 11,
-    "nb_lignes": 11,
-    "prix_moyen": 1639.07,
-    "prix_median": 1250,
+    "nb_devis": 13,
+    "nb_lignes": 13,
+    "prix_moyen": 1390.75,
+    "prix_median": 1176.67,
     "prix_min": 25,
     "prix_max": 5600,
-    "prix_p25": 585,
-    "prix_p75": 2354.55,
-    "panier_moyen": 2372.79,
-    "ratio_moyen_vs_marche": 57.849
+    "prix_p25": 49,
+    "prix_p75": 1909.09,
+    "panier_moyen": 2084.66,
+    "ratio_moyen_vs_marche": 49.026
   },
   "postesSurfactures": [
     {
@@ -28,6 +28,11 @@
       "label": "Enduit façade",
       "ratio_median": 16.606,
       "nb_obs": 4
+    },
+    {
+      "label": "Enduit façade grattée (fourni+posé)",
+      "ratio_median": 0.5,
+      "nb_obs": 3
     }
   ],
   "conseils": [

@@ -2,9 +2,9 @@
   "slug": "facade",
   "chantier_type": "facade",
   "chantier_label": "Façade",
-  "title": "Façade : prix moyens & points de vigilance",
-  "description": "Statistiques réelles sur 9 devis façade analysés : prix moyens, points de vigilance, erreurs fréquentes.",
-  "lastGenerated": "2026-07-01T11:31:26.683Z",
+  "title": "Prix façade 2026 : fourchette sur 9 devis",
+  "description": "Façade : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:13.060Z",
   "intro": "Nous avons analysé 9 devis contenant des travaux de type façade. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 9,

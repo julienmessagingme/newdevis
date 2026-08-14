@@ -2,9 +2,9 @@
   "slug": "sols-durs",
   "metier": "sols_durs",
   "metier_label": "sols durs",
-  "title": "sols durs : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 3 devis analysés dans le métier sols durs : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.531Z",
+  "title": "Prix sols durs 2026 : fourchette sur 3 devis",
+  "description": "sols durs : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.834Z",
   "intro": "Nous avons analysé 3 devis contenant au moins une ligne du métier sols durs. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 3,

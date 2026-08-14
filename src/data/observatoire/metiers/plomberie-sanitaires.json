@@ -2,21 +2,21 @@
   "slug": "plomberie-sanitaires",
   "metier": "plomberie_sanitaires",
   "metier_label": "Plomberie & sanitaires",
-  "title": "Prix plomberie 2026 : fourchette sur 53 devis analysés",
+  "title": "Prix plomberie 2026 : fourchette sur 58 devis analysés",
   "description": "Plomberie, sanitaires, robinetterie : combien coûte une intervention en 2026 ? Fourchette des devis analysés, alertes sur les postes à risque.",
-  "lastGenerated": "2026-07-01T11:31:26.530Z",
-  "intro": "Nous avons analysé 53 devis contenant au moins une ligne du métier Plomberie & sanitaires. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.833Z",
+  "intro": "Nous avons analysé 58 devis contenant au moins une ligne du métier Plomberie & sanitaires. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 53,
-    "nb_lignes": 108,
-    "prix_moyen": 755.66,
-    "prix_median": 290,
+    "nb_devis": 58,
+    "nb_lignes": 130,
+    "prix_moyen": 793.05,
+    "prix_median": 322.86,
     "prix_min": 3.58,
     "prix_max": 10759,
     "prix_p25": 225,
-    "prix_p75": 696.88,
-    "panier_moyen": 1518.38,
-    "ratio_moyen_vs_marche": 8.103
+    "prix_p75": 694.18,
+    "panier_moyen": 1426.7,
+    "ratio_moyen_vs_marche": 6.981
   },
   "postesSurfactures": [
     {
@@ -32,7 +32,7 @@
     {
       "label": "Création arrivée d'eau",
       "ratio_median": 4.769,
-      "nb_obs": 3
+      "nb_obs": 4
     },
     {
       "label": "Création réseau évacuation (fourni+posé)",

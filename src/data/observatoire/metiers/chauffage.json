@@ -2,21 +2,21 @@
   "slug": "chauffage",
   "metier": "chauffage",
   "metier_label": "Chauffage",
-  "title": "Chauffage : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 37 devis analysés dans le métier Chauffage : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.519Z",
-  "intro": "Nous avons analysé 37 devis contenant au moins une ligne du métier Chauffage. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix chauffage 2026 : fourchette sur 39 devis analysés",
+  "description": "Chaudière, pompe à chaleur, poêle : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, aides MaPrimeRénov' et CEE.",
+  "lastGenerated": "2026-08-14T23:03:12.823Z",
+  "intro": "Nous avons analysé 39 devis contenant au moins une ligne du métier Chauffage. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 37,
-    "nb_lignes": 47,
-    "prix_moyen": 1512.21,
+    "nb_devis": 39,
+    "nb_lignes": 50,
+    "prix_moyen": 1450.1,
     "prix_median": 545,
     "prix_min": 17.87,
     "prix_max": 10651.32,
-    "prix_p25": 288.94,
-    "prix_p75": 1585,
-    "panier_moyen": 2117.14,
-    "ratio_moyen_vs_marche": 2.896
+    "prix_p25": 219.35,
+    "prix_p75": 1577.25,
+    "panier_moyen": 2037.22,
+    "ratio_moyen_vs_marche": 2.81
   },
   "postesSurfactures": [
     {

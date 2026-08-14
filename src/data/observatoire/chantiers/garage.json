@@ -2,9 +2,9 @@
   "slug": "garage",
   "chantier_type": "garage",
   "chantier_label": "Garage",
-  "title": "Garage : prix moyens & points de vigilance",
-  "description": "Statistiques réelles sur 4 devis garage analysés : prix moyens, points de vigilance, erreurs fréquentes.",
-  "lastGenerated": "2026-07-01T11:31:26.684Z",
+  "title": "Prix garage 2026 : fourchette sur 4 devis",
+  "description": "Garage : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:13.061Z",
   "intro": "Nous avons analysé 4 devis contenant des travaux de type garage. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 4,

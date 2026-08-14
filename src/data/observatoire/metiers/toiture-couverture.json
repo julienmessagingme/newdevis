@@ -2,21 +2,21 @@
   "slug": "toiture-couverture",
   "metier": "toiture_couverture",
   "metier_label": "Toiture & couverture",
-  "title": "Prix toiture 2026 : fourchette au m² sur 57 devis",
+  "title": "Prix toiture 2026 : fourchette au m² sur 59 devis",
   "description": "Réfection toiture, couverture, zinguerie : combien au m² en 2026 ? Fourchette des devis analysés, ardoise, tuile, zinc, matériaux comparés.",
-  "lastGenerated": "2026-07-01T11:31:26.532Z",
-  "intro": "Nous avons analysé 57 devis contenant au moins une ligne du métier Toiture & couverture. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.835Z",
+  "intro": "Nous avons analysé 59 devis contenant au moins une ligne du métier Toiture & couverture. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 57,
-    "nb_lignes": 76,
-    "prix_moyen": 299.68,
-    "prix_median": 49.25,
+    "nb_devis": 59,
+    "nb_lignes": 78,
+    "prix_moyen": 879.51,
+    "prix_median": 52.5,
     "prix_min": 6,
-    "prix_max": 4000,
+    "prix_max": 45000,
     "prix_p25": 24.52,
-    "prix_p75": 177.74,
-    "panier_moyen": 4551.07,
-    "ratio_moyen_vs_marche": 4.9
+    "prix_p75": 188.44,
+    "panier_moyen": 5021.89,
+    "ratio_moyen_vs_marche": 5.347
   },
   "postesSurfactures": [
     {
@@ -30,11 +30,6 @@
       "nb_obs": 3
     },
     {
-      "label": "Écran de sous-toiture HPV (fourni+posé)",
-      "ratio_median": 1.15,
-      "nb_obs": 3
-    },
-    {
       "label": "Toiture - réfection complète",
       "ratio_median": 0.887,
       "nb_obs": 12
@@ -43,6 +38,11 @@
       "label": "Couverture tuile terre cuite (fourni+posé)",
       "ratio_median": 0.816,
       "nb_obs": 5
+    },
+    {
+      "label": "Écran de sous-toiture HPV (fourni+posé)",
+      "ratio_median": 0.639,
+      "nb_obs": 3
     }
   ],
   "conseils": [

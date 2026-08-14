@@ -2,21 +2,21 @@
   "slug": "metallerie-serrurerie",
   "metier": "metallerie_serrurerie",
   "metier_label": "metallerie serrurerie",
-  "title": "metallerie serrurerie : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 7 devis analysés dans le métier metallerie serrurerie : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.526Z",
-  "intro": "Nous avons analysé 7 devis contenant au moins une ligne du métier metallerie serrurerie. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix metallerie serrurerie 2026 : fourchette sur 9 devis",
+  "description": "metallerie serrurerie : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.829Z",
+  "intro": "Nous avons analysé 9 devis contenant au moins une ligne du métier metallerie serrurerie. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 7,
-    "nb_lignes": 7,
-    "prix_moyen": 775.25,
+    "nb_devis": 9,
+    "nb_lignes": 9,
+    "prix_moyen": 658.53,
     "prix_median": 160,
     "prix_min": 32,
     "prix_max": 4215,
-    "prix_p25": 84.89,
-    "prix_p75": 425,
-    "panier_moyen": 4077.14,
-    "ratio_moyen_vs_marche": 12.417
+    "prix_p25": 119.78,
+    "prix_p75": 250,
+    "panier_moyen": 4104.44,
+    "ratio_moyen_vs_marche": 10.262
   },
   "postesSurfactures": [
     {

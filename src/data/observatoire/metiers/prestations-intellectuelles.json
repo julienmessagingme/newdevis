@@ -2,27 +2,27 @@
   "slug": "prestations-intellectuelles",
   "metier": "prestations_intellectuelles",
   "metier_label": "Prestations intellectuelles",
-  "title": "Prestations intellectuelles : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 20 devis analysés dans le métier Prestations intellectuelles : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.530Z",
-  "intro": "Nous avons analysé 20 devis contenant au moins une ligne du métier Prestations intellectuelles. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix prestations intellectuelles 2026 : fourchette sur 19 devis",
+  "description": "Prestations intellectuelles : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.834Z",
+  "intro": "Nous avons analysé 19 devis contenant au moins une ligne du métier Prestations intellectuelles. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 20,
-    "nb_lignes": 21,
-    "prix_moyen": 456.25,
-    "prix_median": 304.21,
+    "nb_devis": 19,
+    "nb_lignes": 20,
+    "prix_moyen": 435.78,
+    "prix_median": 212.11,
     "prix_min": 47.9,
     "prix_max": 1700,
     "prix_p25": 52,
-    "prix_p75": 760,
-    "panier_moyen": 1360.49,
-    "ratio_moyen_vs_marche": 6.083
+    "prix_p75": 669.08,
+    "panier_moyen": 1341.95,
+    "ratio_moyen_vs_marche": 5.81
   },
   "postesSurfactures": [
     {
       "label": "Menuisier (taux horaire)",
-      "ratio_median": 4.056,
-      "nb_obs": 21
+      "ratio_median": 2.828,
+      "nb_obs": 20
     }
   ],
   "conseils": [

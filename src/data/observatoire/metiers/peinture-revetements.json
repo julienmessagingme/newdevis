@@ -2,21 +2,21 @@
   "slug": "peinture-revetements",
   "metier": "peinture_revetements",
   "metier_label": "Peinture & revêtements",
-  "title": "Prix peinture 2026 : fourchette au m² sur 61 devis",
+  "title": "Prix peinture 2026 : fourchette au m² sur 66 devis",
   "description": "Prix peinture, papier peint, revêtements de sol : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts entre finitions.",
-  "lastGenerated": "2026-07-01T11:31:26.529Z",
-  "intro": "Nous avons analysé 61 devis contenant au moins une ligne du métier Peinture & revêtements. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.832Z",
+  "intro": "Nous avons analysé 66 devis contenant au moins une ligne du métier Peinture & revêtements. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 61,
-    "nb_lignes": 111,
-    "prix_moyen": 617.43,
-    "prix_median": 50,
+    "nb_devis": 66,
+    "nb_lignes": 118,
+    "prix_moyen": 604.84,
+    "prix_median": 55.3,
     "prix_min": 2.99,
     "prix_max": 14666.67,
-    "prix_p25": 20,
-    "prix_p75": 484.23,
-    "panier_moyen": 2953.1,
-    "ratio_moyen_vs_marche": 17.672
+    "prix_p25": 25.66,
+    "prix_p75": 432.04,
+    "panier_moyen": 2912.6,
+    "ratio_moyen_vs_marche": 16.719
   },
   "postesSurfactures": [
     {
@@ -32,7 +32,7 @@
     {
       "label": "Peinture SDB pièces humides",
       "ratio_median": 4,
-      "nb_obs": 15
+      "nb_obs": 14
     },
     {
       "label": "Peinture murs",

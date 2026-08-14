@@ -2,21 +2,21 @@
   "slug": "bardage-exterieur",
   "metier": "bardage_exterieur",
   "metier_label": "bardage exterieur",
-  "title": "bardage exterieur : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 7 devis analysés dans le métier bardage exterieur : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.478Z",
-  "intro": "Nous avons analysé 7 devis contenant au moins une ligne du métier bardage exterieur. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix bardage exterieur 2026 : fourchette sur 8 devis",
+  "description": "bardage exterieur : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.819Z",
+  "intro": "Nous avons analysé 8 devis contenant au moins une ligne du métier bardage exterieur. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 7,
-    "nb_lignes": 8,
-    "prix_moyen": 1771.44,
-    "prix_median": 985.63,
-    "prix_min": 149.34,
+    "nb_devis": 8,
+    "nb_lignes": 9,
+    "prix_moyen": 1590.45,
+    "prix_median": 151.26,
+    "prix_min": 142.5,
     "prix_max": 3932.8,
     "prix_p25": 151.26,
-    "prix_p75": 3895.3,
-    "panier_moyen": 3656.2,
-    "ratio_moyen_vs_marche": 20.84
+    "prix_p75": 3882.8,
+    "panier_moyen": 4516.62,
+    "ratio_moyen_vs_marche": 18.718
   },
   "postesSurfactures": [
     {

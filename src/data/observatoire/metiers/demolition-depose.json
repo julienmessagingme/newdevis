@@ -2,23 +2,28 @@
   "slug": "demolition-depose",
   "metier": "demolition_depose",
   "metier_label": "Démolition & dépose",
-  "title": "Démolition & dépose : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 68 devis analysés dans le métier Démolition & dépose : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.521Z",
-  "intro": "Nous avons analysé 68 devis contenant au moins une ligne du métier Démolition & dépose. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix démolition & dépose 2026 : fourchette sur 72 devis",
+  "description": "Démolition & dépose : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.825Z",
+  "intro": "Nous avons analysé 72 devis contenant au moins une ligne du métier Démolition & dépose. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 68,
-    "nb_lignes": 84,
-    "prix_moyen": 587.66,
-    "prix_median": 194.26,
+    "nb_devis": 72,
+    "nb_lignes": 88,
+    "prix_moyen": 622.37,
+    "prix_median": 210.56,
     "prix_min": 10,
     "prix_max": 4368.32,
-    "prix_p25": 100,
-    "prix_p75": 596.07,
-    "panier_moyen": 1525.66,
-    "ratio_moyen_vs_marche": 17.776
+    "prix_p25": 112,
+    "prix_p75": 670,
+    "panier_moyen": 1517.74,
+    "ratio_moyen_vs_marche": 21.21
   },
   "postesSurfactures": [
+    {
+      "label": "Dépose et évacuation clôture existante",
+      "ratio_median": 55.2,
+      "nb_obs": 6
+    },
     {
       "label": "Démolition légère (cloison/revêtement)",
       "ratio_median": 19.825,

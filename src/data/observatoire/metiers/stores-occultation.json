@@ -2,9 +2,9 @@
   "slug": "stores-occultation",
   "metier": "stores_occultation",
   "metier_label": "Stores & occultation",
-  "title": "Stores & occultation : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 14 devis analysés dans le métier Stores & occultation : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.532Z",
+  "title": "Prix stores & occultation 2026 : fourchette sur 14 devis",
+  "description": "Stores & occultation : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.835Z",
   "intro": "Nous avons analysé 14 devis contenant au moins une ligne du métier Stores & occultation. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 14,

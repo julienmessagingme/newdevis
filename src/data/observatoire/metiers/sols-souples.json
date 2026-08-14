@@ -2,32 +2,37 @@
   "slug": "sols-souples",
   "metier": "sols_souples",
   "metier_label": "Sols souples",
-  "title": "Sols souples : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 24 devis analysés dans le métier Sols souples : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.531Z",
-  "intro": "Nous avons analysé 24 devis contenant au moins une ligne du métier Sols souples. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix sols souples 2026 : fourchette sur 30 devis",
+  "description": "Sols souples : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.834Z",
+  "intro": "Nous avons analysé 30 devis contenant au moins une ligne du métier Sols souples. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 24,
-    "nb_lignes": 39,
-    "prix_moyen": 128.7,
-    "prix_median": 55,
+    "nb_devis": 30,
+    "nb_lignes": 47,
+    "prix_moyen": 133.17,
+    "prix_median": 53,
     "prix_min": 0.51,
-    "prix_max": 664.57,
-    "prix_p25": 35,
+    "prix_max": 880,
+    "prix_p25": 25.71,
     "prix_p75": 170,
-    "panier_moyen": 1927.73,
-    "ratio_moyen_vs_marche": 4.654
+    "panier_moyen": 1763.28,
+    "ratio_moyen_vs_marche": 4.684
   },
   "postesSurfactures": [
     {
       "label": "Ponçage vitrification",
       "ratio_median": 10.714,
-      "nb_obs": 8
+      "nb_obs": 9
+    },
+    {
+      "label": "Dépose parquet",
+      "ratio_median": 2.75,
+      "nb_obs": 3
     },
     {
       "label": "Parquet stratifié standard (fourni+posé)",
-      "ratio_median": 1.496,
-      "nb_obs": 3
+      "ratio_median": 2.036,
+      "nb_obs": 4
     },
     {
       "label": "Pose parquet collé (hors fourniture)",
@@ -35,9 +40,9 @@
       "nb_obs": 7
     },
     {
-      "label": "Pose plinthes",
-      "ratio_median": 0.73,
-      "nb_obs": 8
+      "label": "Pose parquet flottant",
+      "ratio_median": 0.833,
+      "nb_obs": 4
     }
   ],
   "conseils": [

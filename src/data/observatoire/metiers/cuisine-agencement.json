@@ -2,21 +2,21 @@
   "slug": "cuisine-agencement",
   "metier": "cuisine_agencement",
   "metier_label": "Cuisine & agencement",
-  "title": "Cuisine & agencement : prix moyens & anomalies observées",
-  "description": "Statistiques réelles sur 28 devis analysés dans le métier Cuisine & agencement : prix moyens, écarts, postes surfacturés.",
-  "lastGenerated": "2026-07-01T11:31:26.520Z",
-  "intro": "Nous avons analysé 28 devis contenant au moins une ligne du métier Cuisine & agencement. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix cuisine & agencement 2026 : fourchette sur 30 devis",
+  "description": "Cuisine & agencement : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:12.824Z",
+  "intro": "Nous avons analysé 30 devis contenant au moins une ligne du métier Cuisine & agencement. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 28,
-    "nb_lignes": 56,
-    "prix_moyen": 1346.51,
-    "prix_median": 284.73,
+    "nb_devis": 30,
+    "nb_lignes": 62,
+    "prix_moyen": 1448.83,
+    "prix_median": 450,
     "prix_min": 0.83,
     "prix_max": 7500,
-    "prix_p25": 66.24,
-    "prix_p75": 2316.67,
-    "panier_moyen": 2482.19,
-    "ratio_moyen_vs_marche": 5.004
+    "prix_p25": 76.56,
+    "prix_p75": 2729.17,
+    "panier_moyen": 2457.51,
+    "ratio_moyen_vs_marche": 5.115
   },
   "postesSurfactures": [
     {

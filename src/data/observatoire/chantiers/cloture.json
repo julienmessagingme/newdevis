@@ -2,9 +2,9 @@
   "slug": "cloture",
   "chantier_type": "cloture",
   "chantier_label": "Clôture",
-  "title": "Clôture : prix moyens & points de vigilance",
-  "description": "Statistiques réelles sur 5 devis clôture analysés : prix moyens, points de vigilance, erreurs fréquentes.",
-  "lastGenerated": "2026-07-01T11:31:26.682Z",
+  "title": "Prix clôture 2026 : fourchette sur 5 devis",
+  "description": "Clôture : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.",
+  "lastGenerated": "2026-08-14T23:03:13.058Z",
   "intro": "Nous avons analysé 5 devis contenant des travaux de type clôture. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 5,
