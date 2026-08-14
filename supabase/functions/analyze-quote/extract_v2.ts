@@ -42,6 +42,7 @@ import type { ExtractedData, ClauseLitigieuse, DocumentType } from "./types.ts";
 import { PipelineError, repairTruncatedJson } from "./utils.ts";
 import { detectQuoteCountry } from "./country.ts";
 import { detectIncompleteQuoteShared } from "./incomplete-quote.ts";
+import { liftInlineQuantities } from "./inline-quantities.ts";
 import {
   reconcileDevis,
   type LigneInput,
@@ -128,6 +129,9 @@ export interface LigneV2 {
   tags_nature: TagNature[];
   texte_brut: string;
   page?: number;
+  /** 2026-08-14 — traçabilité : "description_inline" si la quantité a été
+   * remontée depuis le texte de la description (cf. inline-quantities.ts). */
+  quantite_source?: "tableau" | "description_inline";
 }
 
 export interface SectionV2 {
@@ -776,6 +780,17 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
 
   // Lignes plates (pour R1 detection + legacy mapping)
   const allLignesV2: LigneV2[] = sectionsV2.flatMap((s) => s.lignes);
+
+  // 5bis. Remontée des surfaces inline (2026-08-14, cas HEXA BAT) — les devis
+  // « 1 ens » avec la surface écrite dans la description (« Création salle
+  // d'eau - 13,23m2 ») récupèrent quantite/unite=m² AVANT la détection
+  // incomplete et la réconciliation. Déterministe (regex + gardes), mutation
+  // in-place des LigneV2 partagées avec sectionsV2 → tout l'aval en profite
+  // (travaux[] legacy, matching au m², bypass incomplete désamorcé).
+  const liftedCount = liftInlineQuantities(allLignesV2);
+  if (liftedCount > 0) {
+    console.log(`[extract_v2] surfaces inline remontées : ${liftedCount} ligne(s) (qty=1 ens → m² depuis description)`);
+  }
 
   // 6. Détection incomplete (R1 KEPT)
   const { is_incomplete, reason: incompleteReason } = detectIncompleteV2(allLignesV2);
