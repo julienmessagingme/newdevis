@@ -166,6 +166,17 @@
   - Sortie attendue : PAS de bypass `incomplete_quote`. Analyse standard : postes m² comparés au catalogue, forfaits classés « non comparable » (JAMAIS d'anomalie ×58 par comparaison forfait vs prix unitaire).
 - **Statut** : 🟢 **corrigé le 2026-08-03** (commit `3259074`, déployé). Garde montant livrée dans le module partagé `incomplete-quote.ts` (V1 `extract.ts` + V2 `extract_v2.ts`) : le bypass exige désormais AUSSI ≥ 70 % du montant HT porté par des lignes sans unité physique (fallback comptage lignes si montants indisponibles). 7 cas anti-régression : `npx tsx supabase/functions/analyze-quote/incomplete-quote.test.ts`. Le volet matching (faux matchs forfait-vs-prix-unitaire, ×58 échafaudage) reste couvert par FORFAIT-VS-PRIX-UNITAIRE-CATALOGUE (🔴 Phase 3). Mitigation données appliquée le jour même sur l'analyse d'origine : revue expert « Corriger » (verdict `a_negocier`, surcoût 0-600 € échafaudage) + chirurgie via service_role (retrait du flag `incomplete_quote` de `conclusion_ia`, réécriture phrase_intro/actions/verdict_reasons honnêtes — vrai point : acompte 40 % > usage 30 % —, passage des 6 groupes forfait en `vectorial.confidence='no_match'` + `prices=[]` pour affichage « Non comparable »).
 
+### 2026-08-14 — ESPECES-ACCEPTE-CONFONDU-AVEC-ESPECES-EXIGE
+
+- **Signalé par** : Johan (capture bloc « Conditions de paiement » — analyse DM PAYSAGES `7194c0fe`)
+- **Symptôme observé** : « Paiement en espèces explicitement demandé » affiché en observation factuelle rouge + critère ROUGE + hard block verdict, alors que le devis dit seulement dans ses CGV « Les paiements seront effectués par chèque, en espèce ou virement » — une liste de modes ACCEPTÉS, pas une exigence. Faux rouge de masse : quasi toutes les CGV du BTP contiennent cette phrase.
+- **Cause racine** : `score.ts` poussait un critère rouge dès que « especes » figurait dans `paiement.modes` (rempli par Gemini depuis n'importe quelle mention). 4 étages propageaient : score.ts (critère rouge) → render.ts (alerte 🔴) → verdictEngine `extractFlagsFromCriteria` (match « espèces » → `paiement_cash_suspect` → hard block) → front `securiteUtils` (observation rouge « explicitement demandé »).
+- **Maillon concerné** : 3 (Verdict honnête — gravité disproportionnée d'un signal banal)
+- **Cas test à passer** :
+  - Input : modes = ["virement","chèque","espèces"] → AUCUN critère rouge, information neutre « espèces mentionnées parmi les modes acceptés »
+  - Input : modes = ["espèces"] seul → critère ROUGE « paiement en espèces uniquement » + hard block (blanchiment/travail dissimulé, illégal > 1 000 €)
+- **Statut** : 🟢 **corrigé le 2026-08-14** — règle « rouge seulement si espèces est le SEUL mode » appliquée aux 4 étages (`score.ts`, `render.ts`, `verdictEngine.ts` wording, `securiteUtils.ts` motifs). Les analyses legacy ne montrent plus l'observation rouge (motif « demandé » volontairement exclu des patterns front).
+
 ### 2026-06-29 — DEVIS-DATE-NON-EXTRAIT-COMME-LEVIER
 
 - **Signalé par** : Julien (revue devis Mélier Cognac 2024)

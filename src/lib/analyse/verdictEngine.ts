@@ -838,7 +838,7 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     reasons.push("⛔ Aucune assurance décennale mentionnée — risque juridique majeur");
   }
   if (flags.paiement_cash_suspect) {
-    reasons.push("⛔ Paiement en espèces demandé — pratique illégale au-delà de 1 000 €");
+    reasons.push("⛔ Paiement en espèces imposé (seul mode proposé) — pratique illégale au-delà de 1 000 €");
   }
   if (flags.iban_suspect) {
     reasons.push("⛔ IBAN étranger ou invalide — risque de fraude");

@@ -128,13 +128,26 @@ export const extractSecuriteData = (
       if (!info.paiement.modes.includes("À réception")) info.paiement.modes.push("À réception");
     }
 
-    const explicitCash = lowerPoint.includes("espèces") || lowerPoint.includes("especes") ||
+    // 2026-08-14 (cas DM PAYSAGES) — « espèces » dans une liste de modes acceptés
+    // n'est PAS un paiement en espèces « demandé ». L'observation rouge n'est
+    // levée que sur le wording serveur cash-only (« uniquement » / « aucun mode
+    // traçable » / « imposé »). L'ancien wording « explicitement demandé » était
+    // un faux positif de masse (phrase CGV générique) : volontairement exclu,
+    // y compris pour les analyses legacy — le vrai signal serveur (critère
+    // rouge) continue de piloter le verdict indépendamment de cet affichage.
+    const mentionsCash = lowerPoint.includes("espèces") || lowerPoint.includes("especes") ||
                           (lowerPoint.includes("cash") && !lowerPoint.includes("cashback"));
+    const explicitCash = mentionsCash && (
+      lowerPoint.includes("uniquement") || lowerPoint.includes("aucun mode") ||
+      lowerPoint.includes("seul mode") || lowerPoint.includes("imposé")
+    );
+    if (mentionsCash && !info.paiement.modes.includes("Espèces")) {
+      info.paiement.modes.push("Espèces");
+    }
     if (explicitCash) {
-      if (!info.paiement.modes.includes("Espèces")) info.paiement.modes.push("Espèces");
       info.paiement.especes = true;
       alertCount++;
-      info.vigilanceReasons.push("Paiement en espèces explicitement demandé");
+      info.vigilanceReasons.push("Paiement en espèces exigé — aucun mode traçable proposé");
     }
 
     const echeancierMatch = point.match(/(\d+)\s*%.*?(\d+)\s*%/i);

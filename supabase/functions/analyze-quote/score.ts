@@ -90,9 +90,20 @@ export function calculateScore(
     }
   }
 
-  const hasExplicitCash = extracted.paiement.modes.some(m => m.toLowerCase() === "especes");
-  if (hasExplicitCash) {
-    rouges.push("Paiement en espèces explicitement demandé sur le devis");
+  // 2026-08-14 (cas DM PAYSAGES) — « espèces » listé PARMI les modes acceptés
+  // (phrase CGV générique « chèque, espèces ou virement ») n'est PAS un
+  // paiement en espèces « demandé » : c'était un faux critère rouge → hard
+  // block → faux verdict ROUGE. Le vrai signal de danger (blanchiment/travail
+  // dissimulé) = espèces comme SEUL mode, sans alternative traçable.
+  const modesLower = extracted.paiement.modes.map(m => m.toLowerCase());
+  const hasExplicitCash = modesLower.some(m => m.includes("espec") || m.includes("espèc") || m === "cash");
+  const hasTraceableMode = modesLower.some(m =>
+    m.includes("virement") || m.includes("cheque") || m.includes("chèque") || m.includes("carte") || m === "cb"
+  );
+  if (hasExplicitCash && !hasTraceableMode) {
+    rouges.push("Paiement en espèces uniquement — aucun mode de paiement traçable proposé (illégal au-delà de 1 000 € pour un professionnel)");
+  } else if (hasExplicitCash) {
+    informatifs.push("ℹ️ Espèces mentionnées parmi les modes de paiement acceptés — préférez le virement ou le chèque pour garder une trace");
   }
 
   // ──────────────────────────────────────────────────────────────────────────────

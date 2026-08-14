@@ -237,8 +237,13 @@ export function renderOutput(
   const hasTraceable = extracted.paiement.modes.some(m => ["virement", "cheque", "carte_bancaire"].includes(m.toLowerCase()));
   const hasCash = extracted.paiement.modes.some(m => m.toLowerCase() === "especes");
 
-  if (hasCash) {
-    alertes.push("🔴 Paiement en espèces explicitement mentionné. Privilégiez un mode de paiement traçable (virement, chèque).");
+  // 2026-08-14 — rouge UNIQUEMENT si espèces est le seul mode (cf. score.ts).
+  // Espèces mentionnées à côté de modes traçables = information neutre.
+  if (hasCash && !hasTraceable) {
+    alertes.push("🔴 Paiement en espèces uniquement — aucun mode traçable proposé. Exigez un virement ou un chèque (les espèces sont illégales au-delà de 1 000 € pour un professionnel).");
+  } else if (hasCash) {
+    points_ok.push("✓ Mode de paiement traçable accepté");
+    points_ok.push("ℹ️ Espèces également mentionnées parmi les modes acceptés — préférez le virement ou le chèque pour garder une trace");
   } else if (hasTraceable) {
     points_ok.push("✓ Mode de paiement traçable accepté");
   }
