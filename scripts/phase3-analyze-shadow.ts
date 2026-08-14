@@ -107,7 +107,21 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  console.log(`✓ ${all.length} comparaisons shadow collectées\n`);
+  // 2026-08-14 — DÉDOUBLONNAGE : les rejeux de test (batch patches 30/06 :
+  // mêmes 8 fichiers relancés jusqu'à 4×) gonflaient artificiellement le taux
+  // de divergences (19.9% brut vs 11.5% dédupliqué). On ne garde que la
+  // comparaison la plus récente par analysis_id — les critères de bascule
+  // Phase 3.3 se jugent sur des analyses UNIQUES.
+  const totalBrut = all.length;
+  const latestByAnalysis = new Map<string, ComparisonRow>();
+  // `all` est trié created_at DESC → la première occurrence est la plus récente.
+  for (const r of all) {
+    if (!latestByAnalysis.has(r.analysis_id)) latestByAnalysis.set(r.analysis_id, r);
+  }
+  all.length = 0;
+  all.push(...latestByAnalysis.values());
+
+  console.log(`✓ ${totalBrut} comparaisons shadow collectées → ${all.length} analyses uniques (dédupliqué)\n`);
 
   // Stats globales
   const v2Success = all.filter((r) => r.v2_success);

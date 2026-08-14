@@ -271,7 +271,7 @@ AUTRES CHAMPS DU JSON (en plus de cartographie + sections)
 
   "entreprise": {
     "nom": "Nom commercial exact (pas un fragment de phrase légale)",
-    "siret": "14 chiffres sans espaces (ou SIREN 9 si SIRET pas trouvé)",
+    "siret": "RECOPIE EXACTE des chiffres imprimés sur le devis, sans espaces. Si le devis n'imprime qu'un SIREN (9 chiffres), retourne ces 9 chiffres TELS QUELS — il est STRICTEMENT INTERDIT d'inventer ou de compléter les 5 chiffres du NIC pour arriver à 14 (shadow 2026-08-14 : NIC hallucinés '00015'/'00021' sur SIREN 9 chiffres → fausserait la vérification INSEE)",
     "adresse": "Adresse complète si présente",
     "iban": "Format 2 LETTRES + 12-30 alphanum SANS ESPACES NI TIRETS (ex: FR7630066108770002097520110)",
     "tva_intracom": "Format 2 lettres pays + chiffres (ex: FR12345678901)",
