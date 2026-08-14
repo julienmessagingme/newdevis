@@ -64,7 +64,9 @@ async function alertAdminOnFailure(params: {
 import type { ExtractedData, DomainType } from "./types.ts";
 import { extractDataFromDocument } from "./extract.ts";
 // 🟢 Phase 3.2 (2026-06-24) — Shadow runner pour comparer extract.ts v1 vs extract_v2.ts
-import { getExtractV2Mode, runShadowExtractV2 } from "./extract_shadow.ts";
+// 🟢 Phase 3.3 (2026-08-14) — mode "on" : V2 primaire + fallback V1 + shadow inversé
+import { getExtractV2Mode, runShadowExtractV2, runInvertedShadowV1, recordV2PrimaryFailure } from "./extract_shadow.ts";
+import { extractDataFromDocumentV2, type ExtractedDataV2 } from "./extract_v2.ts";
 import { verifyData } from "./verify.ts";
 import { calculateScore } from "./score.ts";
 import { renderOutput } from "./render.ts";
@@ -464,26 +466,85 @@ serve(async (req) => {
             publicMessage: "Le service d'analyse a mis trop de temps à répondre. Veuillez réessayer.",
           })), 90_000)
         );
-        // 🟢 Phase 3.2 (2026-06-24) — mesure de la durée V1 pour comparaison shadow
-        const v1Start = performance.now();
-        extracted = await Promise.race([
-          extractDataFromDocument(uint8Array, mimeType, googleApiKey, domainConfig),
-          hardTimeout,
-        ]);
-        const v1DurationMs = Math.round(performance.now() - v1Start);
+        // 🟢 Phase 3.2 (2026-06-24) + Phase 3.3 (2026-08-14) — moteur d'extraction
+        // selon EXTRACT_V2_ENABLED (off / shadow / on) :
+        //   - off/shadow : V1 primaire (comportement historique) ; en "shadow",
+        //     V2 tourne en background et alimente extract_comparisons.
+        //   - on : V2 PRIMAIRE (domaine travaux uniquement — V2 ne connaît pas
+        //     auto/dentaire) avec budget soft 60s ; fallback V1 automatique si
+        //     V2 échoue/timeout ; V1 continue en background (shadow inversé)
+        //     pour surveiller les régressions post-bascule.
+        // Rollback express : `npx supabase secrets set EXTRACT_V2_ENABLED=shadow`
+        // (effet immédiat au prochain cold start, pas de redéploiement).
+        const v2Mode = getExtractV2Mode();
+        const v2Primary = v2Mode === "on" && domainConfig.domain === "travaux";
+        const extractStart = performance.now();
+        let v2PrimaryResult: { data: ExtractedDataV2; durationMs: number } | null = null;
 
-        // 🟢 Phase 3.2 (2026-06-24) — Shadow run extract_v2 fire-and-forget
-        // Lit EXTRACT_V2_ENABLED (off / shadow / on). En "shadow", V2 tourne en background
-        // (EdgeRuntime.waitUntil) après la réponse user, calcule un diff structuré vs V1, et
-        // insère dans extract_comparisons (consulté plus tard via scripts/phase3-analyze-shadow).
-        // Zero impact UX. Aucune exception ne remonte (try/catch interne).
+        if (v2Primary) {
+          console.log("--- PHASE 1: EXTRACTION V2 PRIMAIRE (Phase 3.3) ---");
+          const v2Start = performance.now();
+          try {
+            // Budget soft 60s pour V2 : s'il est dépassé, il reste ~30s de
+            // marge dans le hardTimeout global (90s) pour le fallback V1.
+            const v2SoftTimeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("V2_SOFT_TIMEOUT: budget 60s dépassé")), 60_000)
+            );
+            const v2Result = await Promise.race([
+              extractDataFromDocumentV2({ fileBytes: uint8Array, mimeType, googleApiKey }),
+              v2SoftTimeout,
+              hardTimeout,
+            ]);
+            if (v2Result.success && v2Result.data) {
+              extracted = v2Result.data;
+              v2PrimaryResult = { data: v2Result.data, durationMs: Math.round(performance.now() - v2Start) };
+              console.log(`[extract_v2] PRIMARY OK in ${v2PrimaryResult.durationMs}ms (confiance=${v2Result.data.confiance_globale ?? "?"})`);
+            } else {
+              throw new Error(`${v2Result.errorCode ?? "V2_NO_DATA"}: ${v2Result.error ?? "extraction V2 sans données"}`);
+            }
+          } catch (v2Err) {
+            const v2DurationMs = Math.round(performance.now() - v2Start);
+            const v2ErrorMsg = v2Err instanceof Error ? `${v2Err.name}: ${v2Err.message}` : String(v2Err);
+            console.warn(`[extract_v2] PRIMARY FAILED after ${v2DurationMs}ms → fallback V1 : ${v2ErrorMsg}`);
+            const v1FallbackStart = performance.now();
+            extracted = await Promise.race([
+              extractDataFromDocument(uint8Array, mimeType, googleApiKey, domainConfig),
+              hardTimeout,
+            ]);
+            const v1FallbackDurationMs = Math.round(performance.now() - v1FallbackStart);
+            // Trace le fallback dans extract_comparisons (taux d'échec V2 mesurable
+            // post-bascule via le même rapport) — fire-and-forget.
+            try {
+              // deno-lint-ignore no-explicit-any
+              const er = (globalThis as any).EdgeRuntime;
+              if (er && typeof er.waitUntil === "function") {
+                er.waitUntil(recordV2PrimaryFailure(supabase, {
+                  analysisId,
+                  fileName: analysis.file_name ?? null,
+                  v2Error: v2ErrorMsg,
+                  v2DurationMs,
+                  extractedV1Fallback: extracted,
+                  v1DurationMs: v1FallbackDurationMs,
+                }));
+              }
+            } catch { /* jamais bloquer */ }
+          }
+        } else {
+          extracted = await Promise.race([
+            extractDataFromDocument(uint8Array, mimeType, googleApiKey, domainConfig),
+            hardTimeout,
+          ]);
+        }
+        const v1DurationMs = Math.round(performance.now() - extractStart);
+
+        // Background selon le mode — fire-and-forget, zéro impact UX :
+        //   shadow : V2 en background vs V1 primaire (Phase 3.2, historique)
+        //   on     : V1 en background vs V2 primaire (shadow inversé Phase 3.3)
         try {
-          const v2Mode = getExtractV2Mode();
-          if (v2Mode === "shadow" && extracted) {
-            // Cast EdgeRuntime — disponible dans le runtime Supabase Functions Deno
-            // deno-lint-ignore no-explicit-any
-            const er = (globalThis as any).EdgeRuntime;
-            if (er && typeof er.waitUntil === "function") {
+          // deno-lint-ignore no-explicit-any
+          const er = (globalThis as any).EdgeRuntime;
+          if (er && typeof er.waitUntil === "function") {
+            if (v2Mode === "shadow" && extracted) {
               er.waitUntil(
                 runShadowExtractV2(supabase, {
                   analysisId,
@@ -497,6 +558,20 @@ serve(async (req) => {
                 }),
               );
               console.log(`[extract_shadow] analysis=${analysisId} shadow V2 scheduled (V1 done in ${v1DurationMs}ms)`);
+            } else if (v2PrimaryResult) {
+              er.waitUntil(
+                runInvertedShadowV1(supabase, {
+                  analysisId,
+                  fileName: analysis.file_name ?? null,
+                  fileBytes: uint8Array,
+                  mimeType,
+                  googleApiKey,
+                  domainConfig,
+                  extractedV2: v2PrimaryResult.data,
+                  v2DurationMs: v2PrimaryResult.durationMs,
+                }),
+              );
+              console.log(`[extract_shadow] analysis=${analysisId} INVERTED shadow V1 scheduled (V2 primary done in ${v2PrimaryResult.durationMs}ms)`);
             }
           }
         } catch (e) {

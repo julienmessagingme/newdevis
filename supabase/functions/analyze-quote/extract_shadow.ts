@@ -14,20 +14,23 @@
  * Workflow d'analyse : scripts/phase3-analyze-shadow.ts produit un rapport
  * markdown des divergences récurrentes après 50-100 analyses shadow.
  *
- * Mode "on" (Phase 3.3, future) : V2 remplace V1. V1 reste comme fallback
- * si V2 échoue ou dépasse le budget temps.
+ * Mode "on" (Phase 3.3, câblé 2026-08-14) : V2 devient le moteur PRIMAIRE
+ * (domaine travaux uniquement — V2 ne connaît pas auto/dentaire), V1 reste en
+ * fallback automatique si V2 échoue ou dépasse son budget temps (60s soft).
+ * Pendant la transition, V1 tourne en background (shadow inversé,
+ * `runInvertedShadowV1`) pour continuer d'alimenter extract_comparisons —
+ * mêmes rôles de colonnes (extract_v1 = V1, extract_v2 = V2), donc
+ * scripts/phase3-analyze-shadow.ts reste valide tel quel.
  *
  * USAGE depuis index.ts :
- *   import { runShadowExtractV2 } from "./extract_shadow.ts";
- *   // ... après extract_v1 réussi
- *   if (EXTRACT_V2_ENABLED === "shadow") {
- *     EdgeRuntime.waitUntil(
- *       runShadowExtractV2(supabase, { analysisId, fileName, fileBytes, mimeType, googleApiKey, extractedV1, v1DurationMs })
- *     );
- *   }
+ *   import { runShadowExtractV2, runInvertedShadowV1 } from "./extract_shadow.ts";
+ *   // mode "shadow" : V1 primaire → runShadowExtractV2 en waitUntil
+ *   // mode "on"     : V2 primaire → runInvertedShadowV1 en waitUntil
  */
 
 import type { ExtractedData } from "./types.ts";
+import type { DomainConfig } from "./domain-config.ts";
+import { extractDataFromDocument } from "./extract.ts";
 import { extractDataFromDocumentV2, type ExtractedDataV2 } from "./extract_v2.ts";
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -272,5 +275,125 @@ export async function runShadowExtractV2(
     }
   } catch (e) {
     console.error(`[extract_shadow] unexpected error for analysis ${analysisId}:`, e instanceof Error ? e.message : e);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Shadow inversé (Phase 3.3) — V2 est primaire, V1 tourne en background
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface InvertedShadowRunInput {
+  analysisId: string;
+  fileName: string | null;
+  fileBytes: Uint8Array;
+  mimeType: string;
+  googleApiKey: string;
+  domainConfig: DomainConfig;
+  /** Résultat V2 déjà obtenu par le chemin primaire */
+  extractedV2: ExtractedDataV2;
+  v2DurationMs: number;
+}
+
+/**
+ * Mode "on" : V2 a déjà répondu à l'utilisateur. On rejoue V1 en background
+ * pour continuer d'alimenter extract_comparisons pendant la transition
+ * (détection de régressions V2 sur le flux réel). Les rôles de colonnes sont
+ * PRÉSERVÉS (extract_v1 = V1, extract_v2 = V2) — le rapport
+ * scripts/phase3-analyze-shadow.ts reste valide sans modification.
+ *
+ * Fire-and-forget : aucune exception ne remonte. À appeler via
+ * `EdgeRuntime.waitUntil(runInvertedShadowV1(...))`.
+ */
+export async function runInvertedShadowV1(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  input: InvertedShadowRunInput,
+): Promise<void> {
+  const { analysisId, fileName, fileBytes, mimeType, googleApiKey, domainConfig, extractedV2, v2DurationMs } = input;
+
+  const startV1 = performance.now();
+  let extractedV1: ExtractedData | null = null;
+  let v1Error: string | null = null;
+  let v1DurationMs = 0;
+
+  try {
+    extractedV1 = await extractDataFromDocument(fileBytes, mimeType, googleApiKey, domainConfig);
+    v1DurationMs = Math.round(performance.now() - startV1);
+  } catch (e) {
+    v1DurationMs = Math.round(performance.now() - startV1);
+    v1Error = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+  }
+
+  let diff: Record<string, unknown> = {};
+  if (extractedV1 !== null) {
+    try {
+      diff = diffExtractions(extractedV1, extractedV2) as unknown as Record<string, unknown>;
+    } catch (e) {
+      diff = { summary: `diff_failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  } else {
+    diff = { summary: `v1_shadow_failed: ${v1Error ?? "unknown"}` };
+  }
+
+  try {
+    const { error } = await supabase.from("extract_comparisons").insert({
+      analysis_id: analysisId,
+      file_name: fileName,
+      extract_v1: extractedV1 ?? {},
+      extract_v2: extractedV2,
+      diff,
+      v1_engine_version: "v1-inverted-shadow",
+      v2_engine_version: "v2-primary",
+      v1_duration_ms: v1DurationMs,
+      v2_duration_ms: v2DurationMs,
+      v2_success: true, // V2 est le primaire qui a servi l'utilisateur
+      v2_error: null,
+    });
+    if (error) {
+      console.error(`[extract_shadow] inverted insert failed for analysis ${analysisId}:`, error.message);
+    } else {
+      console.log(
+        `[extract_shadow] analysis=${analysisId} INVERTED v1_ok=${extractedV1 !== null} v1_duration=${v1DurationMs}ms diff="${diff.summary ?? "—"}"`,
+      );
+    }
+  } catch (e) {
+    console.error(`[extract_shadow] inverted unexpected error for analysis ${analysisId}:`, e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Mode "on" : trace un fallback V1 (V2 primaire a échoué) dans
+ * extract_comparisons pour que le taux d'échec V2 reste mesurable
+ * post-bascule via le même rapport.
+ */
+export async function recordV2PrimaryFailure(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  input: {
+    analysisId: string;
+    fileName: string | null;
+    v2Error: string;
+    v2DurationMs: number;
+    extractedV1Fallback: ExtractedData;
+    v1DurationMs: number;
+  },
+): Promise<void> {
+  try {
+    const { error } = await supabase.from("extract_comparisons").insert({
+      analysis_id: input.analysisId,
+      file_name: input.fileName,
+      extract_v1: input.extractedV1Fallback,
+      extract_v2: {},
+      diff: { summary: `v2_primary_failed_fallback_v1: ${input.v2Error}` },
+      v1_engine_version: "v1-fallback",
+      v2_engine_version: "v2-primary",
+      v1_duration_ms: input.v1DurationMs,
+      v2_duration_ms: input.v2DurationMs,
+      v2_success: false,
+      v2_error: input.v2Error,
+    });
+    if (error) console.error(`[extract_shadow] fallback record failed:`, error.message);
+  } catch (e) {
+    console.error(`[extract_shadow] fallback record error:`, e instanceof Error ? e.message : e);
   }
 }
