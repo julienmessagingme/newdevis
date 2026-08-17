@@ -165,13 +165,14 @@ const PHYSICAL_UNIT_NAMES = new Set([
 // sans unité physique — un devis dont le poste principal est quantifié en m²
 // (bardage 80 m² × 142,50 €) n'est PAS un résumé par lot.
 function detectIncompleteQuote(
-  travaux: Array<{ unite: string | null; quantite: number | null; montant?: number | null }>,
+  travaux: Array<{ unite: string | null; quantite: number | null; montant?: number | null; libelle?: string | null }>,
 ): { is_incomplete: boolean; reason: string } {
   return detectIncompleteQuoteShared(
     (Array.isArray(travaux) ? travaux : []).map((t) => ({
       unite: t?.unite,
       quantite: t?.quantite,
       montant: t?.montant ?? null,
+      libelle: t?.libelle ?? null,
     })),
     PHYSICAL_UNIT_NAMES,
   );

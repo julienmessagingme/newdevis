@@ -543,6 +543,7 @@ function detectIncompleteV2(lignes: LigneV2[]): { is_incomplete: boolean; reason
       unite: l.unite,
       quantite: l.quantite,
       montant: l.montant_total,
+      libelle: l.libelle,
     })),
     PHYSICAL_UNIT_NAMES,
   );

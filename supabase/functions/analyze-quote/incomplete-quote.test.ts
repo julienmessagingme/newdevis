@@ -50,26 +50,50 @@ const atex: IncompleteQuoteLine[] = [
 check("ATEX ravalement (74% montant quantifié en m²) → PAS incomplet", run(atex), false);
 
 // ── Cas Créteil (devis bidon résumé par lot, bypass légitime) ──────────────
-// 6 sous-totaux corps de métier, aucune unité, montants élevés → bypass.
+// 6 sous-totaux corps de métier (libellés GÉNÉRIQUES), aucune unité → bypass.
 const creteil: IncompleteQuoteLine[] = [
-  { unite: "", quantite: 1, montant: 12000 },
-  { unite: null, quantite: null, montant: 8500 },
-  { unite: "", quantite: 1, montant: 7600 },
-  { unite: "forfait", quantite: 1, montant: 9800 },
-  { unite: "", quantite: 1, montant: 6300 },
-  { unite: "ens", quantite: 1, montant: 5500 },
+  { unite: "", quantite: 1, montant: 12000, libelle: "Plomberie" },
+  { unite: null, quantite: null, montant: 8500, libelle: "Électricité" },
+  { unite: "", quantite: 1, montant: 7600, libelle: "Maçonnerie" },
+  { unite: "forfait", quantite: 1, montant: 9800, libelle: "Peinture et revêtements" },
+  { unite: "", quantite: 1, montant: 6300, libelle: "Cloisons / isolation" },
+  { unite: "ens", quantite: 1, montant: 5500, libelle: "Salle de bain" },
 ];
-check("Créteil résumé par lot (0% quantifié) → incomplet", run(creteil), true);
+check("Créteil résumé par lot (libellés corps de métier) → incomplet", run(creteil), true);
 
 // ── Fallback montants indisponibles (comportement historique préservé) ─────
 const sansMontants: IncompleteQuoteLine[] = [
-  { unite: "", quantite: 1, montant: null },
-  { unite: "", quantite: null, montant: null },
-  { unite: "forfait", quantite: 1, montant: 0 },
-  { unite: "", quantite: 1, montant: null },
-  { unite: "ens", quantite: 1, montant: null },
+  { unite: "", quantite: 1, montant: null, libelle: "Travaux préparatoires" },
+  { unite: "", quantite: null, montant: null, libelle: "Dépose de l'existant" },
+  { unite: "forfait", quantite: 1, montant: 0, libelle: "Couverture" },
+  { unite: "", quantite: 1, montant: null, libelle: "Nettoyage du chantier" },
+  { unite: "ens", quantite: 1, montant: null, libelle: "Forfait global — Travaux de toiture" },
 ];
 check("Résumé par lot sans montants (fallback comptage lignes) → incomplet", run(sansMontants), true);
+
+// ── 2026-08-17 Cas FCE climatisation : devis d'ÉQUIPEMENT détaillé ─────────
+// 7 lignes qty=1 sans unité MAIS références produit + prix par ligne
+// → PAS un résumé par lot, PAS de bypass (garde « libellés de lot »).
+const fce: IncompleteQuoteLine[] = [
+  { unite: null, quantite: 1, montant: 0, libelle: "ART00002392-supression chaudiere gaz existante pour changement" },
+  { unite: null, quantite: 1, montant: 2481, libelle: "PEAD-M60JA/ SUZ-M60VA-PEAD-M60JA / SUZ-M60VA" },
+  { unite: null, quantite: 1, montant: 1250, libelle: "FOURGAIZO71-fourniture accessoire gainable airzone Pead 60" },
+  { unite: null, quantite: 1, montant: 936, libelle: "Fourniture (liaison frigorifique cuivre, pvc de condensation)" },
+  { unite: null, quantite: 1, montant: 1290, libelle: "AIRZ3 1BF+2TR-3 zones: 1 BlueFace + 2 thermostats d'ambiance" },
+  { unite: null, quantite: 1, montant: 1500, libelle: "MOGAINABLE -MAIN D'OEUVRE POSE GAINABLE" },
+  { unite: null, quantite: 1, montant: 160, libelle: "ART00002296-APPOINT FLUIDE R32" },
+];
+check("FCE clim (références produit, prix par ligne) → PAS incomplet", run(fce), false);
+
+// ── Vrai résumé toiture (Le Compagnon) : intitulés de lot → bypass conservé ─
+const toitureLots: IncompleteQuoteLine[] = [
+  { unite: "ens", quantite: 1, montant: null, libelle: "Installation de chantier" },
+  { unite: "ens", quantite: 1, montant: null, libelle: "Dépose de l'existant" },
+  { unite: "ens", quantite: 1, montant: null, libelle: "Fourniture & pose — couverture" },
+  { unite: "ens", quantite: 1, montant: null, libelle: "Nettoyage du chantier" },
+  { unite: "forfait", quantite: 1, montant: 45000, libelle: "Forfait global — Travaux de couverture" },
+];
+check("Résumé toiture (intitulés de lot) → incomplet conservé", run(toitureLots), true);
 
 // ── V3.5.4 : équipements en "u" = unité physique légitime ──────────────────
 const coteMaison: IncompleteQuoteLine[] = [
