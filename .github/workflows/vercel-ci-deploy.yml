@@ -1,0 +1,87 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Déploiement Vercel via CLI + token (2026-08-18)
+#
+# POURQUOI : le repo est passé PRIVÉ (protection du code — décision Johan+Julien).
+# Sur le plan Vercel Hobby, un repo privé ne déclenche des déploiements Git que
+# pour les commits du propriétaire du projet (Julien) → les push de Johan
+# restaient à quai ("Git author must have access" / "Deployment was blocked").
+# Le Deploy Hook (workflow vercel-deploy-hook.yml) créait des builds (HTTP 201)
+# qui n'aboutissaient pas.
+#
+# SOLUTION (officielle Vercel, plan gratuit OK) : builder dans GitHub Actions
+# puis déployer avec `vercel deploy --prebuilt` authentifié par le TOKEN de
+# Julien — l'auteur du commit ne compte plus, l'historique git reste propre.
+#
+# Secrets GitHub requis (Settings → Secrets and variables → Actions) :
+#   VERCEL_TOKEN       ← token créé par Julien (vercel.com → Settings → Tokens)
+#   VERCEL_ORG_ID      ← "orgId" du fichier .vercel/project.json (ou User ID)
+#   VERCEL_PROJECT_ID  ← "projectId" du même fichier (ou Settings → General)
+#
+# Tant que les secrets sont absents, le workflow s'arrête proprement avec un
+# warning (pas de faux échec rouge).
+#
+# Une fois validé : mettre "git": { "deploymentEnabled": false } dans
+# vercel.json pour couper l'intégration Git cassée (faux statuts "blocked"),
+# et supprimer vercel-deploy-hook.yml.
+# ═══════════════════════════════════════════════════════════════════════════
+name: Vercel Production Deploy (CLI)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-prod-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Vérifier les secrets
+        id: gate
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::warning::Secrets VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID absents — déploiement CLI non actif."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Vercel CLI
+        if: steps.gate.outputs.ready == 'true'
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel project settings (production)
+        if: steps.gate.outputs.ready == 'true'
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build (prebuilt artifacts)
+        if: steps.gate.outputs.ready == 'true'
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy to production
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "✅ Déployé : $url"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
