@@ -127,6 +127,18 @@ function buildHtml(input: ReviewEmailInput): string {
         ${verdictBadge}
         ${cta}
         <p style="margin:24px 0 0;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:13px;color:#6B7280;line-height:1.65;text-align:center;">Vous pouvez répondre directement à cet email si vous avez une question.</p>
+
+        <!-- 2026-08-18 — Invitation Trustpilot au pic de satisfaction (un expert
+             humain vient de relire le devis). Envoyée à TOUS les utilisateurs
+             revus, quel que soit le verdict — pas de review gating (règles
+             Trustpilot). -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 0;">
+          <tr><td style="padding:18px 20px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;">
+            <p style="margin:0 0 6px;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#0E1730;">Votre avis compte ⭐</p>
+            <p style="margin:0 0 12px;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:13px;color:#4B5563;line-height:1.6;">Votre devis a été relu par notre expert — dites en 2 minutes ce que vous avez pensé du service. Chaque avis aide d'autres particuliers à éviter les mauvaises surprises sur leurs travaux.</p>
+            <a href="https://fr.trustpilot.com/evaluate/verifiermondevis.fr" style="display:inline-block;background:#FFFFFF;border:1px solid #CBD5E1;color:#0E1730;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:13px;font-weight:600;text-decoration:none;padding:9px 18px;border-radius:8px;">Donner mon avis sur Trustpilot</a>
+          </td></tr>
+        </table>
       </td></tr>
       <tr><td style="padding:18px 32px 28px;border-top:1px solid #E5E7EB;background:#F9FAFB;">
         <p style="margin:0;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:12px;color:#9CA3AF;line-height:1.6;text-align:center;">VerifierMonDevis.fr — l'expert qui vérifie vos devis avant signature.</p>
