@@ -1634,10 +1634,20 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
   }
 
-  const client   = (extractedData.client  as Record<string, unknown>) || {};
-  const totaux   = (extractedData.totaux  as Record<string, unknown>) || {};
-  const entreprise = (extractedData.entreprise as Record<string, unknown>) || {};
-  const dates    = (extractedData.dates   as Record<string, unknown>) || {};
+  // 2026-08-17 (cas FCE, signalé par Johan : « devis du 22/04/2024 sans
+  // warning ») — `parsed.extracted` est le format ACTUEL du pipeline ;
+  // `extracted_data` un format historique absent des analyses récentes.
+  // extractedData seul était donc VIDE sur toutes les analyses fraîches :
+  // dates (→ warning devis ancien jamais déclenché depuis son introduction),
+  // ville (→ « ville inconnue » dans les intros), taux TVA, clauses,
+  // paiement — tous lus à vide. On lit désormais le format présent.
+  const extractedView: Record<string, unknown> =
+    Object.keys(extractedData).length > 0 ? extractedData : extractedLegacy;
+
+  const client   = (extractedView.client  as Record<string, unknown>) || {};
+  const totaux   = (extractedView.totaux  as Record<string, unknown>) || {};
+  const entreprise = (extractedView.entreprise as Record<string, unknown>) || {};
+  const dates    = (extractedView.dates   as Record<string, unknown>) || {};
 
   const ville      = (client.ville      as string) || "";
   const codePostal = (client.code_postal as string) || "";
@@ -2702,8 +2712,8 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // jamais de texte LLM libre. Best-effort : un échec ici ne casse jamais la
     // conclusion (les fallbacks UI = phrase_intro + actions restent servis).
     try {
-      const clausesRaw = Array.isArray((extractedData as Record<string, unknown>).clauses_litigieuses)
-        ? ((extractedData as Record<string, unknown>).clauses_litigieuses as Array<Record<string, unknown>>)
+      const clausesRaw = Array.isArray((extractedView as Record<string, unknown>).clauses_litigieuses)
+        ? ((extractedView as Record<string, unknown>).clauses_litigieuses as Array<Record<string, unknown>>)
             .filter((c) => c && typeof c.type === "string")
             .map((c) => ({
               type: String(c.type),
@@ -2716,7 +2726,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       // acompte simple extrait du devis.
       const acompteCritere = [...criteres_rouges, ...criteres_oranges].find((c) => /acompte\s+cumul/i.test(c));
       const acompteMatch = acompteCritere?.match(/\((\d+(?:[.,]\d+)?)\s*%/);
-      const paiementData = (extractedData.paiement as Record<string, unknown>) || {};
+      const paiementData = (extractedView.paiement as Record<string, unknown>) || {};
       const acomptePct = acompteMatch
         ? parseFloat(acompteMatch[1].replace(",", "."))
         : typeof paiementData.acompte_pct === "number"
@@ -2731,8 +2741,8 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       // m² — le levier « exigez les quantités » serait absurde.
       const PRODUCT_CODE_RE = /\b(?=[A-Za-z0-9-]{4,}\b)(?:[A-Za-z]+\d|\d+[A-Za-z])[A-Za-z0-9-]*\b/;
       const TRIVIAL_UNITS_P4 = new Set(["", "ens", "ensemble", "forfait", "fft", "ff", "f", "lot", "unite", "unité", "u", "u."]);
-      const travauxForP4 = Array.isArray(extractedData.travaux)
-        ? (extractedData.travaux as Array<Record<string, unknown>>)
+      const travauxForP4 = Array.isArray(extractedView.travaux)
+        ? (extractedView.travaux as Array<Record<string, unknown>>)
         : [];
       const unitlessP4 = travauxForP4.filter((t) =>
         TRIVIAL_UNITS_P4.has(String(t?.unite ?? "").trim().toLowerCase())
