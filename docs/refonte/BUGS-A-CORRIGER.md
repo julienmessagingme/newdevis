@@ -178,6 +178,15 @@
   - Input : lignes qty=1 avec libellés génériques de corps de métier (« Plomberie », « Dépose de l'existant ») → bypass conservé
 - **Statut** : 🟢 **corrigé le 2026-08-17** (commit `bd08099`, déployé). 3e garde-fou dans `incomplete-quote.ts` : garde « libellés de lot » — le bypass n'est légitime que si ≥ 50 % des lignes non quantifiées ressemblent à des intitulés génériques de corps de métier (vocabulaire 40 termes, veto sur les codes produit alphanumériques). 9 cas anti-régression couvrant les 3 variantes de la famille + les 2 vrais positifs (Créteil, résumé toiture). Analyse d'origine rejouée et page corrigée.
 
+### 2026-08-18 — V2-MONTANT-DUPLIQUE-SUR-LIGNE-DESCRIPTION
+
+- **Signalé par** : revue expert MALNOY (`68eced3d`, Electricité Gelir 25 410 € HT)
+- **Symptôme observé** : la ligne de description « Comprend : prise de terre complète… » (suite de la ligne « Mise à la terre de l'ensemble » 890 €) s'est vu attribuer par extract_v2 un montant de 4 000 € **dupliqué depuis la ligne suivante** (« Forfait : saignée et rebouchage » 4 000 €). Le sous-total du lot extrait (17 360 €) dépasse le sous-total réel (13 360 €) de exactement 4 000 €. Le total global reste correct (25 410 €) car lu depuis le récapitulatif. Conséquence : une fausse carte rouge « Mise à la terre 4 000 € ×3.08 » dans le détail.
+- **Cause racine** : violation de la règle R du prompt V2 (« le montant_total vient de la même position — NE JAMAIS prendre un montant d'une autre cellule ») sur une mise en page où la description de continuation est visuellement proche de la ligne suivante. La réconciliation arithmétique aurait dû dégrader la confiance (Σ lignes ≠ sous-total lu) — à vérifier pourquoi elle n'a pas signalé.
+- **Maillon concerné** : 1 (Lire juste)
+- **Cas test à passer** : devis MALNOY — la ligne « Comprend : prise de terre… » doit sortir montant=null (description), le sous-total commun doit réconcilier à 13 360 €.
+- **Statut** : 🔴 à corriger (itération prompt V2 ou garde réconciliation par section). Mitigation : chirurgie du 18/08 (carte passée en no_match) ; le shadow inversé trace ce type d'écart.
+
 ### 2026-08-14 — ESPECES-ACCEPTE-CONFONDU-AVEC-ESPECES-EXIGE
 
 - **Signalé par** : Johan (capture bloc « Conditions de paiement » — analyse DM PAYSAGES `7194c0fe`)
