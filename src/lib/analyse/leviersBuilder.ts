@@ -241,8 +241,12 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
     motif = `quelques postes dépassent les fourchettes du marché (${fmtEuros(s.surcout.min)}–${fmtEuros(s.surcout.max)} € d'écart estimé)`;
   } else if (s.acompte_cumule_pct !== null && s.acompte_cumule_pct > 30) {
     motif = `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage de 30 %`;
-  } else {
+  } else if (s.verdict_decisionnel === "signer") {
     motif = "prix dans les fourchettes du marché et conditions habituelles";
+  } else {
+    // Décision non-signer sans signal dominant identifié : rester honnête sans
+    // affirmer ni un risque non nommé ni une conformité contredite par le badge.
+    motif = "quelques prestations méritent une clarification avec l'artisan avant signature";
   }
 
   // Marge de négociation

@@ -166,6 +166,18 @@
   - Sortie attendue : PAS de bypass `incomplete_quote`. Analyse standard : postes m² comparés au catalogue, forfaits classés « non comparable » (JAMAIS d'anomalie ×58 par comparaison forfait vs prix unitaire).
 - **Statut** : 🟢 **corrigé le 2026-08-03** (commit `3259074`, déployé). Garde montant livrée dans le module partagé `incomplete-quote.ts` (V1 `extract.ts` + V2 `extract_v2.ts`) : le bypass exige désormais AUSSI ≥ 70 % du montant HT porté par des lignes sans unité physique (fallback comptage lignes si montants indisponibles). 7 cas anti-régression : `npx tsx supabase/functions/analyze-quote/incomplete-quote.test.ts`. Le volet matching (faux matchs forfait-vs-prix-unitaire, ×58 échafaudage) reste couvert par FORFAIT-VS-PRIX-UNITAIRE-CATALOGUE (🔴 Phase 3). Mitigation données appliquée le jour même sur l'analyse d'origine : revue expert « Corriger » (verdict `a_negocier`, surcoût 0-600 € échafaudage) + chirurgie via service_role (retrait du flag `incomplete_quote` de `conclusion_ia`, réécriture phrase_intro/actions/verdict_reasons honnêtes — vrai point : acompte 40 % > usage 30 % —, passage des 6 groupes forfait en `vectorial.confidence='no_match'` + `prices=[]` pour affichage « Non comparable »).
 
+### 2026-08-17 — INCOMPLETE-QUOTE-FAUX-POSITIF-EQUIPEMENT
+
+- **Signalé par** : Johan (capture page analyse FCE)
+- **Analyse ID** : `5a44b80d` (FRANCOIS CLIMATISATION ELECTRICITE, clim gainable Mitsubishi PEAD-M60JA, 8 542,63 € TTC)
+- **Symptôme observé** : bannière « devis trop synthétique » sur un devis d'installation de climatisation **détaillé** : 7 lignes avec références produit (PEAD-M60JA, FOURGAIZO71, AIRZ3…), prix par ligne, main-d'œuvre séparée. 3e faux positif de la famille en 15 jours (après ATEX forfaits et HEXA BAT surfaces inline).
+- **Cause racine** : un devis d'ÉQUIPEMENT se quantifie naturellement à l'unité matérielle → 100 % des lignes en qty=1 sans unité physique ET 100 % du montant aussi. La garde montant (fix ATEX) est structurellement inopérante sur cette famille : il n'existe AUCUNE ligne surfacique dans un devis de pose de clim. V2 a extrait `unite=null` partout (pas de colonne unité sur le devis).
+- **Maillon concerné** : 1 (Lire juste — distinguer résumé par lot et devis d'équipement)
+- **Cas test à passer** :
+  - Input : lignes qty=1 sans unité MAIS libellés avec références produit + prix par ligne → PAS de bypass
+  - Input : lignes qty=1 avec libellés génériques de corps de métier (« Plomberie », « Dépose de l'existant ») → bypass conservé
+- **Statut** : 🟢 **corrigé le 2026-08-17** (commit `bd08099`, déployé). 3e garde-fou dans `incomplete-quote.ts` : garde « libellés de lot » — le bypass n'est légitime que si ≥ 50 % des lignes non quantifiées ressemblent à des intitulés génériques de corps de métier (vocabulaire 40 termes, veto sur les codes produit alphanumériques). 9 cas anti-régression couvrant les 3 variantes de la famille + les 2 vrais positifs (Créteil, résumé toiture). Analyse d'origine rejouée et page corrigée.
+
 ### 2026-08-14 — ESPECES-ACCEPTE-CONFONDU-AVEC-ESPECES-EXIGE
 
 - **Signalé par** : Johan (capture bloc « Conditions de paiement » — analyse DM PAYSAGES `7194c0fe`)

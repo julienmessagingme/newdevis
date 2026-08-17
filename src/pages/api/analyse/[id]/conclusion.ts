@@ -2723,13 +2723,32 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           ? paiementData.acompte_pct
           : null;
 
+      // 2026-08-17 (cas FCE clim) — `hasUnitsMissing` brut est FAUX sur les devis
+      // d'équipement (clim, chaudière, menuiseries : qty=1 sans unité physique
+      // est leur quantification naturelle). Miroir de la garde « libellés de
+      // lot » d'incomplete-quote.ts (Deno) : si la majorité des lignes sans
+      // unité porte une référence produit alphanumérique, ne PAS réclamer des
+      // m² — le levier « exigez les quantités » serait absurde.
+      const PRODUCT_CODE_RE = /\b(?=[A-Za-z0-9-]{4,}\b)(?:[A-Za-z]+\d|\d+[A-Za-z])[A-Za-z0-9-]*\b/;
+      const TRIVIAL_UNITS_P4 = new Set(["", "ens", "ensemble", "forfait", "fft", "ff", "f", "lot", "unite", "unité", "u", "u."]);
+      const travauxForP4 = Array.isArray(extractedData.travaux)
+        ? (extractedData.travaux as Array<Record<string, unknown>>)
+        : [];
+      const unitlessP4 = travauxForP4.filter((t) =>
+        TRIVIAL_UNITS_P4.has(String(t?.unite ?? "").trim().toLowerCase())
+      );
+      const unitlessWithProductCode = unitlessP4.filter((t) =>
+        PRODUCT_CODE_RE.test(String(t?.libelle ?? "").split("\n")[0])
+      ).length;
+      const equipmentLike = unitlessP4.length > 0 && unitlessWithProductCode / unitlessP4.length >= 0.5;
+
       const p4Signals = {
         verdict_decisionnel: verdictDecision as "signer" | "signer_avec_negociation" | "ne_pas_signer",
         total_ht: totalHT,
         work_type: workType || null,
         surcout: { min: surcoutMin, max: surcoutMax },
         anomalies_postes: sanitizedAnomalies.map((a) => a.poste).filter((p): p is string => Boolean(p)),
-        quantites_manquantes: Boolean(hasUnitsMissing),
+        quantites_manquantes: Boolean(hasUnitsMissing) && !equipmentLike,
         clauses_litigieuses: clausesRaw,
         acompte_cumule_pct: acomptePct,
         paiement_especes_seul: criteres_rouges.some((c) => /esp[eè]ces\s+uniquement/i.test(c)),
