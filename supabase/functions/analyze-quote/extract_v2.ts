@@ -43,6 +43,7 @@ import { PipelineError, repairTruncatedJson } from "./utils.ts";
 import { detectQuoteCountry } from "./country.ts";
 import { detectIncompleteQuoteShared } from "./incomplete-quote.ts";
 import { liftInlineQuantities } from "./inline-quantities.ts";
+import { detectSupplyOnlyQuote } from "./supply-only.ts";
 import {
   reconcileDevis,
   type LigneInput,
@@ -793,6 +794,21 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
     console.log(`[extract_v2] surfaces inline remontées : ${liftedCount} ligne(s) (qty=1 ens → m² depuis description)`);
   }
 
+  // 5ter. Requalification « fourniture seule » (2026-08-18, cas NECHAB) —
+  // un bon de commande de matériel (références produit, zéro vocabulaire de
+  // pose/MO) classé devis_travaux par Gemini est reclassé DÉTERMINISTIQUEMENT
+  // hors_scope/achat_biens → bannière dédiée, pas de faux verdict « signer ».
+  let typeDocumentFinal = type_document;
+  let horsScopeCategorieFinal = hors_scope_categorie;
+  if (typeDocumentFinal === "devis_travaux") {
+    const travauxOnly = allLignesV2.filter((l) => l.type === "ligne_travaux");
+    if (detectSupplyOnlyQuote(travauxOnly)) {
+      console.log("[extract_v2] SUPPLY-ONLY détecté (références produit sans pose/MO) → reclassement hors_scope/achat_biens");
+      typeDocumentFinal = "hors_scope";
+      horsScopeCategorieFinal = "achat_biens";
+    }
+  }
+
   // 6. Détection incomplete (R1 KEPT)
   const { is_incomplete, reason: incompleteReason } = detectIncompleteV2(allLignesV2);
 
@@ -850,7 +866,15 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
       typeof parsed.totaux?.remise_globale === "number" ? parsed.totaux.remise_globale : 0,
   };
   const reconciliation = reconcileDevis(reconciliationInput);
-  const confiance_globale: ConfianceGlobale = reconciliation.confiance_globale;
+  // 2026-08-18 (cas NECHAB) — garde honnêteté : une réconciliation « certifiée »
+  // n'a aucun sens si le document ne porte AUCUN total à réconcilier (photo de
+  // bon de commande sans récapitulatif). Downgrade en « indicatif ».
+  const confiance_globale: ConfianceGlobale =
+    reconciliation.confiance_globale === "certifie" &&
+    reconciliation.total_ht_lu === null &&
+    reconciliation.total_ttc_lu === null
+      ? "indicatif"
+      : reconciliation.confiance_globale;
 
   // 9. R4 KEPT — Détection pays
   const country = detectQuoteCountry({
@@ -866,7 +890,7 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
 
   // 10. Construction ExtractedData (legacy compat conclusion.ts)
   const extractedLegacy: ExtractedData = {
-    type_document,
+    type_document: typeDocumentFinal,
     entreprise: {
       nom:
         typeof parsed.entreprise?.nom === "string" ? parsed.entreprise.nom.trim() || null : null,
@@ -983,7 +1007,7 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
     // Cas test : invoice (48).pdf Stone Gardens BE — V2 lisait IBAN BE mais is_foreign=false.
     is_foreign_quote: country?.is_foreign ?? false,
     courtier_nom,
-    hors_scope_categorie,
+    hors_scope_categorie: horsScopeCategorieFinal,
     is_incomplete_quote: is_incomplete,
     incomplete_quote_reason: is_incomplete ? incompleteReason : null,
     clauses_litigieuses,

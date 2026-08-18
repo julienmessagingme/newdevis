@@ -99,6 +99,70 @@ function truncateAtSelfGuidance(s: string): string {
   return cut.trim();
 }
 
+/**
+ * 2026-08-18 (retour Johan, cas NECHAB) — trois défauts de rédaction dans le
+ * message copiable :
+ *   1. « …aux normes en vigueur. ? » — le point final de l'action source
+ *      restait collé avant le « ? » ajouté.
+ *   2. « …correspondent bien à vos attentes » envoyé à l'ARTISAN — le moteur
+ *      s'adresse au client (« vos attentes » = celles du client), mais la
+ *      question part à l'artisan : les possessifs des choses appartenant au
+ *      client doivent basculer à la 1re personne, sinon on ne sait plus qui
+ *      parle à qui.
+ *   3. « Pouvez-vous me préciser les modalités […] sont clairement stipulés »
+ *      — greffer une proposition complète (« Assurez-vous QUE X ») derrière
+ *      « me préciser » casse la grammaire. Une proposition se confirme
+ *      (« me confirmer que X »), un groupe nominal se précise.
+ */
+
+/** Retire la ponctuation finale d'une clause avant insertion dans une
+ *  question — sinon on obtient « …en vigueur. ? ». */
+function trimTrailingPunctuation(s: string): string {
+  return s.replace(/[\s.;,…]+$/g, "").trim();
+}
+
+/**
+ * Possessifs de choses appartenant au CLIENT → 1re personne quand la phrase
+ * est adressée à l'artisan. Les possessifs légitimes côté artisan
+ * (« votre devis », « vos tarifs », « votre entreprise ») ne sont PAS touchés.
+ */
+const CLIENT_OWNED_FLIPS: Array<[RegExp, string]> = [
+  [/\bvos\s+attentes\b/gi, "mes attentes"],
+  [/\bvotre\s+attente\b/gi, "mon attente"],
+  [/\bvos\s+besoins\b/gi, "mes besoins"],
+  [/\bvotre\s+besoin\b/gi, "mon besoin"],
+  [/\bvotre\s+projet\b/gi, "mon projet"],
+  [/\bvos\s+projets\b/gi, "mes projets"],
+  [/\bvotre\s+budget\b/gi, "mon budget"],
+  [/\bvotre\s+logement\b/gi, "mon logement"],
+  [/\bvotre\s+maison\b/gi, "ma maison"],
+  [/\bvotre\s+appartement\b/gi, "mon appartement"],
+  [/\bvotre\s+chantier\b/gi, "mon chantier"],
+  [/\bvos\s+travaux\b/gi, "mes travaux"],
+  [/\bvotre\s+choix\b/gi, "mon choix"],
+  [/\bvotre\s+demande\b/gi, "ma demande"],
+];
+function flipClientPossessives(s: string): string {
+  let out = s;
+  for (const [rx, rep] of CLIENT_OWNED_FLIPS) out = out.replace(rx, rep);
+  return out;
+}
+
+/** Clause prête à être insérée dans une question adressée à l'artisan. */
+function asQuestionClause(rest: string): string {
+  return flipClientPossessives(trimTrailingPunctuation(rest));
+}
+
+function ucFirst(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Minuscule initiale SAUF si le mot est un sigle (IBAN, RGE, Kbis…) —
+ *  on ne minuscule que si la 2e lettre est déjà minuscule ou une apostrophe. */
+function lcFirst(s: string): string {
+  return /^[A-ZÀ-Ý][a-zà-ÿ'']/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
+
 function isStandardAction(action: string): boolean {
   const lower = action.toLowerCase();
   return STANDARD_KEYWORDS.some((kw) => lower.includes(kw));
@@ -191,60 +255,76 @@ function reformulateAsQuestion(action: string): { context: string; question: str
 
   // Cas : « Négociez X »
   if (/^négoc|^negoc/i.test(cleaned)) {
-    const rest = cleaned
-      .replace(/^négoc(?:iez|ier)\s*/i, "")
-      .replace(/^negoc(?:iez|ier)\s*/i, "")
-      .trim();
+    const rest = trimTrailingPunctuation(
+      cleaned
+        .replace(/^négoc(?:iez|ier)\s*/i, "")
+        .replace(/^negoc(?:iez|ier)\s*/i, ""),
+    );
     return {
-      context: rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : "Poste à ouvrir à la discussion.",
+      context: rest ? ucFirst(rest) : "Poste à ouvrir à la discussion.",
       question: `« Est-ce que ce poste peut être ajusté ? »`,
     };
   }
 
   // Cas : « Vérifiez X », « Confirmez X », « Contrôlez X », « Validez X »
   if (CONFIRMER_PREFIXES.test(cleaned)) {
-    const rest = cleaned.replace(CONFIRMER_PREFIXES, "").trim().replace(/^d[e']\s*/i, "");
+    const rest = trimTrailingPunctuation(
+      cleaned.replace(CONFIRMER_PREFIXES, "").trim().replace(/^d[e']\s*/i, ""),
+    );
     if (!rest) return { context: "Point à confirmer.", question: `« Pouvez-vous me confirmer ce point ? »` };
-    const lower = rest.charAt(0).toLowerCase() + rest.slice(1);
+    const clause = lcFirst(asQuestionClause(rest));
     return {
-      context: rest.charAt(0).toUpperCase() + rest.slice(1),
-      question: `« Pouvez-vous me confirmer ${lower} ? »`,
+      // Le contexte reste adressé au CLIENT sur la fiche → possessifs d'origine.
+      context: ucFirst(rest),
+      question: `« Pouvez-vous me confirmer ${clause} ? »`,
     };
   }
 
-  // Cas : « Assurez-vous que … » (auto-conseil transformé en question)
+  // Cas : « Assurez-vous que … » / « Assurez-vous de … »
   if (PRECISER_PREFIXES.test(cleaned)) {
+    // « que »/« qu' » ⇒ une PROPOSITION complète suit (« un acompte est
+    // prévu ») → elle se CONFIRME. « de X » ⇒ groupe nominal → se précise.
+    const hadQue = /^assur\w*[\s-]?vous\s+qu/i.test(cleaned);
     let rest = cleaned.replace(PRECISER_PREFIXES, "").trim();
     // Retire un « qu' » / « que » / « d' » / « de » résiduels si le regex
     // n'a pas capturé la contraction (« Assurez-vous qu'un … »).
     rest = rest.replace(/^(?:qu['e]\s*|d[e']\s*)/i, "").trim();
+    rest = trimTrailingPunctuation(rest);
     if (!rest) return { context: "Point à préciser.", question: `« Pouvez-vous me préciser ce point ? »` };
-    const lower = rest.charAt(0).toLowerCase() + rest.slice(1);
+    const clause = lcFirst(asQuestionClause(rest));
+    if (hadQue) {
+      // Élision : « que » devant consonne, « qu' » devant voyelle/h muet.
+      const que = /^[aeiouyhàâäéèêëîïôöùûü]/i.test(clause) ? "qu'" : "que ";
+      return {
+        context: ucFirst(rest),
+        question: `« Pouvez-vous me confirmer ${que}${clause} ? »`,
+      };
+    }
     return {
-      context: rest.charAt(0).toUpperCase() + rest.slice(1),
-      question: `« Pouvez-vous me préciser ${lower} ? »`,
+      context: ucFirst(rest),
+      question: `« Pouvez-vous me préciser ${clause} ? »`,
     };
   }
 
   // Cas : « Demandez à l'artisan de préciser X » / « Demandez l'attestation X »
   const demanderMatch = cleaned.match(DEMANDER_PREFIXES);
   if (demanderMatch) {
-    const rest = stripImperativePrefix(cleaned);
+    const rest = trimTrailingPunctuation(stripImperativePrefix(cleaned));
     if (!rest) return { context: "Point à clarifier.", question: `« Pouvez-vous me préciser ce point ? »` };
-    const lower = rest.charAt(0).toLowerCase() + rest.slice(1);
+    const clause = lcFirst(asQuestionClause(rest));
     // Si le sujet ressemble à un document / une pièce à obtenir → « transmettre »
     const looksLikeDoc = /^(l[e']|la\s|les\s|un\s|une\s|des\s|vos\s|votre\s)/i.test(rest) &&
                         /\b(attestation|certificat|justificatif|copie|planning|éch[ée]ancier|assurance|kbis|siret)\b/i.test(rest);
     const verb = looksLikeDoc ? "me transmettre" : "me préciser";
     return {
-      context: rest.charAt(0).toUpperCase() + rest.slice(1),
-      question: `« Pouvez-vous ${verb} ${lower} ? »`,
+      context: ucFirst(rest),
+      question: `« Pouvez-vous ${verb} ${clause} ? »`,
     };
   }
 
   // Cas générique : garde l'action nettoyée en contexte, question courte
   return {
-    context: cleaned.charAt(0).toUpperCase() + cleaned.slice(1),
+    context: ucFirst(cleaned),
     question: `« Pouvez-vous m'en dire un peu plus sur ce point ? »`,
   };
 }

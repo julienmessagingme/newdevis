@@ -241,6 +241,18 @@ function stripFrenchQuotes(question: string): string {
   return question.replace(/^«\s*/, "").replace(/\s*»$/, "").trim();
 }
 
+/** Retire la ponctuation finale d'un item avant de l'insérer dans une phrase
+ *  (« …pour 2026. » inséré avant « ? » donnait « …pour 2026. ? »). */
+function trimTrailingDot(s: string): string {
+  return s.replace(/[\s.;,]+$/g, "").trim();
+}
+
+/** Minuscule initiale SAUF sigle (IBAN, RGE, Kbis…) : on ne minuscule que si
+ *  la 2e lettre est déjà minuscule ou une apostrophe (« L'attestation »). */
+function lcFirstSafe(s: string): string {
+  return /^[A-ZÀ-Ý][a-zà-ÿ'']/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
+
 function buildWrittenMessages(
   sections: ReturnType<typeof buildPreparationSections>,
   prenom: string | null,
@@ -257,7 +269,7 @@ function buildWrittenMessages(
     .filter((s) => s.length > 0);
 
   const oubliCleaned = sections.aNePasOublier
-    .map((o) => o.trim())
+    .map((o) => trimTrailingDot(o))
     .filter((s) => s.length > 0);
 
   const questionsBlock = questionsCleaned.length > 0
@@ -269,7 +281,7 @@ function buildWrittenMessages(
   // à ») qui n'a aucun sens envoyé à l'artisan.
   let oublisBlock = "";
   if (oubliCleaned.length === 1) {
-    oublisBlock = `\n\nEt pourriez-vous me transmettre ${oubliCleaned[0].toLowerCase()} ?`;
+    oublisBlock = `\n\nEt pourriez-vous me transmettre ${lcFirstSafe(oubliCleaned[0])} ?`;
   } else if (oubliCleaned.length > 1) {
     oublisBlock = `\n\nEt pouvez-vous me transmettre :\n${oubliCleaned.map((o) => `- ${o}`).join("\n")}`;
   }

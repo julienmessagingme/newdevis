@@ -154,7 +154,7 @@ describe("preparationBuilder — buildPreparationSections", () => {
     expect(aDemander[0].question).not.toMatch(/^Vérifiez/i);
   });
 
-  it("« Assurez-vous que X » devient une question à l'artisan, pas un auto-conseil", () => {
+  it("« Assurez-vous que X » (proposition) devient « me confirmer qu'X », grammatical", () => {
     const conclusion = {
       ...baseConclusion,
       actions_avant_signature: [
@@ -163,11 +163,88 @@ describe("preparationBuilder — buildPreparationSections", () => {
     };
     const { aDemander } = buildPreparationSections(conclusion, [], []);
     expect(aDemander.length).toBeGreaterThanOrEqual(1);
-    // Question doit contenir « Pouvez-vous me préciser »
-    expect(aDemander[0].question).toMatch(/Pouvez-vous me préciser/i);
+    // Une PROPOSITION se confirme (« me confirmer qu'un acompte est prévu ») —
+    // « me préciser un acompte est prévu » était agrammatical (cas NECHAB).
+    expect(aDemander[0].question).toMatch(/Pouvez-vous me confirmer qu['']un acompte est prévu/i);
     // Aucune trace de l'auto-conseil au user
     expect(aDemander[0].question).not.toMatch(/^Assurez-vous/i);
     expect(aDemander[0].question).not.toMatch(/^assurez-vous/i);
+  });
+
+  // ── Cas NECHAB 2026-08-18 — les 3 défauts verbatim du message copiable ────
+  it("cas NECHAB #1 — pas de « . ? » et « vos attentes » → « mes attentes »", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Vérifiez que les spécifications techniques des luminaires et autres fournitures correspondent bien à vos attentes et aux normes en vigueur.",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+    const q = aDemander[0].question;
+    // Ponctuation propre : jamais « . ? »
+    expect(q).not.toMatch(/\.\s*\?/);
+    // Possessif inversé : la question part à l'ARTISAN, ce sont MES attentes
+    expect(q).toContain("mes attentes");
+    expect(q).not.toContain("vos attentes");
+    expect(q).toMatch(/Pouvez-vous me confirmer que les spécifications techniques/);
+    expect(q).toMatch(/aux normes en vigueur \?/);
+  });
+
+  it("cas NECHAB #2 — « Assurez-vous que X sont stipulés » → « me confirmer que X sont stipulés ? »", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Assurez-vous que les modalités de paiement, les délais de livraison des fournitures et la durée de la garantie sur les équipements sont clairement stipulés dans le devis.",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+    const q = aDemander[0].question;
+    // L'ancien rendu « me préciser les modalités […] sont clairement
+    // stipulés. ? » était agrammatical + ponctuation cassée.
+    expect(q).not.toMatch(/me préciser les modalités/);
+    expect(q).not.toMatch(/\.\s*\?/);
+    expect(q).toMatch(
+      /Pouvez-vous me confirmer que les modalités de paiement, les délais de livraison des fournitures et la durée de la garantie sur les équipements sont clairement stipulés dans le devis \?/,
+    );
+  });
+
+  it("« Assurez-vous de X » (groupe nominal) reste « me préciser X »", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: ["Assurez-vous de la conformité des équipements livrés."],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+    expect(aDemander[0].question).toMatch(/Pouvez-vous me préciser la conformité des équipements livrés \?/);
+  });
+
+  it("le point final d'une action « Demandez X. » ne colle jamais au « ? »", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: ["Demandez le détail des références produit commandées."],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+    expect(aDemander[0].question).not.toMatch(/\.\s*\?/);
+    expect(aDemander[0].question).toMatch(/\?\s*»$/);
+  });
+
+  it("les possessifs côté ARTISAN (votre devis, vos tarifs) ne sont PAS inversés", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Vérifiez que votre devis détaille bien vos tarifs horaires appliqués au chantier",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+    const q = aDemander[0].question;
+    expect(q).toContain("votre devis");
+    expect(q).toContain("vos tarifs");
+    // Mais « au chantier » n'active pas le flip (« votre chantier » absent)
+    expect(q).not.toContain("mon devis");
   });
 
   it("coupe les auto-conseils « et assurez-vous que » dans la section 3", () => {

@@ -133,10 +133,24 @@ describe("buildVerdictLigne — le motif est TOUJOURS nommé", () => {
     expect(v.motif.toLowerCase()).not.toContain("risque élevé");
   });
 
-  it("devis propre → motif positif + marge courtoise 3-5 %", () => {
-    const v = buildVerdictLigne(base, buildLeviers(base));
+  it("devis propre (que du fallback sécurisation) → motif positif, marge NULL (pas de promesse creuse)", () => {
+    const leviers = buildLeviers(base);
+    expect(leviers.every((l) => l.objectif === "securiser")).toBe(true);
+    const v = buildVerdictLigne(base, leviers);
     expect(v.motif).toContain("fourchettes du marché");
-    expect(v.marge).toContain("3 à 5 %");
+    expect(v.marge).toBeNull();
+  });
+
+  it("signer + levier révision tarifaire → marge 3-5 % portée par le levier", () => {
+    const s: LevierSignals = { ...base, date_devis: "2024-06-15" };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.marge).toContain("révision tarifaire");
+  });
+
+  it("le fallback références est étiqueté sécurisation, pas négociation", () => {
+    const leviers = buildLeviers(base);
+    const refs = leviers.find((l) => l.titre.includes("références"));
+    expect(refs?.objectif).toBe("securiser");
   });
 
   it("surcoût matériel → marge chiffrée en euros", () => {

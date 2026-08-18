@@ -45,6 +45,11 @@ export interface LevierSignals {
 
 export interface Levier {
   niveau: "puissant" | "important" | "bonus";
+  /** 2026-08-18 (retour Johan, cas NECHAB) — un levier de NÉGOCIATION fait
+   * baisser le prix ; une action de SÉCURISATION protège sans faire baisser
+   * le prix (assurance, références). Les confondre rend la promesse
+   * « marge 3-5% » creuse. L'UI les présente différemment. */
+  objectif: "negocier" | "securiser";
   titre: string;
   detail: string;
 }
@@ -92,6 +97,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 110,
       niveau: "puissant",
+      objectif: "negocier",
       titre: "Clarifiez la situation de l'entreprise avant tout engagement",
       detail: `Nos vérifications signalent : ${s.entreprise_risque}. Tant que ce point n'est pas éclairci, aucun versement ne doit être effectué.`,
     });
@@ -104,6 +110,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 100,
       niveau: "puissant",
+      objectif: "negocier",
       titre: clausesRouges.length > 1
         ? `Faites retirer les ${clausesRouges.length} clauses abusives avant de signer`
         : "Faites retirer la clause abusive avant de signer",
@@ -115,6 +122,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 90,
       niveau: "puissant",
+      objectif: "negocier",
       titre: "Exigez les quantités précises (m², ml) pour chaque poste",
       detail: "C'est le levier le plus puissant : il oblige l'artisan à justifier chaque prix et vous permet de comparer réellement. Sans quantités, impossible de savoir si le prix est juste.",
     });
@@ -124,6 +132,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 85,
       niveau: "puissant",
+      objectif: "negocier",
       titre: "Exigez un mode de paiement traçable (virement ou chèque)",
       detail: "Les espèces comme seul mode de paiement sont illégales au-delà de 1 000 € pour un professionnel, et vous privent de toute preuve en cas de litige.",
     });
@@ -133,6 +142,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 80,
       niveau: "puissant",
+      objectif: "negocier",
       titre: `Ramenez l'acompte avant travaux de ${Math.round(s.acompte_cumule_pct)} % à 30 % maximum`,
       detail: "L'usage est de 30 % à la signature, puis des paiements à l'avancement. Verser davantage avant le premier jour de chantier vous expose en cas de défaillance de l'entreprise.",
     });
@@ -146,6 +156,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 70,
       niveau: "important",
+      objectif: "negocier",
       titre: postes.length > 0
         ? `Négociez les postes au-dessus du marché (${postes.join(", ")})`
         : "Négociez les postes au-dessus du marché",
@@ -157,6 +168,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 60,
       niveau: "important",
+      objectif: "negocier",
       titre: `Négociez l'acompte (${Math.round(s.acompte_cumule_pct)} % demandés) vers 30 %`,
       detail: "30 % à la signature est l'usage. Un échéancier adossé à l'avancement réel du chantier protège les deux parties.",
     });
@@ -169,6 +181,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 55,
       niveau: "important",
+      objectif: "negocier",
       titre: "Discutez la clause contractuelle signalée",
       detail: `Le devis mentionne : « ${(c.citation ?? "").slice(0, 120)}${(c.citation ?? "").length > 120 ? "…" : ""} » — ${label}.`,
     });
@@ -181,6 +194,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 40,
       niveau: "bonus",
+      objectif: "negocier",
       titre: `Demandez une révision tarifaire : le devis date de ${annee}`,
       detail: `Les coûts matériaux et main-d'œuvre évoluent de 5 à 8 % par an. Un devis de ${annee} relu aujourd'hui justifie une demande d'actualisation — dans un sens comme dans l'autre, mieux vaut la provoquer que la subir en cours de chantier.`,
     });
@@ -190,6 +204,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     out.push({
       priority: 30,
       niveau: "bonus",
+      objectif: "securiser",
       titre: "Demandez l'attestation d'assurance décennale et RC Pro",
       detail: "L'attestation à jour se demande par simple mail — c'est une formalité pour un artisan assuré, et une protection indispensable pour vous.",
     });
@@ -199,6 +214,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
   out.push({
     priority: 10,
     niveau: "bonus",
+    objectif: "securiser",
     titre: "Demandez 2-3 références de chantiers récents similaires",
     detail: "Un artisan fier de son travail les partage volontiers. C'est aussi l'occasion d'ouvrir la discussion sur un ton constructif.",
   });
@@ -217,7 +233,7 @@ export function buildLeviers(s: LevierSignals): Levier[] {
       return true;
     })
     .slice(0, 3)
-    .map(({ niveau, titre, detail }) => ({ niveau, titre, detail }));
+    .map(({ niveau, objectif, titre, detail }) => ({ niveau, objectif, titre, detail }));
 }
 
 /**
@@ -249,14 +265,17 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
     motif = "quelques prestations méritent une clarification avec l'artisan avant signature";
   }
 
-  // Marge de négociation
+  // Marge de négociation — 2026-08-18 (retour Johan) : annoncée UNIQUEMENT si
+  // un levier de négociation la porte. Une marge « 3-5% » sans levier est une
+  // promesse creuse qui décrédibilise le verdict.
   let marge: string | null = null;
+  const hasNegoLevier = leviers.some((l) => l.objectif === "negocier");
   if (s.surcout.max >= 300) {
     marge = `environ ${fmtEuros(s.surcout.min)} à ${fmtEuros(s.surcout.max)} €`;
-  } else if (s.verdict_decisionnel === "signer") {
-    marge = "3 à 5 % en négociation courtoise";
   } else if (leviers.some((l) => l.titre.startsWith("Demandez une révision tarifaire"))) {
     marge = "3 à 5 % (révision tarifaire)";
+  } else if (hasNegoLevier) {
+    marge = "3 à 5 % en négociation courtoise";
   }
 
   const montant = s.total_ht !== null && s.total_ht > 0 ? `${fmtEuros(s.total_ht)} € HT` : null;

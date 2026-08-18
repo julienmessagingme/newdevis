@@ -178,6 +178,19 @@
   - Input : lignes qty=1 avec libellés génériques de corps de métier (« Plomberie », « Dépose de l'existant ») → bypass conservé
 - **Statut** : 🟢 **corrigé le 2026-08-17** (commit `bd08099`, déployé). 3e garde-fou dans `incomplete-quote.ts` : garde « libellés de lot » — le bypass n'est légitime que si ≥ 50 % des lignes non quantifiées ressemblent à des intitulés génériques de corps de métier (vocabulaire 40 termes, veto sur les codes produit alphanumériques). 9 cas anti-régression couvrant les 3 variantes de la famille + les 2 vrais positifs (Créteil, résumé toiture). Analyse d'origine rejouée et page corrigée.
 
+### 2026-08-18 — FOURNITURE-SEULE-CLASSEE-TRAVAUX (cas NECHAB)
+
+- **Signalé par** : Johan (analyse `b85ec00a` — photo d'un bon de commande d'éclairage « M NECHAB », 11 lignes de références produit TR40205/S920519/…, aucun SIRET, aucun total lisible)
+- **Symptôme observé** : un pur bon de commande de FOURNITURES (rails, spots, variateurs — zéro pose, zéro main-d'œuvre) est analysé comme un devis de travaux : verdict « dans la norme / signer », leviers de négociation 3-5 %, message copiable « Pouvez-vous me confirmer que les spécifications […] correspondent bien à vos attentes. ? ». Triple problème : (1) classification — ce n'est pas un devis de travaux, la comparaison au catalogue marché n'a aucun sens ; (2) leviers — promettre 3-5 % de négociation sans aucun levier réel est une promesse creuse ; (3) rédaction — le message copiable était adressé à l'envers (« vos attentes » envoyé à l'artisan) avec une ponctuation cassée (« . ? »).
+- **Cause racine** : (1) extract_v2 ne distinguait pas fourniture seule vs travaux quand Gemini classe `devis_travaux` ; (2) `leviersBuilder` étiquetait les fallbacks sécurisation (assurance, références) comme des leviers de négociation et affichait une marge 3-5 % inconditionnelle ; (3) `preparationBuilder.reformulateAsQuestion` gardait le point final de l'action source avant d'ajouter « ? », n'inversait jamais les possessifs client→artisan, et greffait une proposition complète derrière « me préciser » (agrammatical).
+- **Maillon concerné** : 1 (Lire juste — classification) + 3 (Verdict honnête — pas de promesse creuse) + 4 (Apprendre — rédaction du message)
+- **Cas test à passer** :
+  - Input : ≥ 3 lignes dont ≥ 70 % avec code produit alphanumérique, zéro vocabulaire pose/MO → `type_document="hors_scope"` + `hors_scope_categorie="achat_biens"`
+  - Input : FCE clim (références produit MAIS ligne « MAIN D'OEUVRE POSE GAINABLE ») → devis travaux conservé
+  - Input : action « Vérifiez que les spécifications […] correspondent bien à vos attentes et aux normes en vigueur. » → question « Pouvez-vous me confirmer que […] correspondent bien à **mes** attentes et aux normes en vigueur ? » (pas de « . ? »)
+  - Input : « Assurez-vous que X sont clairement stipulés dans le devis. » → « Pouvez-vous me confirmer que X sont clairement stipulés dans le devis ? » (jamais « me préciser X sont stipulés »)
+- **Statut** : 🟢 **corrigé le 2026-08-18** — (1) `supply-only.ts` (détection déterministe, 6 cas anti-régression) câblé dans `extract_v2.ts` après le lifting des lignes ; (2) `leviersBuilder` : champ `objectif: negocier|securiser` sur chaque levier, marge affichée SEULEMENT si un levier de négociation existe (sinon null), UI `LeviersNegociation` bascule en « Avant de signer » quand il n'y a que de la sécurisation ; (3) `preparationBuilder` : ponctuation finale nettoyée, possessifs client inversés (vos attentes → mes attentes, liste de 14 noms côté client, les possessifs artisan « votre devis/vos tarifs » préservés), « Assurez-vous que X » → « me confirmer que/qu' X » avec élision. 53 tests preparation+leviers verts.
+
 ### 2026-08-18 — V2-MONTANT-DUPLIQUE-SUR-LIGNE-DESCRIPTION
 
 - **Signalé par** : revue expert MALNOY (`68eced3d`, Electricité Gelir 25 410 € HT)

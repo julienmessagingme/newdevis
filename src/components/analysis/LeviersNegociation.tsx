@@ -36,6 +36,16 @@ const NIVEAU_STYLE: Record<
   },
 };
 
+// 2026-08-18 (retour Johan) — les actions de SÉCURISATION (assurance,
+// références) ne sont pas des leviers de négociation : badge dédié, et si la
+// liste n'en contient QUE, le bloc change de titre pour ne pas promettre une
+// négociation qui n'existe pas.
+const SECURISER_STYLE = {
+  badge: "bg-sky-100 text-sky-800",
+  label: "Sécurisation",
+  ring: "border-sky-200",
+};
+
 interface LeviersNegociationProps {
   conclusion: ConclusionData;
 }
@@ -44,21 +54,29 @@ export default function LeviersNegociation({ conclusion }: LeviersNegociationPro
   const leviers = conclusion.leviers ?? [];
   if (leviers.length === 0) return null;
 
+  const hasNegocier = leviers.some((l) => l.objectif !== "securiser");
+  const title = hasNegocier ? "Vos leviers de négociation" : "Avant de signer";
+  const subtitle = hasNegocier
+    ? "Par ordre de puissance — commencez par le premier."
+    : "Rien de significatif à négocier sur ce devis — deux vérifications de bon sens suffisent.";
+
   return (
     <section
-      aria-label="Vos leviers de négociation"
+      aria-label={title}
       className="rounded-2xl border border-border/60 bg-card px-6 py-6 md:px-8 md:py-7"
     >
       <h2 className="text-[17px] font-semibold text-foreground mb-1">
-        Vos leviers de négociation
+        {title}
       </h2>
       <p className="text-[13px] text-foreground/60 mb-5 leading-relaxed">
-        Par ordre de puissance — commencez par le premier.
+        {subtitle}
       </p>
 
       <ol className="space-y-4">
         {leviers.map((levier, i) => {
-          const style = NIVEAU_STYLE[levier.niveau] ?? NIVEAU_STYLE.bonus;
+          const style = levier.objectif === "securiser"
+            ? SECURISER_STYLE
+            : (NIVEAU_STYLE[levier.niveau] ?? NIVEAU_STYLE.bonus);
           return (
             <li
               key={i}
