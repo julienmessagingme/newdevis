@@ -30,6 +30,13 @@ export interface PreparationSections {
   aDemander: Array<{ context: string; question: string }>;
   /** Standards du métier à ne pas oublier avant signature. */
   aNePasOublier: string[];
+  /**
+   * 2026-08-20 (retour Johan, cas Renov'Toitures) — conseils de PRUDENCE
+   * adressés au CLIENT (ex : « comptes non publiés → limitez l'acompte à
+   * 20-30 % »). Affichés sur la fiche uniquement — JAMAIS injectés dans le
+   * message copiable à l'artisan (ce sont des conseils, pas des demandes).
+   */
+  conseilsPrudence: string[];
 }
 
 const CLARIFIER_KEYWORDS = [
@@ -148,9 +155,38 @@ function flipClientPossessives(s: string): string {
   return out;
 }
 
+/**
+ * 2026-08-20 (cas Renov'Toitures) — le moteur parle de l'artisan à la 3e
+ * personne (« sa bonne santé financière », « ses réalisations ») mais la
+ * question lui est adressée directement : ces possessifs basculent à la 2e
+ * personne (« votre bonne santé financière »). Liste blanche de noms
+ * appartenant à l'artisan uniquement.
+ */
+const ARTISAN_THIRD_PERSON_FLIPS: Array<[RegExp, string]> = [
+  [/\bsa\s+(bonne\s+)?sant[ée]\s+financi[èe]re\b/gi, "votre $1santé financière"],
+  // NB : pas de \b final après un caractère accentué (é est hors classe
+  // \w en JS → \b ne matche jamais) — lookahead négatif à la place.
+  [/\bson\s+activit[ée](?![a-zà-ÿ])/gi, "votre activité"],
+  [/\bson\s+entreprise\b/gi, "votre entreprise"],
+  [/\bson\s+[ée]quipe\b/gi, "votre équipe"],
+  [/\bses\s+r[ée]alisations\b/gi, "vos réalisations"],
+  [/\bses\s+chantiers\b/gi, "vos chantiers"],
+  [/\bses\s+qualifications\b/gi, "vos qualifications"],
+  [/\bses\s+certifications\b/gi, "vos certifications"],
+  [/\bses\s+assurances\b/gi, "vos assurances"],
+  [/\bses\s+r[ée]f[ée]rences\b/gi, "vos références"],
+  [/\bson\s+travail\b/gi, "votre travail"],
+  [/\bses\s+tarifs\b/gi, "vos tarifs"],
+];
+function flipArtisanPossessives(s: string): string {
+  let out = s;
+  for (const [rx, rep] of ARTISAN_THIRD_PERSON_FLIPS) out = out.replace(rx, rep);
+  return out;
+}
+
 /** Clause prête à être insérée dans une question adressée à l'artisan. */
 function asQuestionClause(rest: string): string {
-  return flipClientPossessives(trimTrailingPunctuation(rest));
+  return flipArtisanPossessives(flipClientPossessives(trimTrailingPunctuation(rest)));
 }
 
 function ucFirst(s: string): string {
@@ -309,13 +345,36 @@ function reformulateAsQuestion(action: string): { context: string; question: str
   // Cas : « Demandez à l'artisan de préciser X » / « Demandez l'attestation X »
   const demanderMatch = cleaned.match(DEMANDER_PREFIXES);
   if (demanderMatch) {
+    // 2026-08-20 (cas Renov'Toitures) — variante AVEC article conservé pour la
+    // question : « Demandez des preuves de… » donnait « me préciser preuves
+    // de… » (article avalé par stripImperativePrefix). La question garde
+    // l'article (« me transmettre DES preuves de… ») ; le contexte reste en
+    // groupe nominal sans article (usage titre).
+    let withArticle = cleaned
+      .replace(DEMANDER_PREFIXES, "")
+      .trim()
+      .replace(/^(?:à\s+l[''`]?(?:artisan|artisane|entreprise|entrepreneur|professionnel)|au\s+(?:professionnel|prestataire|maître\s+d[''`]?œuvre))\s*/i, "")
+      .trim();
+    withArticle = trimTrailingPunctuation(withArticle);
+    const hasPartitive = /^(des|du|de\s+la|de\s+l[''])\s/i.test(withArticle);
+
     const rest = trimTrailingPunctuation(stripImperativePrefix(cleaned));
     if (!rest) return { context: "Point à clarifier.", question: `« Pouvez-vous me préciser ce point ? »` };
-    const clause = lcFirst(asQuestionClause(rest));
     // Si le sujet ressemble à un document / une pièce à obtenir → « transmettre »
     const looksLikeDoc = /^(l[e']|la\s|les\s|un\s|une\s|des\s|vos\s|votre\s)/i.test(rest) &&
-                        /\b(attestation|certificat|justificatif|copie|planning|éch[ée]ancier|assurance|kbis|siret)\b/i.test(rest);
-    const verb = looksLikeDoc ? "me transmettre" : "me préciser";
+                        /\b(attestation|certificat|justificatif|copie|preuve|r[ée]f[ée]rence|planning|éch[ée]ancier|assurance|kbis|siret)\b/i.test(rest);
+    let verb: string;
+    let clause: string;
+    if (looksLikeDoc) {
+      verb = "me transmettre";
+      clause = lcFirst(asQuestionClause(rest));
+    } else if (hasPartitive) {
+      verb = /^des\b/i.test(withArticle) ? "me transmettre" : "me donner";
+      clause = lcFirst(asQuestionClause(withArticle));
+    } else {
+      verb = "me préciser";
+      clause = lcFirst(asQuestionClause(rest));
+    }
     return {
       context: ucFirst(rest),
       question: `« Pouvez-vous ${verb} ${clause} ? »`,
@@ -368,8 +427,20 @@ function simplifyPointOk(point: string): { key: string; short: string } | null {
   if (NON_POSITIVE_MARKERS.test(point)) return null;
   if (NEGATION_PATTERN.test(point)) return null;
   const lower = point.toLowerCase();
-  if (lower.includes("assurance") || lower.includes("décennale") || lower.includes("decennale") || lower.includes("rge") || lower.includes("qualib")) {
-    return { key: "cert", short: "à jour de ses assurances et certifications" };
+  // 2026-08-20 (retour Johan, cas Renov'Toitures) — ne JAMAIS affirmer « à
+  // jour de ses assurances » : on n'a pas l'attestation entre les mains (la
+  // décennale est seulement MENTIONNÉE sur le devis) et la section 3 demande
+  // justement de la réclamer — contradiction frontale. Seules les
+  // certifications VÉRIFIÉES dans les registres (RGE/Qualibat via API)
+  // peuvent être revendiquées.
+  if (lower.includes("rge") || lower.includes("qualib")) {
+    if (/v[ée]rifi/.test(lower)) {
+      return { key: "cert", short: "titulaire de certifications professionnelles vérifiées (RGE/Qualibat)" };
+    }
+    return null; // certification seulement mentionnée → pas un fait à rappeler
+  }
+  if (lower.includes("assurance") || lower.includes("décennale") || lower.includes("decennale")) {
+    return null; // assurance mentionnée ≠ attestation vérifiée
   }
   if (lower.includes("avis") || lower.includes("note") || lower.includes("google")) {
     return { key: "avis", short: "bien notée par ses clients" };
@@ -426,9 +497,21 @@ export function buildPreparationSections(
   //       à poser, pas des pièces à obtenir ;
   //   (b) ou une clarification / négociation classique ;
   //   (c) ou une action non-standard (autre demande de précision).
+  // 2026-08-20 (cas Renov'Toitures) — comptes non publiés : détection en
+  // amont. Le sujet est traité par UN conseil de prudence actionnable
+  // (limiter l'acompte + attestation de vigilance URSSAF) au lieu de
+  // l'empilement « preuves de sa bonne santé financière » (question à
+  // laquelle un particulier ne peut rien obtenir : les bilans sont
+  // confidentiels) + item sec « Comptes non accessibles publiquement ».
+  const COMPTES_OPAQUES_RE = /comptes\s+non\s+(accessibles|publi[ée]s|d[ée]pos[ée]s)/i;
+  const comptesSource = [...actions, ...alertes].find((s) => COMPTES_OPAQUES_RE.test(s)) ?? null;
+  const SANTE_FIN_RE = /(bonne\s+)?sant[ée]\s+financi[èe]re/i;
+
   const inSection2 = new Set<string>();
   const aDemander = actions
     .filter((a) => {
+      // Redondant avec le conseil de prudence comptes → retiré de la fiche.
+      if (comptesSource && SANTE_FIN_RE.test(a)) return false;
       const isCheckOrConfirm = CONFIRMER_PREFIXES.test(a) || PRECISER_PREFIXES.test(a);
       const isNegoOrClarif = isClarificationOrNegotiation(a);
       const nonStandard = !isStandardAction(a);
@@ -447,16 +530,35 @@ export function buildPreparationSections(
   const standardActions = actions
     .filter((a) => isStandardAction(a) && !inSection2.has(a) && !isPurelyInformative(a));
   const alertesStandards = alertes.filter((a) => isStandardAction(a)).filter((a) => !isPurelyInformative(a));
-  const combined = Array.from(new Set([...standardActions, ...alertesStandards]));
+  const combined = Array.from(new Set([...standardActions, ...alertesStandards]))
+    // Le sujet « comptes » est porté par le conseil de prudence + l'attestation
+    // URSSAF ci-dessous — l'item brut ne doit plus apparaître tel quel.
+    .filter((s) => !COMPTES_OPAQUES_RE.test(s));
   const aNePasOublier = combined
     .slice(0, 3)
     .map((raw) => reformulateStandardItem(raw))
     .filter((s) => s.length > 0 && !isPurelyInformative(s));
 
+  // ── Conseils de prudence (fiche uniquement, jamais dans le message) ────
+  const conseilsPrudence: string[] = [];
+  if (comptesSource) {
+    const year = comptesSource.match(/\b(20\d{2})\b/)?.[1] ?? null;
+    conseilsPrudence.push(
+      `La société ne publie plus ses comptes${year ? ` depuis ${year}` : ""} — c'est légal et fréquent, mais sa santé financière récente est invérifiable pour un particulier. Par prudence, limitez l'acompte à 20-30 % maximum et échelonnez le solde sur l'avancement des travaux.`,
+    );
+    // La seule pièce que l'artisan PEUT fournir facilement sur ce sujet.
+    if (aNePasOublier.length < 3) {
+      aNePasOublier.push(
+        "Une attestation de vigilance URSSAF récente (l'artisan l'obtient en ligne en quelques minutes — elle prouve qu'il est à jour de ses cotisations)",
+      );
+    }
+  }
+
   return {
     rappelPourOuvrir,
     aDemander,
     aNePasOublier,
+    conseilsPrudence,
   };
 }
 

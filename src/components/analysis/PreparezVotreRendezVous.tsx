@@ -49,7 +49,8 @@ export default function PreparezVotreRendezVous({
   const nothingToShow =
     !sections.rappelPourOuvrir &&
     sections.aDemander.length === 0 &&
-    sections.aNePasOublier.length === 0;
+    sections.aNePasOublier.length === 0 &&
+    sections.conseilsPrudence.length === 0;
 
   const writtenMessages = useMemo(
     () => buildWrittenMessages(sections, prenom),
@@ -98,26 +99,32 @@ export default function PreparezVotreRendezVous({
           </Section>
         )}
 
+        {/* 2026-08-20 (retour Johan) — lecture en tirets simples : une ligne
+            déclarative par sujet, plus de doublon « titre + citation en
+            italique ». Les questions formulées vivent dans le message
+            copiable (« Vous préférez lui écrire ? »). */}
         {sections.aDemander.length > 0 && (
           <Section title="Ce que vous pouvez lui demander">
-            <ul className="space-y-5 list-none pl-0">
+            <ul className="space-y-2.5 list-none pl-0">
               {sections.aDemander.map((item, i) => (
-                <li key={i} className="space-y-2">
-                  <p className="text-[15.5px] leading-relaxed text-foreground/85">
-                    {item.context}
-                  </p>
-                  <p className="pl-4 border-l-2 border-border text-[15.5px] italic text-foreground/70 leading-relaxed">
-                    {item.question}
-                  </p>
+                <li key={i} className="flex gap-3 text-[15.5px] leading-relaxed text-foreground/85">
+                  <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-foreground/40" />
+                  <span>{item.context}</span>
                 </li>
               ))}
             </ul>
           </Section>
         )}
 
-        {sections.aNePasOublier.length > 0 && (
+        {(sections.aNePasOublier.length > 0 || sections.conseilsPrudence.length > 0) && (
           <Section title="Ce qu'il ne faut pas oublier">
             <ul className="space-y-2.5 list-none pl-0">
+              {sections.conseilsPrudence.map((item, i) => (
+                <li key={`p-${i}`} className="flex gap-3 text-[15.5px] leading-relaxed text-foreground/85">
+                  <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500/70" />
+                  <span>{item}</span>
+                </li>
+              ))}
               {sections.aNePasOublier.map((item, i) => (
                 <li key={i} className="flex gap-3 text-[15.5px] leading-relaxed text-foreground/85">
                   <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-foreground/40" />

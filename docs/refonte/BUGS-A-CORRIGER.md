@@ -178,6 +178,13 @@
   - Input : lignes qty=1 avec libellés génériques de corps de métier (« Plomberie », « Dépose de l'existant ») → bypass conservé
 - **Statut** : 🟢 **corrigé le 2026-08-17** (commit `bd08099`, déployé). 3e garde-fou dans `incomplete-quote.ts` : garde « libellés de lot » — le bypass n'est légitime que si ≥ 50 % des lignes non quantifiées ressemblent à des intitulés génériques de corps de métier (vocabulaire 40 termes, veto sur les codes produit alphanumériques). 9 cas anti-régression couvrant les 3 variantes de la famille + les 2 vrais positifs (Créteil, résumé toiture). Analyse d'origine rejouée et page corrigée.
 
+### 2026-08-20 — FICHE-RENDEZ-VOUS-ALOURDIE-ET-INCOHERENTE (cas Renov'Toitures)
+
+- **Signalé par** : Johan (analyse `7a3d9ea8` — fiche « Préparez votre rendez-vous »)
+- **Symptôme observé** : (1) doublon titre + question en italique pour chaque item (lourd) ; (2) grammaire cassée « Pouvez-vous me préciser preuves de **sa** bonne santé financière… » (article avalé + possessif 3e personne dans une question adressée à l'artisan) ; (3) affirmation « L'entreprise est à jour de ses assurances et certifications » alors qu'on n'a QUE la mention de la décennale sur le devis — et qu'on demande l'attestation 3 lignes plus bas (contradiction) ; (4) item sec « Comptes non accessibles publiquement » non actionnable — un particulier ne peut pas obtenir des bilans confidentiels.
+- **Maillon concerné** : 3 (Verdict honnête — n'affirmer que le vérifié) + 4 (rédaction)
+- **Statut** : 🟢 **corrigé le 2026-08-20** (code) — (1) fiche en tirets déclaratifs, les questions formulées ne vivent plus que dans le message copiable ; (2) article conservé (« me transmettre DES preuves de… ») + possessifs artisan 3e→2e personne (« votre bonne santé financière », liste blanche 12 noms) ; (3) `simplifyPointOk` ne revendique que les certifications VÉRIFIÉES dans les registres (RGE/Qualibat via API) — la simple mention d'assurance ne produit plus de point positif ; (4) « comptes non publiés » devient UN conseil de prudence actionnable (« limitez l'acompte à 20-30 % + échelonnez ») + la pièce demandable qui existe vraiment (attestation de vigilance URSSAF), avec dédup de la question « preuves de bonne santé ». Nouveau champ `PreparationSections.conseilsPrudence` (fiche seule, jamais dans le message). ⚠️ Actif après déblocage Vercel. Piège documenté : `\b` JS est ASCII — jamais de `\b` final après un caractère accentué dans les regex de flip (lookahead `(?![a-zà-ÿ])` à la place).
+
 ### 2026-08-20 — ETABLISSEMENT-TRANSFERE-CONFONDU-AVEC-RADIATION (cas ARA / SIDR)
 
 - **Signalé par** : Johan (revues `829f5d16` + `e55a5296` — DEVIS N°143/144-2026 SIDR CAMELIAS, AUSTRAL RÉNOV' AVENIR, La Réunion)

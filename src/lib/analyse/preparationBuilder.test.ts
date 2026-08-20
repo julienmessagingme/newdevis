@@ -231,6 +231,72 @@ describe("preparationBuilder — buildPreparationSections", () => {
     expect(aDemander[0].question).toMatch(/\?\s*»$/);
   });
 
+  // ── Cas Renov'Toitures 2026-08-20 — rédaction fiche + santé financière ────
+  it("cas Renov'Toitures — « des preuves de sa bonne santé » → question grammaticale à la 2e personne", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez à l'artisan des preuves de sa bonne santé financière récente ou des références de chantiers terminés après 2017 pour rassurer sur la continuité de son activité.",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+    const q = aDemander[0].question;
+    // L'ancien rendu : « Pouvez-vous me préciser preuves de sa bonne santé… »
+    // (article avalé + possessif 3e personne dans une question à l'artisan).
+    expect(q).toMatch(/Pouvez-vous me transmettre des preuves de votre bonne santé financière/);
+    expect(q).toContain("votre activité");
+    expect(q).not.toMatch(/me préciser preuves/);
+    expect(q).not.toContain("sa bonne santé");
+  });
+
+  it("comptes non publiés → conseil de prudence acompte + attestation URSSAF, pas d'item sec", () => {
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez à l'artisan des preuves de sa bonne santé financière récente ou des références de chantiers terminés après 2017.",
+        "Demandez à l'artisan une attestation d'assurance RC Pro et décennale en cours de validité.",
+      ],
+    };
+    const alertes = [
+      "🔴 Comptes non accessibles publiquement depuis 9 ans (dernier exercice connu : 2017) — situation financière récente inconnue, analyse de solvabilité impossible",
+    ];
+    const { aDemander, aNePasOublier, conseilsPrudence } = buildPreparationSections(conclusion, [], alertes);
+    // Le conseil de prudence est actionnable : année + acompte limité
+    expect(conseilsPrudence).toHaveLength(1);
+    expect(conseilsPrudence[0]).toContain("2017");
+    expect(conseilsPrudence[0]).toContain("20-30 %");
+    // L'attestation URSSAF remplace la demande de bilans (inaccessible à un particulier)
+    expect(aNePasOublier.join(" ")).toMatch(/vigilance URSSAF/);
+    // Plus d'item sec « Comptes non accessibles publiquement »
+    expect(aNePasOublier.join(" ")).not.toMatch(/comptes non accessibles/i);
+    // La question redondante « preuves de bonne santé » est dédupliquée
+    expect(aDemander.map((x) => x.context).join(" ")).not.toMatch(/santé financière/i);
+  });
+
+  it("sans signal comptes → aucun conseil de prudence (pas de bruit)", () => {
+    const { conseilsPrudence } = buildPreparationSections(baseConclusion, [], []);
+    expect(conseilsPrudence).toEqual([]);
+  });
+
+  it("certification VÉRIFIÉE → revendicable ; simple mention assurance/RGE → silence", () => {
+    const verified = buildPreparationSections(
+      baseConclusion,
+      ["✓ Qualification RGE vérifiée : qualibat — Installations photovoltaïques"],
+      [],
+    );
+    expect(verified.rappelPourOuvrir).toContain("certifications professionnelles vérifiées");
+
+    const mentionOnly = buildPreparationSections(
+      baseConclusion,
+      ["✓ Certification RGE mentionnée", "✓ Assurance décennale mentionnée sur le devis"],
+      [],
+    );
+    // On n'a PAS l'attestation en main — ne jamais affirmer « à jour de ses
+    // assurances » (contradiction avec la demande d'attestation en section 3).
+    expect(mentionOnly.rappelPourOuvrir).toBeNull();
+  });
+
   it("les possessifs côté ARTISAN (votre devis, vos tarifs) ne sont PAS inversés", () => {
     const conclusion = {
       ...baseConclusion,
