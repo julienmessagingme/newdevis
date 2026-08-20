@@ -143,6 +143,10 @@ export interface ConclusionData {
    */
   leviers?: Array<{
     niveau: "puissant" | "important" | "bonus";
+    /** Phase 4 tranche 1+ : negocier = fait baisser le prix ; securiser = protège. */
+    objectif?: "negocier" | "securiser";
+    /** Phase 4 tranche 2 : identifiant machine-lisible (aligne fiche + message). */
+    type?: string;
     titre: string;
     detail: string;
   }>;

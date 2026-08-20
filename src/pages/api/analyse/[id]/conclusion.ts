@@ -1352,6 +1352,65 @@ export const POST: APIRoute = async ({ params, request }) => {
         engine_version: ENGINE_VERSION,
       };
 
+      // 🟢 Phase 4 tranche 2 (2026-08-20) — leviers visibles SOUS bypass
+      // (leçon ZenCouverture) : un devis trop synthétique porte quand même des
+      // leviers STRUCTURELS réels — quantités (par définition), acompte élevé,
+      // clauses, âge du devis. Best-effort : un échec ici ne casse jamais le
+      // bypass. Le verdict_ligne n'est PAS généré (la bannière est le hero).
+      try {
+        const exView = (extractedActuel ?? extractedLegacy2 ?? {}) as Record<string, unknown>;
+        let earlyCriteresOranges: string[] = [];
+        try {
+          const _sc = typeof analysis.score === "string"
+            ? JSON.parse(analysis.score)
+            : (analysis.score as Record<string, unknown> | null) || {};
+          if (Array.isArray((_sc as Record<string, unknown>)?.criteres_oranges)) {
+            earlyCriteresOranges = (_sc as Record<string, unknown>).criteres_oranges as string[];
+          }
+        } catch {
+          const _rawSc = (parsed as Record<string, unknown>)?.scoring as Record<string, unknown> | undefined;
+          if (Array.isArray(_rawSc?.criteres_oranges)) earlyCriteresOranges = _rawSc.criteres_oranges as string[];
+        }
+        const clausesB = Array.isArray(exView.clauses_litigieuses)
+          ? (exView.clauses_litigieuses as Array<Record<string, unknown>>)
+              .filter((c) => c && typeof c.type === "string")
+              .map((c) => ({
+                type: String(c.type),
+                gravite: String(c.gravite ?? "orange"),
+                citation: typeof c.citation === "string" ? c.citation : undefined,
+              }))
+          : [];
+        const paiementB = (exView.paiement as Record<string, unknown>) || {};
+        const acompteCritB = earlyCriteresOranges.find((c) => /acompte\s+cumul/i.test(c));
+        const acomptePctB = acompteCritB?.match(/\((\d+(?:[.,]\d+)?)\s*%/)
+          ? parseFloat(acompteCritB.match(/\((\d+(?:[.,]\d+)?)\s*%/)![1].replace(",", "."))
+          : (typeof paiementB.acompte_pct === "number" ? paiementB.acompte_pct : null);
+        const comptesCritB = earlyCriteresOranges.find((c) =>
+          /comptes\s+non\s+(accessibles|publi[ée]s|d[ée]pos[ée]s)/i.test(c),
+        );
+        const totauxB = (exView.totaux as Record<string, unknown>) || {};
+        const datesB = (exView.dates as Record<string, unknown>) || {};
+        const leviersBypass = buildLeviers({
+          verdict_decisionnel: "signer_avec_negociation",
+          total_ht: typeof totauxB.ht === "number" ? totauxB.ht : null,
+          work_type: (analysis.work_type as string) || null,
+          surcout: { min: 0, max: 0 },
+          anomalies_postes: [],
+          quantites_manquantes: true,
+          clauses_litigieuses: clausesB,
+          acompte_cumule_pct: acomptePctB,
+          paiement_especes_seul: false,
+          entreprise_risque: null,
+          assurance_absente: false,
+          date_devis: typeof datesB.date_devis === "string" ? datesB.date_devis : null,
+          comptes_opaques: Boolean(comptesCritB),
+          comptes_depuis: comptesCritB?.match(/\b(20\d{2})\b/)?.[1] ?? null,
+        });
+        (incompleteConclusion as ConclusionData).leviers = leviersBypass;
+      } catch (bypassP4Err) {
+        console.warn("[conclusion] Phase 4 leviers sous bypass incomplete — échec best-effort:", bypassP4Err instanceof Error ? bypassP4Err.message : bypassP4Err);
+      }
+
       // Extrait le montant TTC pour la nouvelle règle Piste C (Option 3,
       // 2026-08-02) : gros devis incomplete → pending_review, petits →
       // auto_approved silencieux avec la bannière produit.
@@ -2272,6 +2331,28 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     }
     const hasUnitsMissing = unitMissingRatio > 0.50;
 
+    // 2026-08-20 (tranche 2, cas FCE clim) — garde ÉQUIPEMENT hoistée ici pour
+    // couvrir AUSSI l'action V3.4.17 « UNITÉS PRÉCISÉES » (avant, seule la
+    // Phase 4 la respectait : le levier « quantités » disparaissait mais
+    // l'action absurde « 1 ligne sur 1 n'a pas d'unité » restait affichée sur
+    // les devis d'équipement — contradiction fiche ↔ leviers). Miroir de la
+    // garde « libellés de lot » d'incomplete-quote.ts : si la majorité des
+    // lignes sans unité physique porte une référence produit alphanumérique,
+    // c'est un devis d'équipement — qty=1 est sa quantification naturelle.
+    const PRODUCT_CODE_RE_UNITS = /\b(?=[A-Za-z0-9-]{4,}\b)(?:[A-Za-z]+\d|\d+[A-Za-z])[A-Za-z0-9-]*\b/;
+    const TRIVIAL_UNITS_T2 = new Set(["", "ens", "ensemble", "forfait", "fft", "ff", "f", "lot", "unite", "unité", "u", "u."]);
+    const travauxForUnits = Array.isArray(extractedView.travaux)
+      ? (extractedView.travaux as Array<Record<string, unknown>>)
+      : [];
+    const unitlessTravaux = travauxForUnits.filter((t) =>
+      TRIVIAL_UNITS_T2.has(String(t?.unite ?? "").trim().toLowerCase())
+    );
+    const unitlessWithCode = unitlessTravaux.filter((t) =>
+      PRODUCT_CODE_RE_UNITS.test(String(t?.libelle ?? "").split("\n")[0])
+    ).length;
+    const equipmentLikeQuote = unitlessTravaux.length > 0 && unitlessWithCode / unitlessTravaux.length >= 0.5;
+    const unitsMissingEffective = hasUnitsMissing && !equipmentLikeQuote;
+
     // V3.5.0 Phase C — Détection mode vectoriel
     // Si le matcher vectoriel a tourné, chaque "groupe" contient une seule ligne
     // devis (1 ligne = 1 match catalogue). Du coup la garde "groupement invalide"
@@ -2461,9 +2542,14 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // V3.4.17 — Action prioritaire si unités manquantes globales OU groupements
     // invalides. Cette action remonte EN TÊTE, avant les actions Gemini et surface.
     const v3417Actions: string[] = [];
-    if (hasUnitsMissing) {
+    // 2026-08-20 (tranche 2) — `unitsMissingEffective` : pas d'action unités
+    // sur un devis d'équipement (références produit = quantification naturelle).
+    if (unitsMissingEffective) {
+      const countPhrase = linesWithoutUnitCount === totalLinesCount
+        ? "aucune ligne ne précise d'unité"
+        : `${linesWithoutUnitCount} ligne${linesWithoutUnitCount > 1 ? "s" : ""} sur ${totalLinesCount} n'${linesWithoutUnitCount > 1 ? "ont" : "a"} pas d'unité explicite`;
       v3417Actions.push(
-        `Demandez à l'artisan un devis détaillé avec UNITÉS PRÉCISÉES (m², ml, U ou forfait) pour CHAQUE ligne — ${linesWithoutUnitCount} ligne${linesWithoutUnitCount > 1 ? "s" : ""} sur ${totalLinesCount} n'${linesWithoutUnitCount > 1 ? "ont" : "a"} pas d'unité explicite, la comparaison aux prix du marché n'est pas fiable sans cette précision.`
+        `Demandez à l'artisan un devis détaillé avec UNITÉS PRÉCISÉES (m², ml, U ou forfait) pour CHAQUE ligne — ${countPhrase}, la comparaison aux prix du marché n'est pas fiable sans cette précision.`
       );
     }
     if (hasInvalidGroupings && !hasUnitsMissing) {
@@ -2771,24 +2857,10 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           ? paiementData.acompte_pct
           : null;
 
-      // 2026-08-17 (cas FCE clim) — `hasUnitsMissing` brut est FAUX sur les devis
-      // d'équipement (clim, chaudière, menuiseries : qty=1 sans unité physique
-      // est leur quantification naturelle). Miroir de la garde « libellés de
-      // lot » d'incomplete-quote.ts (Deno) : si la majorité des lignes sans
-      // unité porte une référence produit alphanumérique, ne PAS réclamer des
-      // m² — le levier « exigez les quantités » serait absurde.
-      const PRODUCT_CODE_RE = /\b(?=[A-Za-z0-9-]{4,}\b)(?:[A-Za-z]+\d|\d+[A-Za-z])[A-Za-z0-9-]*\b/;
-      const TRIVIAL_UNITS_P4 = new Set(["", "ens", "ensemble", "forfait", "fft", "ff", "f", "lot", "unite", "unité", "u", "u."]);
-      const travauxForP4 = Array.isArray(extractedView.travaux)
-        ? (extractedView.travaux as Array<Record<string, unknown>>)
-        : [];
-      const unitlessP4 = travauxForP4.filter((t) =>
-        TRIVIAL_UNITS_P4.has(String(t?.unite ?? "").trim().toLowerCase())
-      );
-      const unitlessWithProductCode = unitlessP4.filter((t) =>
-        PRODUCT_CODE_RE.test(String(t?.libelle ?? "").split("\n")[0])
-      ).length;
-      const equipmentLike = unitlessP4.length > 0 && unitlessWithProductCode / unitlessP4.length >= 0.5;
+      // 2026-08-17 (cas FCE clim) — garde équipement : calculée en amont
+      // (`unitsMissingEffective`, cf. bloc V3.4.17) et partagée avec l'action
+      // « UNITÉS PRÉCISÉES » depuis la tranche 2 (2026-08-20) pour que l'action
+      // et le levier racontent la même histoire.
 
       // 2026-08-20 (validé Johan, cas Renov'Toitures) — comptes non publiés :
       // signal combiné à l'acompte > 30 % dans leviersBuilder (escalade
@@ -2803,7 +2875,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         work_type: workType || null,
         surcout: { min: surcoutMin, max: surcoutMax },
         anomalies_postes: sanitizedAnomalies.map((a) => a.poste).filter((p): p is string => Boolean(p)),
-        quantites_manquantes: Boolean(hasUnitsMissing) && !equipmentLike,
+        quantites_manquantes: Boolean(unitsMissingEffective),
         clauses_litigieuses: clausesRaw,
         acompte_cumule_pct: acomptePct,
         paiement_especes_seul: criteres_rouges.some((c) => /esp[eè]ces\s+uniquement/i.test(c)),

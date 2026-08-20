@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildPreparationSections,
   extractArtisanFirstName,
+  levierQuestion,
 } from "./preparationBuilder";
 import type { ConclusionData } from "./conclusionTypes";
 
@@ -499,6 +500,50 @@ describe("preparationBuilder — buildPreparationSections", () => {
     expect(rappelPourOuvrir).toBeNull();
     expect(aDemander).toEqual([]);
     expect(aNePasOublier).toEqual([]);
+  });
+});
+
+// ── Phase 4 tranche 2 (2026-08-20) — alignement fiche + message ↔ leviers ────
+describe("preparationBuilder — réconciliation leviers", () => {
+  it("une action couvrant le sujet d'un levier est dédupliquée de la fiche", () => {
+    const conclusion: ConclusionData = {
+      ...baseConclusion,
+      leviers: [
+        { niveau: "puissant", objectif: "negocier", type: "quantites", titre: "Exigez les quantités précises (m², ml) pour chaque poste", detail: "…" },
+      ],
+      actions_avant_signature: [
+        "Demandez à l'artisan un devis détaillé avec UNITÉS PRÉCISÉES (m², ml, U ou forfait) pour CHAQUE ligne — aucune ligne ne précise d'unité, la comparaison aux prix du marché n'est pas fiable sans cette précision.",
+        "Demandez le détail des couleurs choisies pour la façade",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    const all = aDemander.map((x) => x.context).join(" ");
+    // Le sujet « unités/quantités » est porté par le levier → plus dans la fiche
+    expect(all).not.toMatch(/UNITÉS PRÉCISÉES/i);
+    // Les sujets NON couverts restent
+    expect(all).toMatch(/couleurs/i);
+  });
+
+  it("sans levier (conclusion pré-Phase 4) → comportement historique intact", () => {
+    const conclusion: ConclusionData = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez à l'artisan un devis détaillé avec UNITÉS PRÉCISÉES (m², ml, U ou forfait) pour CHAQUE ligne.",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+  });
+
+  it("levierQuestion — questions déterministes par type", () => {
+    expect(levierQuestion({ niveau: "bonus", objectif: "negocier", type: "revision_tarifaire", titre: "Demandez une révision tarifaire : le devis date de 2024", detail: "" }))
+      .toBe("Votre devis date de 2024 — pouvez-vous l'actualiser aux tarifs en vigueur ?");
+    expect(levierQuestion({ niveau: "important", objectif: "negocier", type: "surcout_postes", titre: "Négociez les postes au-dessus du marché (Cloison plâtre BA13, Pose cuisine)", detail: "" }))
+      .toContain("Cloison plâtre BA13, Pose cuisine");
+    expect(levierQuestion({ niveau: "puissant", objectif: "negocier", type: "acompte", titre: "Ramenez l'acompte (40 % demandés) à 30 % maximum — comptes non publiés", detail: "" }))
+      .toMatch(/30 % maximum.*échéancier/);
+    expect(levierQuestion({ niveau: "puissant", objectif: "negocier", type: "quantites", titre: "Exigez les quantités précises", detail: "" }))
+      .toMatch(/quantités précises.*prix unitaire/);
   });
 });
 

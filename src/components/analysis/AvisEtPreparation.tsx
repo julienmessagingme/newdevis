@@ -91,12 +91,19 @@ export default function AvisEtPreparation({
 
   if (isBypass) {
     return (
-      <AvisSurLeDevis
-        conclusion={conclusion}
-        comparableCount={comparableCount}
-        totalCount={totalCount}
-        criticalReasons={criticalReasons}
-      />
+      <div className="space-y-2">
+        <AvisSurLeDevis
+          conclusion={conclusion}
+          comparableCount={comparableCount}
+          totalCount={totalCount}
+          criticalReasons={criticalReasons}
+        />
+        {/* 🟢 Phase 4 tranche 2 (2026-08-20, leçon ZenCouverture) — même sous
+            bypass (devis incomplet…), les leviers STRUCTURELS réels (quantités,
+            acompte, clauses) restent visibles. Le composant s'auto-masque si le
+            serveur n'a pas généré de leviers (hors_scope, étranger, courtier). */}
+        <LeviersNegociation conclusion={conclusion} />
+      </div>
     );
   }
 

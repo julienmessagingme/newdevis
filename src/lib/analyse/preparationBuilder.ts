@@ -23,6 +23,75 @@
 
 import type { ConclusionData } from "./conclusionTypes";
 
+type ConclusionLevier = NonNullable<ConclusionData["leviers"]>[number];
+
+/**
+ * 🟢 Phase 4 tranche 2 (2026-08-20) — alignement fiche + message copiable sur
+ * les leviers (spec Maillon 3, exigence 3 : « message aligné sur les VRAIS
+ * leviers, pas sur les fausses anomalies »).
+ *
+ * - `levierQuestion(levier)` : la question prononçable/copiable portée par un
+ *   levier, déterministe par `type` (jamais de matching de libellés français).
+ * - `LEVIER_TOPIC_PATTERNS` : par type de levier, le motif qui reconnaît les
+ *   actions Gemini couvrant le MÊME sujet — elles sont dédupliquées de la
+ *   fiche (le bloc « Vos leviers de négociation » affiché juste au-dessus
+ *   raconte déjà l'histoire, mieux).
+ */
+export function levierQuestion(levier: ConclusionLevier): string | null {
+  switch (levier.type) {
+    case "quantites":
+      return "Pouvez-vous me transmettre un devis détaillé avec les quantités précises (m², ml, unités) et le prix unitaire de chaque prestation ?";
+    case "acompte":
+      return "Pouvez-vous ramener l'acompte à 30 % maximum, avec un échéancier calé sur l'avancement du chantier ?";
+    case "clause_rouge":
+      return "Pouvez-vous retirer la clause signalée de votre devis avant signature ?";
+    case "clause_orange":
+      return "Pouvez-vous préciser ou retirer la clause contractuelle signalée dans le devis ?";
+    case "especes":
+      return "Pouvez-vous accepter un règlement par virement ou par chèque ?";
+    case "surcout_postes": {
+      const postes = levier.titre.match(/\(([^)]+)\)/)?.[1];
+      return postes
+        ? `Pouvez-vous revoir le prix des postes suivants : ${postes} ? Ils dépassent les fourchettes du marché que j'ai consultées.`
+        : "Pouvez-vous revoir les postes dont les prix dépassent les fourchettes du marché ?";
+    }
+    case "revision_tarifaire": {
+      const annee = levier.titre.match(/\b(20\d{2})\b/)?.[1];
+      return annee
+        ? `Votre devis date de ${annee} — pouvez-vous l'actualiser aux tarifs en vigueur ?`
+        : "Pouvez-vous actualiser le devis aux tarifs en vigueur ?";
+    }
+    case "entreprise":
+      return "Avant d'aller plus loin, pouvez-vous m'éclairer sur la situation administrative de l'entreprise ?";
+    case "assurance":
+      return "Pouvez-vous me transmettre vos attestations d'assurance décennale et RC Pro à jour ?";
+    case "references":
+      return "Pouvez-vous me partager les coordonnées de 2-3 chantiers récents similaires ?";
+    default:
+      return null;
+  }
+}
+
+const LEVIER_TOPIC_PATTERNS: Record<string, RegExp> = {
+  quantites: /quantit|unit[ée]s\s+précis|devis\s+détaillé/i,
+  acompte: /acompte/i,
+  clause_rouge: /clause/i,
+  clause_orange: /clause/i,
+  especes: /esp[eè]ces|virement|traçable/i,
+  surcout_postes: /n[ée]goci[ée\w]*\s+le(?:s)?\s+poste|poste[^.]{0,60}march[ée]|au-dessus\s+du\s+march[ée]/i,
+  revision_tarifaire: /r[ée]vision\s+tarifaire|actualis|date\s+de\s+20\d{2}/i,
+  entreprise: /statut\s+juridique|radi[ée]|situation\s+de\s+l[''`]entreprise/i,
+  references: /r[ée]f[ée]rences?\s+de\s+chantiers/i,
+};
+
+/** true si l'action Gemini couvre le sujet d'un des leviers fournis. */
+function actionCoveredByLevier(action: string, leviers: ConclusionLevier[]): boolean {
+  return leviers.some((l) => {
+    const rx = l.type ? LEVIER_TOPIC_PATTERNS[l.type] : undefined;
+    return rx ? rx.test(action) : false;
+  });
+}
+
 export interface PreparationSections {
   /** Phrase courte d'ouverture (null si aucun point_ok pertinent). */
   rappelPourOuvrir: string | null;
@@ -507,11 +576,21 @@ export function buildPreparationSections(
   const comptesSource = [...actions, ...alertes].find((s) => COMPTES_OPAQUES_RE.test(s)) ?? null;
   const SANTE_FIN_RE = /(bonne\s+)?sant[ée]\s+financi[èe]re/i;
 
+  // 🟢 Phase 4 tranche 2 (2026-08-20) — les actions couvrant le sujet d'un
+  // LEVIER sont dédupliquées de la fiche : le bloc « Vos leviers de
+  // négociation » (affiché juste au-dessus) porte déjà ces sujets, mieux
+  // hiérarchisés. La fiche ne garde que le complément (autres questions,
+  // pièces). Le message copiable, lui, est reconstruit à partir des leviers
+  // (cf. buildWrittenMessages côté composant).
+  const leviersForDedup = (conclusion.leviers ?? []).filter((l) => l && l.type);
+
   const inSection2 = new Set<string>();
   const aDemander = actions
     .filter((a) => {
       // Redondant avec le conseil de prudence comptes → retiré de la fiche.
       if (comptesSource && SANTE_FIN_RE.test(a)) return false;
+      // Sujet déjà porté par un levier → dédupliqué.
+      if (actionCoveredByLevier(a, leviersForDedup)) return false;
       const isCheckOrConfirm = CONFIRMER_PREFIXES.test(a) || PRECISER_PREFIXES.test(a);
       const isNegoOrClarif = isClarificationOrNegotiation(a);
       const nonStandard = !isStandardAction(a);

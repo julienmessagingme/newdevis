@@ -53,6 +53,24 @@ export interface LevierSignals {
   comptes_depuis?: string | null;
 }
 
+/**
+ * 2026-08-20 (tranche 2) — identifiant machine-lisible du levier. Permet à
+ * preparationBuilder d'aligner la fiche rendez-vous et le message copiable
+ * sur les leviers (dédup par sujet + question dédiée par type) sans matcher
+ * des libellés français fragiles.
+ */
+export type LevierType =
+  | "entreprise"
+  | "clause_rouge"
+  | "clause_orange"
+  | "quantites"
+  | "especes"
+  | "acompte"
+  | "surcout_postes"
+  | "revision_tarifaire"
+  | "assurance"
+  | "references";
+
 export interface Levier {
   niveau: "puissant" | "important" | "bonus";
   /** 2026-08-18 (retour Johan, cas NECHAB) — un levier de NÉGOCIATION fait
@@ -60,6 +78,7 @@ export interface Levier {
    * le prix (assurance, références). Les confondre rend la promesse
    * « marge 3-5% » creuse. L'UI les présente différemment. */
   objectif: "negocier" | "securiser";
+  type: LevierType;
   titre: string;
   detail: string;
 }
@@ -108,6 +127,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       priority: 110,
       niveau: "puissant",
       objectif: "negocier",
+      type: "entreprise",
       titre: "Clarifiez la situation de l'entreprise avant tout engagement",
       detail: `Nos vérifications signalent : ${s.entreprise_risque}. Tant que ce point n'est pas éclairci, aucun versement ne doit être effectué.`,
     });
@@ -121,6 +141,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       priority: 100,
       niveau: "puissant",
       objectif: "negocier",
+      type: "clause_rouge",
       titre: clausesRouges.length > 1
         ? `Faites retirer les ${clausesRouges.length} clauses abusives avant de signer`
         : "Faites retirer la clause abusive avant de signer",
@@ -133,6 +154,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       priority: 90,
       niveau: "puissant",
       objectif: "negocier",
+      type: "quantites",
       titre: "Exigez les quantités précises (m², ml) pour chaque poste",
       detail: "C'est le levier le plus puissant : il oblige l'artisan à justifier chaque prix et vous permet de comparer réellement. Sans quantités, impossible de savoir si le prix est juste.",
     });
@@ -143,6 +165,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       priority: 85,
       niveau: "puissant",
       objectif: "negocier",
+      type: "especes",
       titre: "Exigez un mode de paiement traçable (virement ou chèque)",
       detail: "Les espèces comme seul mode de paiement sont illégales au-delà de 1 000 € pour un professionnel, et vous privent de toute preuve en cas de litige.",
     });
@@ -158,6 +181,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       priority: 80,
       niveau: "puissant",
       objectif: "negocier",
+      type: "acompte",
       titre: `Ramenez l'acompte avant travaux de ${Math.round(s.acompte_cumule_pct)} % à 30 % maximum`,
       detail: `L'usage est de 30 % à la signature, puis des paiements à l'avancement. Verser davantage avant le premier jour de chantier vous expose en cas de défaillance de l'entreprise.${comptesCtx}`,
     });
@@ -172,6 +196,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       priority: 70,
       niveau: "important",
       objectif: "negocier",
+      type: "surcout_postes",
       titre: postes.length > 0
         ? `Négociez les postes au-dessus du marché (${postes.join(", ")})`
         : "Négociez les postes au-dessus du marché",
@@ -188,6 +213,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
         priority: 82,
         niveau: "puissant",
         objectif: "negocier",
+        type: "acompte",
         titre: `Ramenez l'acompte (${Math.round(s.acompte_cumule_pct)} % demandés) à 30 % maximum — comptes non publiés`,
         detail: `Combinaison à risque : un acompte au-dessus de l'usage demandé par une société qui ne publie pas ses comptes${s.comptes_depuis ? ` depuis ${s.comptes_depuis}` : ""} — sa santé financière récente est invérifiable. Limitez votre exposition : 30 % maximum à la signature, solde échelonné sur l'avancement réel du chantier.`,
       });
@@ -196,6 +222,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
         priority: 60,
         niveau: "important",
         objectif: "negocier",
+        type: "acompte",
         titre: `Négociez l'acompte (${Math.round(s.acompte_cumule_pct)} % demandés) vers 30 %`,
         detail: "30 % à la signature est l'usage. Un échéancier adossé à l'avancement réel du chantier protège les deux parties.",
       });
@@ -210,6 +237,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       priority: 55,
       niveau: "important",
       objectif: "negocier",
+      type: "clause_orange",
       titre: "Discutez la clause contractuelle signalée",
       detail: `Le devis mentionne : « ${(c.citation ?? "").slice(0, 120)}${(c.citation ?? "").length > 120 ? "…" : ""} » — ${label}.`,
     });
@@ -223,6 +251,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       priority: 40,
       niveau: "bonus",
       objectif: "negocier",
+      type: "revision_tarifaire",
       titre: `Demandez une révision tarifaire : le devis date de ${annee}`,
       detail: `Les coûts matériaux et main-d'œuvre évoluent de 5 à 8 % par an. Un devis de ${annee} relu aujourd'hui justifie une demande d'actualisation — dans un sens comme dans l'autre, mieux vaut la provoquer que la subir en cours de chantier.`,
     });
@@ -233,6 +262,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       priority: 30,
       niveau: "bonus",
       objectif: "securiser",
+      type: "assurance",
       titre: "Demandez l'attestation d'assurance décennale et RC Pro",
       detail: "L'attestation à jour se demande par simple mail — c'est une formalité pour un artisan assuré, et une protection indispensable pour vous.",
     });
@@ -243,6 +273,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     priority: 10,
     niveau: "bonus",
     objectif: "securiser",
+    type: "references",
     titre: "Demandez 2-3 références de chantiers récents similaires",
     detail: "Un artisan fier de son travail les partage volontiers. C'est aussi l'occasion d'ouvrir la discussion sur un ton constructif.",
   });
@@ -261,7 +292,7 @@ export function buildLeviers(s: LevierSignals): Levier[] {
       return true;
     })
     .slice(0, 3)
-    .map(({ niveau, objectif, titre, detail }) => ({ niveau, objectif, titre, detail }));
+    .map(({ niveau, objectif, type, titre, detail }) => ({ niveau, objectif, type, titre, detail }));
 }
 
 /**

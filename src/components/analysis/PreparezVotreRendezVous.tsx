@@ -18,6 +18,7 @@ import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 import {
   buildPreparationSections,
   extractArtisanFirstName,
+  levierQuestion,
 } from "@/lib/analyse/preparationBuilder";
 
 interface Props {
@@ -46,15 +47,22 @@ export default function PreparezVotreRendezVous({
   const prenom = useMemo(() => extractArtisanFirstName(entrepriseName), [entrepriseName]);
   const titleSuffix = prenom ? prenom : "votre artisan";
 
+  // Tranche 2 — si les leviers portent des questions de négociation, le
+  // message copiable existe même quand la fiche est vide (toutes les actions
+  // dédupliquées par les leviers) : on garde le bloc pour l'accordéon.
+  const hasLevierQuestions = (conclusion.leviers ?? []).some(
+    (l) => l.objectif !== "securiser",
+  );
   const nothingToShow =
     !sections.rappelPourOuvrir &&
     sections.aDemander.length === 0 &&
     sections.aNePasOublier.length === 0 &&
-    sections.conseilsPrudence.length === 0;
+    sections.conseilsPrudence.length === 0 &&
+    !hasLevierQuestions;
 
   const writtenMessages = useMemo(
-    () => buildWrittenMessages(sections, prenom),
-    [sections, prenom],
+    () => buildWrittenMessages(sections, prenom, conclusion.leviers ?? []),
+    [sections, prenom, conclusion.leviers],
   );
 
   const handleCopyMessage = (channel: "mail" | "sms" | "whatsapp") => {
@@ -263,17 +271,27 @@ function lcFirstSafe(s: string): string {
 function buildWrittenMessages(
   sections: ReturnType<typeof buildPreparationSections>,
   prenom: string | null,
+  leviers: NonNullable<ConclusionData["leviers"]>,
 ): { mail: string; sms: string; whatsapp: string } {
   const salut = prenom ? `Bonjour ${prenom},` : "Bonjour,";
   const signature = "\n\nBien cordialement,";
 
-  // Section 2 — les items deviennent des QUESTIONS directes à l'artisan
-  // (« Pouvez-vous me confirmer X ? » plutôt que « Vérifiez X »).
-  // On utilise le champ `question` (spécifique au sujet), pas le `context`
-  // (qui reste à l'impératif d'origine).
-  const questionsCleaned = sections.aDemander
-    .map((item) => stripFrenchQuotes(item.question))
-    .filter((s) => s.length > 0);
+  // 🟢 Phase 4 tranche 2 (2026-08-20) — le message est ALIGNÉ SUR LES LEVIERS
+  // (spec Maillon 3, exigence 3) : les questions des leviers de négociation
+  // arrivent en tête (dans l'ordre de puissance), puis les questions
+  // complémentaires de la fiche (déjà dédupliquées par sujet côté
+  // preparationBuilder). Cap à 5 questions — un mail n'est pas une liste.
+  const levierQuestions = leviers
+    .filter((l) => l.objectif !== "securiser")
+    .map((l) => levierQuestion(l))
+    .filter((q): q is string => Boolean(q));
+
+  const questionsCleaned = [
+    ...levierQuestions,
+    ...sections.aDemander
+      .map((item) => stripFrenchQuotes(item.question))
+      .filter((s) => s.length > 0),
+  ].slice(0, 5);
 
   const oubliCleaned = sections.aNePasOublier
     .map((o) => trimTrailingDot(o))
