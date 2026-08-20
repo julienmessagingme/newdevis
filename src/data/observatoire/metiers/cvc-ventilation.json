@@ -2,23 +2,29 @@
   "slug": "cvc-ventilation",
   "metier": "cvc_ventilation",
   "metier_label": "CVC & ventilation",
-  "title": "Prix cvc & ventilation 2026 : fourchette sur 32 devis",
+  "title": "Prix cvc & ventilation 2026 : fourchette sur 34 devis",
   "description": "CVC & ventilation : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-14T23:03:12.824Z",
-  "intro": "Nous avons analysé 32 devis contenant au moins une ligne du métier CVC & ventilation. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-20T21:27:28.002Z",
+  "intro": "Nous avons analysé 34 devis contenant au moins une ligne du métier CVC & ventilation. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 32,
-    "nb_lignes": 39,
-    "prix_moyen": 2614.25,
-    "prix_median": 618.94,
+    "nb_devis": 34,
+    "nb_lignes": 41,
+    "prix_moyen": 2557.22,
+    "prix_median": 760,
     "prix_min": 88.62,
     "prix_max": 14424.78,
-    "prix_p25": 325.14,
-    "prix_p75": 2700,
-    "panier_moyen": 6475.36,
-    "ratio_moyen_vs_marche": 1.511
+    "prix_p25": 350.28,
+    "prix_p75": 2650,
+    "panier_moyen": 6263.88,
+    "ratio_moyen_vs_marche": 1.626
   },
-  "postesSurfactures": [],
+  "postesSurfactures": [
+    {
+      "label": "VMC SDB simple flux (fourni+posé)",
+      "ratio_median": 2.317,
+      "nb_obs": 3
+    }
+  ],
   "conseils": [
     "Type de VMC précisé (simple flux / double flux hygro-B).",
     "Marque : Aldes, Atlantic, Nather, Zehnder.",

@@ -2,21 +2,21 @@
   "slug": "menuiserie-vitrages",
   "metier": "menuiserie_vitrages",
   "metier_label": "Menuiserie & vitrages",
-  "title": "Prix menuiserie 2026 : fourchette sur 85 devis analysés",
+  "title": "Prix menuiserie 2026 : fourchette sur 86 devis analysés",
   "description": "Prix fenêtres, portes et vitrages en 2026 : fourchette réelle des devis analysés par VerifierMonDevis, écarts entre matériaux, pièges à éviter.",
-  "lastGenerated": "2026-08-14T23:03:12.828Z",
-  "intro": "Nous avons analysé 85 devis contenant au moins une ligne du métier Menuiserie & vitrages. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-20T21:27:28.008Z",
+  "intro": "Nous avons analysé 86 devis contenant au moins une ligne du métier Menuiserie & vitrages. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 85,
-    "nb_lignes": 120,
-    "prix_moyen": 1788.29,
-    "prix_median": 1160.85,
-    "prix_min": 35,
+    "nb_devis": 86,
+    "nb_lignes": 121,
+    "prix_moyen": 1773.76,
+    "prix_median": 1158.5,
+    "prix_min": 30,
     "prix_max": 26075.8,
-    "prix_p25": 663.4,
-    "prix_p75": 2338.18,
-    "panier_moyen": 4184.17,
-    "ratio_moyen_vs_marche": 2.517
+    "prix_p25": 659.22,
+    "prix_p75": 2328.52,
+    "panier_moyen": 4149.84,
+    "ratio_moyen_vs_marche": 2.495
   },
   "postesSurfactures": [
     {

@@ -2,21 +2,21 @@
   "slug": "placo-isolation",
   "metier": "placo_isolation",
   "metier_label": "Placo & isolation",
-  "title": "Prix placo & isolation 2026 : fourchette sur 56 devis",
+  "title": "Prix placo & isolation 2026 : fourchette sur 58 devis",
   "description": "Placo & isolation : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-14T23:03:12.833Z",
-  "intro": "Nous avons analysé 56 devis contenant au moins une ligne du métier Placo & isolation. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-20T21:27:28.012Z",
+  "intro": "Nous avons analysé 58 devis contenant au moins une ligne du métier Placo & isolation. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 56,
-    "nb_lignes": 204,
-    "prix_moyen": 260.4,
+    "nb_devis": 58,
+    "nb_lignes": 207,
+    "prix_moyen": 257.6,
     "prix_median": 55,
     "prix_min": 9,
     "prix_max": 25420.67,
-    "prix_p25": 53.14,
-    "prix_p75": 57.75,
-    "panier_moyen": 2155.05,
-    "ratio_moyen_vs_marche": 5.837
+    "prix_p25": 52.09,
+    "prix_p75": 60,
+    "panier_moyen": 2148.1,
+    "ratio_moyen_vs_marche": 5.767
   },
   "postesSurfactures": [
     {

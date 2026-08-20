@@ -2,21 +2,21 @@
   "slug": "peinture-revetements",
   "metier": "peinture_revetements",
   "metier_label": "Peinture & revêtements",
-  "title": "Prix peinture 2026 : fourchette au m² sur 66 devis",
+  "title": "Prix peinture 2026 : fourchette au m² sur 65 devis",
   "description": "Prix peinture, papier peint, revêtements de sol : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts entre finitions.",
-  "lastGenerated": "2026-08-14T23:03:12.832Z",
-  "intro": "Nous avons analysé 66 devis contenant au moins une ligne du métier Peinture & revêtements. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-20T21:27:28.011Z",
+  "intro": "Nous avons analysé 65 devis contenant au moins une ligne du métier Peinture & revêtements. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 66,
-    "nb_lignes": 118,
-    "prix_moyen": 604.84,
-    "prix_median": 55.3,
+    "nb_devis": 65,
+    "nb_lignes": 117,
+    "prix_moyen": 609.67,
+    "prix_median": 58.12,
     "prix_min": 2.99,
     "prix_max": 14666.67,
-    "prix_p25": 25.66,
-    "prix_p75": 432.04,
-    "panier_moyen": 2912.6,
-    "ratio_moyen_vs_marche": 16.719
+    "prix_p25": 25.19,
+    "prix_p75": 480,
+    "panier_moyen": 2909.43,
+    "ratio_moyen_vs_marche": 16.87
   },
   "postesSurfactures": [
     {

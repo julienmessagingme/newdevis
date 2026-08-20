@@ -4,19 +4,19 @@
   "metier_label": "Carrelage & faïence",
   "title": "Prix carrelage 2026 : fourchette au m² sur 59 devis",
   "description": "Prix pose carrelage sol et faïence : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, dépose et primaire à surveiller.",
-  "lastGenerated": "2026-08-14T23:03:12.822Z",
+  "lastGenerated": "2026-08-20T21:27:28.000Z",
   "intro": "Nous avons analysé 59 devis contenant au moins une ligne du métier Carrelage & faïence. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
     "nb_devis": 59,
     "nb_lignes": 135,
-    "prix_moyen": 372.41,
+    "prix_moyen": 365.73,
     "prix_median": 80,
     "prix_min": 0.44,
     "prix_max": 5300,
     "prix_p25": 25,
-    "prix_p75": 239.63,
+    "prix_p75": 234,
     "panier_moyen": 1538.45,
-    "ratio_moyen_vs_marche": 8.486
+    "ratio_moyen_vs_marche": 8.384
   },
   "postesSurfactures": [
     {

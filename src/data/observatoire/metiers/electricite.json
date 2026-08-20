@@ -2,27 +2,27 @@
   "slug": "electricite",
   "metier": "electricite",
   "metier_label": "Électricité",
-  "title": "Prix rénovation électrique 2026 : sur 32 devis analysés",
+  "title": "Prix rénovation électrique 2026 : sur 33 devis analysés",
   "description": "Rénovation électrique complète ou partielle : combien prévoir en 2026 ? Fourchette des devis analysés, tableau, prises, luminaires, aides.",
-  "lastGenerated": "2026-08-14T23:03:12.826Z",
-  "intro": "Nous avons analysé 32 devis contenant au moins une ligne du métier Électricité. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-20T21:27:28.004Z",
+  "intro": "Nous avons analysé 33 devis contenant au moins une ligne du métier Électricité. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 32,
-    "nb_lignes": 66,
-    "prix_moyen": 916.93,
-    "prix_median": 143.61,
+    "nb_devis": 33,
+    "nb_lignes": 76,
+    "prix_moyen": 909.96,
+    "prix_median": 137.19,
     "prix_min": 13.49,
     "prix_max": 13200,
-    "prix_p25": 103.18,
-    "prix_p75": 493.92,
-    "panier_moyen": 2665.75,
-    "ratio_moyen_vs_marche": 12.844
+    "prix_p25": 82.11,
+    "prix_p75": 441.75,
+    "panier_moyen": 2431.84,
+    "ratio_moyen_vs_marche": 15.636
   },
   "postesSurfactures": [
     {
       "label": "Saignées / rebouchage (élec)",
-      "ratio_median": 10.161,
-      "nb_obs": 8
+      "ratio_median": 13.029,
+      "nb_obs": 9
     },
     {
       "label": "Électricien taux horaire",
@@ -40,9 +40,9 @@
       "nb_obs": 3
     },
     {
-      "label": "Point lumineux",
-      "ratio_median": 0.97,
-      "nb_obs": 15
+      "label": "Prise RJ45 Cat 6 (fourni+posé)",
+      "ratio_median": 1.143,
+      "nb_obs": 6
     }
   ],
   "conseils": [

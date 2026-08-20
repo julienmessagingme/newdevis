@@ -2,21 +2,21 @@
   "slug": "ouvrages-piscine",
   "metier": "ouvrages_piscine",
   "metier_label": "ouvrages piscine",
-  "title": "Prix ouvrages piscine 2026 : fourchette sur 9 devis",
+  "title": "Prix ouvrages piscine 2026 : fourchette sur 8 devis",
   "description": "ouvrages piscine : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-14T23:03:12.831Z",
-  "intro": "Nous avons analysé 9 devis contenant au moins une ligne du métier ouvrages piscine. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-20T21:27:28.011Z",
+  "intro": "Nous avons analysé 8 devis contenant au moins une ligne du métier ouvrages piscine. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 9,
-    "nb_lignes": 14,
-    "prix_moyen": 10934.27,
-    "prix_median": 1495,
+    "nb_devis": 8,
+    "nb_lignes": 13,
+    "prix_moyen": 11674.21,
+    "prix_median": 1675,
     "prix_min": 16.36,
     "prix_max": 98210,
-    "prix_p25": 41.95,
-    "prix_p75": 7112.5,
-    "panier_moyen": 13018,
-    "ratio_moyen_vs_marche": 71.703
+    "prix_p25": 40.14,
+    "prix_p75": 7800,
+    "panier_moyen": 13918.23,
+    "ratio_moyen_vs_marche": 76.348
   },
   "postesSurfactures": [
     {

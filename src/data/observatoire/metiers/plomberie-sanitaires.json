@@ -2,21 +2,21 @@
   "slug": "plomberie-sanitaires",
   "metier": "plomberie_sanitaires",
   "metier_label": "Plomberie & sanitaires",
-  "title": "Prix plomberie 2026 : fourchette sur 58 devis analysés",
+  "title": "Prix plomberie 2026 : fourchette sur 59 devis analysés",
   "description": "Plomberie, sanitaires, robinetterie : combien coûte une intervention en 2026 ? Fourchette des devis analysés, alertes sur les postes à risque.",
-  "lastGenerated": "2026-08-14T23:03:12.833Z",
-  "intro": "Nous avons analysé 58 devis contenant au moins une ligne du métier Plomberie & sanitaires. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-08-20T21:27:28.012Z",
+  "intro": "Nous avons analysé 59 devis contenant au moins une ligne du métier Plomberie & sanitaires. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
   "kpis": {
-    "nb_devis": 58,
-    "nb_lignes": 130,
-    "prix_moyen": 793.05,
-    "prix_median": 322.86,
+    "nb_devis": 59,
+    "nb_lignes": 131,
+    "prix_moyen": 795.9,
+    "prix_median": 330,
     "prix_min": 3.58,
     "prix_max": 10759,
     "prix_p25": 225,
-    "prix_p75": 694.18,
-    "panier_moyen": 1426.7,
-    "ratio_moyen_vs_marche": 6.981
+    "prix_p75": 697.92,
+    "panier_moyen": 1424.71,
+    "ratio_moyen_vs_marche": 7.081
   },
   "postesSurfactures": [
     {
