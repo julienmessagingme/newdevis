@@ -37,7 +37,10 @@ import { buildLeviers, buildVerdictLigne } from "@/lib/analyse/leviersBuilder";
 // de version se feront au fil des phases livrées (1.1, 1.2, 2.0, etc.) et
 // JAMAIS pour patcher un cas user signalé — chaque bug va dans
 // docs/refonte/BUGS-A-CORRIGER.md comme cas test.
-const ENGINE_VERSION = "1.0.0-refonte";
+// 1.1.0-refonte (2026-08-20) — Phase 4 tranches 1+2 livrées : verdict_ligne +
+// leviers hiérarchisés + message aligné. Le bump invalide le cache des
+// conclusions du stock (regen lazy à la visite) pour servir Phase 4 partout.
+const ENGINE_VERSION = "1.1.0-refonte";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // V3.5.16 (2026-06-15) — Piste C : revue humaine assistée
