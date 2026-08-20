@@ -117,6 +117,58 @@ describe("buildLeviers — hiérarchie et cap à 3", () => {
     expect(l!.detail).toContain("593");
   });
 
+  // ── Règle 2026-08-20 (validée Johan) : comptes opaques + acompte > 30 % ───
+  it("comptes opaques + acompte 40% → levier ESCALADÉ puissant nommant la combinaison", () => {
+    const leviers = buildLeviers({
+      ...base,
+      verdict_decisionnel: "signer_avec_negociation",
+      acompte_cumule_pct: 40,
+      comptes_opaques: true,
+      comptes_depuis: "2017",
+    });
+    expect(leviers[0].niveau).toBe("puissant");
+    expect(leviers[0].titre).toContain("comptes non publiés");
+    expect(leviers[0].detail).toContain("Combinaison à risque");
+    expect(leviers[0].detail).toContain("2017");
+    expect(leviers[0].detail).toContain("30 % maximum");
+  });
+
+  it("acompte 40% SANS comptes opaques → levier reste important (pas d'escalade)", () => {
+    const leviers = buildLeviers({ ...base, acompte_cumule_pct: 40 });
+    const acompte = leviers.find((l) => l.titre.includes("acompte"));
+    expect(acompte?.niveau).toBe("important");
+    expect(acompte?.titre).not.toContain("comptes");
+  });
+
+  it("comptes opaques SEULS (acompte 30%) → aucun levier comptes (pas de bruit)", () => {
+    const leviers = buildLeviers({ ...base, comptes_opaques: true, comptes_depuis: "2017" });
+    expect(leviers.some((l) => l.titre.toLowerCase().includes("comptes"))).toBe(false);
+  });
+
+  it("comptes opaques + acompte 70% → détail du levier puissant enrichi", () => {
+    const leviers = buildLeviers({
+      ...base,
+      verdict_decisionnel: "ne_pas_signer",
+      acompte_cumule_pct: 70,
+      comptes_opaques: true,
+    });
+    const acompte = leviers.find((l) => l.titre.includes("acompte"));
+    expect(acompte?.niveau).toBe("puissant");
+    expect(acompte?.detail).toContain("ne publie pas ses comptes");
+  });
+
+  it("verdict — motif nomme la combinaison acompte + comptes opaques", () => {
+    const s: LevierSignals = {
+      ...base,
+      verdict_decisionnel: "signer_avec_negociation",
+      acompte_cumule_pct: 40,
+      comptes_opaques: true,
+    };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).toContain("ne publie pas ses comptes");
+    expect(v.motif).toContain("40 %");
+  });
+
   it("micro-surcoût (180€ sur 48 000€) → PAS de levier prix (bruit)", () => {
     const leviers = buildLeviers({ ...base, total_ht: 48_000, surcout: { min: 100, max: 180 } });
     expect(leviers.some((l) => l.titre.includes("marché"))).toBe(false);

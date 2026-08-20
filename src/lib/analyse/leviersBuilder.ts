@@ -41,6 +41,16 @@ export interface LevierSignals {
   date_devis: string | null;
   /** Date de référence pour l'âge du devis (défaut: maintenant) — testabilité */
   date_reference?: string;
+  /**
+   * 2026-08-20 (validé Johan, cas Renov'Toitures) — la société ne publie pas
+   * ses comptes : santé financière récente invérifiable pour un particulier.
+   * Seul, ce signal n'est PAS un levier (droit à la confidentialité, fréquent).
+   * COMBINÉ à un acompte > 30 %, c'est une combinaison à risque : l'exposition
+   * financière doit être limitée → le levier acompte est escaladé.
+   */
+  comptes_opaques?: boolean;
+  /** Année du dernier exercice publié, si connue (affichage). */
+  comptes_depuis?: string | null;
 }
 
 export interface Levier {
@@ -138,13 +148,18 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     });
   }
 
+  // Contexte « comptes opaques » — enrichit les leviers acompte (2026-08-20).
+  const comptesCtx = s.comptes_opaques
+    ? ` D'autant que la société ne publie pas ses comptes${s.comptes_depuis ? ` depuis ${s.comptes_depuis}` : ""} : sa santé financière récente est invérifiable — limitez votre exposition.`
+    : "";
+
   if (s.acompte_cumule_pct !== null && s.acompte_cumule_pct > 50) {
     out.push({
       priority: 80,
       niveau: "puissant",
       objectif: "negocier",
       titre: `Ramenez l'acompte avant travaux de ${Math.round(s.acompte_cumule_pct)} % à 30 % maximum`,
-      detail: "L'usage est de 30 % à la signature, puis des paiements à l'avancement. Verser davantage avant le premier jour de chantier vous expose en cas de défaillance de l'entreprise.",
+      detail: `L'usage est de 30 % à la signature, puis des paiements à l'avancement. Verser davantage avant le premier jour de chantier vous expose en cas de défaillance de l'entreprise.${comptesCtx}`,
     });
   }
 
@@ -165,13 +180,26 @@ function collectCandidates(s: LevierSignals): Candidate[] {
   }
 
   if (s.acompte_cumule_pct !== null && s.acompte_cumule_pct > 30 && s.acompte_cumule_pct <= 50) {
-    out.push({
-      priority: 60,
-      niveau: "important",
-      objectif: "negocier",
-      titre: `Négociez l'acompte (${Math.round(s.acompte_cumule_pct)} % demandés) vers 30 %`,
-      detail: "30 % à la signature est l'usage. Un échéancier adossé à l'avancement réel du chantier protège les deux parties.",
-    });
+    // 2026-08-20 (validé Johan) — acompte 31-50 % + comptes non publiés =
+    // combinaison à risque : le levier passe « important » → « puissant »
+    // (au-dessus du surcoût matériel) et nomme la combinaison.
+    if (s.comptes_opaques) {
+      out.push({
+        priority: 82,
+        niveau: "puissant",
+        objectif: "negocier",
+        titre: `Ramenez l'acompte (${Math.round(s.acompte_cumule_pct)} % demandés) à 30 % maximum — comptes non publiés`,
+        detail: `Combinaison à risque : un acompte au-dessus de l'usage demandé par une société qui ne publie pas ses comptes${s.comptes_depuis ? ` depuis ${s.comptes_depuis}` : ""} — sa santé financière récente est invérifiable. Limitez votre exposition : 30 % maximum à la signature, solde échelonné sur l'avancement réel du chantier.`,
+      });
+    } else {
+      out.push({
+        priority: 60,
+        niveau: "important",
+        objectif: "negocier",
+        titre: `Négociez l'acompte (${Math.round(s.acompte_cumule_pct)} % demandés) vers 30 %`,
+        detail: "30 % à la signature est l'usage. Un échéancier adossé à l'avancement réel du chantier protège les deux parties.",
+      });
+    }
   }
 
   const clausesOranges = s.clauses_litigieuses.filter((c) => c.gravite === "orange");
@@ -256,7 +284,9 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
   } else if (s.surcout.max >= 300 && (s.total_ht === null || s.surcout.max >= (s.total_ht ?? 0) * 0.015)) {
     motif = `quelques postes dépassent les fourchettes du marché (${fmtEuros(s.surcout.min)}–${fmtEuros(s.surcout.max)} € d'écart estimé)`;
   } else if (s.acompte_cumule_pct !== null && s.acompte_cumule_pct > 30) {
-    motif = `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage de 30 %`;
+    motif = s.comptes_opaques
+      ? `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage alors que la société ne publie pas ses comptes — limitez votre exposition`
+      : `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage de 30 %`;
   } else if (s.verdict_decisionnel === "signer") {
     motif = "prix dans les fourchettes du marché et conditions habituelles";
   } else {

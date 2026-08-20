@@ -2790,6 +2790,13 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       ).length;
       const equipmentLike = unitlessP4.length > 0 && unitlessWithProductCode / unitlessP4.length >= 0.5;
 
+      // 2026-08-20 (validé Johan, cas Renov'Toitures) — comptes non publiés :
+      // signal combiné à l'acompte > 30 % dans leviersBuilder (escalade
+      // « combinaison à risque »). Détecté depuis les critères du scoring.
+      const comptesCritere = [...criteres_rouges, ...criteres_oranges].find((c) =>
+        /comptes\s+non\s+(accessibles|publi[ée]s|d[ée]pos[ée]s)/i.test(c),
+      );
+
       const p4Signals = {
         verdict_decisionnel: verdictDecision as "signer" | "signer_avec_negociation" | "ne_pas_signer",
         total_ht: totalHT,
@@ -2803,6 +2810,8 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         entreprise_risque: preCompanyStatus || null,
         assurance_absente: Boolean(preFlags.absence_assurance),
         date_devis: dateDevis,
+        comptes_opaques: Boolean(comptesCritere),
+        comptes_depuis: comptesCritere?.match(/\b(20\d{2})\b/)?.[1] ?? null,
       };
       const leviers = buildLeviers(p4Signals);
       (conclusionData as ConclusionData).leviers = leviers;
