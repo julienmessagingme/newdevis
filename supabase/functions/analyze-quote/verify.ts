@@ -1,4 +1,5 @@
 import type { ExtractedData, VerificationResult, CompanyPayload, ScoringColor, FinancialRatios } from "./types.ts";
+import { resolveCompanyStatus } from "./company-status.ts";
 import {
   extractSiren,
   getCountryName,
@@ -189,6 +190,8 @@ export async function verifyData(
         const payload = cached.payload as CompanyPayload;
         result.entreprise_immatriculee = payload.is_active;
         result.entreprise_radiee = !payload.is_active;
+        result.etablissement_ferme = payload.etablissement_ferme ?? false;
+        result.etablissement_ferme_date = payload.etablissement_ferme_date ?? null;
         result.procedure_collective = payload.procedure_collective;
         result.date_creation = payload.date_creation;
         result.anciennete_annees = payload.age_years;
@@ -229,22 +232,28 @@ export async function verifyData(
             }
 
             const siege = entreprise.siege || {};
-            // Check both legal entity status AND establishment status.
-            // etat_administratif "A" = actif, "C" = cessé (unité légale)
-            // siege.etat_administratif "A" = actif, "F" = fermé (établissement)
-            // A radiated establishment (SIRET) can have siege.etat_administratif "F"
-            // even if the parent legal entity still shows "A" in some edge cases.
-            const uniteLegaleActive = entreprise.etat_administratif === "A";
-            const siegeFerme = siege.etat_administratif === "F" || !!siege.date_fermeture;
-            const isActive = uniteLegaleActive && !siegeFerme;
+            // 2026-08-20 (cas ARA) — statut résolu par resolveCompanyStatus :
+            // radiée UNIQUEMENT si l'unité légale est cessée. Le `siege` de
+            // l'API peut être périmé (transfert de siège non répercuté) et
+            // `matching_etablissements` porte l'état du SIRET exact vérifié.
+            const st = resolveCompanyStatus({
+              uniteLegaleEtat: entreprise.etat_administratif,
+              lookupSiret: siret,
+              matchingEtablissements: entreprise.matching_etablissements,
+            });
+            const isActive = st.is_active;
 
             const payload: CompanyPayload = {
               date_creation: dateCreation,
               age_years: ageYears,
               is_active: isActive,
+              etablissement_ferme: st.etablissement_ferme,
+              etablissement_ferme_date: st.etablissement_ferme_date,
               nom: entreprise.nom_complet || entreprise.nom_raison_sociale || null,
-              adresse: siege.adresse || (siege.libelle_voie ? `${siege.numero_voie || ""} ${siege.type_voie || ""} ${siege.libelle_voie || ""}`.trim() : null),
-              ville: siege.libelle_commune || siege.commune || null,
+              adresse: st.etab_adresse
+                || siege.adresse
+                || (siege.libelle_voie ? `${siege.numero_voie || ""} ${siege.type_voie || ""} ${siege.libelle_voie || ""}`.trim() : null),
+              ville: st.etab_ville || siege.libelle_commune || siege.commune || null,
               procedure_collective: entreprise.est_en_procedure_collective === true,
             };
 
@@ -266,6 +275,8 @@ export async function verifyData(
 
             result.entreprise_immatriculee = payload.is_active;
             result.entreprise_radiee = !payload.is_active;
+            result.etablissement_ferme = payload.etablissement_ferme ?? false;
+            result.etablissement_ferme_date = payload.etablissement_ferme_date ?? null;
             result.procedure_collective = payload.procedure_collective;
             result.date_creation = payload.date_creation;
             result.anciennete_annees = payload.age_years;
@@ -274,7 +285,7 @@ export async function verifyData(
             result.ville_officielle = payload.ville;
             result.lookup_status = "ok";
 
-            console.log("[Verify] API gouv found:", payload.nom, "| active:", payload.is_active, "| age:", payload.age_years, "years");
+            console.log("[Verify] API gouv found:", payload.nom, "| active:", payload.is_active, "| etab_ferme:", payload.etablissement_ferme, "| age:", payload.age_years, "years");
           } else {
             result.lookup_status = "not_found";
 
@@ -317,9 +328,13 @@ export async function verifyData(
 
             if (match) {
               const siege = match.siege || {};
-              const uniteLegaleActive = match.etat_administratif === "A";
-              const siegeFerme = siege.etat_administratif === "F" || !!siege.date_fermeture;
-              const isActive = uniteLegaleActive && !siegeFerme;
+              // 2026-08-20 (cas ARA) — radiée = unité légale cessée UNIQUEMENT.
+              const st = resolveCompanyStatus({
+                uniteLegaleEtat: match.etat_administratif,
+                lookupSiret: null,
+                matchingEtablissements: match.matching_etablissements,
+              });
+              const isActive = st.is_active;
 
               const dateCreation = match.date_creation || null;
               let ageYears: number | null = null;
@@ -424,9 +439,13 @@ export async function verifyData(
 
           if (match) {
             const siege = match.siege || {};
-            const uniteLegaleActive = match.etat_administratif === "A";
-            const siegeFerme = siege.etat_administratif === "F" || !!siege.date_fermeture;
-            const isActive = uniteLegaleActive && !siegeFerme;
+            // 2026-08-20 (cas ARA) — radiée = unité légale cessée UNIQUEMENT.
+            const st = resolveCompanyStatus({
+              uniteLegaleEtat: match.etat_administratif,
+              lookupSiret: null,
+              matchingEtablissements: match.matching_etablissements,
+            });
+            const isActive = st.is_active;
 
             const dateCreation = match.date_creation || null;
             let ageYears: number | null = null;

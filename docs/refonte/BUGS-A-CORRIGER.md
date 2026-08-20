@@ -178,6 +178,34 @@
   - Input : lignes qty=1 avec libellés génériques de corps de métier (« Plomberie », « Dépose de l'existant ») → bypass conservé
 - **Statut** : 🟢 **corrigé le 2026-08-17** (commit `bd08099`, déployé). 3e garde-fou dans `incomplete-quote.ts` : garde « libellés de lot » — le bypass n'est légitime que si ≥ 50 % des lignes non quantifiées ressemblent à des intitulés génériques de corps de métier (vocabulaire 40 termes, veto sur les codes produit alphanumériques). 9 cas anti-régression couvrant les 3 variantes de la famille + les 2 vrais positifs (Créteil, résumé toiture). Analyse d'origine rejouée et page corrigée.
 
+### 2026-08-20 — ETABLISSEMENT-TRANSFERE-CONFONDU-AVEC-RADIATION (cas ARA / SIDR)
+
+- **Signalé par** : Johan (revues `829f5d16` + `e55a5296` — DEVIS N°143/144-2026 SIDR CAMELIAS, AUSTRAL RÉNOV' AVENIR, La Réunion)
+- **Symptôme observé** : « Entreprise radiée des registres officiels (confirmé via API) » → hard block ROUGE + `ne_pas_signer`, alors que l'entreprise (SIREN 834 881 682) est **active** : seul son ancien siège (SIRET …00019, MOUFIA) a fermé le 01/11/2023 pour **transfert** vers …00027 — qui est précisément le SIRET **actif** porté par le devis.
+- **Cause racine** : `verify.ts` calculait `isActive = uniteLegaleActive && !siegeFerme`. Or l'index recherche-entreprises renvoyait encore l'ANCIEN siège fermé dans `siege` (retard sur le transfert), et le code ignorait `matching_etablissements` qui portait l'état du SIRET exact vérifié (actif). Confusion structurelle entre fermeture d'ÉTABLISSEMENT et radiation d'ENTREPRISE.
+- **Maillon concerné** : 3 (Verdict honnête — un hard block ne peut reposer que sur un fait certain)
+- **Cas test à passer** :
+  - UL active + SIRET du devis actif dans matching_etablissements → ACTIVE, aucun signal
+  - UL active + SIRET du devis fermé (transfert) → ACTIVE + ORANGE « SIRET obsolète, demandez un devis à jour » — jamais rouge
+  - UL cessée ("C") → radiée (rouge) — seul cas légitime
+  - Lookup par nom, UL active, siege API périmé → ACTIVE (le siege seul ne suffit JAMAIS à radier)
+- **Statut** : 🟢 **corrigé le 2026-08-20** — helper pur [`company-status.ts`](../../supabase/functions/analyze-quote/company-status.ts) (13 cas anti-régression) branché dans les 3 branches de `verify.ts` + cache `company_cache` (payload v2 : `etablissement_ferme`), nouveau critère ORANGE dans `score.ts`. Cache empoisonné 83488168200027 purgé. Chirurgie des 2 analyses après validation expert.
+
+### 2026-08-20 — TVA-DOM-SIGNALEE-COMME-ANORMALE (cas ARA / SIDR La Réunion)
+
+- **Signalé par** : Johan (mêmes analyses — action générée « Demandez à l'artisan de justifier le taux de TVA de 2.1%, car il est très inférieur aux taux habituels (5.5% ou 10%) »)
+- **Symptôme observé** : sur tout devis ultramarin, le taux de TVA légitime (8,5 % normal / 2,1 % réduit en Guadeloupe-Martinique-Réunion ; TVA non applicable en Guyane-Mayotte, art. 294 CGI) est traité comme suspect par la conclusion.
+- **Cause racine** : le prompt conclusion injecte « TVA: 2.1% » sans contexte géographique — Gemini compare aux taux métropole.
+- **Maillon concerné** : 3 (Verdict honnête)
+- **Cas test à passer** : devis avec CP 974xx (client OU entreprise) + TVA 2,1 % → aucune action/anomalie TVA ; devis métropole TVA 2,1 % → le questionnement reste légitime.
+- **Statut** : 🟢 **corrigé le 2026-08-20** (code) — détection DOM par CP 97X dans `conclusion.ts` (client + entreprise + ville) → note de prompt « taux DOM normaux » + filet déterministe qui supprime toute action « justifier/vérifier la TVA » quand DOM. ⚠️ Actif en prod seulement après déblocage du déploiement Vercel.
+
+### 2026-08-20 — FEEDBACK-MODAL-TROP-PRECOCE
+
+- **Signalé par** : Johan (« le bandeau feedback s'affiche trop rapidement, il faut laisser lire »)
+- **Cause racine** : le trigger scroll ≥ 90 % se déclenchait dès qu'on survolait la page vers le bas, même 5 s après l'arrivée.
+- **Statut** : 🟢 **corrigé le 2026-08-20** (code) — dwell minimal de 90 s sur la page avant que le trigger scroll ne soit armé (`SCROLL_TRIGGER_MIN_DWELL_MS`, `FeedbackModal.tsx`). Le trigger manuel (clic « Copier le message ») reste immédiat. ⚠️ Actif après déblocage Vercel.
+
 ### 2026-08-18 — FOURNITURE-SEULE-CLASSEE-TRAVAUX (cas NECHAB)
 
 - **Signalé par** : Johan (analyse `b85ec00a` — photo d'un bon de commande d'éclairage « M NECHAB », 11 lignes de références produit TR40205/S920519/…, aucun SIRET, aucun total lisible)

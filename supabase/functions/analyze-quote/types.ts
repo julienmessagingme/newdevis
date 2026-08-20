@@ -247,6 +247,11 @@ export interface CompanyPayload {
   date_creation: string | null;
   age_years: number | null;
   is_active: boolean;
+  /** 2026-08-20 (cas ARA) — le SIRET vérifié correspond à un établissement
+   *  fermé/transféré alors que l'entreprise reste active. Avertissement
+   *  ORANGE, jamais rouge. Absent sur les caches antérieurs (→ false). */
+  etablissement_ferme?: boolean;
+  etablissement_ferme_date?: string | null;
   nom: string | null;
   adresse: string | null;
   ville: string | null;
@@ -296,6 +301,10 @@ export interface QualibatQualification {
 export interface VerificationResult {
   entreprise_immatriculee: boolean | null;
   entreprise_radiee: boolean | null;
+  /** 2026-08-20 (cas ARA) — SIRET du devis = établissement fermé/transféré,
+   *  entreprise ACTIVE. Signal ORANGE (SIRET obsolète), pas un hard block. */
+  etablissement_ferme?: boolean;
+  etablissement_ferme_date?: string | null;
   procedure_collective: boolean | null;
   date_creation: string | null;
   anciennete_annees: number | null;

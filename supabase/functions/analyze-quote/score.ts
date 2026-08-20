@@ -26,6 +26,17 @@ export function calculateScore(
     rouges.push("Procédure collective en cours (redressement ou liquidation, confirmé)");
   }
 
+  // 2026-08-20 (cas ARA) — SIRET du devis = établissement fermé/transféré alors
+  // que l'ENTREPRISE reste active. Signal ORANGE (SIRET à mettre à jour sur le
+  // devis), surtout PAS un « radiée » rouge : une fermeture d'établissement
+  // (transfert de siège, antenne fermée) n'est pas une radiation.
+  if (verified.entreprise_radiee !== true && verified.etablissement_ferme === true) {
+    const quand = verified.etablissement_ferme_date ? ` le ${verified.etablissement_ferme_date}` : "";
+    oranges.push(
+      `Le SIRET indiqué sur le devis correspond à un établissement fermé ou transféré${quand} — l'entreprise reste active. Demandez un devis mentionnant le SIRET à jour de l'établissement actuel.`,
+    );
+  }
+
   // Santé financière via ratios data.economie.gouv.fr
   // ── Guard auto-entrepreneur ──────────────────────────────────────────────────
   // Les auto-entrepreneurs (TVA non applicable, art. 293 B) ne sont pas soumis

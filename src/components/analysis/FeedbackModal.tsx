@@ -35,6 +35,13 @@ const TEXT_MAX         = 200;
 // interrompt la lecture" tout en gardant un trigger non-manuel.
 const SCROLL_BOTTOM_THRESHOLD = 0.90;
 
+// 2026-08-20 (retour Johan) — temps de lecture minimal avant que le trigger
+// scroll puisse ouvrir la modal. Un scroll rapide vers le bas (survol de la
+// page, recherche d'une section) atteignait 90 % en quelques secondes et la
+// modal interrompait la lecture. Le trigger manuel (clic « Copier le
+// message ») n'est PAS soumis à ce délai — c'est un acte volontaire.
+const SCROLL_TRIGGER_MIN_DWELL_MS = 90_000;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Choice  = "positive" | "neutral" | "negative";
@@ -489,7 +496,12 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
   useEffect(() => {
     if (hasBeenShown()) return;
 
+    // 2026-08-20 — dwell minimal : le scroll bottom ne déclenche qu'après
+    // SCROLL_TRIGGER_MIN_DWELL_MS passées sur la page (laisser lire).
+    const mountedAt = Date.now();
+
     const onScroll = () => {
+      if (Date.now() - mountedAt < SCROLL_TRIGGER_MIN_DWELL_MS) return;
       const docHeight = document.body.scrollHeight - window.innerHeight;
       if (docHeight <= 0) return; // page très courte, ne pas trigger
       const scrolled = window.scrollY / docHeight;

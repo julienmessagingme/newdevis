@@ -1653,6 +1653,33 @@ export const POST: APIRoute = async ({ params, request }) => {
   const codePostal = (client.code_postal as string) || "";
 
   // ──────────────────────────────────────────────────────────────────────────
+  // 2026-08-20 (cas ARA / devis SIDR La Réunion, signalé par Johan) — TVA DOM.
+  // En Guadeloupe (971), Martinique (972) et à La Réunion (974), les taux de
+  // TVA sont 8,5 % (normal) et 2,1 % (réduit) — PAS les taux métropole. En
+  // Guyane (973) et à Mayotte (976), la TVA n'est pas applicable (art. 294
+  // CGI). Sans ce contexte, Gemini voyait « TVA : 2,1 % » et générait une
+  // action « demandez de justifier ce taux très inférieur aux taux habituels »
+  // — faux signal sur TOUT devis ultramarin. Détection par code postal 97X
+  // dans le CP client, les adresses client/entreprise ou la ville.
+  const DOM_DEPTS: Record<string, string> = {
+    "971": "Guadeloupe", "972": "Martinique", "973": "Guyane",
+    "974": "La Réunion", "976": "Mayotte",
+  };
+  const domCpSource = [
+    codePostal,
+    (client.adresse as string) || "",
+    (entreprise.adresse as string) || "",
+    ville,
+  ].join(" ");
+  const domDept: string | null = domCpSource.match(/\b(97[1-6])\d{2}\b/)?.[1] ?? null;
+  const domLabel = domDept ? DOM_DEPTS[domDept] : null;
+  const domTvaNote = domDept
+    ? (domDept === "973" || domDept === "976"
+        ? `\n⚠️ DEVIS ${domLabel} (DOM) : la TVA n'est PAS applicable en ${domLabel} (art. 294 CGI). Une TVA absente ou à 0 % est NORMALE sur ce devis — ne jamais la signaler comme anomalie ni demander de justification.`
+        : `\n⚠️ DEVIS ${domLabel} (DOM) : les taux de TVA applicables sont 8,5 % (taux normal) et 2,1 % (taux réduit) — PAS les taux métropole 20/10/5,5 %. Un taux de 2,1 % ou 8,5 % est NORMAL sur ce devis — ne jamais le signaler comme anomalie ni demander de le justifier.`)
+    : "";
+
+  // ──────────────────────────────────────────────────────────────────────────
   // totalHT — résolution robuste avec fallbacks alignés sur le client (V3.3)
   //
   // Bug observé sur Kern Terrassement : la garde de cohérence retournait false
@@ -2013,7 +2040,7 @@ CONTEXTE DU DEVIS:
 - Entreprise: ${isMultipleQuotes ? `${segmentAnalyses.length} artisans (voir détail ci-dessus)` : nomEntreprise || "inconnue"}
 - Montant HT: ${totalHT ? `${totalHT.toLocaleString("fr-FR")} €` : "inconnu"}
 - Montant TTC: ${totalTTC ? `${totalTTC.toLocaleString("fr-FR")} €` : "inconnu"}
-- TVA: ${tauxTVA ? `${tauxTVA}%` : "inconnue"}
+- TVA: ${tauxTVA ? `${tauxTVA}%` : "inconnue"}${domTvaNote}
 - Ville: ${ville || "inconnue"}${codePostal ? ` (${codePostal})` : ""}
 - Type de travaux: ${workType || "rénovation"}
 - Résumé du devis: ${resume || "non disponible"}${marketPositionContext}${critiquesBlock}
@@ -2352,6 +2379,13 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     const isAbsurdExternalVerifAction = (a: string): boolean =>
       EXTERNAL_VERIF_PATTERNS.some((p) => p.test(a));
 
+    // 2026-08-20 (cas ARA) — filet déterministe TVA DOM : même si Gemini
+    // ignore la note de prompt, une action « justifier/vérifier le taux de
+    // TVA » sur un devis DOM (2,1 % / 8,5 % légitimes) est supprimée.
+    const isDomTvaAction = (a: string): boolean =>
+      !!domDept && /\btva\b/i.test(a) &&
+      /(justifi|v[ée]rifi|expliqu|confirm|anormal|inf[ée]rieur|habituel|erron)/i.test(a);
+
     const geminiActions: string[] = Array.isArray(parsed.actions_avant_signature)
       ? parsed.actions_avant_signature
           .filter((a: unknown) => typeof a === "string" && a.trim().length > 0)
@@ -2359,6 +2393,10 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           .filter((a: string) => {
             if (isAbsurdExternalVerifAction(a)) {
               console.warn(`[conclusion] V3.4.26 action absurde filtrée — "${a.slice(0, 120)}"`);
+              return false;
+            }
+            if (isDomTvaAction(a)) {
+              console.warn(`[conclusion] 2026-08-20 action TVA-DOM filtrée (dept ${domDept}) — "${a.slice(0, 120)}"`);
               return false;
             }
             return true;
