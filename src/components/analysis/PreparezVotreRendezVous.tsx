@@ -8,8 +8,11 @@
  * Reformule les données déjà produites par le moteur (actions_avant_signature,
  * points_ok, alertes). Aucune nouvelle logique métier.
  *
- * Sous la fiche, un accordéon très discret propose une version écrite (mail,
- * SMS, WhatsApp) pour ceux qui préfèrent envoyer un message.
+ * Sous la fiche, un accordéon très discret propose UN message prêt à envoyer.
+ * 2026-08-21 (décision Johan) — message UNIQUE et 100 % déterministe
+ * (buildArtisanMessage : questions de leviers écrites à la main uniquement,
+ * aucune phrase dérivée du LLM ne part chez l'artisan). Les 3 variantes
+ * mail/SMS/WhatsApp sont supprimées.
  */
 
 import { useMemo, useState } from "react";
@@ -17,8 +20,8 @@ import { ChevronDown, Copy, Check } from "lucide-react";
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 import {
   buildPreparationSections,
+  buildArtisanMessage,
   extractArtisanFirstName,
-  levierQuestion,
 } from "@/lib/analyse/preparationBuilder";
 
 interface Props {
@@ -37,7 +40,7 @@ export default function PreparezVotreRendezVous({
   onCopy,
 }: Props) {
   const [writtenOpen, setWrittenOpen] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const sections = useMemo(
     () => buildPreparationSections(conclusion, pointsOk, alertes),
@@ -47,30 +50,29 @@ export default function PreparezVotreRendezVous({
   const prenom = useMemo(() => extractArtisanFirstName(entrepriseName), [entrepriseName]);
   const titleSuffix = prenom ? prenom : "votre artisan";
 
-  // Tranche 2 — si les leviers portent des questions de négociation, le
-  // message copiable existe même quand la fiche est vide (toutes les actions
-  // dédupliquées par les leviers) : on garde le bloc pour l'accordéon.
-  const hasLevierQuestions = (conclusion.leviers ?? []).some(
-    (l) => l.objectif !== "securiser",
+  // 2026-08-21 — message UNIQUE 100 % déterministe (questions de leviers
+  // écrites à la main + gabarit URSSAF). null si aucun levier de négociation
+  // → l'accordéon est masqué (rien qui vaille un envoi).
+  const artisanMessage = useMemo(
+    () =>
+      buildArtisanMessage(prenom, conclusion.leviers ?? [], {
+        includeUrssaf: sections.aNePasOublier.some((o) => /vigilance\s+urssaf/i.test(o)),
+      }),
+    [prenom, conclusion.leviers, sections.aNePasOublier],
   );
+
   const nothingToShow =
     !sections.rappelPourOuvrir &&
     sections.aDemander.length === 0 &&
     sections.aNePasOublier.length === 0 &&
     sections.conseilsPrudence.length === 0 &&
-    !hasLevierQuestions;
+    !artisanMessage;
 
-  const writtenMessages = useMemo(
-    () => buildWrittenMessages(sections, prenom, conclusion.leviers ?? []),
-    [sections, prenom, conclusion.leviers],
-  );
-
-  const handleCopyMessage = (channel: "mail" | "sms" | "whatsapp") => {
-    const text = writtenMessages[channel];
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(channel);
-      setTimeout(() => setCopied(null), 2500);
+  const handleCopyMessage = () => {
+    if (!artisanMessage) return;
+    navigator.clipboard.writeText(artisanMessage).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
       onCopy?.();
     });
   };
@@ -149,44 +151,35 @@ export default function PreparezVotreRendezVous({
         Elle ne remet en cause ni son travail ni son professionnalisme.
       </p>
 
-      {/* Accordéon discret : version écrite */}
-      <div className="mt-6">
-        <button
-          type="button"
-          onClick={() => setWrittenOpen((o) => !o)}
-          aria-expanded={writtenOpen}
-          className="inline-flex items-center gap-1.5 text-sm text-foreground/70 hover:text-foreground transition-colors"
-        >
-          <ChevronDown
-            className={`h-4 w-4 transition-transform ${writtenOpen ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-          Vous préférez lui écrire&nbsp;?
-        </button>
+      {/* Accordéon discret : LE message prêt à envoyer (unique, déterministe).
+          Masqué s'il n'y a aucun levier de négociation. */}
+      {artisanMessage && (
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => setWrittenOpen((o) => !o)}
+            aria-expanded={writtenOpen}
+            className="inline-flex items-center gap-1.5 text-sm text-foreground/70 hover:text-foreground transition-colors"
+          >
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${writtenOpen ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+            Vous préférez lui écrire&nbsp;?
+          </button>
 
-        {writtenOpen && (
-          <div className="mt-4 space-y-4">
-            <WrittenChannel
-              label="Par mail"
-              text={writtenMessages.mail}
-              copied={copied === "mail"}
-              onCopy={() => handleCopyMessage("mail")}
-            />
-            <WrittenChannel
-              label="Par SMS"
-              text={writtenMessages.sms}
-              copied={copied === "sms"}
-              onCopy={() => handleCopyMessage("sms")}
-            />
-            <WrittenChannel
-              label="Sur WhatsApp"
-              text={writtenMessages.whatsapp}
-              copied={copied === "whatsapp"}
-              onCopy={() => handleCopyMessage("whatsapp")}
-            />
-          </div>
-        )}
-      </div>
+          {writtenOpen && (
+            <div className="mt-4">
+              <WrittenChannel
+                label="Message prêt à envoyer"
+                text={artisanMessage}
+                copied={copied}
+                onCopy={handleCopyMessage}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -242,99 +235,7 @@ function WrittenChannel({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// HELPERS DE TRANSCRIPTION VERS UN CANAL ÉCRIT
-// Reformulation pure — aucune donnée nouvelle.
-// ═══════════════════════════════════════════════════════════════════
-
-/**
- * Retire les guillemets français « » des questions produites par
- * preparationBuilder pour la fiche visuelle. Dans le mail, les questions
- * s'insèrent directement dans le texte, pas besoin des guillemets.
- */
-function stripFrenchQuotes(question: string): string {
-  return question.replace(/^«\s*/, "").replace(/\s*»$/, "").trim();
-}
-
-/** Retire la ponctuation finale d'un item avant de l'insérer dans une phrase
- *  (« …pour 2026. » inséré avant « ? » donnait « …pour 2026. ? »). */
-function trimTrailingDot(s: string): string {
-  return s.replace(/[\s.;,]+$/g, "").trim();
-}
-
-/** Minuscule initiale SAUF sigle (IBAN, RGE, Kbis…) : on ne minuscule que si
- *  la 2e lettre est déjà minuscule ou une apostrophe (« L'attestation »). */
-function lcFirstSafe(s: string): string {
-  return /^[A-ZÀ-Ý][a-zà-ÿ'']/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-}
-
-function buildWrittenMessages(
-  sections: ReturnType<typeof buildPreparationSections>,
-  prenom: string | null,
-  leviers: NonNullable<ConclusionData["leviers"]>,
-): { mail: string; sms: string; whatsapp: string } {
-  const salut = prenom ? `Bonjour ${prenom},` : "Bonjour,";
-  const signature = "\n\nBien cordialement,";
-
-  // 🟢 Phase 4 tranche 2 (2026-08-20) — le message est ALIGNÉ SUR LES LEVIERS
-  // (spec Maillon 3, exigence 3) : les questions des leviers de négociation
-  // arrivent en tête (dans l'ordre de puissance), puis les questions
-  // complémentaires de la fiche (déjà dédupliquées par sujet côté
-  // preparationBuilder). Cap à 5 questions — un mail n'est pas une liste.
-  const levierQuestions = leviers
-    .filter((l) => l.objectif !== "securiser")
-    .map((l) => levierQuestion(l))
-    .filter((q): q is string => Boolean(q));
-
-  const questionsCleaned = [
-    ...levierQuestions,
-    ...sections.aDemander
-      .map((item) => stripFrenchQuotes(item.question))
-      .filter((s) => s.length > 0),
-  ].slice(0, 5);
-
-  const oubliCleaned = sections.aNePasOublier
-    .map((o) => trimTrailingDot(o))
-    .filter((s) => s.length > 0);
-
-  const questionsBlock = questionsCleaned.length > 0
-    ? questionsCleaned.map((q, i) => `${i + 1}. ${q}`).join("\n")
-    : "";
-
-  // Section « à ne pas oublier » — présentée comme une demande de pièces à
-  // transmettre, sans impératif adressé au user (« assurez-vous », « pensez
-  // à ») qui n'a aucun sens envoyé à l'artisan.
-  let oublisBlock = "";
-  if (oubliCleaned.length === 1) {
-    oublisBlock = `\n\nEt pourriez-vous me transmettre ${lcFirstSafe(oubliCleaned[0])} ?`;
-  } else if (oubliCleaned.length > 1) {
-    oublisBlock = `\n\nEt pouvez-vous me transmettre :\n${oubliCleaned.map((o) => `- ${o}`).join("\n")}`;
-  }
-
-  const intro = questionsCleaned.length === 1
-    ? "Merci pour votre devis. Avant de le signer, j'aurais une question :"
-    : questionsCleaned.length > 1
-    ? "Merci pour votre devis. Avant de le signer, j'aurais quelques questions :"
-    : "Merci pour votre devis. Avant de m'engager, j'aurais un point rapide avec vous.";
-
-  const mail = questionsBlock
-    ? `${salut}\n\n${intro}\n\n${questionsBlock}${oublisBlock}${signature}`
-    : `${salut}\n\n${intro}${oublisBlock}${signature}`;
-
-  // SMS — condensé mais reste une suite de questions
-  const smsQuestions = questionsCleaned.length > 0
-    ? ` ${questionsCleaned.join(" ")}`
-    : "";
-  const smsOublis = oubliCleaned.length > 0
-    ? ` Pourriez-vous me transmettre également : ${oubliCleaned.join(", ")} ?`
-    : "";
-  const sms = `${salut} Merci pour votre devis.${smsQuestions}${smsOublis} Merci d'avance !`;
-
-  // WhatsApp — variante du mail, ton plus détendu
-  const whatsapp = mail
-    .replace(/\n\nBien cordialement,/, "\n\nMerci d'avance 🙏")
-    .replace(/^Bonjour,/, "Bonjour 👋")
-    .replace(/^Bonjour ([^,]+),/, "Bonjour $1 👋");
-
-  return { mail, sms, whatsapp };
-}
+// 2026-08-21 — buildWrittenMessages (mail/SMS/WhatsApp assemblés depuis les
+// actions reformulées) SUPPRIMÉ (décision Johan). Le message unique est
+// désormais construit par buildArtisanMessage (preparationBuilder) — 100 %
+// déterministe, aucune phrase dérivée du LLM ne part chez l'artisan.

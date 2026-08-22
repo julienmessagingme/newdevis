@@ -95,6 +95,45 @@ function actionCoveredByLevier(action: string, leviers: ConclusionLevier[]): boo
   });
 }
 
+/**
+ * 2026-08-21 (décision Johan) — LE message copiable, unique et 100 %
+ * DÉTERMINISTE. Trois rounds de correctifs sur la reformulation des actions
+ * Gemini (NECHAB, Renov'Toitures, « deux devis supplémentaires ») ont montré
+ * que du texte LLM reformulé finit toujours par produire une maladresse — et
+ * ce texte est le seul que l'utilisateur ENVOIE à un tiers. Règle absolue :
+ * AUCUNE phrase dérivée du LLM ici. Uniquement les questions de leviers
+ * (écrites à la main par type dans `levierQuestion`) + le gabarit URSSAF.
+ * Retourne null s'il n'y a AUCUN levier de négociation (rien qui vaille un
+ * envoi — l'accordéon est masqué).
+ */
+export function buildArtisanMessage(
+  prenom: string | null,
+  leviers: ConclusionLevier[],
+  options?: { includeUrssaf?: boolean },
+): string | null {
+  const negocier = leviers.filter((l) => l.objectif !== "securiser");
+  if (negocier.length === 0) return null;
+
+  const questions = [...negocier, ...leviers.filter((l) => l.objectif === "securiser")]
+    .map((l) => levierQuestion(l))
+    .filter((q): q is string => Boolean(q))
+    .slice(0, 5);
+  if (questions.length === 0) return null;
+
+  const salut = prenom ? `Bonjour ${prenom},` : "Bonjour,";
+  const intro = questions.length === 1
+    ? "Merci pour votre devis. Avant de le signer, j'aurais une question :"
+    : "Merci pour votre devis. Avant de le signer, j'aurais quelques questions :";
+  const body = questions.length === 1
+    ? questions[0]
+    : questions.map((q, i) => `${i + 1}. ${q}`).join("\n");
+  const urssaf = options?.includeUrssaf
+    ? "\n\nPourriez-vous également me transmettre une attestation de vigilance URSSAF récente ?"
+    : "";
+
+  return `${salut}\n\n${intro}\n\n${body}${urssaf}\n\nBien cordialement,`;
+}
+
 export interface PreparationSections {
   /** Phrase courte d'ouverture (null si aucun point_ok pertinent). */
   rappelPourOuvrir: string | null;

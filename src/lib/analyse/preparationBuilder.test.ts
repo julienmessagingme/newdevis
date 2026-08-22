@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  buildArtisanMessage,
   buildPreparationSections,
   extractArtisanFirstName,
   levierQuestion,
@@ -575,6 +576,49 @@ describe("preparationBuilder — réconciliation leviers", () => {
       .toMatch(/30 % maximum.*échéancier/);
     expect(levierQuestion({ niveau: "puissant", objectif: "negocier", type: "quantites", titre: "Exigez les quantités précises", detail: "" }))
       .toMatch(/quantités précises.*prix unitaire/);
+  });
+});
+
+// ── 2026-08-21 (décision Johan) — message unique 100 % déterministe ─────────
+describe("preparationBuilder — buildArtisanMessage", () => {
+  const leviersNego = [
+    { niveau: "bonus" as const, objectif: "negocier" as const, type: "revision_tarifaire", titre: "Demandez une révision tarifaire : le devis date de 2024", detail: "" },
+    { niveau: "important" as const, objectif: "negocier" as const, type: "acompte", titre: "Négociez l'acompte (40 % demandés) vers 30 %", detail: "" },
+    { niveau: "bonus" as const, objectif: "securiser" as const, type: "references", titre: "Demandez 2-3 références", detail: "" },
+  ];
+
+  it("questions de leviers uniquement — négociation d'abord, numérotées, salutation + signature", () => {
+    const msg = buildArtisanMessage("Marc", leviersNego);
+    expect(msg).not.toBeNull();
+    expect(msg).toMatch(/^Bonjour Marc,/);
+    expect(msg).toContain("1. Votre devis date de 2024");
+    expect(msg).toContain("2. Pouvez-vous ramener l'acompte à 30 % maximum");
+    // La question sécurisation (références) vient APRÈS les négociations
+    expect(msg!.indexOf("références") === -1 || msg!.indexOf("chantiers récents") > msg!.indexOf("acompte")).toBe(true);
+    expect(msg).toMatch(/Bien cordialement,$/);
+  });
+
+  it("aucun levier de NÉGOCIATION → null (accordéon masqué, rien qui vaille un envoi)", () => {
+    expect(buildArtisanMessage("Marc", [leviersNego[2]])).toBeNull();
+    expect(buildArtisanMessage("Marc", [])).toBeNull();
+  });
+
+  it("gabarit URSSAF ajouté sur demande — toujours déterministe", () => {
+    const msg = buildArtisanMessage(null, leviersNego, { includeUrssaf: true });
+    expect(msg).toMatch(/^Bonjour,/);
+    expect(msg).toContain("attestation de vigilance URSSAF");
+  });
+
+  it("une seule question → pas de numérotation, intro au singulier", () => {
+    const msg = buildArtisanMessage(null, [leviersNego[0]]);
+    expect(msg).toContain("j'aurais une question :");
+    expect(msg).not.toMatch(/\n1\. /);
+  });
+
+  it("AUCUNE phrase LLM ne peut entrer — le message ignore totalement les actions", () => {
+    // buildArtisanMessage ne reçoit QUE des leviers : c'est structurel.
+    // Ce test fige la signature (garde anti-régression de la décision).
+    expect(buildArtisanMessage.length).toBeLessThanOrEqual(3);
   });
 });
 
