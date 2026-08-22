@@ -535,6 +535,37 @@ describe("preparationBuilder — réconciliation leviers", () => {
     expect(aDemander).toHaveLength(1);
   });
 
+  it("« justification des prix unitaires » est dédupliquée par le levier surcout_postes", () => {
+    const conclusion: ConclusionData = {
+      ...baseConclusion,
+      leviers: [
+        { niveau: "important", objectif: "negocier", type: "surcout_postes", titre: "Négociez les postes au-dessus du marché (Démolition cloison, Pose faïence)", detail: "…" },
+      ],
+      actions_avant_signature: [
+        "Demandez à l'artisan une justification détaillée pour les prix unitaires de la démolition de cloison et de la pose de faïence murale, qui sont significativement plus élevés que les standards du marché.",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    // Le levier porte déjà le sujet — pas de doublon « justification » maladroit
+    expect(aDemander).toHaveLength(0);
+  });
+
+  it("« demandez d'autres devis » = conseil au CLIENT — jamais une question à l'artisan", () => {
+    const conclusion: ConclusionData = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Demandez au moins deux devis supplémentaires auprès d'autres artisans qualifiés pour comparer les prix et les prestations, en particulier sur les postes identifiés comme surévalués.",
+        "Demandez le planning de démarrage",
+      ],
+    };
+    const { aDemander, conseilsPrudence } = buildPreparationSections(conclusion, [], []);
+    // JAMAIS transformé en « Pouvez-vous me préciser deux devis supplémentaires ? »
+    const questions = aDemander.map((x) => x.question).join(" ");
+    expect(questions).not.toMatch(/devis suppl[ée]mentaires/i);
+    // Routé vers les conseils de prudence de la fiche (adressée au client)
+    expect(conseilsPrudence.join(" ")).toMatch(/deux devis supplémentaires/i);
+  });
+
   it("levierQuestion — questions déterministes par type", () => {
     expect(levierQuestion({ niveau: "bonus", objectif: "negocier", type: "revision_tarifaire", titre: "Demandez une révision tarifaire : le devis date de 2024", detail: "" }))
       .toBe("Votre devis date de 2024 — pouvez-vous l'actualiser aux tarifs en vigueur ?");

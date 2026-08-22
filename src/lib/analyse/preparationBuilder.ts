@@ -78,7 +78,10 @@ const LEVIER_TOPIC_PATTERNS: Record<string, RegExp> = {
   clause_rouge: /clause/i,
   clause_orange: /clause/i,
   especes: /esp[eè]ces|virement|traçable/i,
-  surcout_postes: /n[ée]goci[ée\w]*\s+le(?:s)?\s+poste|poste[^.]{0,60}march[ée]|au-dessus\s+du\s+march[ée]/i,
+  // 2026-08-20 (retour Johan #2) — élargi : les actions Gemini « demandez une
+  // justification détaillée pour les prix unitaires … plus élevés que les
+  // standards du marché » parlent du même sujet sans le mot « poste ».
+  surcout_postes: /n[ée]goci[ée\w]*\s+le(?:s)?\s+poste|poste[^.]{0,60}march[ée]|au-dessus\s+du\s+march[ée]|justifi\w*[^.]{0,80}prix|prix\s+unitaires?[^.]{0,80}(?:[ée]lev[ée]|march[ée])|plus\s+[ée]lev[ée]s?\s+que\s+les?\s+(?:standards?|prix|fourchettes?)/i,
   revision_tarifaire: /r[ée]vision\s+tarifaire|actualis|date\s+de\s+20\d{2}/i,
   entreprise: /statut\s+juridique|radi[ée]|situation\s+de\s+l[''`]entreprise/i,
   references: /r[ée]f[ée]rences?\s+de\s+chantiers/i,
@@ -576,6 +579,16 @@ export function buildPreparationSections(
   const comptesSource = [...actions, ...alertes].find((s) => COMPTES_OPAQUES_RE.test(s)) ?? null;
   const SANTE_FIN_RE = /(bonne\s+)?sant[ée]\s+financi[èe]re/i;
 
+  // 2026-08-20 (retour Johan #2) — les actions « demandez d'autres devis /
+  // comparez / faites jouer la concurrence » sont des CONSEILS AU CLIENT.
+  // Transformées en question, elles devenaient absurdes (« Pouvez-vous me
+  // préciser au moins deux devis supplémentaires auprès d'autres artisans ? »
+  // — on demande à l'artisan les devis de ses concurrents !). Elles sont
+  // routées vers les conseils de prudence (fiche, adressée au client) et ne
+  // partent JAMAIS dans le message à l'artisan.
+  const SELF_ADVICE_RE = /devis\s+suppl[ée]mentaires?|aupr[èe]s\s+d[''`]?autres\s+(?:artisans|professionnels|entreprises)|autres\s+devis|comparer\s+les\s+(?:prix|prestations|devis)|faire\s+jouer\s+la\s+concurrence|mettre\s+en\s+concurrence|second\s+avis/i;
+  const selfAdviceConseils: string[] = [];
+
   // 🟢 Phase 4 tranche 2 (2026-08-20) — les actions couvrant le sujet d'un
   // LEVIER sont dédupliquées de la fiche : le bloc « Vos leviers de
   // négociation » (affiché juste au-dessus) porte déjà ces sujets, mieux
@@ -589,6 +602,13 @@ export function buildPreparationSections(
     .filter((a) => {
       // Redondant avec le conseil de prudence comptes → retiré de la fiche.
       if (comptesSource && SANTE_FIN_RE.test(a)) return false;
+      // Conseil au client (devis concurrents, comparaison) → fiche uniquement,
+      // jamais transformé en question à l'artisan.
+      if (SELF_ADVICE_RE.test(a)) {
+        const cleaned = trimTrailingPunctuation(stripDevisFluff(stripAdminScoriae(a)));
+        if (cleaned) selfAdviceConseils.push(`${ucFirst(cleaned)}.`);
+        return false;
+      }
       // Sujet déjà porté par un levier → dédupliqué.
       if (actionCoveredByLevier(a, leviersForDedup)) return false;
       const isCheckOrConfirm = CONFIRMER_PREFIXES.test(a) || PRECISER_PREFIXES.test(a);
@@ -619,7 +639,7 @@ export function buildPreparationSections(
     .filter((s) => s.length > 0 && !isPurelyInformative(s));
 
   // ── Conseils de prudence (fiche uniquement, jamais dans le message) ────
-  const conseilsPrudence: string[] = [];
+  const conseilsPrudence: string[] = [...selfAdviceConseils.slice(0, 2)];
   if (comptesSource) {
     const year = comptesSource.match(/\b(20\d{2})\b/)?.[1] ?? null;
     conseilsPrudence.push(
