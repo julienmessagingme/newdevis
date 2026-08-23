@@ -81,3 +81,7 @@ verify_jwt = false
 # clés legacy. TODO durcissement : X-Cron-Secret + nettoyer le JWT du trigger.
 [functions.gmc-on-signup]
 verify_jwt = false
+
+# Relance J+15 « Ce devis, finalement ? » (cron 08:20 UTC, migration 20260824).
+[functions.vmd-outcome-scheduler]
+verify_jwt = false

@@ -5,6 +5,7 @@ import { trackTikTokOnce } from "@/lib/integrations/tiktokPixel";
 import GmcGatewayBanner from "@/components/cta/GmcGatewayBanner";
 import PourAllerPlusLoin from "@/components/analysis/PourAllerPlusLoin";
 import AvisEtPreparation from "@/components/analysis/AvisEtPreparation";
+import OutcomeBanner from "@/components/analysis/OutcomeBanner";
 import { detectChantierSlug } from "@/lib/analyse/detectChantierType";
 import { Button } from "@/components/ui/button";
 import {
@@ -1348,6 +1349,12 @@ const AnalysisResult = () => {
             <Lock className="h-4 w-4 text-primary flex-shrink-0" />
             <span className="text-sm font-medium text-primary">Analyse détaillée verrouillée — créez un compte pour y accéder</span>
           </div>
+        )}
+
+        {/* 2026-08-24 — boucle de capture des issues : « Ce devis, finalement ? »
+            au retour sur une analyse > 7 jours sans issue connue. */}
+        {!isAnonymous && analysis.status === "completed" && (
+          <OutcomeBanner analysisId={analysis.id} createdAt={analysis.created_at} />
         )}
 
         {/* ══════════════════════════════════════════════════════
