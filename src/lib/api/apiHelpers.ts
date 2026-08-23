@@ -298,15 +298,10 @@ export async function requireChantierAuthOrAgent(
     if (!chantier) return jsonError('Chantier introuvable', 404);
     return { user: { id: chantier.user_id }, supabase: agentClient, isAgent: true };
   }
-  // Fall back to JWT + ownership check
-  const ctx = await requireAuth(request);
+  // Fall back — délègue à requireChantierAuth (2026-08-23 : ownership +
+  // paywall + accès admin lecture seule, une seule source de vérité).
+  const ctx = await requireChantierAuth(request, chantierId);
   if (ctx instanceof Response) return ctx;
-  const owns = await verifyChantierOwnership(ctx.supabase, chantierId, ctx.user.id);
-  if (!owns) return jsonError('Chantier introuvable', 404);
-  // Lecture seule : bloque les ecritures user (jamais l'agent) si l'acces GMC a expire.
-  if (request.method !== 'GET' && !(await hasGmcWriteAccess(ctx.supabase, ctx.user.id))) {
-    return gmcPaywallResponse();
-  }
   return { ...ctx, isAgent: false };
 }
 
