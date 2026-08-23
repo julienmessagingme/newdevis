@@ -131,8 +131,10 @@ Réponds UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8000,
+        // 2026-08-23 — claude-sonnet-4-20250514 RETIRÉ par Anthropic (404
+        // "model not found") → migration vers Claude Opus 5 (modèle courant).
+        model: "claude-opus-5",
+        max_tokens: 16000,
         messages: [
           { role: "user", content: userPrompt },
         ],
@@ -152,7 +154,12 @@ Réponds UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
     }
 
     const aiResult = await aiResponse.json();
-    const content = aiResult.content?.[0]?.text;
+    // 2026-08-23 — sur les modèles actuels (thinking adaptatif par défaut), le
+    // premier bloc de content peut être un bloc "thinking" : on sélectionne le
+    // bloc "text" au lieu de content[0].
+    const content = (aiResult.content ?? []).find(
+      (b: { type?: string; text?: string }) => b?.type === "text",
+    )?.text;
     console.log("Step 7: Got AI content, length:", content?.length);
 
     if (!content) {
@@ -192,7 +199,7 @@ Réponds UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
         workflow_status: "ai_draft",
         ai_generated: true,
         ai_prompt: topic,
-        ai_model: "claude-sonnet-4-20250514",
+        ai_model: "claude-opus-5",
       })
       .select()
       .single();
