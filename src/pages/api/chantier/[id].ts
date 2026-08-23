@@ -96,9 +96,10 @@ export const GET: APIRoute = async ({ params, request }) => {
   const [chantierRes, todosRes, lotsRes] = await Promise.all([
     supabase
       .from('chantiers')
-      .select('id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at, project_mode')
+      // 2026-08-23 — plus de filtre user_id dans la requête : l'ownership est
+      // contrôlé après coup (propriétaire OU admin lecture seule, cf. plus bas).
+      .select('id, user_id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at, project_mode')
       .eq('id', chantierId)
-      .eq('user_id', user.id)
       .single(),
     supabase
       .from('todo_chantier')
@@ -126,6 +127,25 @@ export const GET: APIRoute = async ({ params, request }) => {
       JSON.stringify({ error: 'Chantier introuvable' }),
       { status: 404, headers: CORS },
     );
+  }
+
+  // Ownership : propriétaire OU admin (lecture seule — cette route est un GET).
+  // 2026-08-23 (demande Johan) — aligne cette route legacy sur l'accès admin
+  // de requireChantierAuth (suivi des essais / support).
+  if (chantier.user_id !== user.id) {
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .maybeSingle();
+    if (!roleData) {
+      return new Response(
+        JSON.stringify({ error: 'Chantier introuvable' }),
+        { status: 404, headers: CORS },
+      );
+    }
+    console.log(`[api/chantier GET] admin read-only sur ${chantierId} par ${user.email}`);
   }
 
   if (todosError) {
