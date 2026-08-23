@@ -20,6 +20,11 @@ let initialized = false;
  */
 export function initAmplitude(): void {
   if (initialized || typeof window === 'undefined') return;
+  // 2026-08-24 — trafic interne (équipe) exclu : même flag que GA (posé à la
+  // première visite de /admin*). initialized reste false → trackEvent no-op.
+  try {
+    if (localStorage.getItem('vmd_internal') === '1') return;
+  } catch { /* ignore */ }
   initialized = true;
 
   amplitude.init(AMPLITUDE_API_KEY, {

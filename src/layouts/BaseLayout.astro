@@ -162,6 +162,14 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     -->
     <script is:inline>
       (function() {
+        // 2026-08-24 — trafic interne : un navigateur qui a visité /admin* est
+        // marqué à vie et n'envoie plus AUCUN hit GA (même les pings cookieless
+        // du Consent Mode). Cf. bloc cookie-consent plus bas (même flag).
+        if (window.location.pathname.indexOf('/admin') === 0) {
+          try { localStorage.setItem('vmd_internal', '1'); } catch (e) {}
+        }
+        try { if (localStorage.getItem('vmd_internal') === '1') return; } catch (e) {}
+
         // Détection domaine côté client (multi-domaine sur même build Vercel)
         var hostname = (window.location.hostname || '').toLowerCase();
         var gaId = hostname.indexOf('gerermonchantier') !== -1
@@ -344,6 +352,20 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <script>
       (function() {
         var consent = localStorage.getItem('cookie-consent');
+
+        // ── 2026-08-24 (demande Johan) — EXCLUSION DU TRAFIC INTERNE ──────
+        // Les sessions admin polluaient GA4 (/admin = 12% des vues, 34
+        // vues/utilisateur = l'équipe). Méthode sans IP fixe : dès qu'un
+        // navigateur visite /admin*, il est marqué "interne" À VIE (flag
+        // localStorage) et plus AUCUN tracking (GA/Meta/TikTok/Amplitude via
+        // gtag) n'est chargé pour lui, sur tout le site. Pour réactiver le
+        // tracking sur un navigateur (test) : localStorage.removeItem('vmd_internal').
+        if (window.location.pathname.indexOf('/admin') === 0) {
+          try { localStorage.setItem('vmd_internal', '1'); } catch (e) {}
+        }
+        var isInternal = false;
+        try { isInternal = localStorage.getItem('vmd_internal') === '1'; } catch (e) {}
+        if (isInternal) return; // ni tracking, ni bannière cookies pour l'équipe
 
         // Load tracking scripts if previously accepted
         if (consent === 'accepted') {
