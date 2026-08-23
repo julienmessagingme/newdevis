@@ -631,6 +631,35 @@ function DashboardHome({
         ))}
       </div>
 
+      {/* ── Nudge structuration (2026-08-23, analyse essais — cas Marie
+          Giraud : 10 factures déposées, 0 lot → Budget et Planning vides de
+          structure, abandon). Affiché tant que documents > 0 et lots = 0. */}
+      {documents.length > 0 && lots.length === 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <span className="min-w-[240px] flex-1 text-[14px] leading-relaxed text-amber-900">
+            <strong>{documents.length} document{documents.length > 1 ? 's' : ''} déposé{documents.length > 1 ? 's' : ''}</strong>, mais votre
+            chantier n'a pas encore de lots — sans lots, le budget et le planning restent vides.
+            L'assistant peut les structurer pour vous à partir de vos documents.
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onGoToAssistant}
+              className="rounded-lg bg-amber-600 px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-amber-700"
+            >
+              Structurer mes lots avec l'assistant
+            </button>
+            <button
+              type="button"
+              onClick={onAddIntervenant}
+              className="rounded-lg border border-amber-300 bg-white px-3.5 py-2 text-[13px] font-semibold text-amber-900 transition-colors hover:bg-amber-100"
+            >
+              Créer un lot moi-même
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Grille principale ─────────────────────────────────────────────── */}
       <div className="cr-body-grid">
 

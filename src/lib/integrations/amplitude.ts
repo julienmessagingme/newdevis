@@ -60,6 +60,20 @@ export function trackEvent(
 }
 
 /**
+ * 2026-08-23 (analyse essais GMC) — associe les événements au user_id Supabase.
+ * Sans identify, impossible de suivre le parcours d'UN inscrit précis (les
+ * events restent anonymes par device). Appeler avec null au logout.
+ */
+export function identifyUser(userId: string | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    amplitude.setUserId(userId ?? undefined);
+  } catch {
+    /* never throw */
+  }
+}
+
+/**
  * Track une page view avec les métadonnées de navigation.
  * Appelé automatiquement depuis BaseLayout sur chaque page.
  */

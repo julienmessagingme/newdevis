@@ -38,6 +38,7 @@ import InsightsBanner from '@/components/chantier/shared/InsightsBanner';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 import '@/styles/cockpit-refonte.css';
+import { trackEvent, identifyUser } from '@/lib/integrations/amplitude';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,15 @@ interface Props {
 
 export default function ChantierCockpit({ result: resultProp, chantierId, token, initialBudgetAffine, initialFinancing, initialEnveloppePrevue }: Props) {
   const [result, setResult]               = useState(resultProp);
+
+  // 2026-08-23 — Amplitude : identify par user_id + vue initiale du cockpit.
+  useEffect(() => {
+    supabase.auth.getUser()
+      .then(({ data }) => identifyUser(data.user?.id ?? null))
+      .catch(() => { /* silencieux */ });
+    trackEvent('cockpit_tab_view', { tab: 'budget', chantier_id: chantierId, initial: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chantierId]);
   const [showAmelioration, setShowAmelioration] = useState(false);
   const [showBudgetDetail, setShowBudgetDetail]   = useState(false);
   const [activeSection, setActiveSection] = useState<Section>('budget');
@@ -327,6 +337,9 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
   // ── Navigation helpers ────────────────────────────────────────────────────
   function navigateTo(s: Section) {
+    // 2026-08-23 (analyse essais GMC) — tracking par écran : sans cet event,
+    // impossible de savoir quels onglets un inscrit utilise ni combien de temps.
+    trackEvent('cockpit_tab_view', { tab: s, chantier_id: chantierId });
     setActiveSection(s);
     if (s !== 'lots') setSelectedLotId(null);
     setShowBudgetDetail(false);

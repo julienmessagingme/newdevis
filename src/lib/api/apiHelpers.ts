@@ -211,7 +211,25 @@ export async function requireChantierAuth(
   const ctx = await requireAuth(request);
   if (ctx instanceof Response) return ctx;
   const owns = await verifyChantierOwnership(ctx.supabase, chantierId, ctx.user.id);
-  if (!owns) return jsonError('Chantier introuvable', 404);
+  if (!owns) {
+    // 2026-08-23 (demande Johan) — accès ADMIN en LECTURE SEULE au cockpit
+    // d'un autre utilisateur (suivi des essais, support). GET uniquement :
+    // toute écriture est refusée pour ne jamais muter le chantier d'un
+    // client par accident. Le client user est sous RLS (il ne verrait pas
+    // les données d'un tiers) → on bascule sur service_role pour la lecture.
+    const { data: roleData } = await ctx.supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', ctx.user.id)
+      .eq('role', 'admin')
+      .maybeSingle();
+    if (!roleData) return jsonError('Chantier introuvable', 404);
+    if (request.method !== 'GET') {
+      return jsonError('Accès admin en lecture seule — écriture refusée', 403);
+    }
+    console.log(`[auth] admin read-only sur chantier ${chantierId} par ${ctx.user.email}`);
+    return { ...ctx, supabase: createServiceClient() };
+  }
   // Lecture seule : bloque les ecritures user si l'acces GMC a expire.
   if (request.method !== 'GET' && !(await hasGmcWriteAccess(ctx.supabase, ctx.user.id))) {
     return gmcPaywallResponse();

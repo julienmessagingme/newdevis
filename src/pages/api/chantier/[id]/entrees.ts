@@ -11,6 +11,7 @@ import type { APIRoute } from 'astro';
 import {
   optionsResponse, jsonOk, jsonError,
   requireChantierAuth,
+  requireChantierAuthOrAgent,
 } from '@/lib/api/apiHelpers';
 
 // ── GET ───────────────────────────────────────────────────────────────────────
@@ -32,7 +33,11 @@ export const GET: APIRoute = async ({ params, request }) => {
 // ── POST ──────────────────────────────────────────────────────────────────────
 
 export const POST: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  // 2026-08-23 (cas Marie Giraud) — l'agent-orchestrator route désormais les
+  // AIDES (MaPrimeRénov, CEE…) ici en tant qu'entrée source_type='aide' au
+  // lieu d'un cashflow_extras invisible dans le plan de financement → auth
+  // OrAgent (X-Agent-Key), comme les autres routes appelées par l'agent.
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   let body: Record<string, unknown>;

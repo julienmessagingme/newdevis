@@ -14,7 +14,8 @@ export const ACTION_SCHEMAS: Tool[] = [
         "Cas d'usage typique :\n" +
         "  • L'utilisateur dit \"le crédit débloque 30k le 15 mai\" → add_payment_event(label='Déblocage crédit', amount=30000, due_date='2026-05-15')\n" +
         "  • \"Le plombier demande 1500€ d'acompte à la commande la semaine prochaine\" → add_payment_event(label='Acompte plombier (commande)', amount=1500, due_date=...)\n" +
-        "  • \"Aide MaPrimeRénov 4500€ attendue en juillet\" → add_payment_event(label='MaPrimeRénov', amount=4500, due_date='2026-07-15')\n\n" +
+        "  • \"Aide MaPrimeRénov 4500€ attendue en juillet\" → add_payment_event(label='MaPrimeRénov', amount=4500, due_date='2026-07-15')\n" +
+        "  ℹ️ Les AIDES (MaPrimeRénov, CEE, prime, subvention…) sont automatiquement enregistrées comme ENTRÉE du plan de financement (visibles dans Budget & Trésorerie → Aides et subventions), pas comme échéance de paiement.\n\n" +
         "Limitation V1 : pas de distinction explicite entrée/sortie en DB. Le label doit être suffisamment clair (\"Déblocage X\", \"Acompte Y\", \"Aide Z\") pour que l'utilisateur comprenne dans l'Échéancier.\n\n" +
         "Pour un paiement DÉJÀ effectué sur une facture existante → utilise plutôt register_payment.",
       parameters: {
@@ -135,6 +136,36 @@ export const handlers: Record<string, Handler> = {
     // Validation format date — strict YYYY-MM-DD pour éviter les déformations LLM (ex: '15/05/2026').
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
       return JSON.stringify({ ok: false, error: `due_date doit être au format YYYY-MM-DD (reçu '${dueDate}')` });
+    }
+
+    // 2026-08-23 (cas Marie Giraud) — une AIDE (MaPrimeRénov, CEE, prime,
+    // subvention…) n'est PAS une échéance de paiement : c'est une ENTRÉE du
+    // plan de financement. L'ancien routage (cashflow_extras manuel) la
+    // rendait invisible dans « Aides et subventions » → l'utilisateur ne la
+    // retrouvait pas. Routage déterministe vers /entrees (source_type='aide').
+    const AIDE_RE = /\b(aide|subvention|prime|maprimer[ée]nov|ma\s+prime\s+r[ée]nov|cee|anah|[ée]co[- ]?ptz)\b/i;
+    if (AIDE_RE.test(label)) {
+      const resAide = await fetch(`${API_BASE}/api/chantier/${chantierId}/entrees`, {
+        method: "POST", headers,
+        body: JSON.stringify({
+          label,
+          montant: amount,
+          source_type: "aide",
+          date_entree: dueDate,
+          statut: "attendu",
+        }),
+      });
+      if (!resAide.ok) {
+        const errTxt = await resAide.text();
+        return JSON.stringify({ ok: false, error: `add_payment_event (aide) ${resAide.status}: ${errTxt.slice(0, 200)}` });
+      }
+      const aideData = await resAide.json();
+      return JSON.stringify({
+        ok: true,
+        entree_id: aideData?.entree?.id ?? null,
+        label, amount, due_date: dueDate,
+        message: `Aide "${label}" (${amount}€) enregistrée comme ENTRÉE de financement (source: aide), attendue le ${dueDate}. Elle est visible dans l'onglet Budget & Trésorerie, section Entrées / Aides et subventions — précise-le à l'utilisateur.`,
+      });
     }
 
     const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/payment-events`, {
