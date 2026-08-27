@@ -44,6 +44,7 @@ import { detectQuoteCountry } from "./country.ts";
 import { detectIncompleteQuoteShared } from "./incomplete-quote.ts";
 import { liftInlineQuantities } from "./inline-quantities.ts";
 import { detectSupplyOnlyQuote } from "./supply-only.ts";
+import { detectRecapTotalLine } from "./recap-lines.ts";
 import {
   reconcileDevis,
   type LigneInput,
@@ -782,6 +783,27 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
 
   // Lignes plates (pour R1 detection + legacy mapping)
   const allLignesV2: LigneV2[] = sectionsV2.flatMap((s) => s.lignes);
+
+  // 5-. Ligne RÉCAPITULATIVE (2026-08-27, cas NAZON signalé par Johan) — une
+  // ligne qui vaut la somme de toutes les autres double le devis entier dans
+  // l'analyse des postes (« forfait intervention 89 270 € » après 6
+  // sous-totaux faisant 89 270 €  → 178 540 € affichés). Reclassée en `total`
+  // AVANT tout l'aval : mutation in-place, donc travaux[] legacy, matching
+  // catalogue, couverture marché et réconciliation voient le bon périmètre.
+  {
+    const travauxIdx = allLignesV2
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => l.type === "ligne_travaux");
+    const recapPos = detectRecapTotalLine(travauxIdx.map(({ l }) => l));
+    if (recapPos !== null) {
+      const target = travauxIdx[recapPos].l;
+      target.type = "total";
+      console.log(
+        `[extract_v2] ligne récapitulative reclassée en total : "${(target.libelle ?? "").slice(0, 60)}" ` +
+        `(${target.montant_total} € = somme des autres lignes)`,
+      );
+    }
+  }
 
   // 5bis. Remontée des surfaces inline (2026-08-14, cas HEXA BAT) — les devis
   // « 1 ens » avec la surface écrite dans la description (« Création salle

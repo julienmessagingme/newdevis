@@ -3,6 +3,7 @@ import type { ExtractedData } from "./types.ts";
 import type { DomainConfig } from "./domain-config.ts";
 import { PipelineError, isPipelineError, repairTruncatedJson, GEMINI_AI_URL } from "./utils.ts";
 import { detectQuoteCountry } from "./country.ts";
+import { detectRecapTotalLine } from "./recap-lines.ts";
 import { detectIncompleteQuoteShared } from "./incomplete-quote.ts";
 
 // ============================================================
@@ -755,6 +756,22 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
               if (sum > parentAmt + tolerance) break;
             }
           }
+        }
+
+        // 2026-08-27 (cas NAZON) — ligne RÉCAPITULATIVE : une ligne qui vaut la
+        // somme de toutes les autres double le devis entier. Complète la garde
+        // V3.5.10 ci-dessus, qui ne regarde QUE vers l'avant (un récap en fin
+        // de devis lui échappe) et RECAP_PATTERNS qui matche des libellés
+        // explicites (« forfait intervention » y échappe). Même module que V2.
+        const recapPos = detectRecapTotalLine(
+          filtered.map((t: any) => ({ montant_total: typeof t?.montant === "number" ? t.montant : null })),
+        );
+        if (recapPos !== null && !toDropIndexes.has(recapPos)) {
+          toDropIndexes.add(recapPos);
+          console.log(
+            `[extract] ligne récapitulative droppée : "${String(filtered[recapPos]?.libelle ?? "").slice(0, 60)}" ` +
+            `(${filtered[recapPos]?.montant} € = somme des autres lignes)`,
+          );
         }
 
         const structurallyFiltered = filtered.filter((_: unknown, i: number) => !toDropIndexes.has(i));
