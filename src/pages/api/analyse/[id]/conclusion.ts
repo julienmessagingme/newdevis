@@ -1834,6 +1834,18 @@ export const POST: APIRoute = async ({ params, request }) => {
     return null;
   })();
   const totalTTC   = typeof totaux.ttc === "number" ? totaux.ttc : null;
+
+  // 2026-08-27 (bug vu sur NAZON : « second devis ~165 040 € » sur un devis de
+  // 89 270 € HT) — la somme des groupes priceData peut DÉPASSER le total du
+  // devis (sous-totaux comptés plusieurs fois, lignes récap, groupes
+  // hallucinés). Le total HT extrait est la seule borne fiable : on l'utilise
+  // comme dénominateur de couverture et on plafonne le comparable.
+  const coverageDenom = totalHT !== null && totalHT > 0 ? totalHT : priceDataTotalHT;
+  const comparableClamped = Math.min(comparableHT, coverageDenom);
+  const coveragePct = coverageDenom > 0
+    ? Math.round((comparableClamped / coverageDenom) * 100)
+    : null;
+  const montantNonCompare = Math.max(0, Math.round(coverageDenom - comparableClamped));
   const tauxTVA    = typeof totaux.taux_tva === "number" ? totaux.taux_tva : null;
   const workType   = (analysis.work_type as string) || "";
   const resume     = (analysis.resume   as string) || "";
@@ -2122,8 +2134,8 @@ CONTEXTE DU DEVIS:
 - TVA: ${tauxTVA ? `${tauxTVA}%` : "inconnue"}${domTvaNote}${(() => {
     // 2026-08-27 — couverture marché partielle : interdit d'affirmer une
     // conformité globale quand une grosse part du devis n'a pas de référence.
-    const nonCompare = priceDataTotalHT - comparableHT;
-    const pct = priceDataTotalHT > 0 ? Math.round((comparableHT / priceDataTotalHT) * 100) : null;
+    const nonCompare = montantNonCompare;
+    const pct = coveragePct;
     if (pct === null || pct >= 60 || nonCompare < 1000) return "";
     return `\n⚠️ COUVERTURE MARCHÉ PARTIELLE : seuls ~${pct}% du montant des postes sont comparables à notre référentiel (${Math.round(nonCompare).toLocaleString("fr-FR")} € de prestations spécialisées sans référence — ex. désamiantage, démarches réglementaires, prestations sur mesure). RÈGLE ABSOLUE : ne JAMAIS écrire que « le devis est conforme aux prix du marché » globalement — dire que les POSTES COMPARABLES sont dans le marché et que les prestations spécialisées n'ont pas pu être évaluées (un second devis est le seul point de comparaison pour celles-ci).`;
   })()}
@@ -2914,10 +2926,8 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         // 2026-08-27 (cas ZANNOU v2) — couverture marché : qualifie le motif
         // du verdict + déclenche le levier « second avis » sur les postes
         // sans référence (désamiantage, réglementaire…).
-        comparable_coverage_pct: priceDataTotalHT > 0
-          ? Math.round((comparableHT / priceDataTotalHT) * 100)
-          : null,
-        montant_non_compare: Math.max(0, Math.round(priceDataTotalHT - comparableHT)),
+        comparable_coverage_pct: coveragePct,
+        montant_non_compare: montantNonCompare,
       };
       const leviers = buildLeviers(p4Signals);
       (conclusionData as ConclusionData).leviers = leviers;
