@@ -102,7 +102,7 @@ export default function AvisEtPreparation({
             bypass (devis incomplet…), les leviers STRUCTURELS réels (quantités,
             acompte, clauses) restent visibles. Le composant s'auto-masque si le
             serveur n'a pas généré de leviers (hors_scope, étranger, courtier). */}
-        <LeviersNegociation conclusion={conclusion} />
+        <LeviersNegociation conclusion={conclusion} analysisId={analysisId} />
       </div>
     );
   }
@@ -116,7 +116,7 @@ export default function AvisEtPreparation({
         criticalReasons={criticalReasons}
       />
       {/* 🟢 Phase 4 — 3 leviers hiérarchisés (rendu seulement si conclusion.leviers) */}
-      <LeviersNegociation conclusion={conclusion} />
+      <LeviersNegociation conclusion={conclusion} analysisId={analysisId} />
       <PreparezVotreRendezVous
         conclusion={conclusion}
         pointsOk={pointsOk}

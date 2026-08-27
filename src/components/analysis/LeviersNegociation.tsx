@@ -13,6 +13,9 @@
  * comme seul bloc actionnable.
  */
 
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { trackEvent } from "@/lib/integrations/amplitude";
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 
 const NIVEAU_STYLE: Record<
@@ -48,9 +51,72 @@ const SECURISER_STYLE = {
 
 interface LeviersNegociationProps {
   conclusion: ConclusionData;
+  /** 2026-08-27 — requis pour la mesure d'intérêt dommages-ouvrage. */
+  analysisId?: string;
 }
 
-export default function LeviersNegociation({ conclusion }: LeviersNegociationProps) {
+/**
+ * 2026-08-27 (décision Johan) — mesure d'intérêt « dommages-ouvrage », test de
+ * 3 mois. Affiché sous le conseil DO uniquement. AUCUN lead n'est transmis à
+ * un tiers aujourd'hui : le libellé le dit honnêtement (« dès qu'un partenaire
+ * sera en place »), on ne promet pas un devis qu'on ne peut pas fournir.
+ * Verdict du test : aucun clic en 3 mois = piste abandonnée.
+ */
+function DommagesOuvrageInterest({ analysisId }: { analysisId: string }) {
+  const storageKey = `vmd_do_interest_${analysisId}`;
+  const [state, setState] = useState<"idle" | "sending" | "done">(() => {
+    try {
+      return localStorage.getItem(storageKey) === "1" ? "done" : "idle";
+    } catch {
+      return "idle";
+    }
+  });
+
+  const send = async () => {
+    setState("sending");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (token) {
+        await fetch(`/api/analyse/${analysisId}/do-interest`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        });
+      }
+      trackEvent("do_interest_click", { analysis_id: analysisId });
+      try { localStorage.setItem(storageKey, "1"); } catch { /* ignore */ }
+    } catch {
+      /* mesure best-effort — on remercie quand même */
+    }
+    setState("done");
+  };
+
+  if (state === "done") {
+    return (
+      <p className="mt-3 rounded-lg bg-emerald-50 border border-emerald-200 px-3.5 py-2.5 text-[13px] text-emerald-900">
+        Merci — c'est noté. Nous vous recontacterons dès qu'un partenaire assurance sera en place.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50/60 px-3.5 py-3">
+      <p className="text-[13px] text-sky-950 leading-relaxed mb-2">
+        Souhaitez-vous recevoir une proposition de dommages-ouvrage, sans engagement&nbsp;?
+      </p>
+      <button
+        type="button"
+        onClick={send}
+        disabled={state === "sending"}
+        className="rounded-lg bg-sky-700 px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-sky-800 disabled:opacity-60"
+      >
+        {state === "sending" ? "…" : "Oui, ça m'intéresse"}
+      </button>
+    </div>
+  );
+}
+
+export default function LeviersNegociation({ conclusion, analysisId }: LeviersNegociationProps) {
   const leviers = conclusion.leviers ?? [];
   if (leviers.length === 0) return null;
 
@@ -102,6 +168,9 @@ export default function LeviersNegociation({ conclusion }: LeviersNegociationPro
               <p className="mt-1 text-[13.5px] text-foreground/70 leading-relaxed">
                 {levier.detail}
               </p>
+              {levier.type === "dommages_ouvrage" && analysisId && (
+                <DommagesOuvrageInterest analysisId={analysisId} />
+              )}
             </li>
           );
         })}
