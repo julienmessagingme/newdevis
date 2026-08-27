@@ -32,30 +32,15 @@ function b64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-Deno.serve(async (_req) => {
-  if (!ANTHROPIC_API_KEY) {
-    console.error("[ai-review] ANTHROPIC_API_KEY manquant");
-    return new Response(JSON.stringify({ ok: false, error: "missing key" }), { status: 500 });
-  }
-  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+// deno-lint-ignore no-explicit-any
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
 
-  // 1 analyse par run (l'appel Claude + web search peut prendre 1-2 min)
-  const { data: pending, error } = await supabase
-    .from("analyses")
-    .select("id, file_name, file_path, raw_text, conclusion_ia, score, created_at")
-    .eq("review_status", "pending_review")
-    .is("ai_reviewed_at", null)
-    .order("created_at", { ascending: true })
-    .limit(1);
-  if (error) {
-    console.error("[ai-review] select:", error.message);
-    return new Response(JSON.stringify({ ok: false }), { status: 500 });
-  }
-  if (!pending?.length) {
-    return new Response(JSON.stringify({ ok: true, reviewed: 0 }));
-  }
-  const a = pending[0];
+async function processOne(a: Record<string, any>, supabase: ReturnType<typeof createClient>): Promise<void> {
   console.log(`[ai-review] relecture ${a.id.slice(0, 8)} — ${a.file_name}`);
+  // CLAIM immédiat : le tick suivant (10 min) ne doit pas reprendre la même
+  // analyse pendant le traitement. Si le run meurt, le filet « opinion null
+  // et claim > 1h » du select la remettra dans la file.
+  await supabase.from("analyses").update({ ai_reviewed_at: new Date().toISOString() }).eq("id", a.id);
 
   // ── Contexte pipeline ────────────────────────────────────────────────────
   let raw: Record<string, unknown> = {};
@@ -151,7 +136,7 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
         ai_review_opinion: { error: `Anthropic ${res.status}`, detail: errTxt },
       }).eq("id", a.id);
     }
-    return new Response(JSON.stringify({ ok: false }), { status: 502 });
+    return;
   }
   const result = await res.json();
   // Le premier bloc peut être du thinking / des blocs web_search → prendre les text
@@ -179,5 +164,34 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
   if (upErr) console.error("[ai-review] update:", upErr.message);
 
   console.log(`[ai-review] ${a.id.slice(0, 8)} terminé en ${Math.round((Date.now() - t0) / 1000)}s — accord=${opinion.accord_avec_ia ?? "?"} action=${opinion.action_recommandee ?? "?"}`);
-  return new Response(JSON.stringify({ ok: true, reviewed: 1, analysis: a.id }));
+}
+
+Deno.serve(async (_req) => {
+  if (!ANTHROPIC_API_KEY) {
+    console.error("[ai-review] ANTHROPIC_API_KEY manquant");
+    return new Response(JSON.stringify({ ok: false, error: "missing key" }), { status: 500 });
+  }
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // 1 analyse par tick. Filet de reprise : claim > 1h sans opinion = run mort.
+  const oneHourAgo = new Date(Date.now() - 3600_000).toISOString();
+  const { data: pending, error } = await supabase
+    .from("analyses")
+    .select("id, file_name, file_path, raw_text, conclusion_ia, score, created_at")
+    .eq("review_status", "pending_review")
+    .or(`ai_reviewed_at.is.null,and(ai_review_opinion.is.null,ai_reviewed_at.lt.${oneHourAgo})`)
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (error) {
+    console.error("[ai-review] select:", error.message);
+    return new Response(JSON.stringify({ ok: false }), { status: 500 });
+  }
+  if (!pending?.length) {
+    return new Response(JSON.stringify({ ok: true, reviewed: 0 }));
+  }
+
+  // Réponse immédiate (la gateway coupe à 150 s d'inactivité) — le traitement
+  // (Claude Opus 5 + PDF + web search, 1-4 min) continue en arrière-plan.
+  EdgeRuntime.waitUntil(processOne(pending[0], supabase));
+  return new Response(JSON.stringify({ ok: true, launched: pending[0].id }), { status: 202 });
 });
