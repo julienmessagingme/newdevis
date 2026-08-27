@@ -178,6 +178,15 @@
   - Input : lignes qty=1 avec libellés génériques de corps de métier (« Plomberie », « Dépose de l'existant ») → bypass conservé
 - **Statut** : 🟢 **corrigé le 2026-08-17** (commit `bd08099`, déployé). 3e garde-fou dans `incomplete-quote.ts` : garde « libellés de lot » — le bypass n'est légitime que si ≥ 50 % des lignes non quantifiées ressemblent à des intitulés génériques de corps de métier (vocabulaire 40 termes, veto sur les codes produit alphanumériques). 9 cas anti-régression couvrant les 3 variantes de la famille + les 2 vrais positifs (Créteil, résumé toiture). Analyse d'origine rejouée et page corrigée.
 
+### 2026-08-27 — VERDICT-VERT-SUR-COUVERTURE-PARTIELLE + CARTES-ROUGES-ORPHELINES (cas ZANNOU v2 / SKM)
+
+- **Signalé par** : Johan (analyse `58865477` — devis SDB PMR + désamiantage SS4, 14 430 € HT, ARA La Réunion)
+- **Symptôme observé** : (1) verdict vert « conforme aux standards de prix » alors que **~70 % du montant** (volet amiante SS4, 10 049 €) n'a AUCUNE référence marché — on affirmait une conformité non mesurée ; (2) dans le détail, cartes ROUGES « Anomalie marché » (« Diagnostic amiante 80-180 € vs 1 000 € ») sous un verdict vert à 0 anomalie — statuts contradictoires interdits par la spec Maillon 3 ; (3) compteurs en dur mensongers (« deux vérifications » au-dessus d'1 levier, « Trois choses » au-dessus de 2 sections) ; (4) fiche « Ce que vous pouvez lui demander » affichant une AFFIRMATION (« Le devis détaille clairement les matériaux… »).
+- **Causes racines** : (1) aucune mesure de couverture comparable dans le verdict ; (2) override « anomalie franche » (ratio ≥ 2× restait rouge en confidence medium) alors que V3.5.13 excluait déjà ces groupes du verdict — et sa prémisse était fausse (le 5,6× était un faux match élimination→diagnostic amiante) ; (3) wordings statiques ; (4) contexte des « Assurez-vous que X » affiché brut.
+- **Maillon concerné** : 3 (Verdict honnête)
+- **Cas test à passer** : couverture 45 % + 7 200 € non comparés → verdict_ligne qualifié (« sur les postes comparables (~45 %) ») + levier `second_avis` (sécurisation, jamais dans le message artisan) ; couverture ≥ 60 % → motif standard ; medium + ratio 4× → `low_confidence_match` (jamais rouge).
+- **Statut** : 🟢 **corrigé le 2026-08-27** (commit `ceab68d`, validé par replay sur l'analyse d'origine : verdict_ligne « ~30 % du devis… 10 049 € à confirmer par un second devis ») — couverture mesurée dans `conclusion.ts` (part high-confidence du montant des postes) → note de prompt + signaux P4 + levier `second_avis` ; suppression de l'override anomalie-franche dans `quoteGlobalAnalysis` (invariant CLAUDE.md mis à jour) ; compteurs dynamiques/neutres ; contexte fiche « Que X ».
+
 ### 2026-08-20 — FICHE-RENDEZ-VOUS-ALOURDIE-ET-INCOHERENTE (cas Renov'Toitures)
 
 - **Signalé par** : Johan (analyse `7a3d9ea8` — fiche « Préparez votre rendez-vous »)
