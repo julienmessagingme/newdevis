@@ -39,7 +39,7 @@ export const GET: APIRoute = async ({ request, params }) => {
   const { data: analysis, error } = await supabase
     .from("analyses")
     .select(
-      "id, file_name, file_path, status, created_at, user_id, conclusion_ia, raw_text, review_status, review_notes, reviewed_at, reviewed_by",
+      "id, file_name, file_path, status, created_at, user_id, conclusion_ia, raw_text, review_status, review_notes, reviewed_at, reviewed_by, ai_review_opinion, ai_reviewed_at",
     )
     .eq("id", id)
     .single();

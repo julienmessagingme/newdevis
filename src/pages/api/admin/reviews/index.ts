@@ -36,7 +36,8 @@ export const GET: APIRoute = async ({ request }) => {
   // 2026-08-25 — client service_role : la vue joint auth.users (emails) et
   // n'est plus SELECTable par anon/authenticated (alerte auth_users_exposed
   // du 23/08, migration 20260825100000). Le check admin ci-dessus reste le gate.
-  const { data, error } = await createServiceClient()
+  const service = createServiceClient();
+  const { data, error } = await service
     .from("admin_pending_reviews")
     .select("*")
     .order("created_at", { ascending: false })
@@ -44,6 +45,22 @@ export const GET: APIRoute = async ({ request }) => {
 
   if (error) {
     return jsonError(error.message, 500);
+  }
+
+  // 2026-08-27 — avis de l'agent relecteur IA (colonne analyses, absente de la
+  // vue) mergé par analysis_id pour affichage dans l'écran de revue.
+  if (data && data.length > 0) {
+    const ids = data.map((r: Record<string, unknown>) => r.analysis_id ?? r.id).filter(Boolean);
+    const { data: opinions } = await service
+      .from("analyses")
+      .select("id, ai_review_opinion, ai_reviewed_at")
+      .in("id", ids as string[]);
+    const byId = new Map((opinions ?? []).map((o) => [o.id, o]));
+    for (const r of data as Array<Record<string, unknown>>) {
+      const o = byId.get((r.analysis_id ?? r.id) as string);
+      r.ai_review_opinion = o?.ai_review_opinion ?? null;
+      r.ai_reviewed_at = o?.ai_reviewed_at ?? null;
+    }
   }
 
   // Compteur global (pour affichage "12 analyses en attente")

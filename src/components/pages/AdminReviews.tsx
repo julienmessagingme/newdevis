@@ -29,6 +29,19 @@ interface ReviewDetail {
     created_at: string;
     user_id: string;
     review_status: string;
+    /** 2026-08-27 — avis de l'agent relecteur IA (ai-review-agent). */
+    ai_review_opinion?: {
+      accord_avec_ia?: string;
+      verdict_recommande?: string;
+      action_recommandee?: string;
+      confiance?: number;
+      resume?: string;
+      points_verifies?: Array<{ poste?: string; prix_devis?: string; avis?: string; detail?: string; source_web?: string | null }>;
+      drapeaux?: string[];
+      notes_expert_proposees?: string;
+      error?: string;
+    } | null;
+    ai_reviewed_at?: string | null;
   };
   conclusion: any;
   raw: any;
@@ -378,6 +391,90 @@ function ReviewDetail({
           </p>
         </div>
       )}
+
+      {/* 2026-08-27 — Avis de l'agent relecteur IA (ai-review-agent, cron 10 min).
+          Relecture INDÉPENDANTE : PDF source + recherche web de prix réels.
+          L'humain garde le clic final. */}
+      {(() => {
+        const op = detail.analysis.ai_review_opinion;
+        if (!op) {
+          return (
+            <div className="mb-6 p-3 border border-dashed rounded text-xs text-muted-foreground">
+              🤖 Relecture IA en attente — l'agent passe toutes les 10 minutes.
+            </div>
+          );
+        }
+        if (op.error) {
+          return (
+            <div className="mb-6 p-3 border border-rose-200 bg-rose-50 rounded text-xs text-rose-800">
+              🤖 Relecture IA en échec : {op.error}
+            </div>
+          );
+        }
+        const accordCls = op.accord_avec_ia === "oui"
+          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+          : op.accord_avec_ia === "non"
+            ? "bg-rose-100 text-rose-800 border-rose-300"
+            : "bg-amber-100 text-amber-800 border-amber-300";
+        const ACTION_LABEL: Record<string, string> = {
+          valider: "Valider (IA juste)",
+          corriger: "Corriger",
+          rejeter_faux_positif: "Rejeter (faux positif Piste C)",
+        };
+        return (
+          <div className="mb-6 p-4 border-2 border-indigo-200 bg-indigo-50/40 rounded space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold">🤖 Avis de l'agent relecteur IA</span>
+              <span className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold uppercase ${accordCls}`}>
+                accord : {op.accord_avec_ia ?? "?"}
+              </span>
+              {typeof op.confiance === "number" && (
+                <span className="text-[11px] text-muted-foreground">confiance {Math.round(op.confiance * 100)} %</span>
+              )}
+              {op.action_recommandee && (
+                <span className="text-[11px] font-medium text-indigo-800">
+                  → recommande : {ACTION_LABEL[op.action_recommandee] ?? op.action_recommandee}
+                </span>
+              )}
+            </div>
+            {op.resume && <p className="text-xs text-foreground/80 leading-relaxed">{op.resume}</p>}
+            {Array.isArray(op.points_verifies) && op.points_verifies.length > 0 && (
+              <ul className="text-xs space-y-1">
+                {op.points_verifies.map((p, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span className="flex-shrink-0">
+                      {p.avis === "cohérent" ? "🟢" : p.avis === "sans référence" ? "⚪" : "🟠"}
+                    </span>
+                    <span>
+                      <strong>{p.poste}</strong> ({p.prix_devis}) — {p.detail}
+                      {p.source_web && (
+                        <>
+                          {" "}
+                          <a href={p.source_web} target="_blank" rel="noreferrer" className="text-indigo-700 underline">source</a>
+                        </>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {Array.isArray(op.drapeaux) && op.drapeaux.length > 0 && (
+              <ul className="text-xs text-amber-900 space-y-0.5">
+                {op.drapeaux.map((d, i) => <li key={i}>⚑ {d}</li>)}
+              </ul>
+            )}
+            {op.notes_expert_proposees && (
+              <button
+                type="button"
+                onClick={() => setNotes(op.notes_expert_proposees ?? "")}
+                className="text-xs font-medium text-indigo-700 underline"
+              >
+                Utiliser ses notes comme Notes expert
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Notes expert */}
       <div className="mb-6">

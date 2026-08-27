@@ -85,3 +85,7 @@ verify_jwt = false
 # Relance J+15 « Ce devis, finalement ? » (cron 08:20 UTC, migration 20260824).
 [functions.vmd-outcome-scheduler]
 verify_jwt = false
+
+# Agent relecteur IA des pending_review (cron */10 min, migration 20260827110000).
+[functions.ai-review-agent]
+verify_jwt = false
