@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from "astro";
-import { optionsResponse, jsonOk, jsonError, requireAuth } from "@/lib/api/apiHelpers";
+import { optionsResponse, jsonOk, jsonError, requireAuth, createServiceClient } from "@/lib/api/apiHelpers";
 
 /**
  * GET /api/admin/reviews
@@ -32,8 +32,11 @@ export const GET: APIRoute = async ({ request }) => {
     return jsonError("Accès refusé", 403);
   }
 
-  // Lecture depuis la vue admin_pending_reviews (pré-calcule les champs JSON)
-  const { data, error } = await supabase
+  // Lecture depuis la vue admin_pending_reviews (pré-calcule les champs JSON).
+  // 2026-08-25 — client service_role : la vue joint auth.users (emails) et
+  // n'est plus SELECTable par anon/authenticated (alerte auth_users_exposed
+  // du 23/08, migration 20260825100000). Le check admin ci-dessus reste le gate.
+  const { data, error } = await createServiceClient()
     .from("admin_pending_reviews")
     .select("*")
     .order("created_at", { ascending: false })
