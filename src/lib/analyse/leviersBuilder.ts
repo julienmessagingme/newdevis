@@ -330,7 +330,7 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       type: "retenue_garantie",
       titre: `Demandez une retenue de garantie de 5 % (environ ${fmtEuros(s.total_ht * 0.05)} €) libérée après la levée des réserves`,
       detail:
-        "C'est l'usage sur les chantiers de cette taille, et c'est encadré par la loi : vous conservez 5 % du montant au moment du solde, restitués un an après la réception si aucune réserve ne reste à lever (ou immédiatement si l'artisan fournit une caution bancaire). C'est le seul vrai levier pour que les finitions et les reprises soient faites — une fois payé à 100 %, vous n'avez plus de moyen de pression.",
+        "C'est l'usage sur les chantiers de cette taille, et c'est encadré par la loi : vous conservez 5 % du montant au moment du solde, restitués un an après la réception si aucune réserve ne reste à lever (ou immédiatement si l'artisan fournit une caution bancaire). C'est le seul vrai levier pour que les finitions et les reprises soient faites — une fois payé à 100 %, vous n'avez plus de moyen de pression. Pensez à formaliser un procès-verbal de réception listant les réserves : c'est lui qui déclenche le délai et qui fera foi en cas de litige (GérerMonChantier le génère et l'archive automatiquement).",
     });
   }
 
