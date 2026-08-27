@@ -71,3 +71,15 @@ La perte de couverture a DEUX causes, à traiter différemment :
 237 analyses ; combinés, ils devraient remonter la couverture médiane de ~29 %
 vers 55-65 % (l'alias « enduit/ratissage/ponçage/peinture-préparation » pèse à
 lui seul un tiers du manque récurrent).
+
+---
+
+## ✅ APPLIQUÉ le 2026-08-27 (décision Johan — sans attente de validation préalable)
+
+25 lignes insérées en prod et embeddées (script `scripts/catalogue-additions-20260827.mjs`,
+idempotent) : 6 alias (job_type suffixé `_alias`, mêmes fourchettes que la cible,
+`generic_family` = cible) + 19 nouvelles entrées (`confidence='medium'`,
+`source` tracé, fourchettes désamiantage ancrées web travaux.com/desamianter.fr).
+Catalogue : 891 → 916 lignes. **Julien peut ajuster les fourchettes a posteriori**
+(filtre SQL : `source LIKE 'mining stock 2026-08-27%'`). Re-mesure de la
+couverture à J+15 : `node scripts/mine-coverage.mjs`.

@@ -90,7 +90,7 @@ ${groupsSummary || "(aucun)"}
 
 TA MISSION :
 1. Lis le devis PDF joint (source de vérité — pas l'extraction).
-2. Identifie les 2 à 4 postes les plus déterminants (les plus chers ou les plus douteux) et VÉRIFIE leurs prix avec la recherche web (prix France 2026, sources récentes). Cite tes sources.
+2. Identifie les 2 ou 3 postes les plus déterminants (les plus chers ou les plus douteux) et VÉRIFIE leurs prix avec la recherche web (3 recherches MAXIMUM, prix France 2026). Cite tes sources. Sois rapide et ciblé.
 3. Vérifie la cohérence du verdict pipeline : faux positifs de matching (forfait comparé à un prix unitaire, prestation intellectuelle, fourniture seule…), signaux manqués (clauses, acompte, TVA, entreprise).
 4. Sois HONNÊTE sur l'incertitude : si un poste n'a pas de référence fiable, dis-le — n'invente jamais une fourchette.
 
@@ -120,8 +120,12 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 16000,
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }],
+      max_tokens: 6000,
+      // 2026-08-27 — budget serré : l'edge function est tuée à ~400s de wall
+      // clock (1er run réel mort après le claim). effort medium + 3 recherches
+      // max ramènent l'appel à ~60-150s tout en gardant le grounding web.
+      output_config: { effort: "medium" },
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
       messages: [{ role: "user", content }],
     }),
   });
