@@ -16,6 +16,7 @@ import ReturningUsersSection from "@/components/admin/sections/ReturningUsersSec
 import FeedbackSection from "@/components/admin/sections/FeedbackSection";
 import AnomaliesSection from "@/components/admin/sections/AnomaliesSection";
 import GmcKPIsSection, { type GmcKpis } from "@/components/admin/sections/GmcKPIsSection";
+import DoInterestSection, { type DoInterestKpis } from "@/components/admin/sections/DoInterestSection";
 
 const Admin = () => {
   const [loading, setLoading] = useState(true);
@@ -27,11 +28,30 @@ const Admin = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [subscriberSearch, setSubscriberSearch] = useState("");
+  const fetchDoKpis = async () => {
+    setDoLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch('/api/admin/do-interest-kpis', {
+        headers: { Authorization: 'Bearer ' + session.access_token },
+      });
+      if (!res.ok) throw new Error('Erreur API');
+      setDoKpis(await res.json());
+    } catch (err) {
+      console.error('Error fetching DO interest KPIs:', err);
+    } finally {
+      setDoLoading(false);
+    }
+  };
   const [recentDevis, setRecentDevis] = useState<Array<{ id: string; file_name: string; file_path: string; created_at: string; score: string | null; status: string }>>([]);
   const [devisLoading, setDevisLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [gmcKpis, setGmcKpis] = useState<GmcKpis | null>(null);
   const [gmcLoading, setGmcLoading] = useState(false);
+  // 2026-08-27 — suivi du test dommages-ouvrage (3 mois)
+  const [doKpis, setDoKpis] = useState<DoInterestKpis | null>(null);
+  const [doLoading, setDoLoading] = useState(false);
 
   const checkAdminAndFetchKPIs = async () => {
     try {
@@ -61,6 +81,7 @@ const Admin = () => {
       fetchUsers();
       fetchRecentDevis();
       fetchGmcKpis();
+      fetchDoKpis();
       const { data, error } = await supabase.functions.invoke("admin-kpis");
 
       if (error) throw error;
@@ -176,6 +197,7 @@ const Admin = () => {
 
         <UsageKPIsSection kpis={kpis} />
         <GmcKPIsSection kpis={gmcKpis} loading={gmcLoading} />
+        <DoInterestSection kpis={doKpis} loading={doLoading} />
         <ChartsSection kpis={kpis} />
         <ScoringKPIsSection kpis={kpis} />
         <DocumentsKPIsSection kpis={kpis} />
