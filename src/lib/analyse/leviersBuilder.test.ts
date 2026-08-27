@@ -175,6 +175,37 @@ describe("buildLeviers — hiérarchie et cap à 3", () => {
   });
 });
 
+// ── Règle 2026-08-27 (cas ZANNOU v2) : couverture marché partielle ──────────
+describe("buildLeviers — couverture marché partielle", () => {
+  it("couverture 45% + 7 200€ non comparés → levier second_avis (sécurisation)", () => {
+    const leviers = buildLeviers({ ...base, comparable_coverage_pct: 45, montant_non_compare: 7200 });
+    const sa = leviers.find((l) => l.type === "second_avis");
+    expect(sa).toBeDefined();
+    expect(sa!.objectif).toBe("securiser");
+    expect(sa!.titre).toMatch(/7.200/); // séparateur = espace insécable fr-FR
+    expect(sa!.detail).toContain("45 %");
+  });
+
+  it("couverture 90% → pas de levier second_avis (pas de bruit)", () => {
+    const leviers = buildLeviers({ ...base, comparable_coverage_pct: 90, montant_non_compare: 500 });
+    expect(leviers.some((l) => l.type === "second_avis")).toBe(false);
+  });
+
+  it("verdict signer + couverture 45% → motif QUALIFIÉ (jamais « conforme » global)", () => {
+    const s: LevierSignals = { ...base, comparable_coverage_pct: 45, montant_non_compare: 7200 };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).toContain("postes comparables (~45 %");
+    expect(v.motif).toContain("second devis");
+    expect(v.motif).not.toBe("prix dans les fourchettes du marché et conditions habituelles");
+  });
+
+  it("verdict signer + couverture pleine → motif standard inchangé", () => {
+    const s: LevierSignals = { ...base, comparable_coverage_pct: 95, montant_non_compare: 200 };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).toBe("prix dans les fourchettes du marché et conditions habituelles");
+  });
+});
+
 describe("buildVerdictLigne — le motif est TOUJOURS nommé", () => {
   it("verdict rouge acompte (cas Grosbois) → le motif dit l'acompte, pas 'risque élevé'", () => {
     const s: LevierSignals = { ...base, verdict_decisionnel: "ne_pas_signer", total_ht: 21_362, acompte_cumule_pct: 70 };

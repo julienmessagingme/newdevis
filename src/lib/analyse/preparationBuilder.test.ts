@@ -567,6 +567,25 @@ describe("preparationBuilder — réconciliation leviers", () => {
     expect(conseilsPrudence.join(" ")).toMatch(/deux devis supplémentaires/i);
   });
 
+  it("« Assurez-vous que X » → contexte fiche = « Que X » (une demande, pas une affirmation)", () => {
+    // Cas ZANNOU v2 (2026-08-27) : « Le devis détaille clairement les
+    // matériaux… » affiché sous « Ce que vous pouvez lui demander » lisait
+    // comme une AFFIRMATION.
+    const conclusion: ConclusionData = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Assurez-vous que le devis détaille clairement les matériaux inclus et les garanties applicables pour chaque prestation.",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    expect(aDemander).toHaveLength(1);
+    expect(aDemander[0].context).toMatch(/^Que le devis détaille clairement/);
+  });
+
+  it("levierQuestion — second_avis = conseil client, JAMAIS envoyé à l'artisan", () => {
+    expect(levierQuestion({ niveau: "bonus", objectif: "securiser", type: "second_avis", titre: "Faites chiffrer…", detail: "" })).toBeNull();
+  });
+
   it("levierQuestion — questions déterministes par type", () => {
     expect(levierQuestion({ niveau: "bonus", objectif: "negocier", type: "revision_tarifaire", titre: "Demandez une révision tarifaire : le devis date de 2024", detail: "" }))
       .toBe("Votre devis date de 2024 — pouvez-vous l'actualiser aux tarifs en vigueur ?");

@@ -113,12 +113,17 @@ describe('classifyRowEnriched — garde confidence vectorielle', () => {
     expect(classifyRowEnriched(row)).toBe('low_confidence_match');
   });
 
-  it('confidence medium + ratio franc ≥ 2 → anomalie (garde bypass)', () => {
+  it('confidence medium + ratio franc ≥ 2 → low_confidence_match aussi (2026-08-27, cas ZANNOU v2)', () => {
+    // L'ancien override « anomalie franche » gardait la carte ROUGE en medium
+    // dès ratio ≥ 2×. Prémisse démentie (élimination amiante 1 000 € matchée
+    // à Diagnostic amiante 80-180 € = ratio 5,6× ET matching faux), et le
+    // verdict (V3.5.13) excluait déjà ces groupes → carte rouge sous verdict
+    // VERT = statuts contradictoires interdits (Maillon 3).
     const row = makeRow({
-      devisTotalHT: 8000, // ratio 4.0 → anomalie franche, seuil bypass 2.0
+      devisTotalHT: 8000, // ratio 4.0 — même franc, medium ≠ jamais rouge
       vectorial: { top_similarity: 0.78, confidence: 'medium', all_candidates: [] },
     });
-    expect(classifyRowEnriched(row)).toBe('anomalie');
+    expect(classifyRowEnriched(row)).toBe('low_confidence_match');
   });
 
   it('confidence high → classification standard préservée', () => {

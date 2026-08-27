@@ -56,9 +56,13 @@ export default function LeviersNegociation({ conclusion }: LeviersNegociationPro
 
   const hasNegocier = leviers.some((l) => l.objectif !== "securiser");
   const title = hasNegocier ? "Vos leviers de négociation" : "Avant de signer";
+  // 2026-08-27 (retour Johan) — compteur DYNAMIQUE : « deux vérifications »
+  // en dur s'affichait au-dessus d'un seul levier.
   const subtitle = hasNegocier
     ? "Par ordre de puissance — commencez par le premier."
-    : "Rien de significatif à négocier sur ce devis — deux vérifications de bon sens suffisent.";
+    : leviers.length === 1
+      ? "Rien de significatif à négocier sur ce devis — une vérification de bon sens suffit."
+      : "Rien de significatif à négocier sur ce devis — quelques vérifications de bon sens suffisent.";
 
   return (
     <section

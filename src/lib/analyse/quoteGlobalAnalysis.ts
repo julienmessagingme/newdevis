@@ -59,7 +59,9 @@ export type ItemClassification = "normal" | "legerement_eleve" | "survalue" | "a
  * sémantiquement bancals.
  */
 const CONFIDENCE_THRESHOLD_HIGH = 0.85;
-const STRONG_ANOMALY_RATIO_OVERRIDE = 2.0;
+// STRONG_ANOMALY_RATIO_OVERRIDE supprimé le 2026-08-27 (cas ZANNOU v2) : les
+// « anomalies franches » en confidence medium étaient majoritairement des faux
+// matchs forfait/prestation, et le verdict ne les comptait pas (contradiction).
 
 /** Verdict global sur l'ensemble du devis */
 export type GlobalStatus = "correct" | "a_negocier" | "risque_eleve";
@@ -351,13 +353,19 @@ export function classifyRowEnriched(
     vectorialConfidence === undefined;
 
   if (!isHighConfidence && (classification === "anomalie" || classification === "survalue")) {
-    const ratio = marketMax > 0 ? price / marketMax : 1;
-    const isStrongAnomaly = ratio >= STRONG_ANOMALY_RATIO_OVERRIDE;
-    if (!isStrongAnomaly) {
-      return "low_confidence_match";
-    }
-    // Ratio ≥ 2× max marché → l'anomalie est trop évidente pour être rejetée
-    // par le seul argument de confidence. On garde "anomalie".
+    // 2026-08-27 (cas ZANNOU v2, retour Johan) — SUPPRESSION de l'override
+    // « anomalie franche » (ratio ≥ 2× gardait la carte ROUGE même en
+    // confidence medium). Sa prémisse (« un ratio 8× ne peut pas être un
+    // mauvais matching ») est démentie par les familles forfait/prestation :
+    // « Transports et élimination amiante liée » 1 000 € matché à
+    // « Diagnostic amiante » 80-180 € = ratio 5,6× ET matching faux. Surtout,
+    // le verdict (V3.5.13) EXCLUT tous les groupes non-high → garder la carte
+    // rouge affichait « Anomalie marché » dans le détail sous un verdict VERT
+    // qui ne la comptait pas (statuts contradictoires, interdits Maillon 3).
+    // Règle simple désormais : confidence < high = JAMAIS de carte rouge,
+    // toujours « Comparaison incertaine » — cohérent avec le verdict par
+    // construction.
+    return "low_confidence_match";
   }
 
   // ── Garde 5 — Upgrade ligne (V3.3.2) ──────────────────────────────────────

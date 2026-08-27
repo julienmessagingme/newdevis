@@ -95,8 +95,10 @@ export default function PreparezVotreRendezVous({
         >
           Préparez votre rendez-vous avec {titleSuffix}
         </h2>
+        {/* 2026-08-27 (retour Johan) — « Trois choses » en dur mentait dès que
+            moins de 3 sections s'affichaient. Wording neutre. */}
         <p className="mt-1 text-sm text-muted-foreground">
-          Trois choses à avoir en tête pour aborder la discussion sereinement.
+          L'essentiel à avoir en tête pour aborder la discussion sereinement.
         </p>
       </header>
 

@@ -51,6 +51,17 @@ export interface LevierSignals {
   comptes_opaques?: boolean;
   /** Année du dernier exercice publié, si connue (affichage). */
   comptes_depuis?: string | null;
+  /**
+   * 2026-08-27 (cas ZANNOU v2, retour Johan) — part du montant des postes
+   * réellement comparable au référentiel (confidence high). Quand elle est
+   * faible (devis désamiantage, prestations réglementaires…), le verdict
+   * « prix dans le marché » doit être QUALIFIÉ (« sur les postes
+   * comparables ») et un levier « second avis » proposé — sinon on affirme
+   * une conformité qu'on n'a pas mesurée.
+   */
+  comparable_coverage_pct?: number | null;
+  /** Montant HT des postes sans référence marché fiable. */
+  montant_non_compare?: number | null;
 }
 
 /**
@@ -69,7 +80,8 @@ export type LevierType =
   | "surcout_postes"
   | "revision_tarifaire"
   | "assurance"
-  | "references";
+  | "references"
+  | "second_avis";
 
 export interface Levier {
   niveau: "puissant" | "important" | "bonus";
@@ -268,6 +280,24 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     });
   }
 
+  // 2026-08-27 (cas ZANNOU v2) — couverture marché partielle : quand une part
+  // significative du devis n'a AUCUNE référence (désamiantage, réglementaire,
+  // sur mesure…), le seul vrai point de comparaison est un second devis sur
+  // ce périmètre. Levier de SÉCURISATION côté client — jamais envoyé à
+  // l'artisan (levierQuestion retourne null pour ce type).
+  const coverage = s.comparable_coverage_pct;
+  const nonCompare = s.montant_non_compare ?? 0;
+  if (coverage !== null && coverage !== undefined && coverage < 60 && nonCompare >= 1000) {
+    out.push({
+      priority: 20,
+      niveau: "bonus",
+      objectif: "securiser",
+      type: "second_avis",
+      titre: `Faites chiffrer par un second devis les postes sans référence marché (~${fmtEuros(nonCompare)} €)`,
+      detail: `Notre référentiel ne couvre que ~${coverage} % du montant de ce devis — le reste (prestations spécialisées : désamiantage, démarches réglementaires, sur-mesure…) n'a pas de prix de marché fiable. Un second devis sur ce périmètre est le seul vrai point de comparaison.`,
+    });
+  }
+
   // Fallback universel : jamais de fiche vide, même sur un devis irréprochable.
   out.push({
     priority: 10,
@@ -319,7 +349,12 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
       ? `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage alors que la société ne publie pas ses comptes — limitez votre exposition`
       : `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage de 30 %`;
   } else if (s.verdict_decisionnel === "signer") {
-    motif = "prix dans les fourchettes du marché et conditions habituelles";
+    // 2026-08-27 (cas ZANNOU v2) — couverture partielle : ne pas affirmer une
+    // conformité globale quand une grosse part du devis n'a pas de référence.
+    const cov = s.comparable_coverage_pct;
+    motif = cov !== null && cov !== undefined && cov < 60 && (s.montant_non_compare ?? 0) >= 1000
+      ? `prix dans le marché sur les postes comparables (~${cov} % du devis) — ${fmtEuros(s.montant_non_compare ?? 0)} € de prestations spécialisées sans référence marché, à confirmer par un second devis`
+      : "prix dans les fourchettes du marché et conditions habituelles";
   } else {
     // Décision non-signer sans signal dominant identifié : rester honnête sans
     // affirmer ni un risque non nommé ni une conformité contredite par le badge.

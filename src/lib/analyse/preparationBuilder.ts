@@ -442,8 +442,14 @@ function reformulateAsQuestion(action: string): { context: string; question: str
     if (hadQue) {
       // Élision : « que » devant consonne, « qu' » devant voyelle/h muet.
       const que = /^[aeiouyhàâäéèêëîïôöùûü]/i.test(clause) ? "qu'" : "que ";
+      // 2026-08-27 (retour Johan, cas ZANNOU v2) — le contexte affiché sous
+      // « Ce que vous pouvez lui demander » ne peut pas être la proposition
+      // brute (« Le devis détaille clairement les matériaux… » lit comme une
+      // AFFIRMATION, pas une demande). On préfixe : « Que le devis détaille
+      // bien… » — grammaticalement enchaîné au titre de section.
+      const queCtx = /^[aeiouyhàâäéèêëîïôöùûü]/i.test(rest) ? "Qu'" : "Que ";
       return {
-        context: ucFirst(rest),
+        context: `${queCtx}${lcFirst(rest)}`,
         question: `« Pouvez-vous me confirmer ${que}${clause} ? »`,
       };
     }

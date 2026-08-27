@@ -1146,8 +1146,25 @@ export const POST: APIRoute = async ({ params, request }) => {
   //
   // Anti-régression : pas de méta `vectorial` (mode V3.6 legacy ou
   // pipelines plus anciens) → garde permissive (on garde le groupe).
+  // 2026-08-27 (cas ZANNOU v2, retour Johan) — mesure de COUVERTURE marché :
+  // part du montant des postes réellement comparable (confidence high) vs le
+  // total des postes. Sur un devis désamiantage SS4, ~50 % du montant est
+  // « sans référence » — affirmer « conforme aux prix du marché » globalement
+  // est un mensonge par omission. Ces montants qualifient le verdict plus bas
+  // (note de prompt + verdict_ligne + levier « second avis »).
+  let priceDataTotalHT = 0;
+  let comparableHT = 0;
+
   if (Array.isArray(priceData) && priceData.length > 0) {
     const beforeConfidenceFilter = priceData.length;
+    for (const g of priceData as Array<Record<string, unknown>>) {
+      const t = typeof g?.devis_total_ht === "number" ? (g.devis_total_ht as number) : 0;
+      priceDataTotalHT += t;
+      const vect = g?.vectorial as { confidence?: string } | undefined;
+      // Pas de méta vectorielle (V3.6 legacy) → considéré comparable (permissif,
+      // aligné sur le filtre ci-dessous).
+      if (!vect || typeof vect !== "object" || vect.confidence === "high") comparableHT += t;
+    }
     priceData = priceData.filter((g) => {
       if (!g || typeof g !== "object") return true;
       const group = g as Record<string, unknown>;
@@ -2102,7 +2119,14 @@ CONTEXTE DU DEVIS:
 - Entreprise: ${isMultipleQuotes ? `${segmentAnalyses.length} artisans (voir détail ci-dessus)` : nomEntreprise || "inconnue"}
 - Montant HT: ${totalHT ? `${totalHT.toLocaleString("fr-FR")} €` : "inconnu"}
 - Montant TTC: ${totalTTC ? `${totalTTC.toLocaleString("fr-FR")} €` : "inconnu"}
-- TVA: ${tauxTVA ? `${tauxTVA}%` : "inconnue"}${domTvaNote}
+- TVA: ${tauxTVA ? `${tauxTVA}%` : "inconnue"}${domTvaNote}${(() => {
+    // 2026-08-27 — couverture marché partielle : interdit d'affirmer une
+    // conformité globale quand une grosse part du devis n'a pas de référence.
+    const nonCompare = priceDataTotalHT - comparableHT;
+    const pct = priceDataTotalHT > 0 ? Math.round((comparableHT / priceDataTotalHT) * 100) : null;
+    if (pct === null || pct >= 60 || nonCompare < 1000) return "";
+    return `\n⚠️ COUVERTURE MARCHÉ PARTIELLE : seuls ~${pct}% du montant des postes sont comparables à notre référentiel (${Math.round(nonCompare).toLocaleString("fr-FR")} € de prestations spécialisées sans référence — ex. désamiantage, démarches réglementaires, prestations sur mesure). RÈGLE ABSOLUE : ne JAMAIS écrire que « le devis est conforme aux prix du marché » globalement — dire que les POSTES COMPARABLES sont dans le marché et que les prestations spécialisées n'ont pas pu être évaluées (un second devis est le seul point de comparaison pour celles-ci).`;
+  })()}
 - Ville: ${ville || "inconnue"}${codePostal ? ` (${codePostal})` : ""}
 - Type de travaux: ${workType || "rénovation"}
 - Résumé du devis: ${resume || "non disponible"}${marketPositionContext}${critiquesBlock}
@@ -2887,6 +2911,13 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         date_devis: dateDevis,
         comptes_opaques: Boolean(comptesCritere),
         comptes_depuis: comptesCritere?.match(/\b(20\d{2})\b/)?.[1] ?? null,
+        // 2026-08-27 (cas ZANNOU v2) — couverture marché : qualifie le motif
+        // du verdict + déclenche le levier « second avis » sur les postes
+        // sans référence (désamiantage, réglementaire…).
+        comparable_coverage_pct: priceDataTotalHT > 0
+          ? Math.round((comparableHT / priceDataTotalHT) * 100)
+          : null,
+        montant_non_compare: Math.max(0, Math.round(priceDataTotalHT - comparableHT)),
       };
       const leviers = buildLeviers(p4Signals);
       (conclusionData as ConclusionData).leviers = leviers;
