@@ -2928,6 +2928,21 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         // sans référence (désamiantage, réglementaire…).
         comparable_coverage_pct: coveragePct,
         montant_non_compare: montantNonCompare,
+        // 2026-08-27 (conseils Johan) — gros œuvre → dommages-ouvrage
+        // obligatoire ; retenue de garantie 5 % si pas déjà prévue.
+        travaux_gros_oeuvre: (() => {
+          const GROS_OEUVRE_RE = /\b(extension|agrandissement|sur[ée]l[ée]vation|ossature|fondation|semelle\s+filante|longrine|dalle\s+b[ée]ton|chape\s+b[ée]ton\s+arm|mur\s+porteur|mur\s+de\s+refend|parpaing|agglom[ée]r[ée]|banch|poutre\s+(?:b[ée]ton|ipn|hea?\b)|\bipn\b|linteau|charpente|couverture\s+compl[èe]te|r[ée]fection\s+(?:de\s+)?(?:toiture|charpente)|ouverture\s+(?:dans\s+un\s+)?mur|d[ée]molition\s+(?:d'un\s+)?mur\s+porteur|terrassement\s+(?:de\s+)?fondation|v[ée]randa\s+ma[çc]onn|construction\s+neuve)/i;
+          const lignesTxt = Array.isArray(extractedView.travaux)
+            ? (extractedView.travaux as Array<Record<string, unknown>>)
+                .map((t) => `${t?.description ?? ""} ${t?.libelle ?? ""}`)
+                .join(" ")
+            : "";
+          return GROS_OEUVRE_RE.test(`${lignesTxt} ${workType} ${resume}`);
+        })(),
+        retenue_garantie_prevue: (() => {
+          const paiementTxt = JSON.stringify(extractedView.paiement ?? {});
+          return /retenue\s+de\s+garantie/i.test(`${paiementTxt} ${resume}`);
+        })(),
       };
       const leviers = buildLeviers(p4Signals);
       (conclusionData as ConclusionData).leviers = leviers;

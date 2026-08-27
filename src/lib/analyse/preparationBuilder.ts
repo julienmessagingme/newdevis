@@ -67,6 +67,12 @@ export function levierQuestion(levier: ConclusionLevier): string | null {
       return "Pouvez-vous me transmettre vos attestations d'assurance décennale et RC Pro à jour ?";
     case "references":
       return "Pouvez-vous me partager les coordonnées de 2-3 chantiers récents similaires ?";
+    case "retenue_garantie":
+      // 2026-08-27 — vraie demande contractuelle à l'artisan.
+      return "Pouvez-vous prévoir au contrat une retenue de garantie de 5 % sur le solde, libérée un an après la réception une fois les réserves levées ?";
+    case "dommages_ouvrage":
+      // Assurance que le CLIENT souscrit lui-même — rien à demander à l'artisan.
+      return null;
     default:
       return null;
   }

@@ -97,9 +97,17 @@ describe("buildLeviers — hiérarchie et cap à 3", () => {
     expect(leviers.every((l) => l.niveau === "puissant")).toBe(true);
   });
 
-  it("jamais de liste vide — fallback références sur devis irréprochable", () => {
+  it("jamais de liste vide — devis irréprochable : retenue de garantie puis références", () => {
+    // base = 10 000 € HT : depuis le 2026-08-27, la retenue de garantie 5 %
+    // (conseil actionnable) passe devant le fallback « références ».
     const leviers = buildLeviers(base);
-    expect(leviers.length).toBeGreaterThanOrEqual(1);
+    expect(leviers.length).toBeGreaterThanOrEqual(2);
+    expect(leviers[0].type).toBe("retenue_garantie");
+    expect(leviers.some((l) => l.titre.includes("références"))).toBe(true);
+  });
+
+  it("petit devis irréprochable → fallback références seul (inchangé)", () => {
+    const leviers = buildLeviers({ ...base, total_ht: 2_000 });
     expect(leviers[0].titre).toContain("références");
   });
 
@@ -203,6 +211,48 @@ describe("buildLeviers — couverture marché partielle", () => {
     const s: LevierSignals = { ...base, comparable_coverage_pct: 95, montant_non_compare: 200 };
     const v = buildVerdictLigne(s, buildLeviers(s));
     expect(v.motif).toBe("prix dans les fourchettes du marché et conditions habituelles");
+  });
+});
+
+// ── Conseils à valeur ajoutée 2026-08-27 (demande Johan) ───────────────────
+describe("buildLeviers — dommages-ouvrage et retenue de garantie", () => {
+  it("gros œuvre → conseil dommages-ouvrage AVANT le chantier (obligation légale)", () => {
+    const leviers = buildLeviers({ ...base, total_ht: 60_000, travaux_gros_oeuvre: true });
+    const doL = leviers.find((l) => l.type === "dommages_ouvrage");
+    expect(doL).toBeDefined();
+    expect(doL!.objectif).toBe("securiser");
+    expect(doL!.titre).toMatch(/AVANT le début du chantier/);
+    expect(doL!.detail).toMatch(/décennale/);
+  });
+
+  it("pas de gros œuvre (peinture seule) → aucun conseil dommages-ouvrage", () => {
+    const leviers = buildLeviers({ ...base, total_ht: 60_000 });
+    expect(leviers.some((l) => l.type === "dommages_ouvrage")).toBe(false);
+  });
+
+  it("devis ≥ 10 000 € sans retenue prévue → conseil retenue 5 % chiffrée", () => {
+    const leviers = buildLeviers({ ...base, total_ht: 40_000 });
+    const rg = leviers.find((l) => l.type === "retenue_garantie");
+    expect(rg).toBeDefined();
+    expect(rg!.objectif).toBe("securiser");
+    expect(rg!.titre).toMatch(/2.000/); // 5 % de 40 000 €
+    expect(rg!.detail).toMatch(/levée des réserves|réserve/i);
+  });
+
+  it("retenue déjà prévue au devis → pas de doublon", () => {
+    const leviers = buildLeviers({ ...base, total_ht: 40_000, retenue_garantie_prevue: true });
+    expect(leviers.some((l) => l.type === "retenue_garantie")).toBe(false);
+  });
+
+  it("petit devis (< 10 000 €) → pas de retenue de garantie (bruit)", () => {
+    const leviers = buildLeviers({ ...base, total_ht: 3_000 });
+    expect(leviers.some((l) => l.type === "retenue_garantie")).toBe(false);
+  });
+
+  it("ces conseils restent des SÉCURISATIONS — aucune marge promise", () => {
+    const s: LevierSignals = { ...base, total_ht: 60_000, travaux_gros_oeuvre: true };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.marge).toBeNull();
   });
 });
 

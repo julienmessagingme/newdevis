@@ -62,6 +62,16 @@ export interface LevierSignals {
   comparable_coverage_pct?: number | null;
   /** Montant HT des postes sans référence marché fiable. */
   montant_non_compare?: number | null;
+  /**
+   * 2026-08-27 (conseils Johan) — le devis porte des travaux de GROS ŒUVRE
+   * (construction, extension, surélévation, ossature, fondations, mur
+   * porteur, charpente/couverture). Déclenche le conseil assurance
+   * dommages-ouvrage, OBLIGATOIRE avant ouverture du chantier
+   * (art. L242-1 du code des assurances).
+   */
+  travaux_gros_oeuvre?: boolean;
+  /** Une retenue de garantie est déjà prévue au devis (mention explicite). */
+  retenue_garantie_prevue?: boolean;
 }
 
 /**
@@ -81,7 +91,9 @@ export type LevierType =
   | "revision_tarifaire"
   | "assurance"
   | "references"
-  | "second_avis";
+  | "second_avis"
+  | "retenue_garantie"
+  | "dommages_ouvrage";
 
 export interface Levier {
   niveau: "puissant" | "important" | "bonus";
@@ -277,6 +289,48 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       type: "assurance",
       titre: "Demandez l'attestation d'assurance décennale et RC Pro",
       detail: "L'attestation à jour se demande par simple mail — c'est une formalité pour un artisan assuré, et une protection indispensable pour vous.",
+    });
+  }
+
+  // ── Conseils à valeur ajoutée (2026-08-27, demande Johan) ─────────────────
+  // Deux protections que le particulier ignore presque toujours, et qu'aucun
+  // artisan ne propose spontanément. Objectif « securiser » : ce ne sont pas
+  // des baisses de prix, ce sont des filets — le bloc s'intitule alors
+  // « Avant de signer » et aucune marge n'est promise.
+
+  // 1. Assurance dommages-ouvrage — OBLIGATION LÉGALE (art. L242-1 code des
+  //    assurances) avant l'ouverture du chantier dès qu'il y a construction,
+  //    extension ou rénovation du gros œuvre. Priorité haute : elle se souscrit
+  //    AVANT le démarrage, une fois le chantier commencé il est trop tard.
+  if (s.travaux_gros_oeuvre) {
+    out.push({
+      priority: 50,
+      niveau: "important",
+      objectif: "securiser",
+      type: "dommages_ouvrage",
+      titre: "Souscrivez une assurance dommages-ouvrage AVANT le début du chantier",
+      detail:
+        "Ces travaux touchent le gros œuvre : la loi vous impose, en tant que maître d'ouvrage, de souscrire une assurance dommages-ouvrage avant l'ouverture du chantier. Elle préfinance les réparations relevant de la garantie décennale sans attendre qu'un tribunal désigne un responsable — et se retourne ensuite contre l'entreprise et son assureur. Comptez 2 à 5 % du montant des travaux. Sans elle, vous avancez les frais en cas de sinistre grave, et vous devrez signaler son absence à l'acheteur si vous revendez dans les 10 ans.",
+    });
+  }
+
+  // 2. Retenue de garantie 5 % (loi n° 71-584 du 16 juillet 1971) — usage sur
+  //    les chantiers conséquents. Ne se propose que si le devis ne la prévoit
+  //    pas déjà et que le montant le justifie.
+  const RETENUE_MIN_HT = 10_000;
+  if (
+    !s.retenue_garantie_prevue &&
+    s.total_ht !== null &&
+    s.total_ht >= RETENUE_MIN_HT
+  ) {
+    out.push({
+      priority: 35,
+      niveau: "bonus",
+      objectif: "securiser",
+      type: "retenue_garantie",
+      titre: `Demandez une retenue de garantie de 5 % (environ ${fmtEuros(s.total_ht * 0.05)} €) libérée après la levée des réserves`,
+      detail:
+        "C'est l'usage sur les chantiers de cette taille, et c'est encadré par la loi : vous conservez 5 % du montant au moment du solde, restitués un an après la réception si aucune réserve ne reste à lever (ou immédiatement si l'artisan fournit une caution bancaire). C'est le seul vrai levier pour que les finitions et les reprises soient faites — une fois payé à 100 %, vous n'avez plus de moyen de pression.",
     });
   }
 
