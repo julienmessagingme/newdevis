@@ -305,7 +305,29 @@ async function persistConclusion(
   totalTTC?: number | null,
 ): Promise<void> {
   const trigger = detectReviewTriggers(conclusion, rawPriceData, totalTTC);
-  const reviewStatus = trigger.shouldReview ? "pending_review" : "auto_approved";
+  let reviewStatus = trigger.shouldReview ? "pending_review" : "auto_approved";
+
+  // 2026-08-27 (signalé par Johan : le devis NAZON qu'il venait de corriger
+  // est revenu dans la file) — UNE DÉCISION HUMAINE NE SE DÉFAIT PAS TOUTE
+  // SEULE. Toute régénération (bump ENGINE_VERSION, revisite, replay) rejouait
+  // detectReviewTriggers et remettait en `pending_review` une analyse déjà
+  // tranchée par l'expert : file polluée, et surtout impression que la
+  // décision n'a pas été prise en compte. Si un humain a déjà statué
+  // (validated / corrected / rejected), on conserve son verdict de revue.
+  // Le contenu de la conclusion, lui, est bien mis à jour.
+  const { data: current } = await supabase
+    .from("analyses")
+    .select("review_status")
+    .eq("id", analysisId)
+    .maybeSingle();
+  const HUMAN_DECIDED = new Set(["validated", "corrected", "rejected"]);
+  if (current?.review_status && HUMAN_DECIDED.has(current.review_status)) {
+    console.log(
+      `[review] analyse ${analysisId.slice(0, 8)} déjà tranchée par un expert ` +
+      `(${current.review_status}) → statut conservé malgré la régénération`,
+    );
+    reviewStatus = current.review_status;
+  }
 
   // Tentative 1 — avec review_status (post-migration V3.5.16)
   const { error: errWithReview } = await supabase
@@ -331,8 +353,10 @@ async function persistConclusion(
     }
   }
 
-  // Email expert fire-and-forget si pending_review
-  if (trigger.shouldReview) {
+  // Email expert fire-and-forget si pending_review.
+  // 2026-08-27 — gate sur `reviewStatus` (et non `trigger.shouldReview`) :
+  // une analyse déjà tranchée par un expert ne doit re-notifier personne.
+  if (reviewStatus === "pending_review") {
     console.log(`[review] analyse ${analysisId.slice(0, 8)} flaggée pending_review — raisons: ${trigger.reasons.join(", ")}`);
     sendReviewEmail(analysisId, fileName, trigger.reasons, conclusion).catch(() => {
       /* déjà loggué dans sendReviewEmail */
