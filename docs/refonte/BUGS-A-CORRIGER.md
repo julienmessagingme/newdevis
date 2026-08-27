@@ -178,6 +178,15 @@
   - Input : lignes qty=1 avec libellés génériques de corps de métier (« Plomberie », « Dépose de l'existant ») → bypass conservé
 - **Statut** : 🟢 **corrigé le 2026-08-17** (commit `bd08099`, déployé). 3e garde-fou dans `incomplete-quote.ts` : garde « libellés de lot » — le bypass n'est légitime que si ≥ 50 % des lignes non quantifiées ressemblent à des intitulés génériques de corps de métier (vocabulaire 40 termes, veto sur les codes produit alphanumériques). 9 cas anti-régression couvrant les 3 variantes de la famille + les 2 vrais positifs (Créteil, résumé toiture). Analyse d'origine rejouée et page corrigée.
 
+### 2026-08-27 — ACOMPTE-CUMULE-SOUS-ESTIME-SUR-ETAPE-AUTRE (cas NAZON — trouvé par l'agent relecteur IA)
+
+- **Signalé par** : l'agent relecteur IA (premier avis en production), confirmé par Johan — analyse `495c4ab0` (RITUAL RENOVATION, 89 270 € HT)
+- **Symptôme observé** : échéancier « 30 % à la signature (Acompte) + 50 % *étape `autre`* (Acompte) + 20 % fin de travaux » → cumul pré-prestation calculé à **30 %**, AUCUN critère rouge, alors que **80 % du montant sont encaissés avant achèvement** sur une entreprise de moins d'un an. Exactement le risque que VMD existe pour détecter.
+- **Cause racine** : `score.ts` ne comptait que `PRE_PRESTATION_ETAPES = {signature, demarrage, livraison_materiaux}` (V3.5.9). Gemini classe en `etape="autre"` toute échéance dont il ne reconnaît pas le jalon — même libellée « Acompte ».
+- **Maillon concerné** : 3 (Verdict honnête)
+- **Cas test à passer** : `[{signature 30 "Acompte"}, {autre 50 "Acompte"}, {fin_travaux 20}]` → cumul 80 % + critère ROUGE ; `[{signature 30}, {autre 40 "solde à l'avancement"}]` → cumul 30 % (les jalons d'avancement restent exclus, invariant V3.5.9 intact).
+- **Statut** : 🟢 **corrigé le 2026-08-27** — helper `isPrePrestation` : `etape="autre"` compte dans le cumul si sa description matche `/acompte|avant démarrage|avant travaux|à la commande/i`. On ne revient PAS à `etape !== "reception"` (bug V3.1). Analyse d'origine opérée à la main (leviers acompte + quantités + TVA/décennale).
+
 ### 2026-08-27 — VERDICT-VERT-SUR-COUVERTURE-PARTIELLE + CARTES-ROUGES-ORPHELINES (cas ZANNOU v2 / SKM)
 
 - **Signalé par** : Johan (analyse `58865477` — devis SDB PMR + désamiantage SS4, 14 430 € HT, ARA La Réunion)

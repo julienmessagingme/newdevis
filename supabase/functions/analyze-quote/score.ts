@@ -152,12 +152,26 @@ export function calculateScore(
     "livraison_materiaux",
   ]);
 
+  // 2026-08-27 (cas NAZON, découvert par l'agent relecteur IA) — une échéance
+  // classée `etape="autre"` mais LIBELLÉE « acompte » est par définition payée
+  // d'avance : elle doit compter dans le cumul pré-prestation. Sans ça, un
+  // échéancier « 30 % acompte + 50 % acompte + 20 % fin de travaux » était
+  // scoré 30 % → AUCUN critère rouge sur un devis qui encaisse 80 % avant
+  // achèvement (89 270 € HT, entreprise de moins d'un an).
+  // L'invariant V3.5.9 reste intact : les jalons d'AVANCEMENT (intermediaire,
+  // revue_chantier, fin_travaux, reception) restent exclus — on ne revient PAS
+  // à `etape !== "reception"` (bug V3.1).
+  const PRE_PRESTATION_DESC_RE = /acompte|avant\s+(le\s+)?d[ée]marrage|avant\s+travaux|[àa]\s+la\s+commande/i;
+  const isPrePrestation = (m: { etape?: string; description?: string | null }): boolean =>
+    PRE_PRESTATION_ETAPES.has(m.etape ?? "") ||
+    (m.etape === "autre" && PRE_PRESTATION_DESC_RE.test(m.description ?? ""));
+
   const modalites = extracted.paiement.modalites_paiement;
 
   let acompteCumulePreReception: number | null = null;
   if (Array.isArray(modalites) && modalites.length > 0) {
     acompteCumulePreReception = modalites
-      .filter(m => PRE_PRESTATION_ETAPES.has(m.etape))
+      .filter(isPrePrestation)
       .reduce((sum, m) => sum + (m.pct ?? 0), 0);
   }
 
@@ -172,7 +186,7 @@ export function calculateScore(
     // Wording adapté : si on a le détail, on l'affiche pour transparence
     const detailCumul = Array.isArray(modalites) && modalites.length > 1
       ? ` (${modalites
-          .filter(m => PRE_PRESTATION_ETAPES.has(m.etape))
+          .filter(isPrePrestation)
           .map(m => `${m.pct}% à ${m.etape}`)
           .join(" + ")})`
       : "";
