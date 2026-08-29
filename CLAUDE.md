@@ -11,14 +11,14 @@ L'outil d'analyse de prix est en **refonte structurée en 4 maillons** :
 
 📖 **Source de vérité** : [`docs/refonte/PLAN.md`](docs/refonte/PLAN.md) — boussole de la refonte avec phases, principes inviolables, décisions validées.
 
-### État au 2026-06-30 fin de journée
+### État au 2026-08-29
 
 | Maillon | Phase | Statut |
 |---|---|---|
-| 1 — Lire juste | Phase 3.0 + 3.1 + 3.2 ACTIVE en shadow + 3 patches régressions V2 livrés | 🟡 shadow tourne en prod, attente +50 analyses naturelles avant Phase 3.3 (bascule) |
-| 2 — Comparer à vraie référence | Phase 1.3-1.6 appliquées + 1.7/1.8 outillage livré + recalibrage seuils HIGH 0.85→0.77 | 🟢 **fait** — 891 entrées · 33 métiers · 100% couverture · embeddings à jour |
-| 3 — Verdict honnête | Spec UX consolidée dans BUGS-A-CORRIGER.md | 🟡 Phase 4 démarre APRÈS bascule extract_v2 |
-| 4 — Apprendre | Phase 2 livrée + Phase B (assistant pré-revue IA) + email Resend câblé | 🟢 **fait** — `/admin/reviews` + `contact@verifiermondevis.fr` post-revue + script `ai-prepare-reviews` |
+| 1 — Lire juste | Phase 3.3 câblée (V2 primaire + fallback V1) + gardes extraction 2026-08 (ligne récap, devises hors-Europe, acompte `etape="autre"`) | 🟢 **en prod** — reste Phase 3.4 (cleanup + bump `ENGINE_VERSION` → `2.0.0-refonte`) |
+| 2 — Comparer à vraie référence | Catalogue 891 → **916 entrées** (mining de 237 analyses, 2026-08-27) + couverture mesurable (`scripts/mine-coverage.mjs`, médiane 29 %) | 🟢 **fait** — 19 fourchettes à relire par Julien (`source LIKE 'mining stock 2026-08-27%'`) |
+| 3 — Verdict honnête | Phase 4 tranches 1 + 2 livrées + conseils retenue de garantie / dommages-ouvrage + message copiable unique déterministe | 🟢 **en prod** — cf. `FEATURES.md § 23` |
+| 4 — Apprendre | `/admin/reviews` + **agent relecteur IA** (`ai-review-agent`, cron */10 min) + **boucle de capture des issues** (`analysis_outcomes`, email J+15) | 🟢 **en prod** — Phase C (validation auto) toujours conditionnée à 50+ revues humaines |
 
 ### Livré le 2026-06-30 (mega session)
 
@@ -214,6 +214,12 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **gemini-2.5-flash sur message court "oui"** après une longue proposition assistant → retourne content vide et `completion_tokens:0`. Compensation dans `index.ts` : injection système "l'utilisateur CONFIRME, appelle le tool maintenant".
 
 ### Verdict expert — analyse de devis
+
+- **JAMAIS afficher le taux de couverture marché à l'utilisateur (2026-08-29)** : « prix dans le marché sur les postes comparables (~41 % du devis) » se lisait comme un aveu de faiblesse de l'analyse. La part non comparée n'est PAS un défaut du référentiel : ce sont des prestations qu'AUCUN référentiel ne couvre (sur-mesure, réglementaire, désamiantage). On nomme leur NATURE et le montant, jamais la proportion. `comparable_coverage_pct` reste une donnée INTERNE (signaux Phase 4, prompt Gemini avec interdiction explicite de la citer, KPI catalogue).
+
+- **Décision d'expert préservée aux régénérations (2026-08-27)** : `persistConclusion` conserve `review_status` si un humain a déjà statué (`validated` / `corrected` / `rejected`) — seul le contenu de la conclusion est mis à jour. Avant ce correctif, toute régénération (bump `ENGINE_VERSION`, revisite, replay) rejouait `detectReviewTriggers` et renvoyait l'analyse en `pending_review`, ce qui polluait la file et donnait l'impression que la décision n'avait pas été prise en compte. L'email expert et la notif Telegram sont gatés sur le statut FINAL, pas sur `trigger.shouldReview`.
+
+- **Tests d'intérêt = mesure, pas de lead (2026-08-27/29)** : `lead_interest(topic)` + `POST /api/analyse/[id]/interest` mesurent la demande sur `dommages_ouvrage` et `credit`. **Aucun lead n'est transmis à un tiers** et le libellé de remerciement le dit (« dès qu'un partenaire sera en place ») — ne jamais promettre un devis qu'on ne peut pas fournir. Verdicts à 3 mois (27/11 et 29/11), seuil de décision 15 % de clics ; règle Johan : aucun clic à 3 mois = piste abandonnée. Toute mention du parcours des fondateurs (banque/assurance) reste **biographique et au passé** — jamais de conseil personnalisé en assurance ou crédit (ORIAS / IOBSP).
 
 - **Architecture source de vérité unique (règle absolue)** : `ConclusionIA` est le seul composant autorisé à afficher le verdict, le surcoût et les actions. `GlobalAnalysisCard` affiche uniquement la répartition des postes par catégorie de prix (chips 4 couleurs). `BlockPrixMarche` affiche uniquement le détail poste par poste. **Ne jamais ajouter** de surcoût, verdict ou plan d'action dans `GlobalAnalysisCard` ou `BlockPrixMarche` — cela crée des contradictions visibles (deux surcoûts différents, deux plans d'action). Règle établie 2026-04-30, commits `eaacc07`→`b36c1c3`.
 
@@ -449,6 +455,10 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **`lots_chantier.updated_at` ne s'auto-update pas** : pas de trigger. Si on a besoin de tracker un changement par horodatage, soit ajouter un trigger soit `update({...payload, updated_at: new Date().toISOString()})`.
 
 ### Edge functions
+
+- **⚠️ CRONS : JAMAIS `current_setting('app.settings.*')` (incident 2026-08-29)** : ces paramètres n'existent PAS sur ce projet Supabase. Tout cron planifié avec ce motif échoue à CHAQUE exécution (`unrecognized configuration parameter`) **en silence** — aucune alerte, la fonctionnalité paraît vivante. 4 crons ont été trouvés morts d'un coup : `feedback-spike-alerts` (2 mois), `gmc-weekly-report` (1 mois), `vmd-outcome-scheduler` et `ai-review-agent`. **Motif à utiliser** (celui des crons qui marchent) : URL en dur `https://vhrhgsqxwvouswjaiczn.supabase.co/functions/v1/<fn>`, headers `jsonb_build_object('Content-Type','application/json')`, **aucun header Authorization** (les fonctions cron sont en `verify_jwt=false`). **Après toute création/modification de cron, vérifier obligatoirement** : `select public.admin_cron_status('<jobname>');` (RPC service_role, retourne les jobs + les 20 derniers runs avec leurs erreurs).
+
+- **Agent relecteur IA — budget edge serré (2026-08-29)** : `ai-review-agent` tourne dans une fonction edge tuée vers ~400 s. Contraintes tenues : `speed:"fast"` (Opus 5), `effort: low`, 2 recherches web max, PDF non joint au-delà de 55 lignes de devis (l'agent le signale alors dans son résumé), claim explicite `{status:"running", attempt}` et abandon `timeout_edge` après 3 tentatives. **Ne jamais lui faire écrire la conclusion** : il produit un AVIS, l'humain tranche. Son taux d'accord se mesure contre `analysis_corrections` (prérequis de la Phase C).
 
 - **GMC activation (2026-06-12/13)** : `gmc-on-signup` (Database Webhook sur INSERT `gmc_subscriptions` → welcome + notif admin via Resend), `gmc-ensure-trial` (API route, crée l'essai des inscrits Google OAuth), `gmc-email-scheduler` (cron pg_cron **08:00 UTC, jobid 31** → emails d'engagement essai J1/J3/J7/J14, dédup `gmc_email_log`). Templates email dans `supabase/functions/_shared/gmc-emails.ts`. ⚠️ Migrations GMC appliquées en SQL direct → `migration repair` requis avant tout `db push` (cf. `WIP.md`).
 

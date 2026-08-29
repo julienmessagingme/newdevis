@@ -11,6 +11,28 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🟢 Session 2026-08-27/29 — Relecteur IA, capture des issues, tests d'intérêt, crons réparés
+
+### Livré en prod
+
+- **Agent relecteur IA** (`supabase/functions/ai-review-agent`, cron */10 min) : relit chaque analyse `pending_review` avec des informations DIFFÉRENTES du pipeline (PDF source, matchs catalogue + confidences à challenger, recherche web de prix réels) → écrit `analyses.ai_review_opinion` (accord oui/partiel/non, action recommandée, confiance, points vérifiés sourcés, drapeaux, notes prêtes à coller). Affiché dans `/admin/reviews` ; **n'écrit jamais la conclusion** — l'humain garde le clic. Contraintes edge : `speed:"fast"` (Opus 5, beta fast-mode), effort low, 2 recherches max, PDF sauté au-delà de 55 lignes, claim `{status:"running", attempt}` + abandon `timeout_edge` après 3 tentatives. Première trouvaille réelle en prod : l'acompte cumulé sous-estimé (cas NAZON, 80 % encaissés avant achèvement non détectés).
+- **Boucle de capture des issues** : table `analysis_outcomes` + email J+15 à un clic (`vmd-outcome-scheduler`, lien signé HMAC, opt-out RGPD respecté) + bannière `OutcomeBanner` au retour sur une analyse de plus de 7 jours. Objectif : croiser prix et taux de signature — c'est ce qui rendra l'Observatoire prédictif.
+- **Tests d'intérêt (3 mois)** : table générique `lead_interest(topic, …)` + `POST /api/analyse/[id]/interest` + composant `InterestPrompt`. Deux sujets ouverts : `dommages_ouvrage` (27/08, sous le conseil DO) et `credit` (29/08, devis ≥ 5 000 € HT). AUCUN lead transmis à un tiers — mesure de demande uniquement. KPI dans `/admin` → « Tests d'intérêt » (taux de clic vs affichages réels, seuil de décision 15 %). Verdicts : 27/11 et 29/11.
+- **2 conseils à valeur ajoutée** dans les leviers : retenue de garantie 5 % (dès 10 000 € HT, avec mention du PV de réception GMC) et assurance dommages-ouvrage (détection gros œuvre, obligation art. L242-1). Objectif `securiser` → aucune marge de négociation promise.
+- **Provenance fondateurs** (banque / assurance) aux 3 endroits utiles : blocs d'intérêt, signature de pied de page d'analyse, bylines Observatoire. Formulation biographique et au passé (jamais de conseil réglementé — ORIAS / IOBSP).
+- **Catalogue 891 → 916 lignes** (mining de 237 analyses : 6 alias calqués sur le phrasé des devis + 19 nouvelles entrées, traçables par `source LIKE 'mining stock 2026-08-27%'`). Rapport : `docs/refonte/RAPPORT-COUVERTURE-CATALOGUE.md`. Re-mesure : `node scripts/mine-coverage.mjs`.
+- **Corrections moteur** : détection des devis hors-Europe (devises FCFA/dirham + Afrique/Maghreb, garde DOM-TOM), ligne récapitulative qui doublait le devis (`recap-lines.ts`), acompte `etape="autre"` libellée « acompte » comptée dans le cumul, couverture marché plafonnée au total HT, décision d'expert préservée aux régénérations, fuite d'emails colmatée sur `admin_pending_reviews`.
+- **4 crons réparés** — voir la règle dédiée dans CLAUDE.md (piège `current_setting`).
+
+### À surveiller
+
+- 🟡 **Agent relecteur sur gros devis** : le devis 25030 (82 lignes, 219 k€) a épuisé ses 3 tentatives avant le passage en mode rapide. Vérifier que le mode rapide suffit ; sinon, passer à un traitement en deux appels (lecture, puis vérification web).
+- 🟡 **Tests d'intérêt** : relire les taux de clic à mi-parcours (mi-octobre) avant les verdicts de fin novembre.
+- 🟡 **Couverture catalogue** : re-mesurer à J+15 (médiane de départ : 29 %).
+- 🟡 **Fourchettes des 19 nouvelles entrées catalogue** : à relire par Julien (filtre SQL ci-dessus).
+
+---
+
 ## 🟢 Cocon SEO Observatoire — Sprints 1 & 2 livrés 2026-07-01
 
 Objectif : passer les 43k impressions Google/mois en clics, muscler la crédibilité, câbler le maillage entre les 6 univers (Home, Analyse, Comparateur, Blog, Observatoire, GMC).

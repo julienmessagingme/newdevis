@@ -1327,6 +1327,43 @@ Clic sur une ligne d'échéance → `PaymentDetailPanel` inline :
 
 ---
 
+## 23. Après le verdict — leviers, conseils et suivi (Phase 4, 2026-08)
+
+Ce que l'utilisateur voit **sous** le verdict, une fois l'analyse rendue.
+
+### 23.1 Leviers de négociation (max 3)
+
+Construits par `src/lib/analyse/leviersBuilder.ts` — déterministe, jamais rédigé par le LLM. Chaque levier porte un `type` machine-lisible, un `objectif` (`negocier` = il y a de l'argent à récupérer, `securiser` = il y a un risque à couvrir) et un motif TOUJOURS nommé. Hiérarchie : entreprise à risque > clause contractuelle rouge > quantités manquantes > paiement en espèces > acompte excessif > surcoût matériel > clause orange > **assurance dommages-ouvrage** > devis de plus de 12 mois > **retenue de garantie** > assurance > second avis > références.
+
+Deux conseils à valeur ajoutée ajoutés le 2026-08-27/29 :
+
+| Conseil | Déclenchement | Ce que l'utilisateur lit |
+|---|---|---|
+| **Retenue de garantie 5 %** | devis ≥ 10 000 € HT, aucune retenue déjà prévue | Garder 5 % jusqu'à la levée des réserves, versés un an après réception. Mentionne le PV de réception automatisé de GérerMonChantier. |
+| **Assurance dommages-ouvrage** | travaux de gros œuvre / structure détectés | Obligatoire (art. L242-1 code des assurances) avant l'ouverture du chantier ; rembourse les désordres décennaux sans attendre un procès. |
+
+### 23.2 Message copiable — une seule version, 100 % déterministe
+
+Les trois variantes (SMS / mail / WhatsApp) ont été supprimées le 2026-08-27 : elles alourdissaient la lecture et produisaient des approximations. Il reste **un message unique**, construit par `buildArtisanMessage` à partir des leviers eux-mêmes (`levierQuestion` par type). Règles : jamais de question dont l'artisan ne peut rien faire (« demandez d'autres devis » est un conseil AU CLIENT, il ne part jamais dans le message), pronoms retournés pour que l'on sache toujours qui parle à qui, 5 questions maximum, ponctuation nettoyée.
+
+### 23.3 Fiche « Préparez votre rendez-vous »
+
+Rédaction en tirets (plus de titre suivi d'une question mal formulée), dédupliquée par sujet, avec une section « conseils de prudence » séparée des questions à poser. Un point positif n'est affirmé que s'il est vérifié — sinon il devient une pièce à réclamer.
+
+### 23.4 Bannière de suivi (issue du devis)
+
+Au retour sur une analyse de plus de 7 jours, une bannière demande ce qu'est devenu le devis : signé tel quel / signé après négociation / pas signé. Un email à un clic part aussi à J+15 (lien signé, désinscription respectée). Sert à croiser prix et taux de signature — c'est ce qui rendra l'Observatoire prédictif.
+
+### 23.5 Tests d'intérêt (mesure de demande, aucun lead transmis)
+
+Deux blocs discrets placés sous les conseils correspondants : assurance dommages-ouvrage et financement du chantier. Un clic enregistre l'intérêt et affiche un remerciement honnête (« nous reviendrons vers vous dès qu'un partenaire sera en place »). **Aucune donnée n'est transmise à un tiers.** Suivi dans `/admin` → « Tests d'intérêt » ; verdicts à 3 mois (27/11 et 29/11), seuil de décision 15 % de clics.
+
+### 23.6 Relecture experte
+
+Les analyses à signaux risqués passent en revue humaine. Un agent relecteur IA (Claude Opus 5) prépare l'avis en amont — il relit avec des informations différentes du pipeline (PDF source, matchs catalogue à challenger, recherche web de prix réels) et propose une action, mais **n'écrit jamais la conclusion**. Une fois l'expert passé, l'utilisateur reçoit un email l'invitant à revenir voir son analyse corrigée, et sa décision n'est plus défaite par les régénérations du moteur.
+
+---
+
 ## 16. Récapitulatif navigation
 
 | Groupe sidebar | Onglets | Réponse à la question |
