@@ -1505,6 +1505,10 @@ const AnalysisResult = () => {
         <div className="mt-12 pt-6 border-t border-border/60 text-center">
           <p className="text-[13px] text-muted-foreground leading-relaxed">
             VerifierMonDevis — l'avis d'un expert avant votre signature.
+            <br />
+            <a href="/qui-sommes-nous" className="underline hover:text-foreground/80">
+              Conçu par un ancien banquier et un ancien assureur
+            </a>
           </p>
           <p className="text-[11px] text-muted-foreground/70 mt-1.5 leading-relaxed max-w-lg mx-auto">
             Cet outil a été conçu pour aider les particuliers à mieux dialoguer avec les artisans, sans jamais s'y opposer.

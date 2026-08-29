@@ -115,6 +115,7 @@ export default function LeviersNegociation({ conclusion, analysisId, totalHt }: 
                   tone="sky"
                   question="Souhaitez-vous recevoir une proposition de dommages-ouvrage, sans engagement ?"
                   cta="Oui, ça m'intéresse"
+                  provenance="Nous vérifions ce point parce que nos fondateurs viennent de l'assurance et de la banque."
                 />
               )}
             </li>
@@ -132,6 +133,7 @@ export default function LeviersNegociation({ conclusion, analysisId, totalHt }: 
           tone="indigo"
           question={`Souhaitez-vous une proposition de financement pour ces travaux (${Math.round(totalHt).toLocaleString("fr-FR")} € HT), sans engagement ?`}
           cta="Oui, étudier un financement"
+          provenance="Nos fondateurs ont exercé 20 ans en banque et en assurance, dont le crédit immobilier."
         />
       )}
     </section>

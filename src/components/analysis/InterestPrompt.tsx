@@ -27,6 +27,13 @@ interface Props {
   cta: string;
   /** Palette : sky (assurance) ou indigo (financement) */
   tone?: "sky" | "indigo";
+  /**
+   * 2026-08-29 — provenance des fondateurs. Justifie POURQUOI ce point est
+   * vérifié (réflexe de banquier / d'assureur), pas une position de conseil
+   * réglementé : formulation biographique et au passé, jamais « notre expert
+   * vous conseille » (ORIAS / IOBSP).
+   */
+  provenance?: string;
 }
 
 const TONES = {
@@ -34,7 +41,7 @@ const TONES = {
   indigo: { box: "border-indigo-200 bg-indigo-50/60", text: "text-indigo-950", btn: "bg-indigo-700 hover:bg-indigo-800" },
 };
 
-export default function InterestPrompt({ analysisId, topic, question, cta, tone = "sky" }: Props) {
+export default function InterestPrompt({ analysisId, topic, question, cta, tone = "sky", provenance }: Props) {
   const storageKey = `vmd_interest_${topic}_${analysisId}`;
   const [state, setState] = useState<"idle" | "sending" | "done">(() => {
     try {
@@ -84,6 +91,14 @@ export default function InterestPrompt({ analysisId, topic, question, cta, tone 
       >
         {state === "sending" ? "…" : cta}
       </button>
+      {provenance && (
+        <p className="mt-2 text-[12px] text-foreground/55 leading-relaxed">
+          {provenance}{" "}
+          <a href="/qui-sommes-nous" className="underline hover:text-foreground/80">
+            Qui sommes-nous ?
+          </a>
+        </p>
+      )}
     </div>
   );
 }
