@@ -40,7 +40,14 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
   // CLAIM immédiat : le tick suivant (10 min) ne doit pas reprendre la même
   // analyse pendant le traitement. Si le run meurt, le filet « opinion null
   // et claim > 1h » du select la remettra dans la file.
-  await supabase.from("analyses").update({ ai_reviewed_at: new Date().toISOString() }).eq("id", a.id);
+  const attempt = Number((a.ai_review_opinion as Record<string, unknown> | null)?.attempt ?? 0) + 1;
+  await supabase.from("analyses").update({
+    ai_reviewed_at: new Date().toISOString(),
+    // Marqueur de run EN COURS : distingue « jamais tenté » (null) de
+    // « tentative n en cours » — le filet de reprise s'appuie dessus et
+    // abandonne proprement après MAX_ATTEMPTS au lieu de boucler.
+    ai_review_opinion: { status: "running", attempt },
+  }).eq("id", a.id);
 
   // ── Contexte pipeline ────────────────────────────────────────────────────
   let raw: Record<string, unknown> = {};
@@ -50,10 +57,10 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
   })();
   const scoring = (raw.scoring ?? {}) as Record<string, unknown>;
   const priceData = Array.isArray(raw.n8n_price_data) ? raw.n8n_price_data as Array<Record<string, any>> : [];
-  const groupsSummary = priceData.slice(0, 60).map((g) => {
+  const groupsSummary = priceData.slice(0, 40).map((g) => {
     const p = g.prices?.[0] ?? {};
     const conf = g.vectorial?.confidence ?? "legacy";
-    const desc = (g.devis_lines?.[0]?.description ?? "").slice(0, 70);
+    const desc = (g.devis_lines?.[0]?.description ?? "").slice(0, 50);
     return `- "${desc}" ${g.devis_total_ht ?? "?"}€ → match "${g.job_type_label ?? "aucun"}" [${conf}] marché ${p.price_min ?? p.min ?? "?"}-${p.price_max ?? p.max ?? "?"}€/${p.unit ?? "?"}`;
   }).join("\n");
 
@@ -90,7 +97,7 @@ ${groupsSummary || "(aucun)"}
 
 TA MISSION :
 1. Lis le devis PDF joint (source de vérité — pas l'extraction).
-2. Identifie les 2 ou 3 postes les plus déterminants (les plus chers ou les plus douteux) et VÉRIFIE leurs prix avec la recherche web (3 recherches MAXIMUM, prix France 2026). Cite tes sources. Sois rapide et ciblé.
+2. Identifie les 2 postes les plus déterminants (les plus chers ou les plus douteux) et VÉRIFIE leurs prix avec la recherche web (2 recherches MAXIMUM, prix France 2026). Cite tes sources. Va droit au but.
 3. Vérifie la cohérence du verdict pipeline : faux positifs de matching (forfait comparé à un prix unitaire, prestation intellectuelle, fourniture seule…), signaux manqués (clauses, acompte, TVA, entreprise).
 4. Sois HONNÊTE sur l'incertitude : si un poste n'a pas de référence fiable, dis-le — n'invente jamais une fourchette.
 
@@ -120,12 +127,14 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 6000,
-      // 2026-08-27 — budget serré : l'edge function est tuée à ~400s de wall
-      // clock (1er run réel mort après le claim). effort medium + 3 recherches
-      // max ramènent l'appel à ~60-150s tout en gardant le grounding web.
-      output_config: { effort: "medium" },
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
+      max_tokens: 5000,
+      // 2026-08-29 — budget resserré une 2e fois : un devis de 82 lignes
+      // (219 k€, cas NAZON/25030) dépassait encore le plafond edge (~400 s)
+      // en effort medium. effort low + 2 recherches suffisent pour un avis
+      // structuré et ramènent l'appel sous les 2 minutes. Le grounding web
+      // est conservé — c'est lui qui casse la circularité.
+      output_config: { effort: "low" },
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 2 }],
       messages: [{ role: "user", content }],
     }),
   });
@@ -177,15 +186,36 @@ Deno.serve(async (_req) => {
   }
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-  // 1 analyse par tick. Filet de reprise : claim > 1h sans opinion = run mort.
-  const oneHourAgo = new Date(Date.now() - 3600_000).toISOString();
-  const { data: pending, error } = await supabase
+  // 1 analyse par tick. Filet de reprise : un run marqué `running` depuis
+  // plus de 15 min est mort (edge tuée) → on retente, jusqu'à MAX_ATTEMPTS.
+  // Au-delà, on écrit une erreur explicite pour ne pas boucler indéfiniment.
+  const MAX_ATTEMPTS = 3;
+  const staleAt = new Date(Date.now() - 15 * 60_000).toISOString();
+  const { data: candidates, error } = await supabase
     .from("analyses")
-    .select("id, file_name, file_path, raw_text, conclusion_ia, score, created_at")
+    .select("id, file_name, file_path, raw_text, conclusion_ia, score, created_at, ai_reviewed_at, ai_review_opinion")
     .eq("review_status", "pending_review")
-    .or(`ai_reviewed_at.is.null,and(ai_review_opinion.is.null,ai_reviewed_at.lt.${oneHourAgo})`)
+    .or(`ai_reviewed_at.is.null,ai_reviewed_at.lt.${staleAt}`)
     .order("created_at", { ascending: true })
-    .limit(1);
+    .limit(5);
+
+  const pending = (candidates ?? []).filter((c) => {
+    const op = c.ai_review_opinion as Record<string, unknown> | null;
+    if (!op) return true;                       // jamais tenté
+    if (op.status !== "running") return false;  // avis présent ou erreur définitive
+    return Number(op.attempt ?? 0) < MAX_ATTEMPTS;
+  }).slice(0, 1);
+
+  // Abandon propre des analyses qui ont épuisé leurs tentatives.
+  for (const c of candidates ?? []) {
+    const op = c.ai_review_opinion as Record<string, unknown> | null;
+    if (op?.status === "running" && Number(op.attempt ?? 0) >= MAX_ATTEMPTS) {
+      await supabase.from("analyses").update({
+        ai_review_opinion: { error: "timeout_edge", detail: `abandon après ${MAX_ATTEMPTS} tentatives (devis trop lourd pour le budget edge)` },
+      }).eq("id", c.id);
+      console.warn(`[ai-review] ${c.id.slice(0, 8)} abandonné après ${MAX_ATTEMPTS} tentatives`);
+    }
+  }
   if (error) {
     console.error("[ai-review] select:", error.message);
     return new Response(JSON.stringify({ ok: false }), { status: 500 });
