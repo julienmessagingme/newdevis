@@ -191,7 +191,11 @@ describe("buildLeviers — couverture marché partielle", () => {
     expect(sa).toBeDefined();
     expect(sa!.objectif).toBe("securiser");
     expect(sa!.titre).toMatch(/7.200/); // séparateur = espace insécable fr-FR
-    expect(sa!.detail).toContain("45 %");
+    // 2026-08-29 (retour Johan) — le taux de couverture n'est plus montré à
+    // l'utilisateur : il se lisait comme un aveu de faiblesse de l'analyse.
+    // On explique la NATURE des prestations non comparables, sans ratio.
+    expect(sa!.detail).toMatch(/sur-mesure|réglementaires/);
+    expect(sa!.detail).not.toMatch(/%/);
   });
 
   it("couverture 90% → pas de levier second_avis (pas de bruit)", () => {
@@ -202,7 +206,8 @@ describe("buildLeviers — couverture marché partielle", () => {
   it("verdict signer + couverture 45% → motif QUALIFIÉ (jamais « conforme » global)", () => {
     const s: LevierSignals = { ...base, comparable_coverage_pct: 45, montant_non_compare: 7200 };
     const v = buildVerdictLigne(s, buildLeviers(s));
-    expect(v.motif).toContain("postes comparables (~45 %");
+    expect(v.motif).toMatch(/prestations standards sont au bon prix/);
+    expect(v.motif).not.toMatch(/%/);
     expect(v.motif).toContain("second devis");
     expect(v.motif).not.toBe("prix dans les fourchettes du marché et conditions habituelles");
   });

@@ -404,10 +404,26 @@ function ReviewDetail({
             </div>
           );
         }
+        // 2026-08-29 — état « en cours » : l'agent a pris l'analyse mais n'a
+        // pas encore rendu son avis. Sans ce cas, le bloc s'affichait avec
+        // « ACCORD : ? » et paraissait vide/cassé.
+        if ((op as { status?: string }).status === "running") {
+          const attempt = (op as { attempt?: number }).attempt ?? 1;
+          return (
+            <div className="mb-6 p-3 border border-dashed rounded text-xs text-muted-foreground">
+              🤖 Relecture IA en cours{attempt > 1 ? ` (tentative ${attempt})` : ""} — l'avis apparaît d'ici 1 à 3 minutes.
+            </div>
+          );
+        }
         if (op.error) {
+          const detail = (op as { detail?: string }).detail;
           return (
             <div className="mb-6 p-3 border border-rose-200 bg-rose-50 rounded text-xs text-rose-800">
-              🤖 Relecture IA en échec : {op.error}
+              🤖 Relecture IA indisponible
+              {op.error === "timeout_edge"
+                ? " — devis trop volumineux pour la relecture automatique."
+                : ` : ${op.error}`}
+              {detail ? <span className="text-rose-700/70"> ({detail})</span> : null}
             </div>
           );
         }

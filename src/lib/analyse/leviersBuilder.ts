@@ -347,8 +347,9 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       niveau: "bonus",
       objectif: "securiser",
       type: "second_avis",
-      titre: `Faites chiffrer par un second devis les postes sans référence marché (~${fmtEuros(nonCompare)} €)`,
-      detail: `Notre référentiel ne couvre que ~${coverage} % du montant de ce devis — le reste (prestations spécialisées : désamiantage, démarches réglementaires, sur-mesure…) n'a pas de prix de marché fiable. Un second devis sur ce périmètre est le seul vrai point de comparaison.`,
+      titre: `Faites chiffrer par un second devis les prestations spécifiques (~${fmtEuros(nonCompare)} €)`,
+      detail:
+        "Une partie de ce devis porte sur des prestations spécifiques — sur-mesure, réglementaires (désamiantage, mise en conformité) ou propres à votre chantier. Par nature, aucun référentiel de prix ne les couvre : ni le nôtre, ni ceux des comparateurs. Le seul comparatif fiable sur cette partie est un second devis d'une autre entreprise.",
     });
   }
 
@@ -405,9 +406,16 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
   } else if (s.verdict_decisionnel === "signer") {
     // 2026-08-27 (cas ZANNOU v2) — couverture partielle : ne pas affirmer une
     // conformité globale quand une grosse part du devis n'a pas de référence.
+    // 2026-08-29 (retour Johan) — NE PAS afficher le pourcentage de couverture.
+    // « prix dans le marché sur les postes comparables (~41 % du devis) »
+    // se lisait comme un aveu de faiblesse de l'analyse, alors que la part
+    // non comparée n'est PAS un défaut de notre outil : ce sont des
+    // prestations que AUCUN référentiel de prix ne couvre (sur-mesure,
+    // réglementaire, désamiantage…). On nomme donc leur NATURE et le montant
+    // concerné — transparent, utile, et sans se tirer une balle dans le pied.
     const cov = s.comparable_coverage_pct;
     motif = cov !== null && cov !== undefined && cov < 60 && (s.montant_non_compare ?? 0) >= 1000
-      ? `prix dans le marché sur les postes comparables (~${cov} % du devis) — ${fmtEuros(s.montant_non_compare ?? 0)} € de prestations spécialisées sans référence marché, à confirmer par un second devis`
+      ? `les prestations standards sont au bon prix ; ${fmtEuros(s.montant_non_compare ?? 0)} € de prestations spécifiques (sur-mesure ou réglementaires) n'ont pas de prix de référence — un second devis est le seul comparatif utile sur cette partie`
       : "prix dans les fourchettes du marché et conditions habituelles";
   } else {
     // Décision non-signer sans signal dominant identifié : rester honnête sans

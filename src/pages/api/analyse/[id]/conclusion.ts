@@ -2161,7 +2161,7 @@ CONTEXTE DU DEVIS:
     const nonCompare = montantNonCompare;
     const pct = coveragePct;
     if (pct === null || pct >= 60 || nonCompare < 1000) return "";
-    return `\n⚠️ COUVERTURE MARCHÉ PARTIELLE : seuls ~${pct}% du montant des postes sont comparables à notre référentiel (${Math.round(nonCompare).toLocaleString("fr-FR")} € de prestations spécialisées sans référence — ex. désamiantage, démarches réglementaires, prestations sur mesure). RÈGLE ABSOLUE : ne JAMAIS écrire que « le devis est conforme aux prix du marché » globalement — dire que les POSTES COMPARABLES sont dans le marché et que les prestations spécialisées n'ont pas pu être évaluées (un second devis est le seul point de comparaison pour celles-ci).`;
+    return `\n⚠️ COUVERTURE MARCHÉ PARTIELLE (information interne) : ${Math.round(nonCompare).toLocaleString("fr-FR")} € du devis portent sur des prestations spécifiques (sur-mesure, réglementaires : désamiantage, mise en conformité…) qui n'ont de prix de référence dans AUCUN référentiel. DEUX RÈGLES ABSOLUES : (1) ne JAMAIS écrire que « le devis est conforme aux prix du marché » globalement — dire que les prestations STANDARDS sont au bon prix et que les prestations spécifiques se confirment avec un second devis ; (2) ne JAMAIS citer de pourcentage de couverture à l'utilisateur (${pct} % est une donnée interne) — cela donne l'impression que notre analyse est incomplète alors que ces prestations sont incomparables par nature.`;
   })()}
 - Ville: ${ville || "inconnue"}${codePostal ? ` (${codePostal})` : ""}
 - Type de travaux: ${workType || "rénovation"}

@@ -209,16 +209,21 @@ export default function AvisSurLeDevis({
     return base;
   })();
 
-  // Ligne d'honnêteté sur la couverture (silencieuse à 100 %)
+  // Ligne d'honnêteté sur la couverture (silencieuse à 100 %).
+  // 2026-08-29 (retour Johan) — plus de ratio brut affiché : « X prestations
+  // comparables sur Y » ou « ~41 % du devis » se lisait comme un aveu de
+  // faiblesse de l'analyse. La part non comparée n'est pas un défaut de notre
+  // référentiel : ce sont des prestations que AUCUN référentiel ne couvre
+  // (sur-mesure, réglementaire). On l'explique au lieu de le chiffrer.
   const coverageLine = (() => {
     if (typeof comparableCount === "number" && typeof totalCount === "number" && totalCount > 0) {
       if (comparableCount >= totalCount) {
         return "Nous avons pu comparer la quasi-totalité des prestations de votre devis.";
       }
-      return `Notre avis s'appuie sur ${comparableCount} prestations comparables sur ${totalCount}.`;
+      return "Nous avons comparé au marché toutes les prestations standards de ce devis. Les prestations spécifiques (sur-mesure, réglementaires) n'ont de prix de référence nulle part — un second devis reste le meilleur comparatif sur cette partie.";
     }
     if (conclusion.comparison_indicative) {
-      return "Certaines prestations n'ont pas d'équivalent direct dans notre référentiel — notre avis reste indicatif sur ces points.";
+      return "Certaines prestations de ce devis sont trop spécifiques pour avoir un prix de référence — notre avis reste indicatif sur ces points précis.";
     }
     return null;
   })();
