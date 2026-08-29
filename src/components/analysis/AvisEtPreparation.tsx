@@ -32,6 +32,8 @@ interface Props {
   criticalReasons?: string[];
   comparableCount?: number | null;
   totalCount?: number | null;
+  /** 2026-08-29 — seuil du test « financement » (≥ 5 000 € HT). */
+  totalHt?: number | null;
   onVerdictReady?: (raw: string) => void;
   onCopy?: () => void;
 }
@@ -45,6 +47,7 @@ export default function AvisEtPreparation({
   criticalReasons = [],
   comparableCount,
   totalCount,
+  totalHt,
   onVerdictReady,
   onCopy,
 }: Props) {
@@ -102,7 +105,7 @@ export default function AvisEtPreparation({
             bypass (devis incomplet…), les leviers STRUCTURELS réels (quantités,
             acompte, clauses) restent visibles. Le composant s'auto-masque si le
             serveur n'a pas généré de leviers (hors_scope, étranger, courtier). */}
-        <LeviersNegociation conclusion={conclusion} analysisId={analysisId} />
+        <LeviersNegociation conclusion={conclusion} analysisId={analysisId} totalHt={totalHt} />
       </div>
     );
   }
@@ -116,7 +119,7 @@ export default function AvisEtPreparation({
         criticalReasons={criticalReasons}
       />
       {/* 🟢 Phase 4 — 3 leviers hiérarchisés (rendu seulement si conclusion.leviers) */}
-      <LeviersNegociation conclusion={conclusion} analysisId={analysisId} />
+      <LeviersNegociation conclusion={conclusion} analysisId={analysisId} totalHt={totalHt} />
       <PreparezVotreRendezVous
         conclusion={conclusion}
         pointsOk={pointsOk}

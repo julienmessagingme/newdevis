@@ -13,9 +13,7 @@
  * comme seul bloc actionnable.
  */
 
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { trackEvent } from "@/lib/integrations/amplitude";
+import InterestPrompt from "./InterestPrompt";
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 
 const NIVEAU_STYLE: Record<
@@ -51,72 +49,14 @@ const SECURISER_STYLE = {
 
 interface LeviersNegociationProps {
   conclusion: ConclusionData;
-  /** 2026-08-27 — requis pour la mesure d'intérêt dommages-ouvrage. */
+  /** 2026-08-27 — requis pour les mesures d'intérêt (DO, crédit). */
   analysisId?: string;
+  /** 2026-08-29 — montant HT du devis : le test « crédit » n'est proposé
+   *  qu'à partir de 5 000 € (en dessous, un financement n'a pas de sens). */
+  totalHt?: number | null;
 }
 
-/**
- * 2026-08-27 (décision Johan) — mesure d'intérêt « dommages-ouvrage », test de
- * 3 mois. Affiché sous le conseil DO uniquement. AUCUN lead n'est transmis à
- * un tiers aujourd'hui : le libellé le dit honnêtement (« dès qu'un partenaire
- * sera en place »), on ne promet pas un devis qu'on ne peut pas fournir.
- * Verdict du test : aucun clic en 3 mois = piste abandonnée.
- */
-function DommagesOuvrageInterest({ analysisId }: { analysisId: string }) {
-  const storageKey = `vmd_do_interest_${analysisId}`;
-  const [state, setState] = useState<"idle" | "sending" | "done">(() => {
-    try {
-      return localStorage.getItem(storageKey) === "1" ? "done" : "idle";
-    } catch {
-      return "idle";
-    }
-  });
-
-  const send = async () => {
-    setState("sending");
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (token) {
-        await fetch(`/api/analyse/${analysisId}/do-interest`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        });
-      }
-      trackEvent("do_interest_click", { analysis_id: analysisId });
-      try { localStorage.setItem(storageKey, "1"); } catch { /* ignore */ }
-    } catch {
-      /* mesure best-effort — on remercie quand même */
-    }
-    setState("done");
-  };
-
-  if (state === "done") {
-    return (
-      <p className="mt-3 rounded-lg bg-emerald-50 border border-emerald-200 px-3.5 py-2.5 text-[13px] text-emerald-900">
-        Merci — c'est noté. Nous vous recontacterons dès qu'un partenaire assurance sera en place.
-      </p>
-    );
-  }
-
-  return (
-    <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50/60 px-3.5 py-3">
-      <p className="text-[13px] text-sky-950 leading-relaxed mb-2">
-        Souhaitez-vous recevoir une proposition de dommages-ouvrage, sans engagement&nbsp;?
-      </p>
-      <button
-        type="button"
-        onClick={send}
-        disabled={state === "sending"}
-        className="rounded-lg bg-sky-700 px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-sky-800 disabled:opacity-60"
-      >
-        {state === "sending" ? "…" : "Oui, ça m'intéresse"}
-      </button>
-    </div>
-  );
-}
-
-export default function LeviersNegociation({ conclusion, analysisId }: LeviersNegociationProps) {
+export default function LeviersNegociation({ conclusion, analysisId, totalHt }: LeviersNegociationProps) {
   const leviers = conclusion.leviers ?? [];
   if (leviers.length === 0) return null;
 
@@ -169,12 +109,31 @@ export default function LeviersNegociation({ conclusion, analysisId }: LeviersNe
                 {levier.detail}
               </p>
               {levier.type === "dommages_ouvrage" && analysisId && (
-                <DommagesOuvrageInterest analysisId={analysisId} />
+                <InterestPrompt
+                  analysisId={analysisId}
+                  topic="dommages_ouvrage"
+                  tone="sky"
+                  question="Souhaitez-vous recevoir une proposition de dommages-ouvrage, sans engagement ?"
+                  cta="Oui, ça m'intéresse"
+                />
               )}
             </li>
           );
         })}
       </ol>
+
+      {/* 2026-08-29 — test « financement des travaux » (3 mois). Proposé sur
+          les devis ≥ 5 000 € HT, indépendamment du verdict : le besoin de
+          financement n'a rien à voir avec la qualité du devis. */}
+      {analysisId && typeof totalHt === "number" && totalHt >= 5000 && (
+        <InterestPrompt
+          analysisId={analysisId}
+          topic="credit"
+          tone="indigo"
+          question={`Souhaitez-vous une proposition de financement pour ces travaux (${Math.round(totalHt).toLocaleString("fr-FR")} € HT), sans engagement ?`}
+          cta="Oui, étudier un financement"
+        />
+      )}
     </section>
   );
 }

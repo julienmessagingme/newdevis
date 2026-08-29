@@ -1333,6 +1333,7 @@ const AnalysisResult = () => {
               alertes={analysis.alertes || []}
               entrepriseName={entrepriseName}
               criticalReasons={criticalReasons}
+              totalHt={totalHT}
               onVerdictReady={(raw) => {
                 setConclusionIaLive(raw);
                 // Meta + TikTok Pixel — conversion "analyse terminée", 1x par analyse.
