@@ -21,16 +21,11 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 
 const MODEL = "claude-opus-5";
-const PDF_MAX_BYTES = 8 * 1024 * 1024; // marge sous la limite requête API
-
-function b64(bytes: Uint8Array): string {
-  let bin = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(bin);
-}
+// Le PDF est transmis par URL SIGNÉE, jamais téléchargé ni encodé ici : sur un
+// devis de 573 Ko, le download + base64 dans le worker consommait assez de CPU
+// pour que la edge tue le run en silence (aucune erreur, claim laissé en
+// "running" → 3 abandons). Anthropic va chercher le fichier lui-même.
+const SIGNED_URL_TTL_S = 3600;
 
 // deno-lint-ignore no-explicit-any
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
@@ -68,18 +63,15 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
   let pdfBlock: Record<string, unknown> | null = null;
   if (a.file_path) {
     try {
-      const { data: dl } = await supabase.storage.from("devis").download(a.file_path);
-      if (dl && dl.size <= PDF_MAX_BYTES && (dl.type ?? "").includes("pdf")) {
-        const bytes = new Uint8Array(await dl.arrayBuffer());
-        pdfBlock = {
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: b64(bytes) },
-        };
-      } else if (dl && dl.size > PDF_MAX_BYTES) {
-        console.log(`[ai-review] PDF trop lourd (${dl.size}o) — relecture sans document`);
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("devis").createSignedUrl(a.file_path, SIGNED_URL_TTL_S);
+      if (signed?.signedUrl) {
+        pdfBlock = { type: "document", source: { type: "url", url: signed.signedUrl } };
+      } else {
+        console.log("[ai-review] URL signée indisponible:", signErr?.message ?? "?");
       }
     } catch (e) {
-      console.log("[ai-review] download PDF échoué:", e instanceof Error ? e.message : e);
+      console.log("[ai-review] URL signée échouée:", e instanceof Error ? e.message : e);
     }
   }
 
