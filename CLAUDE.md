@@ -83,6 +83,14 @@ Ce fichier = **règles + pièges + décisions récentes** pour ne pas casser qua
 
 **Règle absolue WIP vs TODO** : un item ne va dans `WIP.md` qu'à partir du moment où on l'attaque (premier commit, première décision, premier code). Tant que c'est un "à faire" non démarré, c'est `TODO.md` exclusivement. Ne jamais polluer WIP avec du backlog non commencé — ça brouille la lecture "où on en est".
 
+### 🔴 RÈGLE ABSOLUE — documenter AVANT de committer (Johan, 2026-08-29)
+
+**La mise à jour de la doc fait partie du commit, pas d'un passage ultérieur.** Concrètement : quand un chantier est prêt à être committé, on écrit d'abord l'entrée `WIP.md` / `FEATURES.md` / `CLAUDE.md` / `DOCUMENTATION.md` qui va avec, puis on committe **le code et la doc ensemble**. Pas de « je documenterai à la fin de la session ».
+
+Pourquoi c'est une règle et pas un conseil : une session entière (2026-08-27/29 — agent relecteur IA, boucle de capture des issues, tests d'intérêt, 4 crons réparés, catalogue 891→916) est partie en prod avec **zéro ligne de doc**, et le tableau de la refonte en tête de ce fichier affichait encore des statuts de juin. Le contexte de conversation est résumé quand il se remplit : ce qui n'est pas écrit dans un fichier est perdu, et Johan doit tout réexpliquer à la session suivante. Documenter à la fin = documenter depuis un résumé approximatif.
+
+Exception unique : un fix trivial sans décision derrière (typo, renommage local). Dès qu'il y a une **décision**, un **piège** ou une **capacité utilisateur**, elle s'écrit avant le `git commit`.
+
 ### Workflow obligatoire à chaque session
 
 1. **Quand on identifie un truc à faire mais qu'on ne l'attaque pas tout de suite** → entrée dans `TODO.md`.
