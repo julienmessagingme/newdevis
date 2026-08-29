@@ -2598,3 +2598,11 @@ Mesure honnête de ce que ce seuil économise aujourd'hui : sur les 30 analyses 
 ### 28.4 Alerte de palier
 
 `system-alerts?check=volume` (cron `vmd-volume-alert`, lundi 08:20 UTC) compte les analyses sur 30 jours glissants et envoie un mail à Julien + Johan à partir de 300, puis 500, 1 000, 2 000, 5 000. Le mail chiffre le coût estimé de la période et liste les leviers d'optimisation. **Cadence hebdomadaire volontaire** : le seuil, une fois franchi, le reste — le contrôle est explicitement exclu du tick de 5 minutes qui enverrait le même mail en boucle. Les constantes de coût vivent en tête de `system-alerts/index.ts` et doivent être révisées avec cette section.
+
+**Tester le chemin sans écrire à personne** — indispensable, car sinon il ne s'exécuterait pour de vrai qu'au franchissement du palier, c'est-à-dire trop tard pour découvrir qu'il est cassé :
+
+```bash
+curl -s -X POST "https://vhrhgsqxwvouswjaiczn.supabase.co/functions/v1/system-alerts?check=volume&min=1&dry=1" -H "Content-Type: application/json" -d '{}'
+```
+
+`min` force le palier, `dry=1` renvoie l'alerte au lieu de l'envoyer. Vérifié le 2026-08-29 : 27 analyses sur 30 jours, coût estimé ~9 €.

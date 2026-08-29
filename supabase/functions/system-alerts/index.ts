@@ -184,7 +184,10 @@ const COST_PIPELINE_EUR = 0.05;   // Gemini : extraction + embeddings + verdict
 const COST_REVIEW_EUR = 0.85;     // relecteur Claude Opus, par revue
 const REVIEW_RATE = 0.34;         // part des analyses envoyées en revue
 
-async function checkMonthlyVolume(supabase: any): Promise<Alert | null> {
+// `minOverride` sert UNIQUEMENT aux tests (`?check=volume&min=1&dry=1`) : sans
+// lui, ce chemin ne s'exécuterait pour de vrai qu'au franchissement du palier,
+// c'est-à-dire trop tard pour découvrir qu'il est cassé.
+async function checkMonthlyVolume(supabase: any, minOverride?: number): Promise<Alert | null> {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { count, error } = await supabase
     .from("analyses")
@@ -196,7 +199,8 @@ async function checkMonthlyVolume(supabase: any): Promise<Alert | null> {
     return null;
   }
   const n = count ?? 0;
-  const tier = [...VOLUME_TIERS].reverse().find((t) => n >= t);
+  const tiers = minOverride ? [minOverride, ...VOLUME_TIERS] : VOLUME_TIERS;
+  const tier = [...tiers].sort((x, y) => x - y).reverse().find((t) => n >= t);
   if (!tier) return null;
 
   const reviews = Math.round(n * REVIEW_RATE);
@@ -284,10 +288,15 @@ serve(async (req) => {
     // Le contrôle de volume a sa propre cadence (cron hebdomadaire, ?check=volume)
     // et ne doit JAMAIS tourner dans le tick de 5 min : le seuil, une fois
     // franchi, le reste, et enverrait un mail toutes les 5 minutes.
-    const isVolumeCheck = new URL(req.url).searchParams.get("check") === "volume";
+    const params = new URL(req.url).searchParams;
+    const isVolumeCheck = params.get("check") === "volume";
+    // Test manuel : `?check=volume&min=1&dry=1` force le palier et RENVOIE
+    // l'alerte sans l'envoyer — pour vérifier le chemin sans écrire à Julien.
+    const minOverride = Number(params.get("min")) || undefined;
+    const dryRun = params.get("dry") === "1";
 
     const alerts = isVolumeCheck
-      ? ([await checkMonthlyVolume(supabase)].filter(Boolean) as Alert[])
+      ? ([await checkMonthlyVolume(supabase, minOverride)].filter(Boolean) as Alert[])
       : ((await Promise.all([
           checkStuckAnalyses(supabase),
           checkErrorSpike(supabase),
@@ -295,6 +304,13 @@ serve(async (req) => {
         ])).filter(Boolean) as Alert[]);
     const sent: string[] = [];
     const errors: { category: string; error: string }[] = [];
+
+    if (dryRun) {
+      return new Response(JSON.stringify({ dry_run: true, alerts }, null, 2), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Send emails for triggered alerts
     for (const alert of alerts) {
