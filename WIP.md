@@ -26,7 +26,7 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ### À surveiller
 
-- 🟡 **Agent relecteur sur gros devis** : le devis 25030 (82 lignes, 219 k€) a épuisé ses 3 tentatives avant le passage en mode rapide. Vérifier que le mode rapide suffit ; sinon, passer à un traitement en deux appels (lecture, puis vérification web).
+- ✅ **Agent relecteur sur gros devis — résolu 2026-08-29** : le devis 25030 n'était pas « trop lourd ». La cause réelle était le `speed:"fast"` ajouté la veille : le mode rapide n'est pas ouvert sur notre organisation, donc 429 immédiat sur chaque appel — le relecteur était éteint pour TOUTES les analyses, pas seulement les grosses. Mode rapide retiré, PDF rétabli sans plafond de lignes (mesuré : 49 s sans PDF, 58 s avec, très loin des ~400 s de la edge), et la cause API est désormais consignée dans `last_error` pour ne plus confondre quota et timeout. Reste à surveiller : que la file de `pending_review` se vide bien au prochain passage du cron.
 - 🟡 **Tests d'intérêt** : relire les taux de clic à mi-parcours (mi-octobre) avant les verdicts de fin novembre.
 - 🟡 **Couverture catalogue** : re-mesurer à J+15 (médiane de départ : 29 %).
 - 🟡 **Fourchettes des 19 nouvelles entrées catalogue** : à relire par Julien (filtre SQL ci-dessus).

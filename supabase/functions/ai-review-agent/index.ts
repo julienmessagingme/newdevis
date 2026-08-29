@@ -22,12 +22,6 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 
 const MODEL = "claude-opus-5";
 const PDF_MAX_BYTES = 8 * 1024 * 1024; // marge sous la limite requête API
-// 2026-08-29 — au-delà de ce nombre de lignes, on renonce au PDF : sur le
-// devis 25030 (82 lignes, 219 k€) la lecture des pages faisait dépasser le
-// plafond de temps des fonctions edge, même en effort low (3 tentatives, 3
-// abandons). L'extraction du pipeline (déjà dans le prompt) prend le relais ;
-// la recherche web est conservée, c'est elle qui casse la circularité.
-const BIG_QUOTE_LINES = 55;
 
 function b64(bytes: Uint8Array): string {
   let bin = "";
@@ -72,11 +66,7 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
 
   // ── PDF source ───────────────────────────────────────────────────────────
   let pdfBlock: Record<string, unknown> | null = null;
-  const isBigQuote = priceData.length > BIG_QUOTE_LINES;
-  if (isBigQuote) {
-    console.log("[ai-review] gros devis (" + priceData.length + " lignes) — relecture sans PDF (budget edge)");
-  }
-  if (a.file_path && !isBigQuote) {
+  if (a.file_path) {
     try {
       const { data: dl } = await supabase.storage.from("devis").download(a.file_path);
       if (dl && dl.size <= PDF_MAX_BYTES && (dl.type ?? "").includes("pdf")) {
@@ -136,19 +126,19 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
       "Content-Type": "application/json",
       "x-api-key": ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
-      // Mode rapide Opus 5 (research preview) : même modèle, sortie jusqu'à
-      // 2,5× plus rapide — décisif pour tenir dans le budget des edge functions.
-      "anthropic-beta": "fast-mode-2026-02-01",
     },
     body: JSON.stringify({
       model: MODEL,
-      speed: "fast",
       max_tokens: 5000,
-      // 2026-08-29 — budget resserré une 2e fois : un devis de 82 lignes
-      // (219 k€, cas NAZON/25030) dépassait encore le plafond edge (~400 s)
-      // en effort medium. effort low + 2 recherches suffisent pour un avis
-      // structuré et ramènent l'appel sous les 2 minutes. Le grounding web
-      // est conservé — c'est lui qui casse la circularité.
+      // ⚠️ NE PAS ajouter `speed: "fast"` : le mode rapide n'est pas ouvert sur
+      // notre organisation (« rate limit of 0 fast mode input tokens per
+      // minute ») → 429 immédiat sur CHAQUE appel. Ajouté le 2026-08-29 pour
+      // « tenir dans le budget edge », il a en réalité éteint le relecteur pour
+      // toutes les analyses. Mesuré depuis, sans mode rapide : 49 s sans PDF et
+      // 58 s avec PDF sur le devis 25030 (82 lignes, 219 k€) — le budget edge
+      // n'a jamais été le problème. À ne réactiver qu'après vérification du
+      // quota fast mode sur la clé API.
+      // effort low + 2 recherches suffisent pour un avis structuré et sourcé.
       output_config: { effort: "low" },
       tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 2 }],
       messages: [{ role: "user", content }],
@@ -164,7 +154,15 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
         ai_reviewed_at: new Date().toISOString(),
         ai_review_opinion: { error: `Anthropic ${res.status}`, detail: errTxt },
       }).eq("id", a.id);
+      return;
     }
+    // Retryable (429 / 5xx) : on garde le claim mais on CONSIGNE la cause. Sans
+    // ça, un 429 systématique se déguisait en « devis trop lourd » au bout de 3
+    // tentatives et envoyait le diagnostic dans le mur (cas du mode rapide non
+    // ouvert sur l'organisation, 2026-08-29).
+    await supabase.from("analyses").update({
+      ai_review_opinion: { status: "running", attempt, last_error: `Anthropic ${res.status}: ${errTxt}` },
+    }).eq("id", a.id);
     return;
   }
   const result = await res.json();
@@ -227,7 +225,14 @@ Deno.serve(async (_req) => {
     const op = c.ai_review_opinion as Record<string, unknown> | null;
     if (op?.status === "running" && Number(op.attempt ?? 0) >= MAX_ATTEMPTS) {
       await supabase.from("analyses").update({
-        ai_review_opinion: { error: "timeout_edge", detail: `abandon après ${MAX_ATTEMPTS} tentatives (devis trop lourd pour le budget edge)` },
+        ai_review_opinion: {
+          error: "abandon",
+          // La dernière erreur API prime sur le diagnostic générique : c'est
+          // elle qui dit POURQUOI (quota, 5xx, ou run tué par la edge).
+          detail: op.last_error
+            ? `abandon après ${MAX_ATTEMPTS} tentatives — ${op.last_error}`
+            : `abandon après ${MAX_ATTEMPTS} tentatives (run interrompu, aucune réponse API)`,
+        },
       }).eq("id", c.id);
       console.warn(`[ai-review] ${c.id.slice(0, 8)} abandonné après ${MAX_ATTEMPTS} tentatives`);
     }
