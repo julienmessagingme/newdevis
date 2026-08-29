@@ -139,6 +139,47 @@ export const POST: APIRoute = async ({ request, params }) => {
     // Marque la conclusion comme expert-reviewed
     conclusionToPersist.expert_reviewed = true;
     conclusionToPersist.expert_reviewed_at = new Date().toISOString();
+
+    // ── Cohérence Phase 4 après correction (2026-08-29) ────────────────────
+    // `verdict_ligne` (hero) et `leviers` sont construits AVANT la revue à
+    // partir du surcoût automatique. Si l'expert annule ce surcoût — cas
+    // typique du faux positif de matching — sans ce rattrapage la page
+    // continuait d'afficher « X–Y € d'écart estimé » et un levier « surcoût »
+    // que l'expert vient précisément d'invalider. Contradiction visible par
+    // l'utilisateur, juste sous un verdict corrigé.
+    if (correctedVerdictDecisionnel && conclusionToPersist.verdict_ligne) {
+      conclusionToPersist.verdict_ligne.decision = correctedVerdictDecisionnel;
+    }
+    const surcoutMaxAfter = Number(conclusionToPersist.surcout_global?.max ?? 0) || 0;
+    const anomaliesAfter = Array.isArray(conclusionToPersist.anomalies)
+      ? conclusionToPersist.anomalies.length
+      : 0;
+    if (surcoutMaxAfter === 0 || anomaliesAfter === 0) {
+      if (Array.isArray(conclusionToPersist.leviers)) {
+        conclusionToPersist.leviers = conclusionToPersist.leviers.filter(
+          (l: any) => l?.type !== "surcout_postes",
+        );
+      }
+      const vl = conclusionToPersist.verdict_ligne;
+      if (vl && typeof vl === "object") {
+        // Plus de surcoût = plus de marge chiffrée : on ne promet pas une
+        // économie que l'expert vient de retirer.
+        vl.marge = null;
+        const topLevier = Array.isArray(conclusionToPersist.leviers)
+          ? conclusionToPersist.leviers[0]
+          : null;
+        const titre = typeof topLevier?.titre === "string" ? topLevier.titre.trim() : "";
+        vl.motif = titre
+          ? titre.charAt(0).toLowerCase() + titre.slice(1)
+          : "des points restent à clarifier avec l'artisan avant signature";
+        // Conserve le montant en tête du résumé ("219 583 € HT — …"), qui reste
+        // vrai, et ne remplace que la partie devenue fausse.
+        const montant = typeof vl.resume === "string" && vl.resume.includes(" — ")
+          ? vl.resume.split(" — ")[0]
+          : null;
+        vl.resume = montant ? `${montant} — ${vl.motif}.` : `${vl.motif}.`;
+      }
+    }
   }
 
   const expertNotes = typeof body.expert_notes === "string" ? body.expert_notes : null;

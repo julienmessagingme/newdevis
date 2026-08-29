@@ -127,6 +127,18 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
   "accord_avec_ia": "oui" | "partiel" | "non",
   "verdict_recommande": "signer" | "signer_avec_negociation" | "ne_pas_signer",
   "action_recommandee": "valider" | "corriger" | "rejeter_faux_positif",
+  // Ce que ces 3 actions font RÉELLEMENT dans notre écran de revue — ne te
+  // trompe pas de mot, l'expert suit ta recommandation :
+  //  · "valider"  = la conclusion part telle quelle, aucun contenu modifié.
+  //  · "corriger" = l'expert RÉÉCRIT verdict / surcoût / anomalies. C'est la
+  //    SEULE action qui change ce que l'utilisateur voit.
+  //  · "rejeter_faux_positif" = la mise en revue était injustifiée ; la
+  //    conclusion part TELLE QUELLE, INCHANGÉE.
+  // Donc : si tu invalides ne serait-ce qu'une anomalie ou un montant de
+  // surcoût, l'action est "corriger", JAMAIS "rejeter_faux_positif" — sinon
+  // l'erreur que tu viens de démontrer resterait affichée à l'utilisateur.
+  // "rejeter_faux_positif" ne s'emploie que si la conclusion est bonne ET que
+  // seul le déclencheur de mise en revue était excessif.
   "confiance": 0.0-1.0,
   "resume": "2-3 phrases : ton avis global et pourquoi",
   "points_verifies": [{"poste": "...", "prix_devis": "...", "avis": "cohérent|élevé|bas|sans référence", "detail": "...", "source_web": "url ou null"}],
