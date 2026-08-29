@@ -26,6 +26,9 @@ const MODEL = "claude-opus-5";
 // pour que la edge tue le run en silence (aucune erreur, claim laissé en
 // "running" → 3 abandons). Anthropic va chercher le fichier lui-même.
 const SIGNED_URL_TTL_S = 3600;
+// Sous ce montant HT, la relecture n'est lancée QUE si un critère rouge est
+// présent (cf. garde de proportion dans processOne).
+const MIN_QUOTE_HT = 5000;
 
 // deno-lint-ignore no-explicit-any
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
@@ -52,6 +55,30 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
   })();
   const scoring = (raw.scoring ?? {}) as Record<string, unknown>;
   const priceData = Array.isArray(raw.n8n_price_data) ? raw.n8n_price_data as Array<Record<string, any>> : [];
+
+  // ── Garde de proportion : un avis d'expert coûte ~0,85 € ─────────────────
+  // On ne le dépense pas sur un petit devis SANS signal grave. Deux garde-fous
+  // délibérés : un critère rouge (entreprise radiée, clause illégale, IBAN
+  // suspect…) passe outre le seuil — la gravité ne dépend pas du montant — et
+  // un montant inconnu déclenche aussi la relecture (l'incertitude est un
+  // risque, pas une économie). Mesuré sur les 30 analyses déjà passées en
+  // revue : médiane 12 180 €, une seule sous le seuil sans critère rouge —
+  // c'est donc une assurance pour la montée en volume, pas une économie
+  // immédiate.
+  const totalHT = Number(
+    (raw.extracted_data as any)?.totaux?.ht ?? (raw.extracted as any)?.totaux?.ht ?? 0,
+  ) || 0;
+  const criteresRouges = Array.isArray((scoring as any).criteres_rouges)
+    ? (scoring as any).criteres_rouges.length
+    : 0;
+  if (totalHT > 0 && totalHT < MIN_QUOTE_HT && criteresRouges === 0) {
+    await supabase.from("analyses").update({
+      ai_reviewed_at: new Date().toISOString(),
+      ai_review_opinion: { skipped: "montant_sous_seuil", montant_ht: totalHT, seuil: MIN_QUOTE_HT },
+    }).eq("id", a.id);
+    console.log(`[ai-review] ${a.id.slice(0, 8)} ignoré — ${totalHT} € HT < ${MIN_QUOTE_HT} € et aucun critère rouge`);
+    return;
+  }
   const groupsSummary = priceData.slice(0, 40).map((g) => {
     const p = g.prices?.[0] ?? {};
     const conf = g.vectorial?.confidence ?? "legacy";

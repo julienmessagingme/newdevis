@@ -2560,3 +2560,41 @@ Déclenché par le prompt section "DÉTECTION DE DÉCISION À ARBITRER" : *"Quan
 - ✅ Décision à prendre — implémenté via `notify_owner_for_decision`
 
 UI Settings checkboxes par catégorie à venir pour activer/désactiver chaque trigger (sinon spam).
+
+---
+
+## 28. Coût IA par analyse — modèle et paliers d'alerte (2026-08-29)
+
+Deux fournisseurs, deux logiques de facturation, à ne pas confondre.
+
+### 28.1 Ce qui tourne sur quoi
+
+| Brique | Fournisseur | Clé | Portée |
+|---|---|---|---|
+| Extraction OCR, groupement, embeddings catalogue, verdict, agent chantier, génération de chantier | Google Gemini | `GOOGLE_API_KEY` | **Tout le produit** — VMD et GMC |
+| Agent relecteur de revue (`ai-review-agent`), génération d'articles de blog (`generate-blog-article`) | Anthropic | `ANTHROPIC_API_KEY` | Deux fonctions edge, **aucune page utilisateur** |
+
+**L'abonnement Claude Code (outil de développement) n'a AUCUN lien avec le runtime du site.** Le site appelle `api.anthropic.com` avec une clé API console facturée à la consommation, séparément. Résilier Claude Code ne change rien en production. Retirer la clé API Anthropic n'éteint que l'avis de pré-revue en admin et la génération d'articles : les analyses continuent d'être produites normalement pour l'utilisateur (la fonction se contente de logger « clé manquante »).
+
+### 28.2 Coût unitaire mesuré (2026-08-29)
+
+| Poste | Coût | Base de mesure |
+|---|---|---|
+| Pipeline Gemini complet | **~0,05 €** / analyse | extraction + embeddings + verdict |
+| Relecteur Claude Opus | **~0,85 €** / revue | mesuré sur le devis 25030 : 43 200 tokens entrée, 3 400 sortie, 2 recherches web, 61 s |
+| Taux de mise en revue | **34 %** | 30 analyses sur 89, période de 90 jours arrêtée au 2026-08-29 |
+| **Coût moyen par analyse, relecteur inclus** | **~0,34 €** | 0,05 + 0,34 × 0,85 |
+
+⚠️ Le coût du relecteur suppose un tarif Opus de 15 $/M en entrée et 75 $/M en sortie — **à reconfirmer sur la facture console** avant toute décision qui en dépend.
+
+Projection : ~10 €/mois à 27 analyses (rythme d'août 2026), ~100 €/mois à 300, ~340 €/mois à 1 000.
+
+### 28.3 Garde de proportion du relecteur
+
+`ai-review-agent` ne relit pas tout : l'analyse doit être en `pending_review` **et** le devis dépasser `MIN_QUOTE_HT = 5 000 € HT`. Deux exceptions délibérées : un **critère rouge** (entreprise radiée, clause illégale, IBAN suspect) passe outre le seuil — la gravité ne dépend pas du montant — et un **montant inconnu** déclenche aussi la relecture, l'incertitude étant un risque et non une économie. Les analyses écartées sont marquées `ai_review_opinion = { skipped: "montant_sous_seuil" }` pour ne pas revenir dans la file à chaque tick.
+
+Mesure honnête de ce que ce seuil économise aujourd'hui : sur les 30 analyses déjà passées en revue, médiane 12 180 €, 6 sous le seuil dont **une seule sans critère rouge**. C'est donc une **assurance pour la montée en volume**, pas une économie immédiate. Le vrai levier, si le coût devient un sujet, est le taux de mise en revue de 34 % lui-même, ou le passage à l'API batch (moitié prix — un avis de pré-revue n'a aucune urgence).
+
+### 28.4 Alerte de palier
+
+`system-alerts?check=volume` (cron `vmd-volume-alert`, lundi 08:20 UTC) compte les analyses sur 30 jours glissants et envoie un mail à Julien + Johan à partir de 300, puis 500, 1 000, 2 000, 5 000. Le mail chiffre le coût estimé de la période et liste les leviers d'optimisation. **Cadence hebdomadaire volontaire** : le seuil, une fois franchi, le reste — le contrôle est explicitement exclu du tick de 5 minutes qui enverrait le même mail en boucle. Les constantes de coût vivent en tête de `system-alerts/index.ts` et doivent être révisées avec cette section.

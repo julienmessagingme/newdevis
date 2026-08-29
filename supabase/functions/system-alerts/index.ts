@@ -169,6 +169,57 @@ function buildEmailHtml(alert: Alert): string {
 </html>`;
 }
 
+// ============ VOLUME MENSUEL — palier d'optimisation des coûts ============
+// Demandé par Johan le 2026-08-29 : être prévenu, lui et Julien, quand le
+// volume mensuel atteint ~300 analyses, pour décider comment optimiser AVANT
+// que la facture ne devienne un sujet. Ce n'est pas une alerte de panne : le
+// coût reste modeste, c'est un signal « il est temps d'arbitrer ».
+// Déclenché par le cron hebdomadaire via ?check=volume — surtout PAS par le
+// tick de 5 min, qui enverrait un mail toutes les 5 minutes une fois le seuil
+// franchi.
+const VOLUME_TIERS = [300, 500, 1000, 2000, 5000];
+// Coûts unitaires observés le 2026-08-29 (cf. DOCUMENTATION.md § coût par
+// analyse). À réviser si les tarifs ou le taux de mise en revue bougent.
+const COST_PIPELINE_EUR = 0.05;   // Gemini : extraction + embeddings + verdict
+const COST_REVIEW_EUR = 0.85;     // relecteur Claude Opus, par revue
+const REVIEW_RATE = 0.34;         // part des analyses envoyées en revue
+
+async function checkMonthlyVolume(supabase: any): Promise<Alert | null> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from("analyses")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", since);
+
+  if (error) {
+    console.error("checkMonthlyVolume error:", error.message);
+    return null;
+  }
+  const n = count ?? 0;
+  const tier = [...VOLUME_TIERS].reverse().find((t) => n >= t);
+  if (!tier) return null;
+
+  const reviews = Math.round(n * REVIEW_RATE);
+  const cost = n * COST_PIPELINE_EUR + reviews * COST_REVIEW_EUR;
+  const eur = (v: number) => v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+  return {
+    category: `volume_mensuel_${tier}`,
+    severity: "WARNING",
+    title: `Palier de volume atteint : ${n} analyses sur 30 jours`,
+    message:
+      `Le seuil de ${tier} analyses par mois est franchi (${n} sur les 30 derniers jours).\n\n` +
+      `Coût IA estimé sur la période : ~${eur(cost)} € ` +
+      `(${n} × ${COST_PIPELINE_EUR.toFixed(2)} € de pipeline Gemini + ~${reviews} relectures Claude × ${COST_REVIEW_EUR.toFixed(2)} €).\n\n` +
+      `Ce n'est pas une panne : c'est le moment d'arbitrer. Leviers disponibles, du moins au plus radical : ` +
+      `relever le seuil de montant du relecteur (aujourd'hui 5 000 € HT), ` +
+      `resserrer les déclencheurs de mise en revue (aujourd'hui ~${Math.round(REVIEW_RATE * 100)} % des analyses), ` +
+      `passer le relecteur sur l'API batch (moitié prix, aucune urgence sur un avis de pré-revue), ` +
+      `ou réserver la relecture aux devis à enjeu élevé.`,
+    analyses: [],
+  };
+}
+
 async function sendAlert(alert: Alert, resendApiKey: string): Promise<{ ok: boolean; error?: string }> {
   // Idempotency key basée sur les IDs des analyses, PAS l'heure.
   // Mêmes analyses bloquées = même clé = Resend ne renvoie pas.
@@ -230,14 +281,18 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Run all checks in parallel
-    const [stuck, errorSpike, highErrorRate] = await Promise.all([
-      checkStuckAnalyses(supabase),
-      checkErrorSpike(supabase),
-      checkHighErrorRate(supabase),
-    ]);
+    // Le contrôle de volume a sa propre cadence (cron hebdomadaire, ?check=volume)
+    // et ne doit JAMAIS tourner dans le tick de 5 min : le seuil, une fois
+    // franchi, le reste, et enverrait un mail toutes les 5 minutes.
+    const isVolumeCheck = new URL(req.url).searchParams.get("check") === "volume";
 
-    const alerts = [stuck, errorSpike, highErrorRate].filter(Boolean) as Alert[];
+    const alerts = isVolumeCheck
+      ? ([await checkMonthlyVolume(supabase)].filter(Boolean) as Alert[])
+      : ((await Promise.all([
+          checkStuckAnalyses(supabase),
+          checkErrorSpike(supabase),
+          checkHighErrorRate(supabase),
+        ])).filter(Boolean) as Alert[]);
     const sent: string[] = [];
     const errors: { category: string; error: string }[] = [];
 
