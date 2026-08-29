@@ -22,6 +22,12 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 
 const MODEL = "claude-opus-5";
 const PDF_MAX_BYTES = 8 * 1024 * 1024; // marge sous la limite requête API
+// 2026-08-29 — au-delà de ce nombre de lignes, on renonce au PDF : sur le
+// devis 25030 (82 lignes, 219 k€) la lecture des pages faisait dépasser le
+// plafond de temps des fonctions edge, même en effort low (3 tentatives, 3
+// abandons). L'extraction du pipeline (déjà dans le prompt) prend le relais ;
+// la recherche web est conservée, c'est elle qui casse la circularité.
+const BIG_QUOTE_LINES = 55;
 
 function b64(bytes: Uint8Array): string {
   let bin = "";
@@ -66,7 +72,11 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
 
   // ── PDF source ───────────────────────────────────────────────────────────
   let pdfBlock: Record<string, unknown> | null = null;
-  if (a.file_path) {
+  const isBigQuote = priceData.length > BIG_QUOTE_LINES;
+  if (isBigQuote) {
+    console.log("[ai-review] gros devis (" + priceData.length + " lignes) — relecture sans PDF (budget edge)");
+  }
+  if (a.file_path && !isBigQuote) {
     try {
       const { data: dl } = await supabase.storage.from("devis").download(a.file_path);
       if (dl && dl.size <= PDF_MAX_BYTES && (dl.type ?? "").includes("pdf")) {
@@ -96,7 +106,9 @@ LECTURE DU PIPELINE AUTOMATIQUE (à challenger, pas à recopier) :
 ${groupsSummary || "(aucun)"}
 
 TA MISSION :
-1. Lis le devis PDF joint (source de vérité — pas l'extraction).
+1. ${pdfBlock
+    ? "Lis le devis PDF joint (source de vérité — pas l'extraction)."
+    : "Le PDF n'a pas pu être joint (devis volumineux) : appuie-toi sur les lignes extraites ci-dessus, et signale dans ton résumé que tu n'as pas relu le document original."}
 2. Identifie les 2 postes les plus déterminants (les plus chers ou les plus douteux) et VÉRIFIE leurs prix avec la recherche web (2 recherches MAXIMUM, prix France 2026). Cite tes sources. Va droit au but.
 3. Vérifie la cohérence du verdict pipeline : faux positifs de matching (forfait comparé à un prix unitaire, prestation intellectuelle, fourniture seule…), signaux manqués (clauses, acompte, TVA, entreprise).
 4. Sois HONNÊTE sur l'incertitude : si un poste n'a pas de référence fiable, dis-le — n'invente jamais une fourchette.
@@ -124,9 +136,13 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
       "Content-Type": "application/json",
       "x-api-key": ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
+      // Mode rapide Opus 5 (research preview) : même modèle, sortie jusqu'à
+      // 2,5× plus rapide — décisif pour tenir dans le budget des edge functions.
+      "anthropic-beta": "fast-mode-2026-02-01",
     },
     body: JSON.stringify({
       model: MODEL,
+      speed: "fast",
       max_tokens: 5000,
       // 2026-08-29 — budget resserré une 2e fois : un devis de 82 lignes
       // (219 k€, cas NAZON/25030) dépassait encore le plafond edge (~400 s)
