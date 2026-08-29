@@ -155,6 +155,16 @@ export const POST: APIRoute = async ({ request, params }) => {
       ? conclusionToPersist.anomalies.length
       : 0;
     if (surcoutMaxAfter === 0 || anomaliesAfter === 0) {
+      // Les anomalies de `ConclusionData` SONT les postes qui produisent le
+      // surcoût : un surcoût ramené à 0 avec des anomalies encore listées est
+      // une contradiction que l'utilisateur voit (« 0 € » au-dessus d'un
+      // « Détail des 2 anomalies »). L'écran de revue n'expose PAS de champ
+      // anomalies — l'expert ne peut donc pas les retirer lui-même : c'est au
+      // serveur de tirer la conséquence de sa décision sur le surcoût.
+      if (surcoutMaxAfter === 0 && anomaliesAfter > 0) {
+        conclusionToPersist.anomalies = [];
+        conclusionToPersist.has_anomalies = false;
+      }
       if (Array.isArray(conclusionToPersist.leviers)) {
         conclusionToPersist.leviers = conclusionToPersist.leviers.filter(
           (l: any) => l?.type !== "surcout_postes",
