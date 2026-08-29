@@ -155,15 +155,20 @@ export const POST: APIRoute = async ({ request, params }) => {
       ? conclusionToPersist.anomalies.length
       : 0;
     if (surcoutMaxAfter === 0 || anomaliesAfter === 0) {
-      // Les anomalies de `ConclusionData` SONT les postes qui produisent le
-      // surcoût : un surcoût ramené à 0 avec des anomalies encore listées est
-      // une contradiction que l'utilisateur voit (« 0 € » au-dessus d'un
-      // « Détail des 2 anomalies »). L'écran de revue n'expose PAS de champ
-      // anomalies — l'expert ne peut donc pas les retirer lui-même : c'est au
-      // serveur de tirer la conséquence de sa décision sur le surcoût.
-      if (surcoutMaxAfter === 0 && anomaliesAfter > 0) {
-        conclusionToPersist.anomalies = [];
-        conclusionToPersist.has_anomalies = false;
+      // Filet si l'expert n'a rien décoché : un surcoût ramené à 0 avec des
+      // anomalies CHIFFRÉES encore listées est une contradiction visible
+      // (« 0 € » au-dessus d'un « Détail des 2 anomalies »).
+      // ⚠️ On ne retire QUE les anomalies de prix (`surcout_estime > 0`). Les
+      // anomalies QUALITATIVES — « devis daté dans le futur », quantité
+      // incohérente, prix anormalement BAS — ont légitimement un surcoût nul
+      // et doivent survivre : les supprimer ferait disparaître de vraies
+      // alertes. Discriminant vérifié sur le stock le 2026-08-29.
+      if (surcoutMaxAfter === 0 && anomaliesAfter > 0 && !correctedAnomalies) {
+        const restantes = conclusionToPersist.anomalies.filter(
+          (an: any) => !(Number(an?.surcout_estime ?? 0) > 0),
+        );
+        conclusionToPersist.anomalies = restantes;
+        conclusionToPersist.has_anomalies = restantes.length > 0;
       }
       if (Array.isArray(conclusionToPersist.leviers)) {
         conclusionToPersist.leviers = conclusionToPersist.leviers.filter(

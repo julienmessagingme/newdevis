@@ -171,6 +171,15 @@ function ReviewDetail({
     ? detail.conclusion.anomalies
     : [];
 
+  // 2026-08-29 — l'écran ne permettait de corriger QUE le verdict et le
+  // surcoût : les anomalies invalidées par l'expert restaient affichées à
+  // l'utilisateur (vu sur 5 analyses déjà corrigées, dont deux en verdict vert
+  // avec des anomalies rouges listées dessous). L'expert décoche désormais
+  // celles qu'il invalide.
+  const [keptAnomalies, setKeptAnomalies] = useState<boolean[]>(() => anomalies.map(() => true));
+  const toggleAnomaly = (i: number) =>
+    setKeptAnomalies((prev) => prev.map((v, j) => (j === i ? !v : v)));
+
   async function callDecide(action: "validated" | "corrected" | "rejected") {
     setSubmitting(true);
     setError(null);
@@ -194,6 +203,11 @@ function ReviewDetail({
         const sMax = parseFloat(surcoutMax);
         if (Number.isFinite(sMin)) body.corrected_surcout_min = sMin;
         if (Number.isFinite(sMax)) body.corrected_surcout_max = sMax;
+        // N'envoyer la liste que si l'expert a réellement décoché quelque
+        // chose : sinon on laisse le serveur appliquer sa propre cohérence.
+        if (keptAnomalies.some((k) => !k)) {
+          body.corrected_anomalies = anomalies.filter((_, i) => keptAnomalies[i]);
+        }
       }
 
       const res = await fetch(`/api/admin/reviews/${detail.analysis.id}/decide`, {
@@ -294,9 +308,31 @@ function ReviewDetail({
               Détail des {anomalies.length} anomalies
             </summary>
             <div className="px-3 py-2 space-y-2 text-xs">
+              {mode === "correct" && (
+                <p className="text-[11px] text-muted-foreground">
+                  Décochez les anomalies que vous invalidez — elles disparaîtront de la page
+                  vue par l'utilisateur.
+                </p>
+              )}
               {anomalies.map((a, i) => (
-                <div key={i} className="border-l-2 border-red-300 pl-2">
-                  <p className="font-medium">{a.poste ?? "—"}</p>
+                <div
+                  key={i}
+                  className={`border-l-2 pl-2 ${
+                    keptAnomalies[i] ? "border-red-300" : "border-gray-200 opacity-50"
+                  }`}
+                >
+                  <p className="font-medium">
+                    {mode === "correct" && (
+                      <input
+                        type="checkbox"
+                        checked={keptAnomalies[i] ?? true}
+                        onChange={() => toggleAnomaly(i)}
+                        className="mr-2 align-middle"
+                        aria-label={`Conserver l'anomalie ${a.poste ?? i + 1}`}
+                      />
+                    )}
+                    {a.poste ?? "—"}
+                  </p>
                   <p className="text-muted-foreground">
                     Devis: {a.prix_unitaire_devis ?? "—"} {a.unite ?? ""} · Marché:{" "}
                     {a.fourchette_min ?? "—"}-{a.fourchette_max ?? "—"} · Surcout: +
