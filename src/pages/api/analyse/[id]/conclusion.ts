@@ -2967,6 +2967,26 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           const paiementTxt = JSON.stringify(extractedView.paiement ?? {});
           return /retenue\s+de\s+garantie/i.test(`${paiementTxt} ${resume}`);
         })(),
+        // 2026-08-29 (retour Johan, devis 25030) — le devis facture-t-il DÉJÀ
+        // une dommages-ouvrage ? Si oui, conseiller d'en souscrire une (et
+        // proposer un devis par-dessus) décrédibilise l'analyse : le client a
+        // la ligne sous les yeux. Le conseil bascule alors sur la
+        // VÉRIFICATION de l'attestation, seul vrai risque (une DO facturée
+        // sans police nominative ne protège personne).
+        assurance_do_montant: (() => {
+          const DO_RE = /dommages?[-\s]ouvrage|\bassurance\s+d\.?o\.?\b/i;
+          const lignes = Array.isArray(extractedView.travaux)
+            ? (extractedView.travaux as Array<Record<string, unknown>>)
+            : [];
+          let total = 0;
+          for (const t of lignes) {
+            const label = `${t?.description ?? ""} ${t?.libelle ?? ""}`;
+            if (!DO_RE.test(label)) continue;
+            const m = Number(t?.montant_ht ?? t?.montant ?? 0);
+            if (Number.isFinite(m) && m > 0) total += m;
+          }
+          return total > 0 ? total : null;
+        })(),
       };
       const leviers = buildLeviers(p4Signals);
       (conclusionData as ConclusionData).leviers = leviers;

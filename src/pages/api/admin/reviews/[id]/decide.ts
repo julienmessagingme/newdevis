@@ -140,6 +140,15 @@ export const POST: APIRoute = async ({ request, params }) => {
     conclusionToPersist.expert_reviewed = true;
     conclusionToPersist.expert_reviewed_at = new Date().toISOString();
 
+    // Message AFFICHÉ à l'utilisateur, distinct des `expert_notes` internes
+    // (celles-ci parlent de « faux rouge » ou de « bug d'extraction Gemini » —
+    // jargon interne, jamais montrable). Sans ce champ, une correction ne
+    // faisait que RETIRER de l'information : la page annonçait « négociable »
+    // sans plus aucun argument à l'appui (retour Johan sur le devis 25030).
+    if (typeof body.expert_message === "string" && body.expert_message.trim()) {
+      conclusionToPersist.expert_message = body.expert_message.trim();
+    }
+
     // ── Cohérence Phase 4 après correction (2026-08-29) ────────────────────
     // `verdict_ligne` (hero) et `leviers` sont construits AVANT la revue à
     // partir du surcoût automatique. Si l'expert annule ce surcoût — cas

@@ -228,10 +228,31 @@ export default function AvisSurLeDevis({
     return null;
   })();
 
+  // 🟢 2026-08-29 (retour Johan, devis 25030) — quand un expert corrige une
+  // analyse, il RETIRE ce qui était faux ; sans ce bloc, la page ne gagnait
+  // rien en échange et affichait « négociable » sans le moindre argument. Le
+  // message de l'expert porte désormais la substance : ce qu'il a vu, et
+  // pourquoi son verdict tient. Texte écrit par un humain (jamais du LLM
+  // brut), distinct des notes internes de l'écran de revue.
+  const expertMessage =
+    typeof (conclusion as { expert_message?: unknown }).expert_message === "string"
+      ? ((conclusion as { expert_message?: string }).expert_message ?? "").trim()
+      : "";
+
   return (
     <HeroCard tone={tone}>
       <Title>{title}</Title>
       <Body>{bodyText}</Body>
+      {expertMessage && (
+        <div className="mt-5 rounded-lg border border-foreground/15 bg-background/60 p-4">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-foreground/60">
+            Vérifié par un expert VerifierMonDevis
+          </p>
+          <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed text-foreground/80">
+            {expertMessage}
+          </p>
+        </div>
+      )}
       {coverageLine && (
         <p className="mt-4 text-[13px] italic text-foreground/60 leading-relaxed">
           {coverageLine}

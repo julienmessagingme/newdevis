@@ -72,6 +72,13 @@ export interface LevierSignals {
   travaux_gros_oeuvre?: boolean;
   /** Une retenue de garantie est déjà prévue au devis (mention explicite). */
   retenue_garantie_prevue?: boolean;
+  /**
+   * Montant HT de la ligne « dommages-ouvrage » DÉJÀ facturée dans le devis,
+   * ou null si absente. Bascule le conseil DO de « souscrivez » vers
+   * « exigez l'attestation » — on ne conseille pas d'acheter ce qui est déjà
+   * sur le devis que le client a sous les yeux.
+   */
+  assurance_do_montant?: number | null;
 }
 
 /**
@@ -93,7 +100,8 @@ export type LevierType =
   | "references"
   | "second_avis"
   | "retenue_garantie"
-  | "dommages_ouvrage";
+  | "dommages_ouvrage"
+  | "dommages_ouvrage_verification";
 
 export interface Levier {
   niveau: "puissant" | "important" | "bonus";
@@ -303,15 +311,43 @@ function collectCandidates(s: LevierSignals): Candidate[] {
   //    extension ou rénovation du gros œuvre. Priorité haute : elle se souscrit
   //    AVANT le démarrage, une fois le chantier commencé il est trop tard.
   if (s.travaux_gros_oeuvre) {
-    out.push({
-      priority: 50,
-      niveau: "important",
-      objectif: "securiser",
-      type: "dommages_ouvrage",
-      titre: "Souscrivez une assurance dommages-ouvrage AVANT le début du chantier",
-      detail:
-        "Ces travaux touchent le gros œuvre : la loi vous impose, en tant que maître d'ouvrage, de souscrire une assurance dommages-ouvrage avant l'ouverture du chantier. Elle préfinance les réparations relevant de la garantie décennale sans attendre qu'un tribunal désigne un responsable — et se retourne ensuite contre l'entreprise et son assureur. Comptez 2 à 5 % du montant des travaux. Sans elle, vous avancez les frais en cas de sinistre grave, et vous devrez signaler son absence à l'acheteur si vous revendez dans les 10 ans.",
-    });
+    // 2026-08-29 (retour Johan, devis 25030) — un devis peut DÉJÀ facturer la
+    // dommages-ouvrage. Conseiller d'en souscrire une, et proposer un devis
+    // par-dessus, décrédibilise l'analyse : le client l'a sous les yeux, ligne
+    // « Dommage Ouvrage 4 176,14 € ». L'obligation reste celle du maître
+    // d'ouvrage (art. L242-1) même en CCMI — la DO n'est JAMAIS incluse
+    // d'office — mais elle peut être souscrite par le constructeur mandaté,
+    // ce qui est précisément ce cas. Le conseil devient alors une
+    // VÉRIFICATION, pas une souscription.
+    const doMontant = s.assurance_do_montant ?? null;
+    if (doMontant !== null && doMontant > 0) {
+      const pct = s.total_ht && s.total_ht > 0 ? (doMontant / s.total_ht) * 100 : null;
+      const situe = pct === null
+        ? ""
+        : pct > 3.5
+          ? ` Soit ${pct.toFixed(1).replace(".", ",")} % du montant des travaux, au-dessus des 1 à 3 % habituels (davantage en construction neuve) : demandez le détail.`
+          : ` Soit ${pct.toFixed(1).replace(".", ",")} % du montant des travaux, dans les usages (1 à 3 %, davantage en construction neuve).`;
+      out.push({
+        priority: 50,
+        niveau: "important",
+        objectif: "securiser",
+        type: "dommages_ouvrage_verification",
+        titre: "Exigez l'attestation de la dommages-ouvrage que vous payez",
+        detail:
+          `Le devis facture une assurance dommages-ouvrage ${fmtEuros(doMontant)} €.${situe} ` +
+          "L'obligation légale de souscrire reste la vôtre en tant que maître d'ouvrage (art. L242-1 du code des assurances) : ici, l'entreprise la souscrit pour votre compte — c'est possible, mais la police doit être établie à VOTRE nom. Avant tout versement, réclamez l'attestation nominative avec le nom de l'assureur, le numéro de police et la date de prise d'effet, qui doit précéder l'ouverture du chantier. Sans ce document, vous payez une garantie dont rien ne prouve l'existence.",
+      });
+    } else {
+      out.push({
+        priority: 50,
+        niveau: "important",
+        objectif: "securiser",
+        type: "dommages_ouvrage",
+        titre: "Souscrivez une assurance dommages-ouvrage AVANT le début du chantier",
+        detail:
+          "Ces travaux touchent le gros œuvre : la loi vous impose, en tant que maître d'ouvrage, de souscrire une assurance dommages-ouvrage avant l'ouverture du chantier — y compris en CCMI, où elle n'est jamais incluse d'office. Elle préfinance les réparations relevant de la garantie décennale sans attendre qu'un tribunal désigne un responsable, et se retourne ensuite contre l'entreprise et son assureur. Comptez 1 à 3 % du montant des travaux, davantage en construction neuve. Sans elle, vous avancez les frais en cas de sinistre grave, et vous devrez signaler son absence à l'acheteur si vous revendez dans les 10 ans.",
+      });
+    }
   }
 
   // 2. Retenue de garantie 5 % (loi n° 71-584 du 16 juillet 1971) — usage sur

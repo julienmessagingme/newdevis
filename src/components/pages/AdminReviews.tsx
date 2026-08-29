@@ -152,6 +152,7 @@ function ReviewDetail({
 }) {
   const [mode, setMode] = useState<"view" | "correct">("view");
   const [notes, setNotes] = useState("");
+  const [expertMessage, setExpertMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -205,6 +206,7 @@ function ReviewDetail({
         if (Number.isFinite(sMax)) body.corrected_surcout_max = sMax;
         // N'envoyer la liste que si l'expert a réellement décoché quelque
         // chose : sinon on laisse le serveur appliquer sa propre cohérence.
+        if (expertMessage.trim()) body.expert_message = expertMessage.trim();
         if (keptAnomalies.some((k) => !k)) {
           body.corrected_anomalies = anomalies.filter((_, i) => keptAnomalies[i]);
         }
@@ -422,9 +424,29 @@ function ReviewDetail({
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Laisse "—" pour garder la valeur actuelle. Les anomalies détaillées peuvent être
-            ajustées en Phase 2.4 (édition ligne par ligne).
+            Laisse "—" pour garder la valeur actuelle. Les anomalies se décochent dans le bloc
+            « Détail des anomalies » ci-dessus.
           </p>
+
+          {/* 2026-08-29 — une correction RETIRE ce qui était faux ; sans ce
+              message elle n'ajoute rien et la page annonce un verdict sans
+              argument. Affiché à l'utilisateur, contrairement aux notes. */}
+          <div>
+            <label className="text-xs font-medium mb-1 block">
+              Message affiché à l'utilisateur (facultatif)
+            </label>
+            <textarea
+              value={expertMessage}
+              onChange={(e) => setExpertMessage(e.target.value)}
+              rows={5}
+              className="w-full text-sm border rounded px-2 py-1"
+              placeholder="Ce que vous avez vérifié et pourquoi votre verdict tient. Rédigé pour le client — pas de jargon interne."
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              S'affiche sous le verdict, encadré « Vérifié par un expert ». Les notes internes
+              ci-dessous ne sont, elles, jamais montrées au client.
+            </p>
+          </div>
         </div>
       )}
 

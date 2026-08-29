@@ -73,6 +73,10 @@ export function levierQuestion(levier: ConclusionLevier): string | null {
     case "dommages_ouvrage":
       // Assurance que le CLIENT souscrit lui-même — rien à demander à l'artisan.
       return null;
+    case "dommages_ouvrage_verification":
+      // 2026-08-29 — ici, à l'inverse, l'artisan facture la DO : c'est donc
+      // bien à LUI que l'attestation se réclame, avant tout versement.
+      return "Vous facturez une assurance dommages-ouvrage : pouvez-vous me transmettre l'attestation à mon nom, avec le nom de l'assureur, le numéro de police et la date de prise d'effet ?";
     default:
       return null;
   }

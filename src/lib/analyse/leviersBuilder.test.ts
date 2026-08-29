@@ -230,6 +230,38 @@ describe("buildLeviers — dommages-ouvrage et retenue de garantie", () => {
     expect(doL!.detail).toMatch(/décennale/);
   });
 
+  // 2026-08-29 (retour Johan, devis 25030) — le devis facturait déjà une DO
+  // 4 176 € et on conseillait quand même d'en souscrire une, avec un bouton
+  // « recevoir une proposition » par-dessus.
+  it("DO déjà facturée au devis → on ne conseille PAS d'en souscrire une, on réclame l'attestation", () => {
+    const leviers = buildLeviers({
+      ...base,
+      total_ht: 219_583,
+      travaux_gros_oeuvre: true,
+      assurance_do_montant: 4_176,
+    });
+    expect(leviers.some((l) => l.type === "dommages_ouvrage")).toBe(false);
+    const v = leviers.find((l) => l.type === "dommages_ouvrage_verification");
+    expect(v).toBeDefined();
+    expect(v!.titre).toMatch(/attestation/i);
+    expect(v!.detail).toMatch(/4\s?176/);
+    // 1,9 % du montant → situé dans les usages, pas signalé comme cher
+    expect(v!.detail).toMatch(/1,9 %/);
+    expect(v!.detail).toMatch(/dans les usages/);
+    expect(v!.detail).not.toMatch(/2 à 5 %/);
+  });
+
+  it("DO facturée nettement au-dessus des usages → le levier le signale", () => {
+    const leviers = buildLeviers({
+      ...base,
+      total_ht: 100_000,
+      travaux_gros_oeuvre: true,
+      assurance_do_montant: 6_000, // 6 %
+    });
+    const v = leviers.find((l) => l.type === "dommages_ouvrage_verification");
+    expect(v!.detail).toMatch(/au-dessus des 1 à 3 %/);
+  });
+
   it("pas de gros œuvre (peinture seule) → aucun conseil dommages-ouvrage", () => {
     const leviers = buildLeviers({ ...base, total_ht: 60_000 });
     expect(leviers.some((l) => l.type === "dommages_ouvrage")).toBe(false);
