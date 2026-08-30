@@ -14,6 +14,7 @@
 // clique. Accord mesurable vs analysis_corrections (Phase C).
 // ============================================================================
 
+import { buildReviewInstruction } from "./prompt.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -79,12 +80,6 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
     console.log(`[ai-review] ${a.id.slice(0, 8)} ignoré — ${totalHT} € HT < ${MIN_QUOTE_HT} € et aucun critère rouge`);
     return;
   }
-  const groupsSummary = priceData.slice(0, 40).map((g) => {
-    const p = g.prices?.[0] ?? {};
-    const conf = g.vectorial?.confidence ?? "legacy";
-    const desc = (g.devis_lines?.[0]?.description ?? "").slice(0, 50);
-    return `- "${desc}" ${g.devis_total_ht ?? "?"}€ → match "${g.job_type_label ?? "aucun"}" [${conf}] marché ${p.price_min ?? p.min ?? "?"}-${p.price_max ?? p.max ?? "?"}€/${p.unit ?? "?"}`;
-  }).join("\n");
 
   // ── PDF source ───────────────────────────────────────────────────────────
   let pdfBlock: Record<string, unknown> | null = null;
@@ -102,49 +97,12 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
     }
   }
 
-  const instruction = `Tu es un expert en chiffrage de travaux BTP en France, relecteur indépendant chez VerifierMonDevis.
-Une analyse automatique de devis a été signalée pour revue humaine. RELIS-LA de façon INDÉPENDANTE.
-
-LECTURE DU PIPELINE AUTOMATIQUE (à challenger, pas à recopier) :
-- Verdict : ${ci?.verdict_global ?? "?"} / ${ci?.verdict_decisionnel ?? "?"}
-- Surcoût estimé : ${JSON.stringify(ci?.surcout_global ?? null)}
-- Anomalies retenues : ${JSON.stringify(ci?.anomalies ?? [])?.slice(0, 800)}
-- Critères rouges : ${JSON.stringify(scoring.criteres_rouges ?? [])}
-- Critères oranges : ${JSON.stringify(scoring.criteres_oranges ?? [])?.slice(0, 500)}
-- Matchs catalogue (avec confiance) :
-${groupsSummary || "(aucun)"}
-
-TA MISSION :
-1. ${pdfBlock
-    ? "Lis le devis PDF joint (source de vérité — pas l'extraction)."
-    : "Le PDF n'a pas pu être joint (devis volumineux) : appuie-toi sur les lignes extraites ci-dessus, et signale dans ton résumé que tu n'as pas relu le document original."}
-2. Identifie les 2 postes les plus déterminants (les plus chers ou les plus douteux) et VÉRIFIE leurs prix avec la recherche web (2 recherches MAXIMUM, prix France 2026). Cite tes sources. Va droit au but.
-3. Vérifie la cohérence du verdict pipeline : faux positifs de matching (forfait comparé à un prix unitaire, prestation intellectuelle, fourniture seule…), signaux manqués (clauses, acompte, TVA, entreprise).
-4. Sois HONNÊTE sur l'incertitude : si un poste n'a pas de référence fiable, dis-le — n'invente jamais une fourchette.
-
-Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
-{
-  "accord_avec_ia": "oui" | "partiel" | "non",
-  "verdict_recommande": "signer" | "signer_avec_negociation" | "ne_pas_signer",
-  "action_recommandee": "valider" | "corriger" | "rejeter_faux_positif",
-  // Ce que ces 3 actions font RÉELLEMENT dans notre écran de revue — ne te
-  // trompe pas de mot, l'expert suit ta recommandation :
-  //  · "valider"  = la conclusion part telle quelle, aucun contenu modifié.
-  //  · "corriger" = l'expert RÉÉCRIT verdict / surcoût / anomalies. C'est la
-  //    SEULE action qui change ce que l'utilisateur voit.
-  //  · "rejeter_faux_positif" = la mise en revue était injustifiée ; la
-  //    conclusion part TELLE QUELLE, INCHANGÉE.
-  // Donc : si tu invalides ne serait-ce qu'une anomalie ou un montant de
-  // surcoût, l'action est "corriger", JAMAIS "rejeter_faux_positif" — sinon
-  // l'erreur que tu viens de démontrer resterait affichée à l'utilisateur.
-  // "rejeter_faux_positif" ne s'emploie que si la conclusion est bonne ET que
-  // seul le déclencheur de mise en revue était excessif.
-  "confiance": 0.0-1.0,
-  "resume": "2-3 phrases : ton avis global et pourquoi",
-  "points_verifies": [{"poste": "...", "prix_devis": "...", "avis": "cohérent|élevé|bas|sans référence", "detail": "...", "source_web": "url ou null"}],
-  "drapeaux": ["éléments que le pipeline a manqués ou sur-signalés"],
-  "notes_expert_proposees": "notes prêtes à coller dans le champ Notes expert de l'écran de revue"
-}`;
+  const instruction = buildReviewInstruction({
+    conclusion: ci,
+    scoring,
+    priceData,
+    hasPdf: Boolean(pdfBlock),
+  });
 
   const content: Array<Record<string, unknown>> = [];
   if (pdfBlock) content.push(pdfBlock);
@@ -178,6 +136,23 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
   if (!res.ok) {
     const errTxt = (await res.text()).slice(0, 300);
     console.error(`[ai-review] Anthropic ${res.status}: ${errTxt}`);
+
+    // ⚠️ 2026-08-30 — SOLDE DE CRÉDITS ÉPUISÉ : c'est un 400, donc l'ancien
+    // code le classait « erreur définitive » et estampillait l'analyse. Or la
+    // cause n'a RIEN à voir avec cette analyse : c'est le compte API qui est à
+    // sec, et ça se répare en rechargeant. Une analyse marquée en erreur ne
+    // serait jamais reprise une fois les crédits restaurés — on perdrait
+    // silencieusement toutes les relectures de la panne. On remet donc
+    // l'analyse dans la file INTACTE, sans consommer de tentative.
+    if (/credit balance|billing|insufficient.quota|payment required/i.test(errTxt) || res.status === 402) {
+      await supabase.from("analyses").update({
+        ai_reviewed_at: null,
+        ai_review_opinion: null,
+      }).eq("id", a.id);
+      console.error("[ai-review] CRÉDITS API ÉPUISÉS — relecture suspendue, analyse remise en file. Recharger le compte Anthropic.");
+      return;
+    }
+
     // Stamp quand même à l'échec DÉFINITIF client (4xx) pour ne pas boucler ;
     // les 5xx/429 seront retentés au prochain tick.
     if (res.status >= 400 && res.status < 500 && res.status !== 429) {
