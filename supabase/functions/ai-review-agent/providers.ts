@@ -39,14 +39,29 @@ const CLAUDE_MODEL = "claude-opus-5";
  * CPU — c'est ce qui avait tué le run côté Claude avant qu'on passe aux URL
  * signées là aussi.
  */
+/**
+ * Type MIME déduit du chemin. Tous les devis ne sont pas des PDF : les photos
+ * de devis (JPG/PNG) ont produit 2 échecs sur 37 au banc de test du
+ * 2026-08-30 (« The document has no pages »), parce que le type était codé en
+ * dur à application/pdf.
+ */
+export function mimeDepuisChemin(chemin: string): string {
+  const ext = chemin.split("?")[0].split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "png") return "image/png";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "webp") return "image/webp";
+  return "application/pdf";
+}
+
 export async function callGemini(
   apiKey: string,
   instruction: string,
   pdfUrl: string | null,
+  mime = "application/pdf",
 ): Promise<ProviderResult> {
   const parts: Array<Record<string, unknown>> = [];
   if (pdfUrl) {
-    parts.push({ file_data: { mime_type: "application/pdf", file_uri: pdfUrl } });
+    parts.push({ file_data: { mime_type: mime, file_uri: pdfUrl } });
   }
   parts.push({ text: instruction });
 
@@ -91,9 +106,16 @@ export async function callClaude(
   apiKey: string,
   instruction: string,
   pdfUrl: string | null,
+  mime = "application/pdf",
 ): Promise<ProviderResult> {
   const content: Array<Record<string, unknown>> = [];
-  if (pdfUrl) content.push({ type: "document", source: { type: "url", url: pdfUrl } });
+  // Claude distingue « document » (PDF) et « image » : envoyer une photo de
+  // devis en document échoue.
+  if (pdfUrl) {
+    content.push(mime.startsWith("image/")
+      ? { type: "image", source: { type: "url", url: pdfUrl } }
+      : { type: "document", source: { type: "url", url: pdfUrl } });
+  }
   content.push({ type: "text", text: instruction });
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -138,8 +160,9 @@ export function callProvider(
   keys: { gemini: string; claude: string },
   instruction: string,
   pdfUrl: string | null,
+  mime = "application/pdf",
 ): Promise<ProviderResult> {
   return provider === "claude"
-    ? callClaude(keys.claude, instruction, pdfUrl)
-    : callGemini(keys.gemini, instruction, pdfUrl);
+    ? callClaude(keys.claude, instruction, pdfUrl, mime)
+    : callGemini(keys.gemini, instruction, pdfUrl, mime);
 }

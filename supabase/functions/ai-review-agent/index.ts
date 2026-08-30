@@ -15,7 +15,7 @@
 // ============================================================================
 
 import { buildReviewInstruction } from "./prompt.ts";
-import { callProvider, type Provider } from "./providers.ts";
+import { callProvider, mimeDepuisChemin, type Provider } from "./providers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -118,6 +118,7 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
     { gemini: GOOGLE_API_KEY, claude: ANTHROPIC_API_KEY },
     instruction,
     pdfUrl,
+    mimeDepuisChemin(String(a.file_path ?? "")),
   );
   if (!res.ok) {
     const errTxt = res.errorText ?? "";

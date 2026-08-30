@@ -25,18 +25,23 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { buildReviewInstruction } from "../supabase/functions/ai-review-agent/prompt";
+import { callProvider, mimeDepuisChemin, type Provider } from "../supabase/functions/ai-review-agent/providers";
 
 const env = readFileSync(".env.local", "utf8");
 const pick = (k: string) =>
   (env.match(new RegExp(`^${k}=(.*)$`, "m")) || [])[1]?.trim().replace(/^["']|["']$/g, "");
 const SB_URL = pick("PUBLIC_SUPABASE_URL") || pick("SUPABASE_URL")!;
 const KEY = pick("SUPABASE_SERVICE_ROLE_KEY")!;
-const AK = pick("ANTHROPIC_API_KEY")!;
+const AK = pick("ANTHROPIC_API_KEY") ?? "";
+const GK = pick("GOOGLE_API_KEY") ?? pick("GOOGLE_AI_API_KEY") ?? "";
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" };
 
 const argv = process.argv.slice(2);
 const LIMIT = Number(argv[argv.indexOf("--limit") + 1]) || 0;
 const NO_PDF = argv.includes("--no-pdf");
+/** `--provider claude` pour comparer les deux fournisseurs sur le même prompt. */
+const PROVIDER: Provider = argv[argv.indexOf("--provider") + 1] === "claude" ? "claude" : "gemini";
+const COUT_UNITAIRE = PROVIDER === "claude" ? 0.85 : 0.017;
 const CONCURRENCE = 4;
 
 /** Décision humaine → recommandation attendue de l'agent. */
@@ -53,6 +58,7 @@ interface Cas {
   verdictHumain: string | null;
   notesExpert: string | null;
   agent?: Record<string, any>;
+  usage?: { input: number; output: number };
   erreur?: string;
   dureeS?: number;
 }
@@ -85,27 +91,13 @@ async function rejouer(cas: Cas, snapshot: Record<string, any>): Promise<void> {
     hasPdf: Boolean(url),
   });
 
-  const content: Array<Record<string, unknown>> = [];
-  if (url) content.push({ type: "document", source: { type: "url", url } });
-  content.push({ type: "text", text: instruction });
-
   const t0 = Date.now();
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": AK, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({
-      model: "claude-opus-5",
-      max_tokens: 5000,
-      output_config: { effort: "low" },
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 2 }],
-      messages: [{ role: "user", content }],
-    }),
-  });
+  const res = await callProvider(PROVIDER, { gemini: GK, claude: AK }, instruction, url, mimeDepuisChemin(String(a.file_path ?? "")));
   cas.dureeS = Math.round((Date.now() - t0) / 1000);
-  if (!res.ok) { cas.erreur = `HTTP ${res.status}: ${(await res.text()).slice(0, 160)}`; return; }
+  if (!res.ok) { cas.erreur = `HTTP ${res.status}: ${(res.errorText ?? "").slice(0, 160)}`; return; }
 
-  const j = await res.json();
-  const text = (j.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
+  const text = res.text ?? "";
+  cas.usage = res.usage;
   try {
     cas.agent = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   } catch {
@@ -131,6 +123,52 @@ async function rejouer(cas: Cas, snapshot: Record<string, any>): Promise<void> {
   ).json();
   const nomPar = new Map(noms.map((n: any) => [n.id, n.file_name]));
 
+  // ── Groupe TÉMOIN (--controle N) ─────────────────────────────────────────
+  // Sans lui, le banc ne peut pas distinguer « l'agent détecte bien » de
+  // « l'agent crie au loup sur tout ». Les analyses `auto_approved` n'ont
+  // JAMAIS été signalées par la Piste C ni touchées par un humain : si l'agent
+  // recommande « corriger » sur celles-là aussi, son avis ne porte aucune
+  // information et ne peut pas servir de garde-fou.
+  const CONTROLE = Number(argv[argv.indexOf("--controle") + 1]) || 0;
+  if (CONTROLE) {
+    const temoins = await (
+      await fetch(
+        `${SB_URL}/rest/v1/analyses?select=id,file_name&review_status=eq.auto_approved&conclusion_ia=not.is.null&order=created_at.desc&limit=${CONTROLE}`,
+        { headers: H },
+      )
+    ).json();
+    const casTemoins: Cas[] = temoins.map((t: any) => ({
+      analysisId: t.id,
+      fileName: `[témoin] ${t.file_name}`,
+      actionHumaine: "validated", // jamais signalée = réputée bonne
+      verdictHumain: null,
+      notesExpert: null,
+    }));
+    console.log(`${casTemoins.length} analyses TÉMOINS (jamais signalées) · fournisseur ${PROVIDER}\n`);
+    let n = 0;
+    for (let i = 0; i < casTemoins.length; i += CONCURRENCE) {
+      await Promise.all(casTemoins.slice(i, i + CONCURRENCE).map(async (c) => {
+        // Le témoin n'a pas de snapshot : on lui passe sa conclusion actuelle,
+        // qui n'a jamais été corrigée — c'est bien l'état vu par le client.
+        const [an] = await (
+          await fetch(`${SB_URL}/rest/v1/analyses?id=eq.${c.analysisId}&select=conclusion_ia`, { headers: H })
+        ).json();
+        let snap: Record<string, any> = {};
+        try { snap = typeof an?.conclusion_ia === "string" ? JSON.parse(an.conclusion_ia) : (an?.conclusion_ia ?? {}); } catch { /* vide */ }
+        try { await rejouer(c, snap); } catch (e) { c.erreur = e instanceof Error ? e.message : String(e); }
+        n++;
+        console.log(`  [${String(n).padStart(2)}/${casTemoins.length}] ${c.fileName.slice(0, 38).padEnd(39)} agent=${String(c.agent?.action_recommandee ?? c.erreur ?? "?").padEnd(20)} conf=${c.agent?.confiance ?? "—"}`);
+      }));
+    }
+    const okT = casTemoins.filter((c) => c.agent && !c.erreur);
+    const corrigerT = okT.filter((c) => c.agent!.action_recommandee === "corriger");
+    console.log(`\n═══ TÉMOINS : ${corrigerT.length}/${okT.length} recommandent « corriger » sur des analyses jamais signalées ═══`);
+    console.log(corrigerT.length === okT.length
+      ? "  → l'avis ne discrimine PAS : il ne peut pas servir de garde-fou de publication."
+      : `  → l'agent distingue : ${okT.length - corrigerT.length} analyse(s) laissée(s) telle(s) quelle(s).`);
+    return;
+  }
+
   let entrees = [...parAnalyse.values()];
   if (LIMIT) entrees = entrees.slice(0, LIMIT);
 
@@ -142,7 +180,7 @@ async function rejouer(cas: Cas, snapshot: Record<string, any>): Promise<void> {
     notesExpert: c.expert_notes ?? null,
   }));
 
-  console.log(`${cas.length} analyses à rejouer · PDF ${NO_PDF ? "non joint" : "joint"} · coût estimé ~${(cas.length * 0.85).toFixed(0)} €\n`);
+  console.log(`${cas.length} analyses à rejouer · fournisseur ${PROVIDER} · PDF ${NO_PDF ? "non joint" : "joint"} · coût estimé ~${(cas.length * COUT_UNITAIRE).toFixed(2)} €\n`);
 
   let faits = 0;
   for (let i = 0; i < cas.length; i += CONCURRENCE) {
