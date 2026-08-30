@@ -16,7 +16,7 @@ L'outil d'analyse de prix est en **refonte structurée en 4 maillons** :
 | Maillon | Phase | Statut |
 |---|---|---|
 | 1 — Lire juste | Phase 3.3 câblée (V2 primaire + fallback V1) + gardes extraction 2026-08 (ligne récap, devises hors-Europe, acompte `etape="autre"`) | 🟢 **en prod** — reste Phase 3.4 (cleanup + bump `ENGINE_VERSION` → `2.0.0-refonte`) |
-| 2 — Comparer à vraie référence | Catalogue 891 → **916 entrées** (mining de 237 analyses, 2026-08-27) + couverture mesurable (`scripts/mine-coverage.mjs`, médiane 29 %) | 🟢 **fait** — 19 fourchettes à relire par Julien (`source LIKE 'mining stock 2026-08-27%'`) |
+| 2 — Comparer à vraie référence | Catalogue 891 → **916 entrées** (mining de 237 analyses, 2026-08-27). Couverture mesurée le 2026-08-30 sur 100 devis FR : **médiane 31 %** du montant — mais 46 % du montant est rapproché en confiance MOYENNE et seulement 13 % sans rapprochement : le plafond est la **qualité du matching**, pas la taille du catalogue (détail `DOCUMENTATION.md` § 29.4) | 🟡 **entrées composites à instruire** (`TODO.md`) — ⚠️ ne PAS baisser le seuil de confiance : la moitié de la bande 0,75–0,77 est fausse. 19 fourchettes restent à relire par Julien (`source LIKE 'mining stock 2026-08-27%'`) |
 | 3 — Verdict honnête | Phase 4 tranches 1 + 2 livrées + conseils retenue de garantie / dommages-ouvrage + message copiable unique déterministe | 🟢 **en prod** — cf. `FEATURES.md § 23` |
 | 4 — Apprendre | `/admin/reviews` + **agent relecteur IA** (`ai-review-agent`, cron */10 min) + **boucle de capture des issues** (`analysis_outcomes`, email J+15) | 🟢 **en prod** — Phase C (validation auto) toujours conditionnée à 50+ revues humaines |
 
