@@ -69,6 +69,8 @@ Ce fichier = **règles + pièges + décisions récentes** pour ne pas casser qua
 | **Ce qu'on a commencé et pas encore fini** (en cours, partiellement implémenté, bloqué) | [`WIP.md`](WIP.md) |
 | **Backlog — ce qu'on doit/veut faire mais qu'on n'a pas commencé** | [`TODO.md`](TODO.md) |
 | **Référence technique exhaustive** (toutes les routes, schéma DB, pipeline, deploy) | [`DOCUMENTATION.md`](DOCUMENTATION.md) |
+| **Comment marche le moteur de scoring, étape par étape** (qui décide quoi, déterministe vs LLM, limites assumées) — à lire avant d'expliquer la chaîne à quelqu'un | [`DOCUMENTATION.md` § 29](DOCUMENTATION.md) |
+| **Ce que coûte une analyse** (modèle de coût mesuré, paliers d'alerte) | [`DOCUMENTATION.md` § 28](DOCUMENTATION.md) |
 | **Plan de test E2E agent IA** (10 scénarios + cas d'erreur, avec 3 numéros WhatsApp GMC `+33633921577`/USER/ARTISAN + outils debug SQL) | [`TEST-PLAN-AGENT-IA.md`](TEST-PLAN-AGENT-IA.md) |
 | **Historique détaillé V3.x du moteur de scoring** (cause racine + fix + anti-régression de chaque bump ENGINE_VERSION jusqu'à V3.5.16 inclus) | [`HISTORY.md`](HISTORY.md) |
 | **🟢 Refonte en cours** (PLAN.md, BUGS-A-CORRIGER.md, RUSTINES.md, catalogue-classement/) | [`docs/refonte/`](docs/refonte/) |

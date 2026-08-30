@@ -2614,3 +2614,94 @@ curl -s -X POST "https://vhrhgsqxwvouswjaiczn.supabase.co/functions/v1/system-al
 ```
 
 `min` force le palier, `dry=1` renvoie l'alerte au lieu de l'envoyer. Vérifié le 2026-08-29 : 27 analyses sur 30 jours, coût estimé ~9 €.
+
+---
+
+## 29. Le moteur de scoring, étape par étape (état au 2026-08-30)
+
+Section de référence pour expliquer la chaîne — à un partenaire, à un
+investisseur, à un nouveau développeur. Elle dit **qui décide quoi**, et
+surtout **ce qui est déterministe et ce qui ne l'est pas**.
+
+Le principe directeur : **aucune IA ne rend le verdict**. Les modèles lisent
+(le PDF) et rédigent (les textes) ; le jugement est porté par du code écrit
+une fois pour toutes. C'est un choix de fiabilité — un modèle qui décide
+invente — et de coût : le verdict ne dépend d'aucun appel facturé.
+
+### 29.1 La chaîne, du dépôt au rendu
+
+| # | Étape | Nature | Où |
+|---|---|---|---|
+| 1 | **Lecture du devis** — lignes, montants, SIRET, adresse, conditions de paiement, clauses | LLM (gemini-2.5-flash) sur le PDF | `analyze-quote/extract_v2.ts` (primaire) + `extract.ts` (repli et ombre) |
+| 2 | **Vérifications hors prix** — existence et santé de l'entreprise, assurances, avis publics, acompte, clauses | Code + API publiques | `company-status.ts`, `score.ts` |
+| 3 | **Comparaison des prix** — chaque ligne rapprochée du catalogue de référence | Recherche vectorielle + gardes, **sans LLM** | `market-matcher-vectorial.ts` |
+| 4 | **Verdict, anomalies, leviers** | 100 % déterministe | `conclusion.ts`, `verdictEngine.ts`, `leviersBuilder.ts` |
+| 5 | **Auto-contrôle** — le moteur décide s'il doute de lui-même | Règles | `detectReviewTriggers` |
+| 6 | **Relecture indépendante** (si doute et devis ≥ 5 000 € HT) | LLM (gemini-2.5-pro) + PDF + web | `ai-review-agent` |
+| 7 | **Décision** | **Humain** | `/admin/reviews` → `decide.ts` |
+
+### 29.2 Le détail des étapes qui comptent
+
+**Étape 1 — lire.** Le PDF est envoyé à Gemini, qui en extrait une structure
+JSON. C'est le seul endroit où un modèle interprète librement, et c'est aussi
+le plus fragile : des gardes déterministes nettoient sa sortie derrière lui
+(ligne de récapitulatif prise pour un poste, titre de section dont le montant
+est la somme des sous-lignes, devise étrangère, devis trop synthétique). Ces
+gardes sont documentées dans CLAUDE.md § Pièges connus.
+
+**Étape 2 — vérifier l'entreprise.** SIRET contrôlé auprès des données
+publiques, statut juridique (une radiation force un verdict rouge, un simple
+transfert d'établissement ne le fait pas), assurances déclarées, avis Google,
+et les conditions de paiement du devis lui-même : acompte cumulé **avant
+prestation**, clauses contraires au droit de la consommation.
+
+**Étape 3 — comparer les prix.** Ce n'est **pas** un classement par famille et
+sous-famille : c'est une **recherche par le sens**. Chaque ligne du devis est
+convertie en vecteur (`gemini-embedding-001`, 768 dimensions), puis comparée
+aux 916 entrées du catalogue par similarité (pgvector). On récupère les 5
+meilleurs candidats et on garde le premier qui passe trois contrôles :
+- un mot au moins doit être commun à la ligne et à l'entrée (sinon rejet) ;
+- fourniture et pose ne se comparent pas l'une à l'autre ;
+- un écart de prix invraisemblable (plus de 8×) fait rejeter le rapprochement.
+
+Chaque rapprochement porte un **niveau de confiance**. **Seuls les
+rapprochements de confiance haute alimentent le verdict** — les autres restent
+affichés comme « comparaison incertaine », jamais comme une anomalie.
+
+**Étape 4 — juger.** Purement déterministe. Le surcoût n'additionne que les
+postes réellement comparables : les forfaits, les rapprochements incohérents
+en unité et les groupes hétérogènes en sont exclus. Le verdict suit une
+hiérarchie fixe (situation de l'entreprise > clauses > quantités > paiement >
+prix). Les leviers de négociation et la ligne de verdict sont assemblés à
+partir des signaux déjà calculés — jamais rédigés par un modèle.
+
+**Étape 5 — douter.** Le moteur signale lui-même les analyses à enjeu :
+verdict rouge, surcoût supérieur à 2 000 €, au moins deux anomalies, ou un
+cas de contournement actif. Environ **une analyse sur trois**. Elle passe en
+`pending_review` : l'utilisateur la voit, avec un bandeau annonçant une
+validation en cours, et **sans aucun montant d'écart chiffré**.
+
+**Étape 6 — relire.** Le relecteur ne voit que ces analyses-là, et seulement
+au-dessus de 5 000 € HT (sauf critère rouge, où le montant ne compte pas). Il
+relit avec ce que le moteur n'a jamais eu : le PDF d'origine et les prix
+réels du marché. **Il écrit un avis, il ne modifie rien.**
+
+**Étape 7 — décider.** L'expert tranche : valider, corriger, ou rejeter le
+déclenchement. Une correction resynchronise tout ce qui dérive du surcoût
+(anomalies chiffrées, levier de surcoût, ligne de verdict), et l'utilisateur
+est prévenu par email.
+
+### 29.3 Ce qui est faux et qu'on lit parfois
+
+- **« C'est du Python »** — non, TypeScript partout (Deno côté Supabase, Node côté Vercel).
+- **« Le rapprochement se fait par famille puis sous-famille »** — plus depuis mai 2026 : c'est vectoriel, par le sens.
+- **« Le relecteur IA relit tous les devis de plus de 5 000 € »** — non : uniquement ceux que le moteur a lui-même signalés, et qui dépassent ce montant.
+- **« L'IA rend le verdict »** — non, et c'est le point le plus important : elle lit et elle rédige, elle ne juge pas.
+
+### 29.4 Limites connues, assumées
+
+- **Le rapprochement produit encore des rapprochements aberrants.** Ils sont écartés du chiffrage (garde d'unité, confiance), mais peuvent apparaître dans le détail poste par poste. Corriger le rapprochement lui-même est au backlog (`TODO.md`, entrée P0).
+- **Le relecteur ne discrimine pas.** Il détecte tout, mais recommande « corriger » sur presque tout, y compris sur des analyses saines. Il ne peut donc pas publier seul. Mesure et conséquences : [`docs/refonte/RAPPORT-RELECTEUR-IA.md`](docs/refonte/RAPPORT-RELECTEUR-IA.md).
+- **La couverture du catalogue est partielle** (médiane 29 % du montant d'un devis). Ce n'est pas un défaut caché : les prestations sans référence sont nommées par leur nature et leur montant, jamais par un pourcentage (cf. CLAUDE.md).
+
+Coûts par étape : § 28.
