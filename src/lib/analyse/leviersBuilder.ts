@@ -70,6 +70,14 @@ export interface LevierSignals {
    * (art. L242-1 du code des assurances).
    */
   travaux_gros_oeuvre?: boolean;
+  /**
+   * 2026-08-30 (retour Johan) — la LIGNE du devis qui déclenche le conseil
+   * dommages-ouvrage. « Le client ne doit pas se demander pourquoi » : on
+   * nomme le travail concerné et on déroule la chaîne — on touche à la
+   * structure, donc la solidité de l'ouvrage est en jeu, donc la DO
+   * s'applique. Un conseil sans son motif n'est pas un conseil.
+   */
+  gros_oeuvre_motif?: string | null;
   /** Une retenue de garantie est déjà prévue au devis (mention explicite). */
   retenue_garantie_prevue?: boolean;
   /**
@@ -369,6 +377,12 @@ function collectCandidates(s: LevierSignals): Candidate[] {
           "L'obligation légale de souscrire reste la vôtre en tant que maître d'ouvrage (art. L242-1 du code des assurances) : ici, l'entreprise la souscrit pour votre compte — c'est possible, mais la police doit être établie à VOTRE nom. Avant tout versement, réclamez l'attestation nominative avec le nom de l'assureur, le numéro de police et la date de prise d'effet, qui doit précéder l'ouverture du chantier. Sans ce document, vous payez une garantie dont rien ne prouve l'existence.",
       });
     } else {
+      // Le POURQUOI d'abord : quelle ligne du devis déclenche l'obligation, et
+      // par quel enchaînement. Sans ça le client subit un conseil d'assurance
+      // sans comprendre ce qui, dans SON chantier, le rend obligatoire.
+      const pourquoi = s.gros_oeuvre_motif
+        ? `Votre devis prévoit « ${s.gros_oeuvre_motif} ». Ce type de travaux touche à la structure du bâtiment : dès qu'on intervient sur un élément porteur, c'est la solidité de l'ouvrage qui est en jeu — et c'est exactement le champ d'application de l'assurance dommages-ouvrage (art. L242-1 du code des assurances). `
+        : "Ces travaux touchent à la structure du bâtiment, donc à la solidité de l'ouvrage : c'est le champ d'application de l'assurance dommages-ouvrage (art. L242-1 du code des assurances). ";
       out.push({
         priority: 50,
         niveau: "important",
@@ -376,7 +390,8 @@ function collectCandidates(s: LevierSignals): Candidate[] {
         type: "dommages_ouvrage",
         titre: "Souscrivez une assurance dommages-ouvrage AVANT le début du chantier",
         detail:
-          "Ces travaux touchent le gros œuvre : la loi vous impose, en tant que maître d'ouvrage, de souscrire une assurance dommages-ouvrage avant l'ouverture du chantier — y compris en CCMI, où elle n'est jamais incluse d'office. Elle préfinance les réparations relevant de la garantie décennale sans attendre qu'un tribunal désigne un responsable, et se retourne ensuite contre l'entreprise et son assureur. Comptez 1 à 3 % du montant des travaux, davantage en construction neuve. Sans elle, vous avancez les frais en cas de sinistre grave, et vous devrez signaler son absence à l'acheteur si vous revendez dans les 10 ans.",
+          pourquoi +
+          "La loi vous impose, en tant que maître d'ouvrage, de la souscrire avant l'ouverture du chantier — y compris en CCMI, où elle n'est jamais incluse d'office. Concrètement : si une fissure, un affaissement ou un effondrement apparaît dans les 10 ans, elle paie les réparations tout de suite, sans attendre qu'un tribunal désigne un responsable, puis se retourne elle-même contre l'entreprise et son assureur. Comptez 1 à 3 % du montant des travaux, davantage en construction neuve. Sans elle, vous avancez les frais et pouvez attendre des années ; et si vous revendez dans les 10 ans, vous devrez signaler son absence à l'acheteur.",
       });
     }
   }

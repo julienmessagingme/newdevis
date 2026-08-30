@@ -3015,6 +3015,19 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           const contexte = `${workType} ${resume}`;
           return ligneStructurelle || (STRUCTUREL_RE.test(contexte) && !ENTRETIEN_RE.test(contexte));
         })(),
+        // La ligne exacte qui déclenche le conseil, pour l'expliquer au client.
+        gros_oeuvre_motif: (() => {
+          const STRUCTUREL_RE = /\b(extension|agrandissement|sur[ée]l[ée]vation|construction\s+neuve|ossature\s+(?:bois|m[ée]tallique)|fondation|semelle\s+filante|longrine|radier|dalle\s+b[ée]ton|mur\s+porteur|mur\s+de\s+refend|\bipn\b|\bhea\b|\bipe\b|poutre\s+(?:m[ée]tallique|acier|porteuse|b[ée]ton)|linteau|ouverture\s+(?:dans\s+un\s+)?mur|v[ée]randa\s+ma[çc]onn|(?:r[ée]fection|remplacement|d[ée]pose|cr[ée]ation|reprise)\s+(?:compl[èe]te\s+)?(?:de\s+)?(?:la\s+)?(?:charpente|toiture|couverture)|terrassement\s+(?:de\s+)?fondation)/i;
+          const ENTRETIEN_RE = /\b(traitement|xylo|insecticide|fongicide|curatif|pr[ée]ventif|nettoyage|d[ée]moussage|peinture|lasure|ravalement)\b/i;
+          const lignes = Array.isArray(extractedView.travaux)
+            ? (extractedView.travaux as Array<Record<string, unknown>>)
+                .map((t) => String(t?.description ?? t?.libelle ?? "").trim())
+            : [];
+          const hit = lignes.find((l) => STRUCTUREL_RE.test(l) && !ENTRETIEN_RE.test(l));
+          if (!hit) return null;
+          // Libellé court : on cite le devis, on ne le récite pas.
+          return hit.length > 90 ? `${hit.slice(0, 87).trimEnd()}…` : hit;
+        })(),
         retenue_garantie_prevue: (() => {
           const paiementTxt = JSON.stringify(extractedView.paiement ?? {});
           return /retenue\s+de\s+garantie/i.test(`${paiementTxt} ${resume}`);

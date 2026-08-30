@@ -275,7 +275,10 @@ describe("buildLeviers — dommages-ouvrage et retenue de garantie", () => {
     expect(doL).toBeDefined();
     expect(doL!.objectif).toBe("securiser");
     expect(doL!.titre).toMatch(/AVANT le début du chantier/);
-    expect(doL!.detail).toMatch(/décennale/);
+    // 2026-08-30 — on explique le mécanisme en clair plutôt que d'invoquer
+    // « la garantie décennale », qui ne dit rien à un particulier.
+    expect(doL!.detail).toMatch(/dans les 10 ans/);
+    expect(doL!.detail).toMatch(/sans attendre qu'un tribunal/);
   });
 
   // 2026-08-29 (retour Johan, devis 25030) — le devis facturait déjà une DO
@@ -326,6 +329,20 @@ describe("buildLeviers — dommages-ouvrage et retenue de garantie", () => {
     const leviers = buildLeviers({ ...base, total_ht: 22_150 });
     const rg = leviers.find((l) => l.type === "retenue_garantie");
     expect(rg!.titre).toMatch(/Demandez une retenue de garantie de 5 %/);
+  });
+
+  // 2026-08-30 (retour Johan) — « le client ne doit pas se demander pourquoi ».
+  it("le conseil DO cite la ligne du devis et déroule la chaîne solidité → obligation", () => {
+    const leviers = buildLeviers({
+      ...base,
+      total_ht: 22_150,
+      travaux_gros_oeuvre: true,
+      gros_oeuvre_motif: "Dépose de mur porteur + évacuation de gravats",
+    });
+    const doL = leviers.find((l) => l.type === "dommages_ouvrage");
+    expect(doL!.detail).toMatch(/Dépose de mur porteur/);
+    expect(doL!.detail).toMatch(/solidité de l'ouvrage/);
+    expect(doL!.detail).toMatch(/L242-1/);
   });
 
   it("pas de gros œuvre (peinture seule) → aucun conseil dommages-ouvrage", () => {
