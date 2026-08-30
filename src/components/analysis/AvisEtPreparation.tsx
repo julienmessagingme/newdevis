@@ -34,6 +34,13 @@ interface Props {
   totalCount?: number | null;
   /** 2026-08-29 — seuil du test « financement » (≥ 5 000 € HT). */
   totalHt?: number | null;
+  /**
+   * 2026-08-30 — l'analyse attend la validation d'un expert. Le bandeau bleu
+   * annonçait « verdict provisoire » pendant que la page affirmait un montant
+   * chiffré : un client pouvait aller négocier sur un écart que nous savions
+   * déjà faux. Tant que l'expert n'a pas tranché, on ne chiffre pas.
+   */
+  provisoire?: boolean;
   onVerdictReady?: (raw: string) => void;
   onCopy?: () => void;
 }
@@ -48,6 +55,7 @@ export default function AvisEtPreparation({
   comparableCount,
   totalCount,
   totalHt,
+  provisoire = false,
   onVerdictReady,
   onCopy,
 }: Props) {
@@ -100,12 +108,13 @@ export default function AvisEtPreparation({
           comparableCount={comparableCount}
           totalCount={totalCount}
           criticalReasons={criticalReasons}
+          provisoire={provisoire}
         />
         {/* 🟢 Phase 4 tranche 2 (2026-08-20, leçon ZenCouverture) — même sous
             bypass (devis incomplet…), les leviers STRUCTURELS réels (quantités,
             acompte, clauses) restent visibles. Le composant s'auto-masque si le
             serveur n'a pas généré de leviers (hors_scope, étranger, courtier). */}
-        <LeviersNegociation conclusion={conclusion} analysisId={analysisId} totalHt={totalHt} />
+        <LeviersNegociation conclusion={conclusion} analysisId={analysisId} totalHt={totalHt} provisoire={provisoire} />
       </div>
     );
   }
@@ -117,9 +126,10 @@ export default function AvisEtPreparation({
         comparableCount={comparableCount}
         totalCount={totalCount}
         criticalReasons={criticalReasons}
+        provisoire={provisoire}
       />
       {/* 🟢 Phase 4 — 3 leviers hiérarchisés (rendu seulement si conclusion.leviers) */}
-      <LeviersNegociation conclusion={conclusion} analysisId={analysisId} totalHt={totalHt} />
+      <LeviersNegociation conclusion={conclusion} analysisId={analysisId} totalHt={totalHt} provisoire={provisoire} />
       <PreparezVotreRendezVous
         conclusion={conclusion}
         pointsOk={pointsOk}

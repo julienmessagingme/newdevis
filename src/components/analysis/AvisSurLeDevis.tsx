@@ -62,10 +62,18 @@ interface AvisSurLeDevisProps {
   totalCount?: number | null;
   /** Motifs critiques (criteres_rouges) issus du scoring, pour le hard block. */
   criticalReasons?: string[];
+  /**
+   * 2026-08-30 — analyse en attente de validation experte : on n'affiche AUCUN
+   * montant d'écart. Le bandeau bleu annonçait « verdict provisoire » pendant
+   * que cette carte affirmait « 7 405–13 751 € » ; un client pouvait aller
+   * négocier sur un chiffre que nous savions déjà faux.
+   */
+  provisoire?: boolean;
 }
 
 export default function AvisSurLeDevis({
   conclusion,
+  provisoire = false,
   comparableCount,
   totalCount,
   criticalReasons = [],
@@ -173,10 +181,19 @@ export default function AvisSurLeDevis({
 
   // Phrase explicative (une, courte)
   const bodyText = (() => {
-    // 🟢 Phase 4 — verdict tranché déterministe : quand le moteur fournit
-    // verdict_ligne (motif TOUJOURS nommé), il prime sur les heuristiques
-    // ci-dessous. Fallback intact pour les conclusions pré-Phase 4.
+    // 2026-08-30 — en attente de validation experte, on ne CHIFFRE pas. La
+    // structure du verdict (montant du devis + motif) est conservée, mais la
+    // partie chiffrée de l'écart est remplacée par une phrase d'attente : le
+    // client doit pouvoir lire son analyse sans partir négocier sur un montant
+    // que l'expert n'a pas encore confirmé.
     const vl = conclusion.verdict_ligne;
+    if (provisoire) {
+      const montant = typeof vl?.resume === "string" && vl.resume.includes(" — ")
+        ? vl.resume.split(" — ")[0]
+        : null;
+      const attente = "l'écart de prix est en cours de vérification par notre expert : nous préférons ne pas avancer de montant tant qu'il n'est pas confirmé.";
+      return montant ? `${montant} — ${attente}` : attente.charAt(0).toUpperCase() + attente.slice(1);
+    }
     if (vl?.resume) {
       return vl.marge ? `${vl.resume} Marge de négociation estimée : ${vl.marge}.` : vl.resume;
     }

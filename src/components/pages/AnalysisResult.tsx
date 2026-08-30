@@ -1334,6 +1334,10 @@ const AnalysisResult = () => {
               entrepriseName={entrepriseName}
               criticalReasons={criticalReasons}
               totalHt={totalHT}
+              /* 2026-08-30 — tant que l'expert n'a pas tranché, la page ne
+                 chiffre plus l'écart : le bandeau bleu disait « provisoire »
+                 pendant que le hero affirmait « 7 405–13 751 € ». */
+              provisoire={analysis.review_status === "pending_review"}
               onVerdictReady={(raw) => {
                 setConclusionIaLive(raw);
                 // Meta + TikTok Pixel — conversion "analyse terminée", 1x par analyse.

@@ -54,10 +54,19 @@ interface LeviersNegociationProps {
   /** 2026-08-29 — montant HT du devis : le test « crédit » n'est proposé
    *  qu'à partir de 5 000 € (en dessous, un financement n'a pas de sens). */
   totalHt?: number | null;
+  /** 2026-08-30 — analyse en attente de validation experte : aucun montant
+   *  d'écart affiché tant que l'expert n'a pas tranché. */
+  provisoire?: boolean;
 }
 
-export default function LeviersNegociation({ conclusion, analysisId, totalHt }: LeviersNegociationProps) {
-  const leviers = conclusion.leviers ?? [];
+export default function LeviersNegociation({ conclusion, analysisId, totalHt, provisoire = false }: LeviersNegociationProps) {
+  // 2026-08-30 — en attente de validation experte, le levier de surcoût est
+  // retiré : c'est le seul qui chiffre un écart, et c'est précisément ce que
+  // l'expert doit confirmer. Les autres leviers (clauses, acompte, assurance)
+  // reposent sur des faits du devis, pas sur notre comparaison de prix.
+  const leviers = (conclusion.leviers ?? []).filter(
+    (l) => !(provisoire && l.type === "surcout_postes"),
+  );
   if (leviers.length === 0) return null;
 
   const hasNegocier = leviers.some((l) => l.objectif !== "securiser");

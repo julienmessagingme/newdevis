@@ -39,6 +39,8 @@ interface ReviewDetail {
       points_verifies?: Array<{ poste?: string; prix_devis?: string; avis?: string; detail?: string; source_web?: string | null }>;
       drapeaux?: string[];
       notes_expert_proposees?: string;
+      /** 2026-08-29 — texte redige POUR LE CLIENT (sans jargon interne). */
+      message_client_propose?: string;
       error?: string;
     } | null;
     ai_reviewed_at?: string | null;
@@ -502,16 +504,17 @@ function ReviewDetail({
               <span className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold uppercase ${accordCls}`}>
                 accord : {op.accord_avec_ia ?? "?"}
               </span>
-              {typeof op.confiance === "number" && (
-                <span className="text-[11px] text-muted-foreground">confiance {Math.round(op.confiance * 100)} %</span>
-              )}
-              {op.action_recommandee && (
-                <span className="text-[11px] font-medium text-indigo-800">
-                  → recommande : {ACTION_LABEL[op.action_recommandee] ?? op.action_recommandee}
-                </span>
-              )}
             </div>
             {op.resume && <p className="text-xs text-foreground/80 leading-relaxed">{op.resume}</p>}
+            {/* 2026-08-30 — hiérarchie inversée après le banc de test.
+                L'écran mettait en avant `action_recommandee` et `confiance`,
+                les deux champs MESURÉS comme non fiables : « corriger » sur
+                37/37 du gold standard et 15/16 des analyses témoins jamais
+                signalées, avec une confiance à 0,95 sur des désaccords. Ce qui
+                porte l'information, ce sont les points vérifiés et les
+                drapeaux — ils passent devant, la recommandation passe en bas
+                avec sa fiabilité affichée.
+                Détail : docs/refonte/RAPPORT-RELECTEUR-IA.md */}
             {Array.isArray(op.points_verifies) && op.points_verifies.length > 0 && (
               <ul className="text-xs space-y-1">
                 {op.points_verifies.map((p, i) => (
@@ -537,6 +540,18 @@ function ReviewDetail({
                 {op.drapeaux.map((d, i) => <li key={i}>⚑ {d}</li>)}
               </ul>
             )}
+            {op.action_recommandee && (
+              <p className="text-[11px] text-muted-foreground border-t border-indigo-200/60 pt-2">
+                Recommandation : <span className="font-medium">{ACTION_LABEL[op.action_recommandee] ?? op.action_recommandee}</span>
+                {typeof op.confiance === "number" && <> · confiance annoncée {Math.round(op.confiance * 100)} %</>}
+                <br />
+                <span className="italic">
+                  Champ peu fiable, mesuré le 30/08 : « corriger » sur 37/37 des analyses corrigées
+                  ET sur 15/16 d'analyses jamais signalées. Fiez-vous aux points vérifiés et aux
+                  drapeaux ci-dessus, pas à cette ligne.
+                </span>
+              </p>
+            )}
             {op.notes_expert_proposees && (
               <button
                 type="button"
@@ -544,6 +559,23 @@ function ReviewDetail({
                 className="text-xs font-medium text-indigo-700 underline"
               >
                 Utiliser ses notes comme Notes expert
+              </button>
+            )}
+            {/* 2026-08-29 — deux destinataires, deux textes : les notes
+                ci-dessus restent INTERNES (elles parlent de faux positifs et
+                de matching), celui-ci est écrit pour le client et s'affiche
+                sur sa page. Le bouton bascule en mode correction, sinon le
+                champ rempli resterait invisible. */}
+            {op.message_client_propose && (
+              <button
+                type="button"
+                onClick={() => {
+                  setExpertMessage(op.message_client_propose ?? "");
+                  setMode("correct");
+                }}
+                className="ml-4 text-xs font-medium text-indigo-700 underline"
+              >
+                Pré-remplir le message client
               </button>
             )}
           </div>
