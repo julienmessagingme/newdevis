@@ -2576,18 +2576,26 @@ Deux fournisseurs, deux logiques de facturation, à ne pas confondre.
 
 **L'abonnement Claude Code (outil de développement) n'a AUCUN lien avec le runtime du site.** Le site appelle `api.anthropic.com` avec une clé API console facturée à la consommation, séparément. Résilier Claude Code ne change rien en production. Retirer la clé API Anthropic n'éteint que l'avis de pré-revue en admin et la génération d'articles : les analyses continuent d'être produites normalement pour l'utilisateur (la fonction se contente de logger « clé manquante »).
 
-### 28.2 Coût unitaire mesuré (2026-08-29)
+### 28.2 Coût unitaire mesuré (2026-08-30, relecteur bascule sur Gemini)
 
-| Poste | Coût | Base de mesure |
-|---|---|---|
-| Pipeline Gemini complet | **~0,05 €** / analyse | extraction + embeddings + verdict |
-| Relecteur Claude Opus | **~0,85 €** / revue | mesuré sur le devis 25030 : 43 200 tokens entrée, 3 400 sortie, 2 recherches web, 61 s |
-| Taux de mise en revue | **34 %** | 30 analyses sur 89, période de 90 jours arrêtée au 2026-08-29 |
-| **Coût moyen par analyse, relecteur inclus** | **~0,34 €** | 0,05 + 0,34 × 0,85 |
+Tarifs officiels au 2026-08-30 : Gemini 2.5 Flash **0,30 $ / 2,50 $** par million de tokens (entrée / sortie), Gemini 2.5 Pro **1,25 $ / 10 $**, **grounding Google gratuit jusqu'à 1 500 requêtes par jour** (35 $ / 1 000 au-delà). Claude Opus, pour mémoire : 15 $ / 75 $ plus la recherche web facturée.
 
-⚠️ Le coût du relecteur suppose un tarif Opus de 15 $/M en entrée et 75 $/M en sortie — **à reconfirmer sur la facture console** avant toute décision qui en dépend.
+| Poste | Modèle | Coût par analyse | Base |
+|---|---|---|---|
+| Extraction (× 2 : V2 primaire + shadow V1) | 2.5-flash | ~0,013 € | sortie médiane mesurée 2 025 tokens sur 40 analyses, + PDF et prompt |
+| Matching catalogue (embeddings) | embedding-001 | négligeable | ~7 lignes de devis en médiane |
+| Verdict / conclusion | 2.5-flash | ~0,004 € | sortie médiane mesurée 493 tokens |
+| Résumés et divers | 2.0-flash | ~0,001 € | |
+| **Pipeline complet** | | **~0,02 €** | |
+| **Relecture IA** | 2.5-pro + PDF + grounding | **~0,017 €** | **mesuré en prod** : 3 421 tokens entrée, 1 421 sortie, 36 s |
+| Taux de mise en revue | | 34 % | 30 analyses sur 89, sur 90 jours |
+| **Coût moyen par analyse, relecture incluse** | | **~0,03 €** | 0,02 + 0,34 × 0,017 |
 
-Projection : ~10 €/mois à 27 analyses (rythme d'août 2026), ~100 €/mois à 300, ~340 €/mois à 1 000.
+Les sorties sont **mesurées** (médianes sur 40 analyses réelles et relevés d'usage en production) ; les tailles de prompt en entrée restent estimées, elles pèsent peu au tarif Flash.
+
+Projection : **~0,70 €/mois** à 27 analyses (rythme d'août 2026), ~8 €/mois à 300, **~26 €/mois à 1 000**.
+
+Avant la bascule, avec Claude Opus en relecteur : 0,34 € par analyse, ~10 €/mois à 27 et ~340 €/mois à 1 000. La bascule divise le coût total par **onze**.
 
 ### 28.3 Garde de proportion du relecteur
 

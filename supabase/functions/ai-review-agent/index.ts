@@ -15,13 +15,21 @@
 // ============================================================================
 
 import { buildReviewInstruction } from "./prompt.ts";
+import { callProvider, type Provider } from "./providers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+// ⚠️ Côté Supabase le secret s'appelle GOOGLE_AI_API_KEY (GOOGLE_API_KEY est
+// le nom utilisé côté Vercel) — 8 autres edge functions lisent déjà ce nom.
+const GOOGLE_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY") ?? Deno.env.get("GOOGLE_API_KEY") ?? "";
+// 2026-08-30 — Gemini par défaut : ~0,02 € la relecture contre ~0,85 € avec
+// Claude, grounding Google gratuit sous 1 500 requêtes/jour, et qualité
+// équivalente sur le cas ALES (mêmes défauts trouvés). Bascule de secours :
+// `npx supabase secrets set AI_REVIEW_PROVIDER=claude`.
+const PROVIDER: Provider = Deno.env.get("AI_REVIEW_PROVIDER") === "claude" ? "claude" : "gemini";
 
-const MODEL = "claude-opus-5";
 // Le PDF est transmis par URL SIGNÉE, jamais téléchargé ni encodé ici : sur un
 // devis de 573 Ko, le download + base64 dans le worker consommait assez de CPU
 // pour que la edge tue le run en silence (aucune erreur, claim laissé en
@@ -82,13 +90,13 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
   }
 
   // ── PDF source ───────────────────────────────────────────────────────────
-  let pdfBlock: Record<string, unknown> | null = null;
+  let pdfUrl: string | null = null;
   if (a.file_path) {
     try {
       const { data: signed, error: signErr } = await supabase.storage
         .from("devis").createSignedUrl(a.file_path, SIGNED_URL_TTL_S);
       if (signed?.signedUrl) {
-        pdfBlock = { type: "document", source: { type: "url", url: signed.signedUrl } };
+        pdfUrl = signed.signedUrl;
       } else {
         console.log("[ai-review] URL signée indisponible:", signErr?.message ?? "?");
       }
@@ -101,41 +109,20 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
     conclusion: ci,
     scoring,
     priceData,
-    hasPdf: Boolean(pdfBlock),
+    hasPdf: Boolean(pdfUrl),
   });
-
-  const content: Array<Record<string, unknown>> = [];
-  if (pdfBlock) content.push(pdfBlock);
-  content.push({ type: "text", text: instruction });
 
   const t0 = Date.now();
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 5000,
-      // ⚠️ NE PAS ajouter `speed: "fast"` : le mode rapide n'est pas ouvert sur
-      // notre organisation (« rate limit of 0 fast mode input tokens per
-      // minute ») → 429 immédiat sur CHAQUE appel. Ajouté le 2026-08-29 pour
-      // « tenir dans le budget edge », il a en réalité éteint le relecteur pour
-      // toutes les analyses. Mesuré depuis, sans mode rapide : 49 s sans PDF et
-      // 58 s avec PDF sur le devis 25030 (82 lignes, 219 k€) — le budget edge
-      // n'a jamais été le problème. À ne réactiver qu'après vérification du
-      // quota fast mode sur la clé API.
-      // effort low + 2 recherches suffisent pour un avis structuré et sourcé.
-      output_config: { effort: "low" },
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 2 }],
-      messages: [{ role: "user", content }],
-    }),
-  });
+  const res = await callProvider(
+    PROVIDER,
+    { gemini: GOOGLE_API_KEY, claude: ANTHROPIC_API_KEY },
+    instruction,
+    pdfUrl,
+  );
   if (!res.ok) {
-    const errTxt = (await res.text()).slice(0, 300);
-    console.error(`[ai-review] Anthropic ${res.status}: ${errTxt}`);
+    const errTxt = res.errorText ?? "";
+    const status = res.status ?? 0;
+    console.error(`[ai-review] ${PROVIDER} ${status}: ${errTxt}`);
 
     // ⚠️ 2026-08-30 — SOLDE DE CRÉDITS ÉPUISÉ : c'est un 400, donc l'ancien
     // code le classait « erreur définitive » et estampillait l'analyse. Or la
@@ -144,21 +131,21 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
     // serait jamais reprise une fois les crédits restaurés — on perdrait
     // silencieusement toutes les relectures de la panne. On remet donc
     // l'analyse dans la file INTACTE, sans consommer de tentative.
-    if (/credit balance|billing|insufficient.quota|payment required/i.test(errTxt) || res.status === 402) {
+    if (/credit balance|billing|insufficient.quota|payment required|quota/i.test(errTxt) || status === 402) {
       await supabase.from("analyses").update({
         ai_reviewed_at: null,
         ai_review_opinion: null,
       }).eq("id", a.id);
-      console.error("[ai-review] CRÉDITS API ÉPUISÉS — relecture suspendue, analyse remise en file. Recharger le compte Anthropic.");
+      console.error(`[ai-review] QUOTA/CRÉDITS ÉPUISÉS sur ${PROVIDER} — relecture suspendue, analyse remise en file intacte.`);
       return;
     }
 
     // Stamp quand même à l'échec DÉFINITIF client (4xx) pour ne pas boucler ;
     // les 5xx/429 seront retentés au prochain tick.
-    if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+    if (status >= 400 && status < 500 && status !== 429) {
       await supabase.from("analyses").update({
         ai_reviewed_at: new Date().toISOString(),
-        ai_review_opinion: { error: `Anthropic ${res.status}`, detail: errTxt },
+        ai_review_opinion: { error: `${PROVIDER} ${status}`, detail: errTxt },
       }).eq("id", a.id);
       return;
     }
@@ -167,16 +154,11 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
     // tentatives et envoyait le diagnostic dans le mur (cas du mode rapide non
     // ouvert sur l'organisation, 2026-08-29).
     await supabase.from("analyses").update({
-      ai_review_opinion: { status: "running", attempt, last_error: `Anthropic ${res.status}: ${errTxt}` },
+      ai_review_opinion: { status: "running", attempt, last_error: `${PROVIDER} ${status}: ${errTxt}` },
     }).eq("id", a.id);
     return;
   }
-  const result = await res.json();
-  // Le premier bloc peut être du thinking / des blocs web_search → prendre les text
-  const text = (result.content ?? [])
-    .filter((b: Record<string, unknown>) => b?.type === "text")
-    .map((b: Record<string, unknown>) => b.text)
-    .join("\n");
+  const text = res.text ?? "";
   let opinion: Record<string, unknown>;
   try {
     const jsonMatch = String(text).match(/\{[\s\S]*\}/);
@@ -186,9 +168,12 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
     console.error("[ai-review] JSON introuvable dans la réponse:", String(text).slice(0, 300));
     opinion = { error: "parse_failed", raw: String(text).slice(0, 1500) };
   }
-  opinion.model = MODEL;
+  opinion.model = PROVIDER;
   opinion.duration_ms = Date.now() - t0;
-  opinion.pdf_lu = Boolean(pdfBlock);
+  opinion.pdf_lu = Boolean(pdfUrl);
+  // Tokens conservés : c'est la seule trace qui permet de suivre le coût réel
+  // du relecteur sans dépendre d'une facture a posteriori.
+  if (res.usage) opinion.usage = res.usage;
 
   const { error: upErr } = await supabase.from("analyses").update({
     ai_review_opinion: opinion,
@@ -200,8 +185,9 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
 }
 
 Deno.serve(async (_req) => {
-  if (!ANTHROPIC_API_KEY) {
-    console.error("[ai-review] ANTHROPIC_API_KEY manquant");
+  const cleManquante = PROVIDER === "claude" ? !ANTHROPIC_API_KEY : !GOOGLE_API_KEY;
+  if (cleManquante) {
+    console.error(`[ai-review] clé API manquante pour le fournisseur ${PROVIDER}`);
     return new Response(JSON.stringify({ ok: false, error: "missing key" }), { status: 500 });
   }
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
