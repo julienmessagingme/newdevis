@@ -462,6 +462,41 @@ function extractKnownSurface(lines: any[]): number | null {
   return total > 0 ? total : null;
 }
 
+/**
+ * 2026-08-30 (retour Johan, devis ALES sdb) — GARDE D'UNITÉ.
+ *
+ * Cas vécu : une ligne « Dépose totale des cloisons intérieures » facturée
+ * 8 950 € en forfait (unité « U », quantité 1) comparée à un tarif catalogue
+ * de 15–40 €/m². Le calcul fait `40 × 1 = 40 €` de référence, donc 8 910 € de
+ * « surcoût » — un chiffre né d'une multiplication par une quantité qui
+ * n'existe pas. Six groupes du même devis étaient dans ce cas, produisant un
+ * écart annoncé de 7 405 à 13 751 € sur un devis de 22 150 €.
+ *
+ * Règle : si le prix catalogue est exprimé dans une unité MÉTRIQUE (m², ml,
+ * m³) alors que la ligne de devis n'a pas de quantité dans cette unité, la
+ * comparaison n'a pas de sens. On ne la compte pas — on préfère ne rien dire
+ * plutôt que d'annoncer un montant indéfendable face à l'artisan.
+ */
+const METRIC_UNIT_RE = /^(m2|m²|m3|m³|ml|mètre|metre)/i;
+
+function hasIncomparableUnit(group: Record<string, any>): boolean {
+  const prices: any[] = Array.isArray(group.prices) ? group.prices : [];
+  if (prices.length === 0) return false;
+  // Le tarif catalogue est-il unitaire ET métrique ?
+  const metrique = prices.some(
+    (p) =>
+      typeof p?.price_max_unit_ht === "number" &&
+      p.price_max_unit_ht > 0 &&
+      METRIC_UNIT_RE.test(String(p?.unit ?? "").trim()),
+  );
+  if (!metrique) return false;
+  // Côté devis, dispose-t-on d'une quantité exprimée dans cette même unité ?
+  const unitDevis = String(group.main_unit ?? "").trim();
+  const qty = Number(group.main_quantity ?? 0);
+  const quantiteExploitable = METRIC_UNIT_RE.test(unitDevis) && qty > 0;
+  return !quantiteExploitable;
+}
+
 function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
   const label = (group.job_type_label || "").toLowerCase();
   const unit  = (group.main_unit || "").toLowerCase().trim();
@@ -594,6 +629,9 @@ function computeServerSurcout(priceData: unknown[]): { min: number; max: number 
     const unit = ((group.main_unit as string) || "").toLowerCase().trim();
     if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) continue;
     if (hasSurfaceUnitMismatch(group)) continue;
+    // Prix catalogue au m²/ml/m³ face à une ligne sans quantité : la
+    // multiplication par une quantité de 1 fabrique un surcoût fictif.
+    if (hasIncomparableUnit(group)) continue;
     // V3.4.1 — exclure aussi les groupes hétérogènes : leur prix unitaire calculé
     // n'a pas de sens face au max marché du domaine principal détecté.
     // Sans ce filtre, on additionnait des "surcouts" qui venaient de groupes
@@ -2955,17 +2993,57 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         // 2026-08-27 (conseils Johan) — gros œuvre → dommages-ouvrage
         // obligatoire ; retenue de garantie 5 % si pas déjà prévue.
         travaux_gros_oeuvre: (() => {
-          const GROS_OEUVRE_RE = /\b(extension|agrandissement|sur[ée]l[ée]vation|ossature|fondation|semelle\s+filante|longrine|dalle\s+b[ée]ton|chape\s+b[ée]ton\s+arm|mur\s+porteur|mur\s+de\s+refend|parpaing|agglom[ée]r[ée]|banch|poutre\s+(?:b[ée]ton|ipn|hea?\b)|\bipn\b|linteau|charpente|couverture\s+compl[èe]te|r[ée]fection\s+(?:de\s+)?(?:toiture|charpente)|ouverture\s+(?:dans\s+un\s+)?mur|d[ée]molition\s+(?:d'un\s+)?mur\s+porteur|terrassement\s+(?:de\s+)?fondation|v[ée]randa\s+ma[çc]onn|construction\s+neuve)/i;
-          const lignesTxt = Array.isArray(extractedView.travaux)
+          // 2026-08-30 (retour Johan, devis ALES sdb) — la version précédente
+          // se déclenchait sur le simple mot « charpente », donc sur un
+          // « traitement de charpente au xylophène » : de l'entretien, jamais
+          // du gros œuvre. Critère légal retenu (art. L242-1 + doctrine
+          // service-public/DGCCRF) : les travaux doivent être susceptibles de
+          // COMPROMETTRE LA SOLIDITÉ de l'ouvrage ou de le rendre impropre à
+          // sa destination. On exige donc une ACTION structurelle explicite,
+          // et on exclut l'entretien qui ne touche pas à la structure.
+          const STRUCTUREL_RE = /\b(extension|agrandissement|sur[ée]l[ée]vation|construction\s+neuve|ossature\s+(?:bois|m[ée]tallique)|fondation|semelle\s+filante|longrine|radier|dalle\s+b[ée]ton|mur\s+porteur|mur\s+de\s+refend|\bipn\b|\bhea\b|\bipe\b|poutre\s+(?:m[ée]tallique|acier|porteuse|b[ée]ton)|linteau|ouverture\s+(?:dans\s+un\s+)?mur|v[ée]randa\s+ma[çc]onn|(?:r[ée]fection|remplacement|d[ée]pose|cr[ée]ation|reprise)\s+(?:compl[èe]te\s+)?(?:de\s+)?(?:la\s+)?(?:charpente|toiture|couverture)|terrassement\s+(?:de\s+)?fondation)/i;
+          // Entretien / traitement : ne touche pas à la structure porteuse.
+          const ENTRETIEN_RE = /\b(traitement|xylo|insecticide|fongicide|curatif|pr[ée]ventif|nettoyage|d[ée]moussage|peinture|lasure|ravalement)\b/i;
+          const lignes = Array.isArray(extractedView.travaux)
             ? (extractedView.travaux as Array<Record<string, unknown>>)
                 .map((t) => `${t?.description ?? ""} ${t?.libelle ?? ""}`)
-                .join(" ")
-            : "";
-          return GROS_OEUVRE_RE.test(`${lignesTxt} ${workType} ${resume}`);
+            : [];
+          // Au moins UNE ligne structurelle qui ne soit pas de l'entretien.
+          const ligneStructurelle = lignes.some(
+            (l) => STRUCTUREL_RE.test(l) && !ENTRETIEN_RE.test(l),
+          );
+          const contexte = `${workType} ${resume}`;
+          return ligneStructurelle || (STRUCTUREL_RE.test(contexte) && !ENTRETIEN_RE.test(contexte));
         })(),
         retenue_garantie_prevue: (() => {
           const paiementTxt = JSON.stringify(extractedView.paiement ?? {});
           return /retenue\s+de\s+garantie/i.test(`${paiementTxt} ${resume}`);
+        })(),
+        // 2026-08-30 — dernière échéance à la fin des travaux / réception.
+        // Le devis ALES disait « 5 % en fin de travaux » sans le mot
+        // « retenue » : on réclamait donc une seconde fois les mêmes 5 %.
+        solde_final_pct: (() => {
+          const paiement = (extractedView.paiement ?? {}) as Record<string, unknown>;
+          const modalites = Array.isArray(paiement.modalites_paiement)
+            ? (paiement.modalites_paiement as Array<Record<string, unknown>>)
+            : [];
+          const finales = modalites.filter((m) =>
+            ["fin_travaux", "reception", "solde"].includes(String(m?.etape ?? "")),
+          );
+          if (finales.length === 0) return null;
+          const pct = Number(finales[finales.length - 1]?.pct ?? 0);
+          return Number.isFinite(pct) && pct > 0 ? pct : null;
+        })(),
+        // Somme des écarts réellement attribués à un poste nommé.
+        surcout_nomme: (() => {
+          const anomalies = Array.isArray((conclusionData as ConclusionData).anomalies)
+            ? ((conclusionData as ConclusionData).anomalies as Array<Record<string, unknown>>)
+            : [];
+          const total = anomalies.reduce((acc, a) => {
+            const v = Number(a?.surcout_estime ?? 0);
+            return Number.isFinite(v) && v > 0 ? acc + v : acc;
+          }, 0);
+          return total > 0 ? Math.round(total) : null;
         })(),
         // 2026-08-29 (retour Johan, devis 25030) — le devis facture-t-il DÉJÀ
         // une dommages-ouvrage ? Si oui, conseiller d'en souscrire une (et

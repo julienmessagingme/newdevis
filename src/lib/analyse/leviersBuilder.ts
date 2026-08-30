@@ -73,6 +73,21 @@ export interface LevierSignals {
   /** Une retenue de garantie est déjà prévue au devis (mention explicite). */
   retenue_garantie_prevue?: boolean;
   /**
+   * Pourcentage de la dernière échéance quand elle tombe à la fin des travaux
+   * ou à la réception (ex. « 5 % en fin de travaux »). Un solde final n'est
+   * PAS une retenue de garantie — celle-ci se conserve un an après la
+   * réception — mais le conseil doit partir de ce qui est déjà écrit au devis
+   * plutôt que de réclamer une seconde fois les mêmes 5 %.
+   */
+  solde_final_pct?: number | null;
+  /**
+   * Somme des `surcout_estime` des anomalies NOMMÉES. Le levier et la ligne
+   * de verdict ne chiffrent que ce montant : le surcoût serveur agrège des
+   * écarts non attribuables (matchs incertains) qu'on ne peut pas opposer à
+   * l'artisan.
+   */
+  surcout_nomme?: number | null;
+  /**
    * Montant HT de la ligne « dommages-ouvrage » DÉJÀ facturée dans le devis,
    * ou null si absente. Bascule le conseil DO de « souscrivez » vers
    * « exigez l'attestation » — on ne conseille pas d'acheter ce qui est déjà
@@ -220,8 +235,22 @@ function collectCandidates(s: LevierSignals): Candidate[] {
   }
 
   // ── Importants ────────────────────────────────────────────────────────────
-  const surcoutMateriel = s.surcout.max >= 300 &&
-    (s.total_ht === null || s.total_ht <= 0 || s.surcout.max >= s.total_ht * 0.015);
+  // 2026-08-30 (retour Johan, devis ALES sdb) — ON NE CHIFFRE QUE CE QU'ON
+  // PEUT NOMMER. Le levier annonçait « 7 405 à 13 751 € » sur un devis de
+  // 22 150 €, en ne citant qu'un poste à 887 € : l'écart venait d'un match
+  // aberrant (une ligne à 8 950 € rattachée à « Démolition cloison » au m²),
+  // agrégé dans le surcoût serveur mais jamais montré à l'utilisateur.
+  // Annoncer un montant que le détail ne justifie pas est indéfendable face à
+  // l'artisan. On chiffre donc la somme des postes NOMMÉS ; sans poste nommé,
+  // pas de chiffre du tout.
+  const surcoutNomme = s.surcout_nomme ?? null;
+  const aDesPostes = s.anomalies_postes.length > 0;
+  const montantOpposable = aDesPostes && surcoutNomme !== null && surcoutNomme > 0
+    ? surcoutNomme
+    : null;
+  const surcoutMateriel = (montantOpposable ?? s.surcout.max) >= 300 &&
+    (s.total_ht === null || s.total_ht <= 0 ||
+      (montantOpposable ?? s.surcout.max) >= s.total_ht * 0.015);
   if (surcoutMateriel) {
     const postes = s.anomalies_postes.slice(0, 3);
     out.push({
@@ -232,7 +261,9 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       titre: postes.length > 0
         ? `Négociez les postes au-dessus du marché (${postes.join(", ")})`
         : "Négociez les postes au-dessus du marché",
-      detail: `Nos comparaisons chiffrent l'écart entre ${fmtEuros(s.surcout.min)} et ${fmtEuros(s.surcout.max)} €. Appuyez-vous sur les fourchettes du marché pour demander un alignement.`,
+      detail: montantOpposable !== null
+        ? `Sur ${postes.length > 1 ? "ces postes" : "ce poste"}, l'écart avec les fourchettes du marché représente environ ${fmtEuros(montantOpposable)} €. Appuyez-vous dessus pour demander un alignement, ligne par ligne.`
+        : `Nos comparaisons chiffrent l'écart entre ${fmtEuros(s.surcout.min)} et ${fmtEuros(s.surcout.max)} €. Appuyez-vous sur les fourchettes du marché pour demander un alignement.`,
     });
   }
 
@@ -359,14 +390,25 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     s.total_ht !== null &&
     s.total_ht >= RETENUE_MIN_HT
   ) {
+    // 2026-08-30 (retour Johan, devis ALES sdb) — le devis prévoyait déjà
+    // « 5 % en fin de travaux » et on conseillait quand même « demandez une
+    // retenue de 5 % » : on passe pour ne pas avoir lu le devis. Or les deux
+    // ne sont PAS la même chose — un solde versé à la fin des travaux n'est
+    // pas une retenue de garantie, qui se conserve un an APRÈS la réception.
+    // Le conseil devient donc : transformer ce solde en vraie retenue.
+    const soldeFinal = s.solde_final_pct ?? null;
+    const soldeDejaPrevu = soldeFinal !== null && soldeFinal > 0 && soldeFinal <= 10;
     out.push({
       priority: 35,
       niveau: "bonus",
       objectif: "securiser",
       type: "retenue_garantie",
-      titre: `Demandez une retenue de garantie de 5 % (environ ${fmtEuros(s.total_ht * 0.05)} €) libérée après la levée des réserves`,
-      detail:
-        "C'est l'usage sur les chantiers de cette taille, et c'est encadré par la loi : vous conservez 5 % du montant au moment du solde, restitués un an après la réception si aucune réserve ne reste à lever (ou immédiatement si l'artisan fournit une caution bancaire). C'est le seul vrai levier pour que les finitions et les reprises soient faites — une fois payé à 100 %, vous n'avez plus de moyen de pression. Pensez à formaliser un procès-verbal de réception listant les réserves : c'est lui qui déclenche le délai et qui fera foi en cas de litige (GérerMonChantier le génère et l'archive automatiquement).",
+      titre: soldeDejaPrevu
+        ? `Transformez les ${soldeFinal} % de fin de travaux en véritable retenue de garantie`
+        : `Demandez une retenue de garantie de 5 % (environ ${fmtEuros(s.total_ht * 0.05)} €) libérée après la levée des réserves`,
+      detail: soldeDejaPrevu
+        ? `Votre devis prévoit déjà ${soldeFinal} % à la fin des travaux (environ ${fmtEuros(s.total_ht * (soldeFinal / 100))} €), mais versés à l'achèvement : ce n'est pas une retenue de garantie. Demandez par écrit que cette somme soit conservée jusqu'à un an après la réception, et libérée une fois les réserves levées (ou immédiatement si l'artisan fournit une caution bancaire). La nuance est décisive : une fois payé à 100 % à la fin du chantier, vous n'avez plus aucun moyen de pression pour faire reprendre les finitions. Formalisez un procès-verbal de réception listant les réserves — c'est lui qui déclenche le délai et fera foi en cas de litige (GérerMonChantier le génère et l'archive automatiquement).`
+        : "C'est l'usage sur les chantiers de cette taille, et c'est encadré par la loi : vous conservez 5 % du montant au moment du solde, restitués un an après la réception si aucune réserve ne reste à lever (ou immédiatement si l'artisan fournit une caution bancaire). C'est le seul vrai levier pour que les finitions et les reprises soient faites — une fois payé à 100 %, vous n'avez plus de moyen de pression. Pensez à formaliser un procès-verbal de réception listant les réserves : c'est lui qui déclenche le délai et qui fera foi en cas de litige (GérerMonChantier le génère et l'archive automatiquement).",
     });
   }
 
@@ -433,7 +475,17 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
     motif = `l'acompte demandé avant travaux (${Math.round(s.acompte_cumule_pct)} %) dépasse largement l'usage de 30 %`;
   } else if (s.quantites_manquantes) {
     motif = "les quantités manquent pour vérifier les prix";
-  } else if (s.surcout.max >= 300 && (s.total_ht === null || s.surcout.max >= (s.total_ht ?? 0) * 0.015)) {
+  } else if (
+    // Même règle que le levier : le hero ne chiffre que ce qui est nommé.
+    s.anomalies_postes.length > 0 && (s.surcout_nomme ?? 0) >= 300 &&
+    (s.total_ht === null || (s.surcout_nomme ?? 0) >= (s.total_ht ?? 0) * 0.015)
+  ) {
+    motif = `${s.anomalies_postes.length > 1 ? "quelques postes dépassent" : "un poste dépasse"} les fourchettes du marché (environ ${fmtEuros(s.surcout_nomme ?? 0)} € d'écart sur ${s.anomalies_postes.length > 1 ? "ces lignes" : "cette ligne"})`;
+  } else if (
+    s.anomalies_postes.length === 0 && s.surcout.max >= 300 &&
+    (s.total_ht === null || s.surcout.max >= (s.total_ht ?? 0) * 0.015)
+  ) {
+    // Aucun poste nommé : on reste sur l'agrégat, sans l'attribuer.
     motif = `quelques postes dépassent les fourchettes du marché (${fmtEuros(s.surcout.min)}–${fmtEuros(s.surcout.max)} € d'écart estimé)`;
   } else if (s.acompte_cumule_pct !== null && s.acompte_cumule_pct > 30) {
     motif = s.comptes_opaques

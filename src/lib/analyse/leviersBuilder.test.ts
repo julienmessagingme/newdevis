@@ -27,6 +27,54 @@ const base: LevierSignals = {
   date_reference: "2026-08-15",
 };
 
+// 2026-08-30 (retour Johan, devis ALES sdb) — le levier annonçait « 7 405 à
+// 13 751 € » sur un devis de 22 150 € en ne citant qu'un poste à 887 €.
+describe("buildLeviers — on ne chiffre que ce qu'on peut nommer", () => {
+  const alesSignals: LevierSignals = {
+    ...base,
+    verdict_decisionnel: "signer_avec_negociation",
+    total_ht: 22_150,
+    surcout: { min: 7_405, max: 13_751 }, // agrégat serveur, non attribuable
+    anomalies_postes: ["Traitement charpente (curatif)"],
+    surcout_nomme: 887,
+  };
+
+  it("le montant annoncé est celui des postes nommés, pas l'agrégat serveur", () => {
+    const l = buildLeviers(alesSignals).find((x) => x.type === "surcout_postes");
+    expect(l).toBeDefined();
+    expect(l!.detail).toMatch(/887/);
+    expect(l!.detail).not.toMatch(/7\s?405|13\s?751/);
+  });
+
+  it("la ligne de verdict ne reprend pas non plus l'agrégat", () => {
+    const leviers = buildLeviers(alesSignals);
+    const vl = buildVerdictLigne(alesSignals, leviers);
+    expect(vl.resume).not.toMatch(/7\s?405|13\s?751/);
+    expect(vl.motif).toMatch(/887/);
+  });
+
+  it("agrégat élevé mais AUCUN poste nommé → pas de levier surcoût attribué", () => {
+    const l = buildLeviers({
+      ...alesSignals,
+      anomalies_postes: [],
+      surcout_nomme: null,
+    }).find((x) => x.type === "surcout_postes");
+    // Sans poste nommé on garde l'ancien libellé estimatif, jamais une
+    // accusation attribuée à une ligne précise.
+    expect(l!.titre).toBe("Négociez les postes au-dessus du marché");
+    // fmtEuros formate en fr-FR : le séparateur est une espace insécable.
+    expect(l!.detail).toMatch(/entre 7\s405 et 13\s751/);
+  });
+
+  it("écart nommé négligeable (< 1,5 % du devis) → aucun levier surcoût", () => {
+    const l = buildLeviers({
+      ...alesSignals,
+      surcout_nomme: 120,
+    }).find((x) => x.type === "surcout_postes");
+    expect(l).toBeUndefined();
+  });
+});
+
 describe("buildLeviers — hiérarchie et cap à 3", () => {
   it("cas Toiture Boxes (devis propre) → 3 leviers max, uniquement bonus", () => {
     const leviers = buildLeviers({ ...base, total_ht: 8841, assurance_absente: true });
@@ -260,6 +308,24 @@ describe("buildLeviers — dommages-ouvrage et retenue de garantie", () => {
     });
     const v = leviers.find((l) => l.type === "dommages_ouvrage_verification");
     expect(v!.detail).toMatch(/au-dessus des 1 à 3 %/);
+  });
+
+  // 2026-08-30 (retour Johan, devis ALES sdb — 3 conseils, 3 erreurs)
+  it("solde de 5 % déjà prévu en fin de travaux → on le transforme, on ne le redemande pas", () => {
+    const leviers = buildLeviers({ ...base, total_ht: 22_150, solde_final_pct: 5 });
+    const rg = leviers.find((l) => l.type === "retenue_garantie");
+    expect(rg).toBeDefined();
+    expect(rg!.titre).toMatch(/Transformez les 5 %/);
+    expect(rg!.titre).not.toMatch(/Demandez une retenue/);
+    expect(rg!.detail).toMatch(/prévoit déjà 5 %/);
+    // La nuance juridique doit rester dite : solde ≠ retenue.
+    expect(rg!.detail).toMatch(/un an après la réception/);
+  });
+
+  it("aucune échéance finale connue → conseil de retenue classique (inchangé)", () => {
+    const leviers = buildLeviers({ ...base, total_ht: 22_150 });
+    const rg = leviers.find((l) => l.type === "retenue_garantie");
+    expect(rg!.titre).toMatch(/Demandez une retenue de garantie de 5 %/);
   });
 
   it("pas de gros œuvre (peinture seule) → aucun conseil dommages-ouvrage", () => {
