@@ -200,6 +200,48 @@ function significantTokens(text: string): Set<string> {
  * Cas type : "Logistique livraison matériel nettoyage" matché à "Échafaudage
  * location + montage/démontage" — 0 token en commun, on rejette.
  */
+/**
+ * Promotion lexicale — 2026-08-30.
+ *
+ * Problème mesuré : « Ponçage plafond et mur » trouve « Ponçage murs et
+ * plafonds (préparation peinture) » — la bonne entrée, mot pour mot — à une
+ * similarité de 0,762, donc SOUS le seuil HIGH de 0,77. Le poste reste en
+ * « comparaison incertaine » et sort du verdict, alors que le rapprochement
+ * est évident. Sur le stock, 11 % du montant classé « moyen » est dans ce cas.
+ *
+ * Baisser le seuil global serait la mauvaise réponse : l'inspection de la
+ * bande 0,75–0,77 montre qu'environ la moitié des rapprochements y sont faux
+ * (« ossature bois » → *clôture bois occultante*). On promeut donc uniquement
+ * quand les MOTS concordent, pas quand les vecteurs se ressemblent vaguement :
+ *   1. le nom de tête du libellé catalogue doit être présent dans la ligne ;
+ *   2. au moins 80 % des mots significatifs du libellé doivent l'être aussi ;
+ *   3. le garde fourniture/pose doit passer — sans lui, « fourniture de colle
+ *      à carrelage » se promeut en « pose carrelage ».
+ *
+ * Les qualificatifs entre parenthèses du libellé sont ignorés : « (fourni+posé) »
+ * ou « (préparation peinture) » précisent le tarif, ils ne nomment pas l'ouvrage.
+ */
+export function hasStrongLexicalMatch(devisDesc: string, catalogLabel: string): boolean {
+  const labelSansQualif = catalogLabel.replace(/\(.*?\)/g, " ");
+  // Singulier / pluriel : le catalogue dit « murs et plafonds », le devis dit
+  // « mur et plafond ». Sans cette normalisation, le rapprochement le plus
+  // évident du stock échouait. On coupe le -s / -x final AVANT le filtre de
+  // longueur, des deux côtés, pour rester symétrique.
+  const lemmes = (s: string) =>
+    new Set(
+      [...significantTokens(s.replace(/(\w{3,})(s|x)\b/gi, "$1"))],
+    );
+  const labelTokens = [...lemmes(labelSansQualif)];
+  if (labelTokens.length === 0) return false;
+  const descTokens = lemmes(devisDesc);
+  if (descTokens.size === 0) return false;
+  // Le concept principal (premier mot significatif) doit être présent.
+  if (!descTokens.has(labelTokens[0])) return false;
+  const couverts = labelTokens.filter((t) => descTokens.has(t)).length;
+  if (couverts / labelTokens.length < 0.8) return false;
+  return !isSupplyVsLaborMismatch(devisDesc, catalogLabel);
+}
+
 export function hasLexicalOverlap(devisDesc: string, catalogLabel: string): boolean {
   const descTokens = significantTokens(devisDesc);
   const labelTokens = significantTokens(catalogLabel);
@@ -581,7 +623,15 @@ export async function matchSingleLineVectorial(
     };
   }
 
-  const confidence = classifyConfidence(top.similarity);
+  let confidence = classifyConfidence(top.similarity);
+  // Promotion lexicale : un libellé catalogue retrouvé mot pour mot dans la
+  // ligne de devis vaut mieux qu'un score vectoriel à deux centièmes du seuil.
+  if (confidence === "medium" && hasStrongLexicalMatch(workItem.description ?? "", top.label ?? "")) {
+    confidence = "high";
+    console.log(
+      `[VectorialMatch] promotion lexicale "${(workItem.description ?? "").slice(0, 40)}" → "${top.label}" (sim ${top.similarity?.toFixed(3)})`,
+    );
+  }
   const allCandidates: VectorialCandidate[] = rows.map((r) => ({
     job_type: r.job_type,
     label: r.label,

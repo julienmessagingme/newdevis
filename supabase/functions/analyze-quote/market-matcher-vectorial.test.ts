@@ -22,6 +22,7 @@ import {
   matchSingleLineVectorial,
   lookupMarketPricesVectorial,
   type VectorialJobTypePriceResult,
+  hasStrongLexicalMatch,
 } from "./market-matcher-vectorial.ts";
 import type { WorkItemFull } from "./market-prices.ts";
 
@@ -49,12 +50,31 @@ console.log("\n[market-matcher-vectorial.test.ts — V3.5.0 Phase C.4]\n");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // classifyConfidence — seuils
+
+// ── Promotion lexicale (2026-08-30) ─────────────────────────────────────────
+await test("hasStrongLexicalMatch — libelle retrouve mot pour mot → promu", () => {
+  assertEq(hasStrongLexicalMatch("Ponçage plafond et mur", "Ponçage murs et plafonds (préparation peinture)"), true);
+});
+await test("hasStrongLexicalMatch — enduit ratissage mural → promu", () => {
+  assertEq(hasStrongLexicalMatch("enduit ratissage mural", "Enduit de ratissage mural (préparation avant peinture)"), true);
+});
+await test("hasStrongLexicalMatch — ossature bois vs cloture bois → REFUSE (nom de tete absent)", () => {
+  assertEq(hasStrongLexicalMatch("Fourniture et pose d'ossature bois 60 x180", "Clôture bois occultante (fourni+posé)"), false);
+});
+await test("hasStrongLexicalMatch — fourniture de colle vs pose carrelage → REFUSE (garde fourniture/pose)", () => {
+  assertEq(hasStrongLexicalMatch("Fourniture de la colle à carrelage 577", "Pose carrelage sol (hors fourniture)"), false);
+});
+await test("hasStrongLexicalMatch — plomberie suivant plan vs petite intervention → REFUSE (couverture < 80%)", () => {
+  assertEq(hasStrongLexicalMatch("Plomberie, Sanitaire (suivant plan)", "Plomberie : petite intervention"), false);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("[classifyConfidence]");
 
 test("0.95 → high", () => assertEq(classifyConfidence(0.95), "high"));
-test("0.85 → high (limite inférieure)", () => assertEq(classifyConfidence(0.85), "high"));
-test("0.84 → medium", () => assertEq(classifyConfidence(0.84), "medium"));
+// 2026-06-30 — seuil HIGH recalibré 0.85 → 0.77 ; ces tests n'avaient pas suivi.
+test("0.77 → high (limite inférieure)", () => assertEq(classifyConfidence(0.77), "high"));
+test("0.76 → medium", () => assertEq(classifyConfidence(0.76), "medium"));
 test("0.70 → medium (limite inférieure)", () => assertEq(classifyConfidence(0.70), "medium"));
 test("0.69 → low", () => assertEq(classifyConfidence(0.69), "low"));
 test("0.50 → low (limite inférieure)", () => assertEq(classifyConfidence(0.50), "low"));
