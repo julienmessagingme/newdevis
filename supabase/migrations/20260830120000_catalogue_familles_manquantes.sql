@@ -18,7 +18,7 @@
 -- tombent bien dans les fourchettes retenues (hourdis 88,6 €/m², bardage
 -- 90 €/m²).
 --
--- ⚠️ À faire relire par Julien, comme les 25 entrées du 27/08.
+-- ✅ Fourchettes relues et VALIDÉES par Johan le 2026-08-30.
 -- ⚠️ Après application : `node scripts/seed_market_prices_embeddings.mjs`
 --    sinon les entrées existent mais restent INTROUVABLES par la recherche
 --    vectorielle.
@@ -41,7 +41,7 @@ insert into public.market_prices (
     85, 120, 170,
     0, 0, 0,
     'travaux', 'maconnerie_structure', 'FR',
-    'recherche web 2026-08-30 (toutsurlebeton.fr, habitatpresto.com, prix-travaux-m2.com) — à valider Julien',
+    'recherche web 2026-08-30 (toutsurlebeton.fr, habitatpresto.com, prix-travaux-m2.com) — VALIDÉ Johan 2026-08-30',
     'Hourdis béton 85-110 €/m², hourdis polystyrène isolant 110-170 €/m². Fourniture et pose comprises.'
   ),
   (
@@ -51,7 +51,7 @@ insert into public.market_prices (
     80, 120, 170,
     0, 0, 0,
     'travaux', 'bardage_exterieur', 'FR',
-    'recherche web 2026-08-30 (prix-pose.com, ootravaux.fr, hellopro.fr) — à valider Julien',
+    'recherche web 2026-08-30 (prix-pose.com, ootravaux.fr, hellopro.fr) — VALIDÉ Johan 2026-08-30',
     'Bâtiment industriel ou agricole : plateaux acier + isolant + parement extérieur. Fourniture 10-25 €/m², pose 40-80 €/m².'
   ),
   (
@@ -64,7 +64,7 @@ insert into public.market_prices (
     0, 0, 0,
     7300, 12000, 18200,
     'travaux', 'plomberie_sanitaires', 'FR',
-    'recherche web 2026-08-30 (travaux.com, renovbox.fr, prix-travaux-m2.com) — à valider Julien',
+    'recherche web 2026-08-30 (travaux.com, renovbox.fr, prix-travaux-m2.com) — VALIDÉ Johan 2026-08-30',
     'Lot plomberie complet (suivant plan) : réfection ou création des réseaux d''un logement d''environ 100 m², équivalent 50-110 €/m² HT. Fourchette large assumée — dépend du nombre de points d''eau et de l''accessibilité des réseaux.'
   )
 on conflict (job_type) do nothing;
