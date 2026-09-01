@@ -409,6 +409,7 @@ const GEMINI_URL =
 
 import type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
 import { detectPrestationIntellectuelleReglementee } from "@/lib/analyse/detectPrestationIntellectuelle";
+import { diagnostiquerQuantites } from "@/lib/analyse/surfaceManquante";
 export type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
@@ -2452,7 +2453,24 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       PRODUCT_CODE_RE_UNITS.test(String(t?.libelle ?? "").split("\n")[0])
     ).length;
     const equipmentLikeQuote = unitlessTravaux.length > 0 && unitlessWithCode / unitlessTravaux.length >= 0.5;
-    const unitsMissingEffective = hasUnitsMissing && !equipmentLikeQuote;
+
+    // 2026-08-30 — CONTRÔLE D'ABSENCE. Jusqu'ici on réclamait les quantités dès
+    // qu'on n'en trouvait pas, sans vérifier qu'elles n'étaient pas écrites
+    // noir sur blanc dans le devis. Quand elles y sont, on demande à
+    // l'utilisateur d'exiger de son artisan ce que son devis contient déjà —
+    // le genre de détail qui fait perdre la confiance d'un coup. Mesuré sur
+    // 220 devis FR : le cas est rare (3 sur 133) mais entièrement détectable.
+    const diagQuantites = diagnostiquerQuantites(
+      travauxForUnits as Array<Record<string, unknown>>,
+      [String(extractedView.resume_factuel ?? "")],
+    );
+    if (diagQuantites.surfaceEcriteNonExtraite) {
+      console.log(
+        `[conclusion] quantités : surface « ${diagQuantites.surfaceEcriteNonExtraite} » présente dans le devis mais non extraite — on ne réclame rien`,
+      );
+    }
+    const unitsMissingEffective =
+      hasUnitsMissing && !equipmentLikeQuote && !diagQuantites.surfaceEcriteNonExtraite;
 
     // V3.5.0 Phase C — Détection mode vectoriel
     // Si le matcher vectoriel a tourné, chaque "groupe" contient une seule ligne
@@ -3049,10 +3067,8 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         })(),
         // Somme des écarts réellement attribués à un poste nommé.
         surcout_nomme: (() => {
-          const anomalies = Array.isArray((conclusionData as ConclusionData).anomalies)
-            ? ((conclusionData as ConclusionData).anomalies as Array<Record<string, unknown>>)
-            : [];
-          const total = anomalies.reduce((acc, a) => {
+          const anomalies = (conclusionData as ConclusionData).anomalies ?? [];
+          const total = anomalies.reduce((acc: number, a) => {
             const v = Number(a?.surcout_estime ?? 0);
             return Number.isFinite(v) && v > 0 ? acc + v : acc;
           }, 0);
