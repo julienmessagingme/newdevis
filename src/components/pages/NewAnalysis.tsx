@@ -584,6 +584,17 @@ const NewAnalysis = () => {
                 <p className="text-xs text-muted-foreground">
                   PDF, JPG ou PNG • Plusieurs photos acceptées • Maximum 10 Mo
                 </p>
+                {/* 2026-09-03 — consignes AVANT l'envoi. Un utilisateur a
+                    déposé 11 devis fusionnés en un seul PDF : le fichier
+                    passait toutes les validations puis l'extraction échouait
+                    90 secondes plus tard. Mieux vaut cadrer en amont que
+                    refuser après. */}
+                <div className="mt-4 pt-3 border-t border-border/60 text-xs text-muted-foreground/90 space-y-1 text-left max-w-xs mx-auto">
+                  <p className="font-medium text-foreground/70">Pour une analyse fiable :</p>
+                  <p>• <strong>un seul devis</strong> par envoi — si vous en avez plusieurs, envoyez-les l'un après l'autre pour pouvoir les comparer ensuite</p>
+                  <p>• <strong>8 pages maximum</strong></p>
+                  <p>• un devis de <strong>travaux, établi en France</strong> — nos prix de référence sont français</p>
+                </div>
               </div>
             ) : sourceImages.length > 0 ? (
               /* Carte multi-photos */
