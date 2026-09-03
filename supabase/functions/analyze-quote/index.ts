@@ -362,10 +362,17 @@ serve(async (req) => {
           .eq("id", extractionId);
       }
 
+      // ⚠️ 2026-09-03 — « failed » N'EST PAS un statut valide pour `analyses` :
+      // la contrainte n'autorise que completed / pending / processing / error.
+      // Cet UPDATE était donc SILENCIEUSEMENT REJETÉ par la base, l'analyse
+      // restait en `processing`, et l'utilisateur regardait un spinner qui ne
+      // s'arrêtait jamais. 11 analyses étaient dans cet état, la plus ancienne
+      // depuis 177 jours. Ne jamais écrire « failed » ici — `document_extractions`
+      // l'accepte, `analyses` non.
       await supabase
         .from("analyses")
         .update({
-          status: "failed",
+          status: "error",
           error_message: "OCR a échoué récemment pour ce document. Veuillez relancer manuellement."
         })
         .eq("id", analysisId);
@@ -723,9 +730,11 @@ serve(async (req) => {
           .eq("id", extractionId);
       }
 
+      // Même piège que plus haut : « error », jamais « failed », sinon l'UPDATE
+      // est rejeté et l'analyse reste bloquée en `processing`.
       await supabase
         .from("analyses")
-        .update({ status: "failed", error_message: publicMessage })
+        .update({ status: "error", error_message: publicMessage })
         .eq("id", analysisId);
 
       // Alerte admin immédiate (fire-and-forget)

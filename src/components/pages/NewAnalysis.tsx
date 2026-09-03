@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnonymousAuth } from "@/hooks/useAnonymousAuth";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
 import { FILE_VALIDATION, UPLOAD, ANALYSIS } from "@/lib/constants";
+import { verifierLongueurPdf } from "@/lib/analyse/comptePagesPdf";
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
@@ -217,6 +218,15 @@ const NewAnalysis = () => {
     } catch (err) {
       console.error("File read error:", err);
       toast.error("Impossible de lire le fichier. Veuillez réessayer.");
+      return;
+    }
+
+    // 2026-09-03 — un PDF trop long ne passera pas l'extraction (mesuré :
+    // AI_TIMEOUT à 93 s sur 11 pages fusionnées). On le dit tout de suite
+    // plutôt que de laisser l'utilisateur devant un spinner qui finira mal.
+    const tropLong = await verifierLongueurPdf(selectedFile);
+    if (tropLong) {
+      toast.error(tropLong, { duration: 10000 });
       return;
     }
 

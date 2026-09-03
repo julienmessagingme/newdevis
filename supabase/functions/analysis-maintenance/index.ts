@@ -196,7 +196,40 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const windowStart = new Date(Date.now() - WINDOW_H * 60 * 60 * 1000).toISOString();
 
+    // ── 0. Débloquer les analyses COINCÉES en `processing` ─────────────────────
+    // 2026-09-03 — rien ne les récupérait : ce cron ne regardait que les
+    // statuts d'erreur, et `system-health-alerts` se contente de les signaler
+    // par email. Résultat : 11 analyses bloquées, la plus ancienne depuis
+    // 177 jours, chacune montrant à son utilisateur un spinner éternel. Une
+    // extraction dépasse rarement 2 minutes ; au-delà de 15, le run est mort.
+    const STUCK_MIN = 15;
+    const stuckBefore = new Date(Date.now() - STUCK_MIN * 60 * 1000).toISOString();
+    const { data: stuck } = await supabase
+      .from("analyses")
+      .select("id, file_name, created_at, error_message")
+      .eq("status", "processing")
+      .lt("created_at", stuckBefore)
+      .limit(100);
+
+    if (stuck && stuck.length > 0) {
+      console.warn(`[maintenance] ${stuck.length} analyse(s) coincée(s) en processing → passage en error`);
+      for (const s of stuck as Array<{ id: string; error_message: string | null }>) {
+        await supabase
+          .from("analyses")
+          .update({
+            status: "error",
+            // On conserve l'étape atteinte : c'est la seule trace de l'endroit
+            // où le pipeline s'est arrêté.
+            error_message: `Traitement interrompu (bloqué à « ${s.error_message ?? "étape inconnue"} »)`,
+          })
+          .eq("id", s.id);
+      }
+    }
+
     // ── 1. Trouver les analyses en erreur dans la fenêtre ──────────────────────
+    // ⚠️ « failed » n'est PAS un statut valide pour `analyses` (contrainte :
+    // completed / pending / processing / error). Le garder ici ne casse rien
+    // mais ne ramène jamais rien — conservé uniquement pour mémoire du piège.
     const { data: failed, error: fetchErr } = await supabase
       .from("analyses")
       .select("id, status, error_message, created_at, file_name, user_id")
