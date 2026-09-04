@@ -102,8 +102,14 @@ const jsonLd = [
 ---
 
 <BaseLayout
-  title="Comparer plusieurs devis travaux : guide + analyse gratuite"
-  description="Comparez facilement plusieurs devis travaux. Prix, garanties, prestations et fiabilité des artisans. Analyse gratuite de vos devis."
+  {/* 2026-09-04 (SEO) — titre différencié de /analyser-devis-travaux, qui
+      captait la requête à sa place : trois landings promettaient « analyse
+      gratuite de votre devis » et Google choisissait l'autre. L'angle propre
+      à cette page est la MISE EN REGARD de plusieurs devis, poste par poste —
+      c'est ce que dit désormais le titre, et c'est une fonction que les
+      guides éditoriaux concurrents n'offrent pas. */}
+  title="Comparer 2 ou 3 devis travaux poste par poste — outil gratuit"
+  description="Mettez vos devis côte à côte : prix unitaires ligne à ligne, prestations incluses ou absentes, garanties et fiabilité de chaque artisan. Comparaison automatique et gratuite."
   canonical="https://www.verifiermondevis.fr/comparer-devis-travaux"
   ogType="website"
   jsonLd={jsonLd}

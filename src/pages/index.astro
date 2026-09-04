@@ -435,7 +435,18 @@ const jsonLd = {
       <section class="py-10 bg-slate-50 border-t border-slate-100">
         <div class="container px-4 max-w-4xl mx-auto">
           <p class="text-center text-sm font-semibold text-slate-500 uppercase tracking-wide mb-6">Nos guides travaux</p>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <!-- 2026-09-04 (SEO) — la page « comparer » ne recevait AUCUN lien de
+               l'accueil, alors que ses trois concurrentes internes en avaient
+               un. Google choisissait donc /verifier ou /analyser sur les
+               requêtes de comparaison. Ancre exacte = la requête visée. -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <a href="/comparer-devis-travaux" class="flex items-start gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-sky-300 hover:bg-sky-50/30 transition-colors">
+              <span class="text-xl flex-shrink-0">⚖️</span>
+              <div>
+                <p class="font-semibold text-slate-800 text-sm leading-snug">Comparer des devis travaux</p>
+                <p class="text-xs text-slate-500 mt-0.5">Poste par poste, prix unitaires</p>
+              </div>
+            </a>
             <a href="/verifier-devis-travaux" class="flex items-start gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
               <span class="text-xl flex-shrink-0">📋</span>
               <div>
