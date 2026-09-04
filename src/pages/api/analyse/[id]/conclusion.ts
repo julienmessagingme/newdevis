@@ -25,7 +25,7 @@ import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 import { notifyTelegram } from "@/lib/integrations/telegramNotify";
-import { buildLeviers, buildVerdictLigne } from "@/lib/analyse/leviersBuilder";
+import { buildLeviers, buildVerdictLigne, COUVERTURE_MIN_POUR_AFFIRMER_PCT } from "@/lib/analyse/leviersBuilder";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
@@ -681,10 +681,34 @@ function sanitizeLLMText(
   text: string,
   verdict: "signer" | "a_negocier" | "refuser",
   hasServerSurcout: boolean = false,
+  rienDeComparable: boolean = false,
 ): string {
   if (!text) return text;
 
   let result = text;
+
+  // ── Niveau 0 — rien n'a été comparé : aucune affirmation de prix (2026-09-04)
+  // Le verdict est déjà neutralisé plus bas, mais Gemini écrit ses propres
+  // phrases : sans ce filtre, « les prix pratiqués sont corrects » réapparaît
+  // dans la phrase d'intro, juste au-dessus d'un verdict qui dit l'inverse.
+  // On ne remplace PAS par un jugement opposé — on renvoie à l'absence de
+  // référence, seul fait établi.
+  if (rienDeComparable) {
+    const SANS_REFERENCE: Array<[RegExp, string]> = [
+      [/\bdans la norme\b/gi,                                  "sans référence de prix opposable"],
+      [/\b(les )?prix (pratiqués |affichés |proposés )?(sont |restent |semblent |paraissent )?(corrects?|justes?|cohérents?|raisonnables?|conformes?)\b/gi,
+                                                               "les prix ne sont rattachables à aucun tarif de référence"],
+      [/\b(prix|tarif[s]?) (juste[s]?|correct[s]?|raisonnable[s]?)\b/gi,
+                                                               "prix sans référence comparable"],
+      [/\bconforme[s]? (aux|au) (prix|tarifs?|fourchettes?) (du |de )?march[ée]\b/gi,
+                                                               "sans équivalent dans nos références"],
+      [/\bse situe dans (la |les )?(norme|fourchettes?)\b/gi,   "n'a pas d'équivalent dans nos références"],
+      [/\b(rien|aucun[e]?) (à|a) signaler sur (les )?prix\b/gi, "prix non vérifiables faute de référence"],
+    ];
+    for (const [pattern, replacement] of SANS_REFERENCE) {
+      result = result.replace(pattern, replacement);
+    }
+  }
 
   // ── Niveau 1 — toujours interdit (anti-hallucination universelle) ────────────
   // Ces termes sont systématiquement source de contradiction à l'écran.
@@ -1910,6 +1934,10 @@ export const POST: APIRoute = async ({ params, request }) => {
     ? Math.round((comparableClamped / coverageDenom) * 100)
     : null;
   const montantNonCompare = Math.max(0, Math.round(coverageDenom - comparableClamped));
+  // 2026-09-04 (cas DEV-202608-1) — « nous n'avons rien pu comparer ». Calculé
+  // ici parce qu'il sert à DEUX endroits : la sanitization des textes du LLM
+  // (plus bas, avant l'assemblage du verdict) et la garde de verdict elle-même.
+  const rienDeComparable = coveragePct !== null && coveragePct < COUVERTURE_MIN_POUR_AFFIRMER_PCT;
   const tauxTVA    = typeof totaux.taux_tva === "number" ? totaux.taux_tva : null;
   const workType   = (analysis.work_type as string) || "";
   const resume     = (analysis.resume   as string) || "";
@@ -2730,18 +2758,20 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "",
       sanitizeVerdict,
       hasServerSurcout,
+      rienDeComparable,
     );
     const justifications = sanitizeLLMText(
       typeof parsed.justifications === "string" ? parsed.justifications.trim() : "",
       sanitizeVerdict,
       hasServerSurcout,
+      rienDeComparable,
     );
     // Sanitise les explications des anomalies
     sanitizedAnomalies.forEach(a => {
-      if (a.explication) a.explication = sanitizeLLMText(a.explication, sanitizeVerdict, hasServerSurcout);
+      if (a.explication) a.explication = sanitizeLLMText(a.explication, sanitizeVerdict, hasServerSurcout, rienDeComparable);
     });
     // Sanitise les actions (évite "vous pouvez signer" dans les actions quand verdict ≠ signer)
-    const rawActions = mergedActions.slice(0, 3).map(a => sanitizeLLMText(a, sanitizeVerdict, hasServerSurcout));
+    const rawActions = mergedActions.slice(0, 3).map(a => sanitizeLLMText(a, sanitizeVerdict, hasServerSurcout, rienDeComparable));
 
     // ── Note contextuelle marché (seuils adaptatifs UX) ──────────────────────────
     // Affichée dans ConclusionIA quand le moteur a assoupli les seuils.
@@ -2826,6 +2856,40 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       verdictDecision = "signer_avec_negociation";
       v3417Escalated = true;
       console.warn(`[conclusion] V3.4.17 escalade signer → a_negocier (unités=${hasUnitsMissing}, groupements=${hasInvalidGroupings})`);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // GARDE « ON NE CHIFFRE QUE CE QU'ON A COMPARÉ » (2026-09-04, cas DEV-202608-1)
+    //
+    // Le devis facturait « 22 jours de Constructeur Bois » : la seule ligne
+    // rapprochée est ressortie avec une fourchette 0–0 € et la mention
+    // « prestation spécifique, pas de référence standardisée ». Le verdict
+    // affiché était pourtant « dans la norme — signer ».
+    //
+    // Mesure sur les 164 dernières analyses : 29 ont une couverture de 0 %,
+    // dont 14 affirment « dans la norme » sans qu'aucune d'elles ne soit
+    // marquée « comparaison indicative ». Soit 8,5 % du stock qui porte une
+    // affirmation de conformité tarifaire que rien ne soutient.
+    //
+    // On bascule en ORANGE NEUTRE (`eleve_justifie` — valeur déjà utilisée par
+    // les bypass hors-scope pour « pas de vrai verdict possible » ; côté
+    // utilisateur elle ne pilote QUE la couleur, le texte vient de
+    // `verdict_ligne`). Surtout PAS `a_negocier` : réclamer une négociation
+    // sans le moindre écart chiffré serait le conseil intempestif que Johan
+    // a explicitement proscrit.
+    //
+    // Les hard blocks et les verdicts déjà orange/rouge ne sont pas touchés :
+    // un risque d'entreprise ou une clause abusive reste vrai sans référentiel.
+    // ──────────────────────────────────────────────────────────────────────────
+    let couvertureEscalated = false;
+    if (verdictGlobal === "dans_la_norme" && !preEngine.is_hard_block && rienDeComparable) {
+      console.warn(
+        `[conclusion] GARDE COUVERTURE — ${coveragePct}% du montant comparé en confiance haute ` +
+        `(< ${COUVERTURE_MIN_POUR_AFFIRMER_PCT}%) : "dans_la_norme" interdit, bascule en verdict neutre.`,
+      );
+      verdictGlobal = "eleve_justifie";
+      verdictDecision = "signer_avec_negociation";
+      couvertureEscalated = true;
     }
 
     let coherenceEscalated = false;
@@ -2927,11 +2991,11 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // les règles ALWAYS_FORBIDDEN (anti-contradiction universelle).
     const finalSanitizeVerdict: "signer" | "a_negocier" | "refuser" = finalVerdictForReasons;
     if (verdict_reasons.summary) {
-      verdict_reasons.summary = sanitizeLLMText(verdict_reasons.summary, finalSanitizeVerdict, hasServerSurcout);
+      verdict_reasons.summary = sanitizeLLMText(verdict_reasons.summary, finalSanitizeVerdict, hasServerSurcout, rienDeComparable);
     }
     if (Array.isArray(verdict_reasons.reasons)) {
       verdict_reasons.reasons = verdict_reasons.reasons.map(r =>
-        sanitizeLLMText(r, finalSanitizeVerdict, hasServerSurcout)
+        sanitizeLLMText(r, finalSanitizeVerdict, hasServerSurcout, rienDeComparable)
       );
     }
 
@@ -2959,7 +3023,9 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       (preEngine.overprice_pct ?? 0) > 0.50
       && sanitizedAnomalies.length === 0
       && (wa?.anomalies_count ?? 0) === 0
-    ) || hasUnitsMissing || hasInvalidGroupings || vectorialUncertaintyTriggered;
+    // 2026-09-04 — couverture quasi nulle : la comparaison EST indicative par
+    // définition, et l'UI doit masquer le hero chiffré (règle 2 de cohérence).
+    ) || hasUnitsMissing || hasInvalidGroupings || vectorialUncertaintyTriggered || rienDeComparable;
 
     conclusionData = {
       verdict_global:          verdictGlobal,

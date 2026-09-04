@@ -462,7 +462,22 @@ function collectCandidates(s: LevierSignals): Candidate[] {
   // l'artisan (levierQuestion retourne null pour ce type).
   const coverage = s.comparable_coverage_pct;
   const nonCompare = s.montant_non_compare ?? 0;
-  if (coverage !== null && coverage !== undefined && coverage < 60 && nonCompare >= 1000) {
+  // 2026-09-04 — deux situations distinctes, deux libellés. Quand RIEN n'est
+  // comparable, écrire « une partie de ce devis » est faux et minimise : le
+  // levier devient prioritaire (ce n'est plus un bonus, c'est la seule action
+  // utile) et le seuil de 1 000 € ne s'applique pas — sur un devis de 600 €
+  // dont on n'a rien pu chiffrer, le conseil vaut tout autant.
+  if (rienNestComparable(s)) {
+    out.push({
+      priority: 55,
+      niveau: "important",
+      objectif: "securiser",
+      type: "second_avis",
+      titre: "Demandez un second devis : nous n'avons pas pu vérifier ces prix",
+      detail:
+        "Aucune ligne de ce devis ne correspond à un tarif de référence que nous puissions opposer — prestation sur-mesure, vendue au jour ou à l'heure, ou trop spécifique pour qu'un référentiel existe. Ce n'est pas un signe que le prix est mauvais : c'est que personne, ni nous ni un comparateur, ne peut l'affirmer. Un devis concurrent sur le même périmètre est le seul point de comparaison réel.",
+    });
+  } else if (coverage !== null && coverage !== undefined && coverage < 60 && nonCompare >= 1000) {
     out.push({
       priority: 20,
       niveau: "bonus",
@@ -499,6 +514,42 @@ export function buildLeviers(s: LevierSignals): Levier[] {
     })
     .slice(0, 3)
     .map(({ niveau, objectif, type, titre, detail }) => ({ niveau, objectif, type, titre, detail }));
+}
+
+/**
+ * 2026-09-04 (cas DEV-202608-1, retour Johan) — SEUIL EN DESSOUS DUQUEL NOUS
+ * N'AVONS RIEN COMPARÉ.
+ *
+ * Sur un devis de 2 200 € facturé « 22 jours de Constructeur Bois », la seule
+ * ligne rapprochée est sortie avec une fourchette **0–0 €** et la mention
+ * « prestation spécifique, pas de référence standardisée ». Nous avons quand
+ * même conclu « dans la norme ». Mesuré ensuite sur les 164 dernières
+ * analyses : **14 d'entre elles (8,5 %) affirment « dans la norme » avec 0 %
+ * du montant réellement comparé** — de 168 € à 19 150 € de devis.
+ *
+ * Le moteur avait des sorties anticipées pour l'étranger, le courtier, le
+ * hors-scope et le devis incomplet, mais aucune pour le cas le plus simple :
+ * « nous n'avons pas su chiffrer ». Une conformité affirmée sans référentiel
+ * est indéfendable face à l'artisan, et c'est exactement ce qu'un client
+ * emporte en réunion.
+ *
+ * Le seuil est bas VOLONTAIREMENT : à 5 % on dit « nous n'avons rien pu
+ * comparer », ce qui est vérifiable et non discutable. Un seuil intermédiaire
+ * (30 %, 60 %) déclencherait le débat « alors vous avez comparé, oui ou non ? »
+ * — et cette zone-là est déjà traitée par le levier « second avis » et par le
+ * motif qui nomme le montant sans référence.
+ */
+export const COUVERTURE_MIN_POUR_AFFIRMER_PCT = 5;
+
+/**
+ * true quand la part du devis rapprochée en confiance HAUTE est négligeable :
+ * aucune affirmation de conformité tarifaire n'est alors permise.
+ * `null`/`undefined` (couverture non mesurée) ⇒ false — on ne déclenche jamais
+ * sur une absence de mesure, seulement sur une mesure basse.
+ */
+export function rienNestComparable(s: Pick<LevierSignals, "comparable_coverage_pct">): boolean {
+  const cov = s.comparable_coverage_pct;
+  return cov !== null && cov !== undefined && cov < COUVERTURE_MIN_POUR_AFFIRMER_PCT;
 }
 
 /**
@@ -541,6 +592,13 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
     motif = s.comptes_opaques
       ? `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage alors que la société ne publie pas ses comptes — limitez votre exposition`
       : `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage de 30 %`;
+  } else if (rienNestComparable(s)) {
+    // 2026-09-04 — RIEN N'A ÉTÉ COMPARÉ. On le dit, au lieu d'affirmer une
+    // conformité qu'aucune fourchette ne soutient. Placé APRÈS les signaux de
+    // fait (entreprise, clauses, espèces, acompte, quantités) : ceux-là restent
+    // vrais même sans référentiel de prix, et dominent donc toujours.
+    motif =
+      "aucune des prestations de ce devis ne correspond à un tarif de référence que nous puissions opposer — nous ne sommes pas en mesure de dire si le prix est juste, et un second devis est le seul comparatif possible";
   } else if (s.verdict_decisionnel === "signer") {
     // 2026-08-27 (cas ZANNOU v2) — couverture partielle : ne pas affirmer une
     // conformité globale quand une grosse part du devis n'a pas de référence.

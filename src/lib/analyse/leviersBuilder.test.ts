@@ -8,6 +8,7 @@ import {
   buildLeviers,
   buildVerdictLigne,
   devisAgeMonths,
+  rienNestComparable,
   type LevierSignals,
 } from "./leviersBuilder";
 
@@ -441,5 +442,93 @@ describe("devisAgeMonths", () => {
   });
   it("date future → null", () => {
     expect(devisAgeMonths("2027-01-01", "2026-08-15")).toBeNull();
+  });
+});
+
+/**
+ * 2026-09-04 (cas DEV-202608-1) — on n'affirme pas une conformité tarifaire
+ * quand on n'a comparé rien du tout. Le devis analysé facturait « 22 jours de
+ * Constructeur Bois » ; la seule ligne rapprochée ressortait avec une
+ * fourchette 0–0 € et le verdict affiché était « dans la norme ».
+ */
+describe("rienNestComparable — on ne dit pas 'dans la norme' sans référence", () => {
+  it("couverture 0 % → vrai", () => {
+    expect(rienNestComparable({ comparable_coverage_pct: 0 })).toBe(true);
+  });
+
+  it("couverture 4 % → vrai (sous le seuil)", () => {
+    expect(rienNestComparable({ comparable_coverage_pct: 4 })).toBe(true);
+  });
+
+  it("couverture 5 % → faux (le seuil est exclusif)", () => {
+    expect(rienNestComparable({ comparable_coverage_pct: 5 })).toBe(false);
+  });
+
+  it("couverture non mesurée → faux : on ne déclenche que sur une mesure", () => {
+    expect(rienNestComparable({ comparable_coverage_pct: null })).toBe(false);
+    expect(rienNestComparable({ comparable_coverage_pct: undefined })).toBe(false);
+  });
+
+  it("verdict_ligne dit l'absence de référence au lieu d'affirmer un prix juste", () => {
+    const s: LevierSignals = {
+      ...base,
+      total_ht: 2_200,
+      work_type: "Travaux de rénovation",
+      comparable_coverage_pct: 0,
+      montant_non_compare: 2_200,
+    };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).toMatch(/aucune|pas en mesure/i);
+    expect(v.resume).not.toMatch(/dans la norme|bon prix|prix juste/i);
+    // Le montant du devis reste dit — c'est un fait, pas une appréciation.
+    // (fmtEuros utilise une espace fine insécable U+202F)
+    expect(v.resume).toMatch(/2\s?200\s?€ HT/);
+  });
+
+  it("aucune marge de négociation annoncée quand rien n'est comparable", () => {
+    const s: LevierSignals = {
+      ...base,
+      total_ht: 2_200,
+      comparable_coverage_pct: 0,
+      montant_non_compare: 2_200,
+    };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.marge).toBeNull();
+  });
+
+  it("le levier second avis devient prioritaire et ne dit plus 'une partie'", () => {
+    const s: LevierSignals = {
+      ...base,
+      total_ht: 600,
+      comparable_coverage_pct: 0,
+      montant_non_compare: 600,
+    };
+    const leviers = buildLeviers(s);
+    const secondAvis = leviers.find((l) => l.type === "second_avis");
+    expect(secondAvis).toBeDefined();
+    expect(secondAvis!.niveau).toBe("important");
+    expect(secondAvis!.detail).not.toMatch(/une partie de ce devis/i);
+    // Sous 1 000 € le levier de couverture partielle ne se déclenchait pas :
+    // ici il DOIT sortir quand même, l'absence de référence est totale.
+    expect(leviers[0].type).toBe("second_avis");
+  });
+
+  it("couverture correcte → comportement historique inchangé", () => {
+    const s: LevierSignals = { ...base, comparable_coverage_pct: 85, montant_non_compare: 200 };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).toMatch(/fourchettes du march/i);
+    expect(buildLeviers(s).some((l) => l.type === "second_avis")).toBe(false);
+  });
+
+  it("une entreprise à risque domine toujours l'absence de référence", () => {
+    const s: LevierSignals = {
+      ...base,
+      comparable_coverage_pct: 0,
+      montant_non_compare: 2_200,
+      entreprise_risque: "entreprise radiée",
+      verdict_decisionnel: "ne_pas_signer",
+    };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).toMatch(/entreprise/i);
   });
 });
