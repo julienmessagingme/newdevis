@@ -6,6 +6,7 @@ import AdminHeader from "@/components/admin/sections/AdminHeader";
 import { AdminLoading, AdminAccessDenied, AdminKPIsError } from "@/components/admin/sections/AdminGuards";
 import UsageKPIsSection from "@/components/admin/sections/UsageKPIsSection";
 import ChartsSection from "@/components/admin/sections/ChartsSection";
+import VisitsFunnelSection from "@/components/admin/sections/VisitsFunnelSection";
 import ScoringKPIsSection from "@/components/admin/sections/ScoringKPIsSection";
 import DocumentsKPIsSection from "@/components/admin/sections/DocumentsKPIsSection";
 import BusinessKPIsSection from "@/components/admin/sections/BusinessKPIsSection";
@@ -198,6 +199,9 @@ const Admin = () => {
         <UsageKPIsSection kpis={kpis} />
         <GmcKPIsSection kpis={gmcKpis} loading={gmcLoading} />
         <DoInterestSection kpis={doKpis} loading={doLoading} />
+        {/* 2026-09-04 — funnel visites → analyses, place AVANT les courbes
+            d'analyses : c'est le haut de l'entonnoir. */}
+        <VisitsFunnelSection />
         <ChartsSection kpis={kpis} />
         <ScoringKPIsSection kpis={kpis} />
         <DocumentsKPIsSection kpis={kpis} />

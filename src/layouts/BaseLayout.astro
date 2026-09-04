@@ -170,6 +170,28 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
         }
         try { if (localStorage.getItem('vmd_internal') === '1') return; } catch (e) {}
 
+        // ── 2026-09-04 (demande Johan) — MESURE D'AUDIENCE FIRST-PARTY ──────
+        // GA4 ne compte que les visiteurs qui acceptent les cookies : rapporter
+        // nos analyses, comptées à 100 % en base, à ce dénominateur amputé
+        // donnerait un funnel faussement flatteur. On compte donc nous-mêmes,
+        // sans cookie ni identifiant persistant (empreinte serveur rotative,
+        // cf. /api/track/visit). Ce beacon est APRÈS le garde `vmd_internal` :
+        // les visites de l'équipe ne sont jamais comptées.
+        try {
+          var corps = JSON.stringify({
+            path: window.location.pathname,
+            site: (window.location.hostname || '').indexOf('gerermonchantier') !== -1 ? 'gmc' : 'vmd'
+          });
+          // sendBeacon survit à la navigation ; fetch en repli sur les vieux
+          // navigateurs. keepalive pour ne pas perdre le hit au déchargement.
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon('/api/track/visit', new Blob([corps], { type: 'application/json' }));
+          } else {
+            fetch('/api/track/visit', { method: 'POST', body: corps, keepalive: true,
+              headers: { 'Content-Type': 'application/json' } }).catch(function () {});
+          }
+        } catch (e) { /* la mesure ne doit jamais casser la page */ }
+
         // Détection domaine côté client (multi-domaine sur même build Vercel)
         var hostname = (window.location.hostname || '').toLowerCase();
         var gaId = hostname.indexOf('gerermonchantier') !== -1

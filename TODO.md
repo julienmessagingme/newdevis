@@ -27,6 +27,8 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ## Marketing / tracking (2026-06-05)
 
+- [ ] **Brancher la purge des visites sur un cron (2026-09-04)** : `purge_site_visits()` supprime les lignes de `site_visits` de plus de 13 mois (durée max CNIL pour la mesure d'audience) mais **rien ne l'appelle**. Sans échéance réelle avant octobre 2027, mais à ne pas oublier — c'est une obligation de conservation, pas un confort. ⚠️ Utiliser le motif de cron validé (URL en dur, pas de `current_setting`) et vérifier avec `admin_cron_status`.
+
 - [ ] **Vérifier les 2 domaines dans Meta Business** : Events Manager → Sécurité de la marque → Domaines (ou Business Settings → Domaines). Ajouter `verifiermondevis.fr` ET `gerermonchantier.fr`. Obligatoire pour l'Aggregated Event Measurement (iOS 14.5+) et la priorisation d'événements. Méthode balise meta : Claude ajoute les 2 `<meta name="facebook-domain-verification">` au `BaseLayout` en 2 min (les fournir). Sinon méthode DNS chez OVH.
 - [ ] **Créer les Custom Audiences segmentées par URL** : `contient verifiermondevis.fr` vs `contient gerermonchantier.fr` (un seul pixel mutualisé, on segmente côté Ads Manager).
 - [ ] **Événements de conversion GMC restants** : `Lead` (fin d'analyse VMD, `AnalysisResult.tsx:1272`) et `CompleteRegistration` (inscription, `Register.tsx:136`) sont **déjà câblés** via le helper `src/lib/integrations/metaPixel.ts`. Reste à câbler **côté GMC** : `StartTrial` (démarrage du trial 15 j) et `Subscribe` (passage payant Stripe). Note : les events déjà câblés n'apparaissent pas encore dans Events Manager faute de volume (pixel créé le 5 juin, ~85 visites) — c'est normal, pas un bug.
