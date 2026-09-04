@@ -310,6 +310,68 @@ export async function verifyData(
       }
     }
 
+    // 1a-bis. REPLI SIREN — 2026-09-04 (cas Damien Dubourg EI, devis DEV-202608-1).
+    // Le devis imprimait le SIRET 883135345 00030 : l'ÉTABLISSEMENT 00030 n'existe
+    // dans aucun registre (0 résultat), alors que l'UNITÉ LÉGALE 883135345 existe
+    // et est CESSÉE. On abandonnait sur ce « 0 résultat » et on affichait « SIRET
+    // non trouvé, vous pouvez vérifier sur societe.com » — c'est-à-dire qu'on
+    // renvoyait l'utilisateur faire notre travail, en ratant le seul fait qui
+    // comptait : l'entreprise a cessé son activité (hard block ROUGE).
+    // Les 9 premiers chiffres d'un SIRET sont TOUJOURS le SIREN : quand la
+    // recherche par établissement ne donne rien, celle par unité légale reste due.
+    if (result.lookup_status !== "ok" && siret && siren && siren !== lookupKey) {
+      console.log("[Verify] SIRET introuvable, repli sur le SIREN:", siren);
+      try {
+        const sirenUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(siren)}&page=1&per_page=1`;
+        const sirenResp = await fetch(sirenUrl, { signal: AbortSignal.timeout(6_000) });
+        if (sirenResp.ok) {
+          const sirenData = await sirenResp.json();
+          const entreprise = sirenData.results?.[0];
+          if (entreprise && entreprise.siren === siren) {
+            const dateCreation = entreprise.date_creation || null;
+            const ageYears = dateCreation
+              ? Math.floor((Date.now() - new Date(dateCreation).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+              : null;
+            const siege = entreprise.siege || {};
+            // On passe quand même le SIRET du devis : s'il figure dans
+            // matching_etablissements, on récupère son état exact ; sinon la
+            // règle 3 de resolveCompanyStatus s'applique (unité légale seule).
+            const st = resolveCompanyStatus({
+              uniteLegaleEtat: entreprise.etat_administratif,
+              lookupSiret: siret,
+              matchingEtablissements: entreprise.matching_etablissements,
+            });
+
+            result.entreprise_immatriculee = st.is_active;
+            result.entreprise_radiee = !st.is_active;
+            result.etablissement_ferme = st.etablissement_ferme;
+            result.etablissement_ferme_date = st.etablissement_ferme_date;
+            // Le SIRET imprimé ne correspond à aucun établissement connu de
+            // cette entreprise : fait à dire, mais ORANGE — un NIC obsolète ou
+            // une coquille de saisie sont plus fréquents qu'une fraude.
+            result.etablissement_introuvable = st.status_source === "unite_legale_seule";
+            result.procedure_collective = entreprise.est_en_procedure_collective === true;
+            result.date_creation = dateCreation;
+            result.anciennete_annees = ageYears;
+            result.nom_officiel = entreprise.nom_complet || entreprise.nom_raison_sociale || null;
+            result.adresse_officielle = st.etab_adresse || siege.adresse || null;
+            result.ville_officielle = st.etab_ville || siege.libelle_commune || siege.commune || null;
+            result.lookup_status = "ok";
+            result.lookup_par_siren = true;
+
+            console.log(
+              "[Verify] Repli SIREN OK:", result.nom_officiel,
+              "| active:", st.is_active,
+              "| etab introuvable:", result.etablissement_introuvable,
+            );
+          }
+        }
+      } catch (error) {
+        // Best-effort : le repli ne doit jamais faire échouer la vérification.
+        console.warn("[Verify] Repli SIREN échoué:", error instanceof Error ? error.message : String(error));
+      }
+    }
+
     // 1b. NAME FALLBACK — si le SIRET/SIREN n'a pas permis de retrouver l'entreprise,
     // on tente une recherche textuelle par nom (recherche-entreprises supporte le texte libre).
     // V3.4.19 : on récupère désormais 5 candidats au lieu de 3 et on les passe à

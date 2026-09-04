@@ -305,6 +305,13 @@ export interface VerificationResult {
    *  entreprise ACTIVE. Signal ORANGE (SIRET obsolète), pas un hard block. */
   etablissement_ferme?: boolean;
   etablissement_ferme_date?: string | null;
+  /** 2026-09-04 (cas Damien Dubourg EI) — l'entreprise a été retrouvée par son
+   *  SIREN, mais le SIRET imprimé sur le devis ne correspond à AUCUN
+   *  établissement connu. Signal ORANGE : un NIC obsolète ou une coquille de
+   *  saisie sont plus fréquents qu'une fraude. */
+  etablissement_introuvable?: boolean;
+  /** true quand le résultat vient du repli SIREN et non du SIRET exact. */
+  lookup_par_siren?: boolean;
   procedure_collective: boolean | null;
   date_creation: string | null;
   anciennete_annees: number | null;

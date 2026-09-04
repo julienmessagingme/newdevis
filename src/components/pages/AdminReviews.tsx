@@ -475,6 +475,22 @@ function ReviewDetail({
             </div>
           );
         }
+        // 2026-09-04 (cas devis DEV-202608-1, 2 200 € HT) — relecture NON lancée
+        // par choix : sous le seuil de matérialité. Sans ce cas, le panneau
+        // s'affichait vide avec « ACCORD : ? » et se lisait comme un plantage.
+        const skipped = (op as { skipped?: string; montant_ht?: number; seuil?: number }).skipped;
+        if (skipped) {
+          const montant = (op as { montant_ht?: number }).montant_ht;
+          const seuil = (op as { seuil?: number }).seuil;
+          return (
+            <div className="mb-6 p-3 border border-dashed rounded text-xs text-muted-foreground">
+              🤖 Relecture IA non lancée{" "}
+              {skipped === "montant_sous_seuil" && montant != null && seuil != null
+                ? `— devis à ${montant.toLocaleString("fr-FR")} € HT, sous le seuil de ${seuil.toLocaleString("fr-FR")} € retenu pour la relecture automatique.`
+                : `(${skipped}).`}
+            </div>
+          );
+        }
         if (op.error) {
           const detail = (op as { detail?: string }).detail;
           return (

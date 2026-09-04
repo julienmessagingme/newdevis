@@ -37,6 +37,17 @@ export function calculateScore(
     );
   }
 
+  // 2026-09-04 (cas Damien Dubourg EI) — l'entreprise a été retrouvée par son
+  // SIREN mais le SIRET imprimé ne correspond à aucun établissement connu.
+  // ORANGE et non rouge : un NIC obsolète ou une coquille de saisie sont plus
+  // fréquents qu'une fraude. Inutile de le dire si l'entreprise est déjà
+  // radiée — c'est alors l'information secondaire.
+  if (verified.entreprise_radiee !== true && verified.etablissement_introuvable === true) {
+    oranges.push(
+      "Le numéro SIRET imprimé sur le devis ne correspond à aucun établissement enregistré, alors que l'entreprise existe bien. Demandez un devis portant son SIRET à jour.",
+    );
+  }
+
   // Santé financière via ratios data.economie.gouv.fr
   // ── Guard auto-entrepreneur ──────────────────────────────────────────────────
   // Les auto-entrepreneurs (TVA non applicable, art. 293 B) ne sont pas soumis
