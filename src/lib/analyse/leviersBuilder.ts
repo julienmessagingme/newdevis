@@ -33,6 +33,12 @@ export interface LevierSignals {
   clauses_litigieuses: Array<{ type: string; gravite: string; citation?: string }>;
   /** % cumulé demandé avant prestation, si connu */
   acompte_cumule_pct: number | null;
+  /**
+   * Part de cet acompte adossée à la LIVRAISON du matériel. Payer du matériel
+   * livré est une contrepartie réelle : le conseil devient « exigez la preuve
+   * de livraison », pas « baissez le pourcentage » (retour Johan, 2026-09-03).
+   */
+  acompte_livraison_pct?: number | null;
   paiement_especes_seul: boolean;
   /** Libellé du risque entreprise (radiée, liquidation…), null sinon */
   entreprise_risque: string | null;
@@ -117,6 +123,7 @@ export type LevierType =
   | "quantites"
   | "especes"
   | "acompte"
+  | "acompte_livraison"
   | "surcout_postes"
   | "revision_tarifaire"
   | "assurance"
@@ -232,14 +239,35 @@ function collectCandidates(s: LevierSignals): Candidate[] {
     : "";
 
   if (s.acompte_cumule_pct !== null && s.acompte_cumule_pct > 50) {
-    out.push({
-      priority: 80,
-      niveau: "puissant",
-      objectif: "negocier",
-      type: "acompte",
-      titre: `Ramenez l'acompte avant travaux de ${Math.round(s.acompte_cumule_pct)} % à 30 % maximum`,
-      detail: `L'usage est de 30 % à la signature, puis des paiements à l'avancement. Verser davantage avant le premier jour de chantier vous expose en cas de défaillance de l'entreprise.${comptesCtx}`,
-    });
+    // 2026-09-03 (retour Johan, devis SOLTANI) — quand une tranche est adossée
+    // à la LIVRAISON du matériel, exiger « 30 % maximum » est à côté du sujet :
+    // payer un poêle livré au dépôt est normal, c'est une contrepartie réelle.
+    // Le vrai conseil n'est pas de baisser le pourcentage, c'est d'exiger la
+    // PREUVE de la livraison avant de payer — sans quoi on paie une promesse.
+    const pctLivraison = s.acompte_livraison_pct ?? null;
+    if (pctLivraison !== null && pctLivraison > 0) {
+      out.push({
+        priority: 80,
+        niveau: "puissant",
+        objectif: "securiser",
+        type: "acompte_livraison",
+        titre: `Exigez la preuve de livraison avant de verser les ${Math.round(pctLivraison)} %`,
+        detail:
+          `Votre devis prévoit ${Math.round(s.acompte_cumule_pct)} % avant la fin des travaux, dont ${Math.round(pctLivraison)} % à la livraison du matériel. `
+          + "Payer du matériel effectivement livré est normal — c'est une contrepartie réelle, pas une avance à fonds perdus. "
+          + "Mais ne versez cette tranche qu'après avoir obtenu un justificatif : bon de livraison signé, photo du matériel à votre nom au dépôt, ou numéro de série. "
+          + `Sans preuve, vous financez une commande dont rien n'atteste l'existence.${comptesCtx}`,
+      });
+    } else {
+      out.push({
+        priority: 80,
+        niveau: "puissant",
+        objectif: "negocier",
+        type: "acompte",
+        titre: `Ramenez l'acompte avant travaux de ${Math.round(s.acompte_cumule_pct)} % à 30 % maximum`,
+        detail: `L'usage est de 30 % à la signature, puis des paiements à l'avancement. Verser davantage avant le premier jour de chantier vous expose en cas de défaillance de l'entreprise.${comptesCtx}`,
+      });
+    }
   }
 
   // ── Importants ────────────────────────────────────────────────────────────

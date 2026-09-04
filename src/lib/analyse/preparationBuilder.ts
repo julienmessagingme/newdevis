@@ -70,6 +70,8 @@ export function levierQuestion(levier: ConclusionLevier): string | null {
     case "retenue_garantie":
       // 2026-08-27 — vraie demande contractuelle à l'artisan.
       return "Pouvez-vous prévoir au contrat une retenue de garantie de 5 % sur le solde, libérée un an après la réception une fois les réserves levées ?";
+    case "acompte_livraison":
+      return "Pouvez-vous me transmettre le bon de livraison du matériel (ou une photo au dépôt à mon nom) avant que je verse la tranche correspondante ?";
     case "dommages_ouvrage":
       // Assurance que le CLIENT souscrit lui-même — rien à demander à l'artisan.
       return null;

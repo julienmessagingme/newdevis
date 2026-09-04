@@ -410,6 +410,7 @@ const GEMINI_URL =
 import type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
 import { detectPrestationIntellectuelleReglementee } from "@/lib/analyse/detectPrestationIntellectuelle";
 import { diagnostiquerQuantites } from "@/lib/analyse/surfaceManquante";
+import { estGrosOeuvre, motifGrosOeuvre, type LigneTravaux } from "@/lib/analyse/grosOeuvre";
 export type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
@@ -2454,6 +2455,33 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     ).length;
     const equipmentLikeQuote = unitlessTravaux.length > 0 && unitlessWithCode / unitlessTravaux.length >= 0.5;
 
+    // 2026-09-03 (retour Johan, devis SOLTANI) — RÉCLAMER UNE QUANTITÉ N'A DE
+    // SENS QUE SI SON ABSENCE EMPÊCHE LA COMPARAISON.
+    //
+    // Sur un devis de poêle à bois, on affichait « exigez les quantités
+    // précises (m², ml) pour chaque poste » alors qu'un poêle, un kit de
+    // raccordement ou une plaque de propreté sont naturellement quantifiés à
+    // l'unité, et que le tubage portait bien ses 7,5 ml. Le conseil était vide
+    // de sens, et un conseil intempestif décrédibilise les autres.
+    //
+    // Le bon discriminant n'est ni le libellé ni la référence produit : c'est
+    // le TARIF DE RÉFÉRENCE auquel la ligne est rapprochée. Si le catalogue
+    // chiffre au m²/ml/m³ et que la ligne n'a pas de quantité dans cette
+    // unité, la comparaison est impossible — et là, la demande est fondée.
+    // C'est exactement la condition de `hasIncomparableUnit`, déjà utilisée
+    // pour exclure ces groupes du chiffrage : on la réutilise plutôt que d'en
+    // inventer une seconde qui divergerait.
+    let montantBloqueParUnite = 0;
+    for (const g of (Array.isArray(priceData) ? priceData : []) as unknown[]) {
+      const grp = (g ?? {}) as Record<string, unknown>;
+      const ht = Number(grp?.devis_total_ht ?? 0) || 0;
+      if (ht > 0 && hasIncomparableUnit(grp)) montantBloqueParUnite += ht;
+    }
+    const partBloqueeParUnite = totalHT && totalHT > 0 ? montantBloqueParUnite / totalHT : 0;
+    // Sous ce seuil, l'absence de quantité ne coûte presque rien à l'analyse.
+    const QUANTITES_PART_MIN = 0.25;
+    const quantitesVraimentBloquantes = partBloqueeParUnite >= QUANTITES_PART_MIN;
+
     // 2026-08-30 — CONTRÔLE D'ABSENCE. Jusqu'ici on réclamait les quantités dès
     // qu'on n'en trouvait pas, sans vérifier qu'elles n'étaient pas écrites
     // noir sur blanc dans le devis. Quand elles y sont, on demande à
@@ -2470,7 +2498,10 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       );
     }
     const unitsMissingEffective =
-      hasUnitsMissing && !equipmentLikeQuote && !diagQuantites.surfaceEcriteNonExtraite;
+      hasUnitsMissing
+      && !equipmentLikeQuote
+      && !diagQuantites.surfaceEcriteNonExtraite
+      && quantitesVraimentBloquantes;
 
     // V3.5.0 Phase C — Détection mode vectoriel
     // Si le matcher vectoriel a tourné, chaque "groupe" contient une seule ligne
@@ -2997,6 +3028,21 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         quantites_manquantes: Boolean(unitsMissingEffective),
         clauses_litigieuses: clausesRaw,
         acompte_cumule_pct: acomptePct,
+        // 2026-09-03 (retour Johan, devis SOLTANI) — part de l'acompte adossée
+        // à la LIVRAISON du matériel. « 40 % à la commande + 40 % à la
+        // livraison dépôt » sort à 80 % dans le cumul, et on réclamait « 30 %
+        // maximum » : à côté du sujet. Payer un poêle livré est une
+        // contrepartie réelle ; ce qu'il faut exiger, c'est la PREUVE.
+        acompte_livraison_pct: (() => {
+          const paiement = (extractedView.paiement ?? {}) as Record<string, unknown>;
+          const modalites = Array.isArray(paiement.modalites_paiement)
+            ? (paiement.modalites_paiement as Array<Record<string, unknown>>)
+            : [];
+          const total = modalites
+            .filter((m) => String(m?.etape ?? "") === "livraison_materiaux")
+            .reduce((acc, m) => acc + (Number(m?.pct ?? 0) || 0), 0);
+          return total > 0 ? total : null;
+        })(),
         paiement_especes_seul: criteres_rouges.some((c) => /esp[eè]ces\s+uniquement/i.test(c)),
         entreprise_risque: preCompanyStatus || null,
         assurance_absente: Boolean(preFlags.absence_assurance),
@@ -3010,42 +3056,17 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         montant_non_compare: montantNonCompare,
         // 2026-08-27 (conseils Johan) — gros œuvre → dommages-ouvrage
         // obligatoire ; retenue de garantie 5 % si pas déjà prévue.
-        travaux_gros_oeuvre: (() => {
-          // 2026-08-30 (retour Johan, devis ALES sdb) — la version précédente
-          // se déclenchait sur le simple mot « charpente », donc sur un
-          // « traitement de charpente au xylophène » : de l'entretien, jamais
-          // du gros œuvre. Critère légal retenu (art. L242-1 + doctrine
-          // service-public/DGCCRF) : les travaux doivent être susceptibles de
-          // COMPROMETTRE LA SOLIDITÉ de l'ouvrage ou de le rendre impropre à
-          // sa destination. On exige donc une ACTION structurelle explicite,
-          // et on exclut l'entretien qui ne touche pas à la structure.
-          const STRUCTUREL_RE = /\b(extension|agrandissement|sur[ée]l[ée]vation|construction\s+neuve|ossature\s+(?:bois|m[ée]tallique)|fondation|semelle\s+filante|longrine|radier|dalle\s+b[ée]ton|mur\s+porteur|mur\s+de\s+refend|\bipn\b|\bhea\b|\bipe\b|poutre\s+(?:m[ée]tallique|acier|porteuse|b[ée]ton)|linteau|ouverture\s+(?:dans\s+un\s+)?mur|v[ée]randa\s+ma[çc]onn|(?:r[ée]fection|remplacement|d[ée]pose|cr[ée]ation|reprise)\s+(?:compl[èe]te\s+)?(?:de\s+)?(?:la\s+)?(?:charpente|toiture|couverture)|terrassement\s+(?:de\s+)?fondation)/i;
-          // Entretien / traitement : ne touche pas à la structure porteuse.
-          const ENTRETIEN_RE = /\b(traitement|xylo|insecticide|fongicide|curatif|pr[ée]ventif|nettoyage|d[ée]moussage|peinture|lasure|ravalement)\b/i;
-          const lignes = Array.isArray(extractedView.travaux)
-            ? (extractedView.travaux as Array<Record<string, unknown>>)
-                .map((t) => `${t?.description ?? ""} ${t?.libelle ?? ""}`)
-            : [];
-          // Au moins UNE ligne structurelle qui ne soit pas de l'entretien.
-          const ligneStructurelle = lignes.some(
-            (l) => STRUCTUREL_RE.test(l) && !ENTRETIEN_RE.test(l),
-          );
-          const contexte = `${workType} ${resume}`;
-          return ligneStructurelle || (STRUCTUREL_RE.test(contexte) && !ENTRETIEN_RE.test(contexte));
-        })(),
+        // 2026-09-03 (retour Johan, devis SOLTANI) — détection factorisée dans
+        // src/lib/analyse/grosOeuvre.ts, avec ses tests. Les deux regex étaient
+        // dupliquées ici et divergeaient : celle-ci se déclenchait sur
+        // « IPE= 0,5 », l'indice environnemental d'un poêle à bois, lu comme
+        // une poutre IPE en acier.
+        travaux_gros_oeuvre: estGrosOeuvre(
+          (extractedView.travaux ?? []) as LigneTravaux[],
+          `${workType} ${resume}`,
+        ),
         // La ligne exacte qui déclenche le conseil, pour l'expliquer au client.
-        gros_oeuvre_motif: (() => {
-          const STRUCTUREL_RE = /\b(extension|agrandissement|sur[ée]l[ée]vation|construction\s+neuve|ossature\s+(?:bois|m[ée]tallique)|fondation|semelle\s+filante|longrine|radier|dalle\s+b[ée]ton|mur\s+porteur|mur\s+de\s+refend|\bipn\b|\bhea\b|\bipe\b|poutre\s+(?:m[ée]tallique|acier|porteuse|b[ée]ton)|linteau|ouverture\s+(?:dans\s+un\s+)?mur|v[ée]randa\s+ma[çc]onn|(?:r[ée]fection|remplacement|d[ée]pose|cr[ée]ation|reprise)\s+(?:compl[èe]te\s+)?(?:de\s+)?(?:la\s+)?(?:charpente|toiture|couverture)|terrassement\s+(?:de\s+)?fondation)/i;
-          const ENTRETIEN_RE = /\b(traitement|xylo|insecticide|fongicide|curatif|pr[ée]ventif|nettoyage|d[ée]moussage|peinture|lasure|ravalement)\b/i;
-          const lignes = Array.isArray(extractedView.travaux)
-            ? (extractedView.travaux as Array<Record<string, unknown>>)
-                .map((t) => String(t?.description ?? t?.libelle ?? "").trim())
-            : [];
-          const hit = lignes.find((l) => STRUCTUREL_RE.test(l) && !ENTRETIEN_RE.test(l));
-          if (!hit) return null;
-          // Libellé court : on cite le devis, on ne le récite pas.
-          return hit.length > 90 ? `${hit.slice(0, 87).trimEnd()}…` : hit;
-        })(),
+        gros_oeuvre_motif: motifGrosOeuvre((extractedView.travaux ?? []) as LigneTravaux[]),
         retenue_garantie_prevue: (() => {
           const paiementTxt = JSON.stringify(extractedView.paiement ?? {});
           return /retenue\s+de\s+garantie/i.test(`${paiementTxt} ${resume}`);
