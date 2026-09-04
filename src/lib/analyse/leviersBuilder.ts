@@ -515,7 +515,14 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
   } else if (s.paiement_especes_seul) {
     motif = "le paiement en espèces est le seul mode proposé";
   } else if (s.acompte_cumule_pct !== null && s.acompte_cumule_pct > 50) {
-    motif = `l'acompte demandé avant travaux (${Math.round(s.acompte_cumule_pct)} %) dépasse largement l'usage de 30 %`;
+    // 2026-09-03 — quand une tranche est adossée à la livraison du matériel,
+    // le hero doit dire la même chose que le levier : ce n'est pas le
+    // pourcentage qui pose problème, c'est l'absence de preuve. Sans ça, la
+    // ligne de verdict contredisait le conseil affiché juste en dessous.
+    const pctLiv = s.acompte_livraison_pct ?? null;
+    motif = pctLiv !== null && pctLiv > 0
+      ? `${Math.round(s.acompte_cumule_pct)} % sont demandés avant la fin des travaux, dont ${Math.round(pctLiv)} % à la livraison du matériel — à ne verser que sur preuve de livraison`
+      : `l'acompte demandé avant travaux (${Math.round(s.acompte_cumule_pct)} %) dépasse largement l'usage de 30 %`;
   } else if (s.quantites_manquantes) {
     motif = "les quantités manquent pour vérifier les prix";
   } else if (
