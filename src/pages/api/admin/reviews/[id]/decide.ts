@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { optionsResponse, jsonOk, jsonError, requireAuth } from "@/lib/api/apiHelpers";
+import { deriveMotifHero } from "@/lib/analyse/motifHero";
 import {
   sendReviewNotificationEmail,
   type ReviewAction,
@@ -189,13 +190,20 @@ export const POST: APIRoute = async ({ request, params }) => {
         // Plus de surcoût = plus de marge chiffrée : on ne promet pas une
         // économie que l'expert vient de retirer.
         vl.marge = null;
+        // 2026-09-04 (cas DEV-202608-1) — le motif venait aveuglément du
+        // premier levier. L'expert avait passé le verdict à « ne pas signer »
+        // parce que l'entreprise a cessé son activité un an avant la date du
+        // devis, et le hero annonçait « faites chiffrer par un second devis »
+        // sous une pastille rouge : la vraie raison n'était visible que dans
+        // l'encadré expert, plus bas. Quand l'expert a écrit un message, sa
+        // première phrase EST le motif — c'est lui qui vient de trancher.
         const topLevier = Array.isArray(conclusionToPersist.leviers)
           ? conclusionToPersist.leviers[0]
           : null;
-        const titre = typeof topLevier?.titre === "string" ? topLevier.titre.trim() : "";
-        vl.motif = titre
-          ? titre.charAt(0).toLowerCase() + titre.slice(1)
-          : "des points restent à clarifier avec l'artisan avant signature";
+        vl.motif = deriveMotifHero(
+          conclusionToPersist.expert_message,
+          typeof topLevier?.titre === "string" ? topLevier.titre : null,
+        );
         // Conserve le montant en tête du résumé ("219 583 € HT — …"), qui reste
         // vrai, et ne remplace que la partie devenue fausse.
         const montant = typeof vl.resume === "string" && vl.resume.includes(" — ")
