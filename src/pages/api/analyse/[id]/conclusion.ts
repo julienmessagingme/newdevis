@@ -2457,16 +2457,49 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
             }
             return true;
           })
-          .map((a: any): AnomalieConclusion => ({
-            poste:               String(a.poste        || ""),
-            ligne_devis:         String(a.ligne_devis  || a.poste || ""),
-            prix_unitaire_devis: typeof a.prix_unitaire_devis === "number" ? a.prix_unitaire_devis : 0,
-            unite:               String(a.unite        || "unité"),
-            fourchette_min:      typeof a.fourchette_min  === "number" ? a.fourchette_min  : null,
-            fourchette_max:      typeof a.fourchette_max  === "number" ? a.fourchette_max  : null,
-            surcout_estime:      typeof a.surcout_estime  === "number" ? a.surcout_estime  : null,
-            explication:         typeof a.explication     === "string" ? a.explication.trim() : null,
-          }))
+          .map((a: any): AnomalieConclusion => {
+            const fMin = typeof a.fourchette_min === "number" ? a.fourchette_min : null;
+            const fMax = typeof a.fourchette_max === "number" ? a.fourchette_max : null;
+            let surcout = typeof a.surcout_estime === "number" ? a.surcout_estime : null;
+
+            // 2026-09-05 (cas EC'eau, devis climatisation 12 666 € HT) — UN
+            // ÉCART QU'AUCUNE FOURCHETTE NE BORNE N'EST PAS UN MONTANT.
+            //
+            // Gemini avait produit une anomalie sur « Ensemble des prestations
+            // de climatisation » avec fourchette_min ET fourchette_max à null,
+            // un surcout_estime de 1 000 €, et pour explication : « les prix de
+            // référence marché sont absents, rendant une comparaison directe
+            // impossible. Le surcoût estimé représente une marge de
+            // négociation potentielle. » Autrement dit : il n'y a pas de
+            // référence, donc j'invente une marge. Ces 1 000 € remontaient
+            // ensuite en surcout_global 800–1 200 €, en levier « négociez les
+            // postes au-dessus du marché » et dans le hero — au-dessus d'un
+            // paragraphe expliquant qu'on n'avait pas pu comparer.
+            //
+            // Un écart se CALCULE contre une borne. Sans borne, le chiffre n'a
+            // pas de référent : on garde l'anomalie (le poste mérite peut-être
+            // l'attention) mais on ne chiffre pas.
+            // Rare — 2 anomalies sur 117 dans le stock — mais indéfendable
+            // face à l'artisan, qui demandera « 1 000 € par rapport à quoi ? ».
+            if (surcout !== null && surcout > 0 && fMin === null && fMax === null) {
+              console.warn(
+                `[conclusion] surcoût non borné écarté — "${String(a.poste ?? "?").slice(0, 60)}" ` +
+                `annonçait ${Math.round(surcout)} € sans aucune fourchette de référence.`,
+              );
+              surcout = null;
+            }
+
+            return {
+              poste:               String(a.poste        || ""),
+              ligne_devis:         String(a.ligne_devis  || a.poste || ""),
+              prix_unitaire_devis: typeof a.prix_unitaire_devis === "number" ? a.prix_unitaire_devis : 0,
+              unite:               String(a.unite        || "unité"),
+              fourchette_min:      fMin,
+              fourchette_max:      fMax,
+              surcout_estime:      surcout,
+              explication:         typeof a.explication     === "string" ? a.explication.trim() : null,
+            };
+          })
       : [];
 
     // ──────────────────────────────────────────────────────────────────────
@@ -2641,7 +2674,40 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // Surcoût global — source de vérité : calcul serveur (miroir de quoteGlobalAnalysis.ts)
     // Le calcul serveur est plus fiable que Gemini qui confond prix unitaires et totaux.
     const serverSurcout = computeServerSurcout(priceData);
-    const surcoutMin = serverSurcout.max > 0
+
+    // ──────────────────────────────────────────────────────────────────────
+    // 2026-09-05 (cas EC'eau, climatisation 12 666 € HT) — QUAND RIEN N'EST
+    // COMPARABLE, LE SURCOÛT EST NUL. PAS « celui de Gemini ».
+    //
+    // Le repli ci-dessous reprend `parsed.surcout_global` dès que le calcul
+    // serveur ne trouve rien — c'est-à-dire précisément quand tous les groupes
+    // ont été écartés pour confiance insuffisante. Sur ce devis, le serveur
+    // rendait 0 (aucun groupe `high`), et on republiait le 800–1 200 € que
+    // Gemini avait fabriqué en écrivant lui-même « les prix de référence sont
+    // absents […] le surcoût estimé représente une marge de négociation
+    // potentielle ».
+    //
+    // Le résultat à l'écran était intenable : « un poste dépasse les
+    // fourchettes du marché, environ 1 000 € d'écart » et une marge de
+    // négociation chiffrée — au-dessus de 12 postes affichés « prix correct »
+    // et d'un paragraphe disant qu'on n'avait pas pu comparer. L'utilisateur
+    // ne pouvait pas rattacher ces 1 000 € à quoi que ce soit.
+    //
+    // Le repli LLM garde sa raison d'être quand une part réelle du devis a été
+    // rapprochée : il ne disparaît que lorsqu'il n'y a rien pour l'étayer.
+    // ──────────────────────────────────────────────────────────────────────
+    const surcoutInterdit = rienDeComparable && serverSurcout.max <= 0;
+    if (surcoutInterdit) {
+      const llmMax = Number((parsed.surcout_global as any)?.max ?? 0) || 0;
+      if (llmMax > 0) {
+        console.warn(
+          `[conclusion] surcoût LLM de ${llmMax} € écarté — couverture ${coveragePct}% ` +
+          `(< ${COUVERTURE_MIN_POUR_AFFIRMER_PCT}%) et calcul serveur nul : aucune base pour chiffrer un écart.`,
+        );
+      }
+    }
+
+    const surcoutMin = surcoutInterdit ? 0 : serverSurcout.max > 0
       ? serverSurcout.min
       : (() => {
           const rawSurcout = parsed.surcout_global;
@@ -2649,7 +2715,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
             ? rawSurcout.min
             : Math.round(sanitizedAnomalies.reduce((s, a) => s + (a.surcout_estime ?? 0), 0) * 0.7);
         })();
-    const surcoutMax = serverSurcout.max > 0
+    const surcoutMax = surcoutInterdit ? 0 : serverSurcout.max > 0
       ? serverSurcout.max
       : (() => {
           const rawSurcout = parsed.surcout_global;

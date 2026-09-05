@@ -23,6 +23,7 @@ import {
   lookupMarketPricesVectorial,
   type VectorialJobTypePriceResult,
   hasStrongLexicalMatch,
+  isExclusiveMetierMismatch,
 } from "./market-matcher-vectorial.ts";
 import type { WorkItemFull } from "./market-prices.ts";
 
@@ -435,6 +436,49 @@ await test("isImplausiblyHighRatio — forfait = skip (non comparable)", () => {
   assertEq(
     isImplausiblyHighRatio(2000, "forfait", 1, 100, "u"),
     false,
+  );
+});
+
+// ── Garde 4 — métiers à périmètre exclusif (2026-09-05, cas EC'eau) ─────────
+console.log("\n[isExclusiveMetierMismatch]");
+
+const LIGNE_CLIM =
+  "Mise en service comprenant : Mise en pression azote Tirage au vide Mise en gaz Essai et contrôle de fonctionnement Délivrance du cerfa";
+const CONTEXTE_CLIM =
+  "Unité extérieure BOSCH CLIMATE 5,3 KW R32 Unité intérieure Système gainable Grille de soufflage Pack de régulation Bi tube";
+
+await test("cas d'origine — ligne clim vs catalogue piscine = REJET", () => {
+  assertEq(isExclusiveMetierMismatch(LIGNE_CLIM, "ouvrages_piscine", CONTEXTE_CLIM), true);
+});
+await test("vraie ligne de piscine vs catalogue piscine = ACCEPTÉ", () => {
+  assertEq(
+    isExclusiveMetierMismatch("Mise en service du bassin et hivernage de la piscine", "ouvrages_piscine", null),
+    false,
+  );
+});
+await test("ligne neutre d'un devis de piscine = ACCEPTÉ via le contexte", () => {
+  assertEq(
+    isExclusiveMetierMismatch("Local technique", "ouvrages_piscine", "Construction piscine 8x4 liner margelles filtration"),
+    false,
+  );
+});
+await test("métier courant (cvc, plomberie) — aucune restriction", () => {
+  assertEq(isExclusiveMetierMismatch(LIGNE_CLIM, "cvc_ventilation", CONTEXTE_CLIM), false);
+  assertEq(isExclusiveMetierMismatch("n'importe quoi", "plomberie_sanitaires", null), false);
+});
+await test("métier absent (RPC pré-migration) — garde inopérante, jamais bloquante", () => {
+  assertEq(isExclusiveMetierMismatch(LIGNE_CLIM, null, CONTEXTE_CLIM), false);
+  assertEq(isExclusiveMetierMismatch(LIGNE_CLIM, undefined, CONTEXTE_CLIM), false);
+});
+await test("assainissement — fosse septique acceptée, ligne clim rejetée", () => {
+  assertEq(isExclusiveMetierMismatch("Pose fosse septique 3000L", "ouvrages_anc", null), false);
+  assertEq(isExclusiveMetierMismatch(LIGNE_CLIM, "ouvrages_anc", CONTEXTE_CLIM), true);
+});
+await test("maîtrise d'œuvre — honoraires acceptés, pose de clim rejetée", () => {
+  assertEq(isExclusiveMetierMismatch("Honoraires de maîtrise d'œuvre", "prestations_intellectuelles", null), false);
+  assertEq(
+    isExclusiveMetierMismatch("Pose du groupe extérieur sur support mural", "prestations_intellectuelles", CONTEXTE_CLIM),
+    true,
   );
 });
 

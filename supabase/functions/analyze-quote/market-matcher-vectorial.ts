@@ -146,6 +146,11 @@ interface SearchRpcRow {
   domain: string;
   notes: string | null;
   similarity: number;
+  /** 2026-09-05 — métier de l'entrée catalogue, remonté par la RPC pour la
+   *  garde 4 (voir `isExclusiveMetierMismatch`). Optionnel : une RPC antérieure
+   *  à la migration 20260905120000 ne le renvoie pas → garde inopérante mais
+   *  jamais bloquante. */
+  metier?: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -351,6 +356,69 @@ export function isImplausiblyHighRatio(
 }
 
 /**
+ * ─── GARDE 4 — MÉTIERS À PÉRIMÈTRE EXCLUSIF (2026-09-05, cas EC'eau) ────────
+ *
+ * Sur un devis de climatisation, la ligne
+ *   « Mise en service comprenant : Mise en pression azote / Tirage au vide /
+ *     Mise en gaz / Essai et contrôle de fonctionnement / Délivrance du cerfa »
+ * a été rapprochée de « Mise en service piscine / hivernage ». Les trois gardes
+ * précédentes laissent passer : « mise en service » est commun aux deux
+ * libellés, ce n'est pas un antonyme fourniture/pose, et le ratio est
+ * plausible. Aucune ne regarde de QUEL MÉTIER relève l'entrée catalogue.
+ *
+ * ⚠️ La règle n'est PAS « même métier des deux côtés ». Ce serait faux et
+ * destructeur : une ligne de plomberie dans un devis de salle de bains se
+ * compare légitimement à une entrée `carrelage_faience`, et le devis n'a de
+ * toute façon pas de métier fiable au niveau de la ligne.
+ *
+ * La règle est plus étroite : certains métiers désignent un OUVRAGE à part
+ * entière, qu'on ne peut pas confondre avec autre chose. Leur prix n'est un
+ * comparatif valable que si la ligne du devis parle bien de cet ouvrage. Une
+ * ligne qui ne mentionne ni piscine, ni bassin, ni filtration n'a rien à faire
+ * en face d'un tarif de piscine — quel que soit le score du vecteur.
+ *
+ * Le mot-clé peut apparaître dans la ligne elle-même OU dans le contexte du
+ * devis (`contextHint`), pour ne pas rejeter la ligne « Local technique » d'un
+ * vrai devis de piscine.
+ */
+const METIERS_EXCLUSIFS: Record<string, RegExp> = {
+  ouvrages_piscine:
+    /\b(piscine|bassin|liner|margelle|skimmer|filtration|local technique|spa|jacuzzi|hivernage|pisciniste)/i,
+  ouvrages_anc:
+    /\b(assainissement|fosse|septique|micro[- ]?station|épandage|epandage|filtre à sable|filtre a sable|anc|phyto[- ]?épuration|phyto)/i,
+  ouvrages_ascenseur:
+    /\b(ascenseur|monte[- ]?charge|monte[- ]?escalier|élévateur|elevateur|plateforme pmr|plate[- ]?forme)/i,
+  ouvrages_geothermie:
+    /\b(géothermie|geothermie|forage|sonde géothermique|sonde geothermique|capteur enterré|capteur enterre)/i,
+  ouvrages_photovoltaique:
+    /\b(photovolta|panneau solaire|panneaux solaires|onduleur|kwc|autoconsommation|solaire)/i,
+  // `re2020|rt2012|thermique` ajoutés après mesure : sans eux, la ligne
+  // « Label RE2020 » était rejetée face à « Étude thermique RE2020 », qui est
+  // pourtant le bon rapprochement — seul faux rejet du banc de mesure.
+  diagnostic_reglementaire:
+    /\b(diagnostic|dpe|amiante|plomb|termite|mesurage|carrez|état des risques|etat des risques|assainissement collectif|re\s?2020|rt\s?2012|thermique)/i,
+  prestations_intellectuelles:
+    /\b(maîtrise d'œuvre|maitrise d'oeuvre|architecte|honoraires|étude|etude|conception|permis de construire|amo|opc|ingénierie|ingenierie)/i,
+};
+
+/**
+ * true quand le candidat relève d'un métier à périmètre exclusif dont rien,
+ * ni dans la ligne ni dans le contexte du devis, ne justifie la présence.
+ */
+export function isExclusiveMetierMismatch(
+  devisDesc: string | null | undefined,
+  catalogMetier: string | null | undefined,
+  contextHint?: string | null,
+): boolean {
+  if (!catalogMetier) return false; // RPC sans `metier` → garde inopérante
+  const marqueur = METIERS_EXCLUSIFS[catalogMetier];
+  if (!marqueur) return false; // métier courant → aucune restriction
+
+  const texte = `${devisDesc ?? ""} ${contextHint ?? ""}`;
+  return !marqueur.test(texte);
+}
+
+/**
  * Construit le texte à embed pour une ligne devis.
  *
  * Format aligné avec ce que le seed catalogue produit (`buildEmbeddingText` dans
@@ -518,6 +586,9 @@ export async function matchSingleLineVectorial(
   workItemIndex: number,
   googleApiKey: string,
   auditCtx?: MatchAuditContext,
+  /** Concaténation des libellés du devis — sert à la garde 4 pour ne pas
+   *  rejeter la ligne « Local technique » d'un vrai devis de piscine. */
+  contextHint?: string | null,
 ): Promise<LineMatchResult> {
   const text = buildQueryEmbeddingText(workItem);
 
@@ -593,6 +664,10 @@ export async function matchSingleLineVectorial(
       )
     ) {
       reasons.push("implausible_high_ratio");
+    }
+    // Garde 4 — métier à périmètre exclusif (piscine, ANC, ascenseur…)
+    if (isExclusiveMetierMismatch(workItem.description, candidate.metier, contextHint)) {
+      reasons.push(`exclusive_metier_mismatch:${candidate.metier}`);
     }
 
     if (reasons.length === 0) {
@@ -774,6 +849,16 @@ export async function lookupMarketPricesVectorial(
     return [];
   }
 
+  // 2026-09-05 — contexte du devis pour la garde 4 : la concaténation de tous
+  // les libellés. Un vrai devis de piscine écrit « piscine » quelque part, donc
+  // sa ligne « Local technique » garde le droit d'être comparée au catalogue
+  // piscine ; un devis de climatisation ne l'écrit nulle part. Plafonné pour
+  // ne pas construire une chaîne démesurée sur un gros devis.
+  const contextHint = workItems
+    .map((w) => w.description ?? "")
+    .join(" ")
+    .slice(0, 4000);
+
   const startTs = Date.now();
   const results: VectorialJobTypePriceResult[] = [];
   const tierCounts: Record<ConfidenceTier, number> = {
@@ -794,7 +879,7 @@ export async function lookupMarketPricesVectorial(
       continue;
     }
 
-    const { result, error } = await matchSingleLineVectorial(supabase, item, i, googleApiKey, auditCtx);
+    const { result, error } = await matchSingleLineVectorial(supabase, item, i, googleApiKey, auditCtx, contextHint);
     results.push(result);
 
     const tier = result.vectorial?.confidence ?? "no_match";
