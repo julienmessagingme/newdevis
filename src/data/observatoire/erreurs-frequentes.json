@@ -1,10 +1,10 @@
 {
   "slug": "erreurs-frequentes",
   "title": "Les erreurs les plus fréquentes dans les devis travaux",
-  "description": "Top 10 des erreurs détectées par notre IA sur 28 devis analysés. Données réelles, mises à jour mensuellement.",
-  "lastGenerated": "2026-08-20T21:27:14.631Z",
-  "totalAnalyses": 28,
-  "intro": "Sur 28 devis analysés et validés par notre expert, 12 contiennent au moins une anomalie. Voici les 10 erreurs les plus fréquentes, classées par occurrence.",
+  "description": "Top 10 des erreurs détectées par notre IA sur 36 devis analysés. Données réelles, mises à jour mensuellement.",
+  "lastGenerated": "2026-09-05T15:54:01.992Z",
+  "totalAnalyses": 36,
+  "intro": "Sur 36 devis analysés et validés par notre expert, 15 contiennent au moins une anomalie. Voici les 10 erreurs les plus fréquentes, classées par occurrence.",
   "stats": [],
   "methodology": "Données extraites de la table analysis_corrections (Phase 2). Comptage des anomalies levées par l'IA et confirmées par notre expert humain (action = corrected ou validated)."
 }

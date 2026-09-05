@@ -59,6 +59,55 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 }
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ──────────────────────────────────────────────────────────────────────────
+// 2026-09-05 (retour Johan sur /observatoire/prix-variables) — COMPARER DES
+// PRIX SUPPOSE LA MÊME UNITÉ.
+//
+// La page annonçait « Peinture porte : ×298, de 28 € à 8 350 € ». Ce n'est pas
+// une dispersion de prix : c'est un devis qui repeint UNE porte face à un
+// autre qui repeint toutes celles de la maison en forfait. Le même poste
+// mélangeait `m2`, `u`, `unité` et `forfait` — diviser 8 350 € par « 1
+// forfait » redonne le total, qu'on comparait ensuite à un prix à la porte.
+//
+// (Vérifié : le fallback `main_quantity ?? 1` n'était PAS en cause — 100 % des
+// observations portent une quantité réelle. C'est bien l'unité qui diffère.)
+//
+// Deux règles en découlent, appliquées partout où l'on publie un prix.
+// ──────────────────────────────────────────────────────────────────────────
+
+/** Unités désignant un prix global : un forfait n'a pas de prix unitaire. */
+const UNITES_FORFAIT = /^(forfait|for|f|ff|fft|ens|ensemble|global|lot)$/;
+
+/** Ramène les graphies d'une même unité à une clé unique (m² = m2 = M²). */
+function normaliserUnite(u: unknown): string | null {
+  const s = String(u ?? "").toLowerCase().trim().replace(/\.$/, "");
+  if (!s) return null;
+  if (UNITES_FORFAIT.test(s)) return "forfait";
+  if (/^(m2|m²|metre carre|mètre carré)$/.test(s)) return "m²";
+  if (/^(ml|m|metre lineaire|mètre linéaire)$/.test(s)) return "ml";
+  if (/^(m3|m³)$/.test(s)) return "m³";
+  if (/^(u|un|pce|pcs|piece|pièce|unite|unité|unit)$/.test(s)) return "u";
+  if (/^(h|heure|hr)$/.test(s)) return "h";
+  if (/^(j|jour|jours)$/.test(s)) return "j";
+  if (/^(kg|t|tonne)$/.test(s)) return s;
+  return s;
+}
+
+/** Quantile d'une série TRIÉE croissante. */
+function quantile(triee: number[], q: number): number {
+  if (triee.length === 0) return 0;
+  const i = Math.min(triee.length - 1, Math.max(0, Math.round((triee.length - 1) * q)));
+  return triee[i];
+}
+
+/**
+ * Nombre minimal d'observations pour publier une statistique de prix.
+ * À 5, un seul devis atypique faisait la une : « Faux plafond BA13 ×86 » alors
+ * que 107 observations sur 107 s'accordent à 55 €/m² et qu'UN point à 1 724 €
+ * portait tout le classement.
+ */
+const OBS_MIN_PUBLICATION = 8;
+
 if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
 
 interface EtudeData {
@@ -165,6 +214,19 @@ async function generatePostesSurfactures(): Promise<EtudeData> {
       const label = String(g.job_type_label ?? g.prices?.[0]?.label ?? jobType);
       const devis = typeof g.devis_total_ht === "number" ? g.devis_total_ht : 0;
       const prices = Array.isArray(g.prices) ? g.prices : [];
+
+      // 2026-09-05 — même garde que le moteur d'analyse (`hasIncomparableUnit`,
+      // 2026-08-30) : un tarif catalogue au m² face à une ligne facturée au
+      // forfait produit un « surcoût » né d'une multiplication par une quantité
+      // qui n'existe pas. On publiait ces artefacts en accusant nommément des
+      // métiers de surfacturer.
+      const uniteDevis = normaliserUnite(g.main_unit);
+      const uniteCatalogue = normaliserUnite(prices[0]?.unit);
+      const catalogueMetrique = uniteCatalogue !== null
+        && uniteCatalogue !== "forfait"
+        && ["m²", "ml", "m³"].includes(uniteCatalogue);
+      if (catalogueMetrique && uniteDevis !== uniteCatalogue) continue;
+
       const qty = typeof g.main_quantity === "number" && g.main_quantity > 0 ? g.main_quantity : 1;
       let theoAvg = 0;
       for (const p of prices) {
@@ -180,9 +242,11 @@ async function generatePostesSurfactures(): Promise<EtudeData> {
     }
   }
 
-  // Médiane des ratios par poste, gardé si ≥ 3 obs
+  // Médiane des ratios par poste. Seuil relevé de 3 à 8 le 2026-09-05 : à 3
+  // observations, accuser publiquement un poste d'être « surfacturé de 550 % »
+  // ne repose sur rien de statistiquement défendable.
   const items = [...map.entries()]
-    .filter(([_, v]) => v.ratios.length >= 3)
+    .filter(([_, v]) => v.ratios.length >= OBS_MIN_PUBLICATION)
     .map(([jobType, v]) => {
       const sorted = [...v.ratios].sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)];
@@ -205,7 +269,10 @@ async function generatePostesSurfactures(): Promise<EtudeData> {
       subtitle: `Médiane sur ${it.obsCount} devis observés`,
       context: `Le prix devis dépasse en moyenne de ${Math.round((it.median - 1) * 100)}% le prix marché moyen sur ce poste.`,
     })),
-    methodology: "Pour chaque poste matché au catalogue avec confidence HIGH (similarity ≥ 0.77, Phase 1.7), calcul du ratio (prix devis / prix marché moyen). Médiane des ratios par poste, filtrée sur ≥ 3 observations.",
+    methodology:
+      "Pour chaque poste rapproché du catalogue avec une confiance haute (similarité ≥ 0,77), rapport entre le prix du devis et le prix moyen du marché, puis médiane par poste. " +
+      "Les lignes dont l'unité ne correspond pas à celle du tarif de référence sont écartées : comparer un forfait à un prix au m² revient à multiplier par une quantité qui n'existe pas. " +
+      `Minimum ${OBS_MIN_PUBLICATION} observations par poste.`,
   };
 }
 
@@ -223,7 +290,9 @@ async function generatePrixVariables(): Promise<EtudeData> {
     .limit(500);
   if (error) throw new Error(error.message);
 
-  interface PosteAgg { jobLabel: string; prixUnitaires: number[]; }
+  // Clé d'agrégation = poste + UNITÉ. Un prix au m² et un prix à la pièce ne
+  // décrivent pas la même chose et ne peuvent pas entrer dans la même série.
+  interface PosteAgg { jobLabel: string; unite: string; prixUnitaires: number[]; }
   const map = new Map<string, PosteAgg>();
   for (const a of analyses ?? []) {
     const raw = safeParse(a.raw_text);
@@ -234,27 +303,53 @@ async function generatePrixVariables(): Promise<EtudeData> {
       const cats = Array.isArray(g.catalog_job_types) ? g.catalog_job_types : [];
       const jobType = String(cats[0] ?? "").trim();
       if (!jobType) continue;
+
+      const unite = normaliserUnite(g.main_unit);
+      // Sans unité, « prix unitaire » ne veut rien dire ; en forfait, le prix
+      // couvre un périmètre propre à chaque devis (une porte ou vingt).
+      if (!unite || unite === "forfait") continue;
+
       const label = String(g.job_type_label ?? jobType);
       const devis = typeof g.devis_total_ht === "number" ? g.devis_total_ht : 0;
-      const qty = typeof g.main_quantity === "number" && g.main_quantity > 0 ? g.main_quantity : 1;
+      const qty = typeof g.main_quantity === "number" && g.main_quantity > 0 ? g.main_quantity : 0;
+      if (qty <= 0) continue;
       const prixUnit = devis / qty;
       if (prixUnit <= 0 || prixUnit > 100000) continue;
-      let entry = map.get(jobType);
-      if (!entry) { entry = { jobLabel: label, prixUnitaires: [] }; map.set(jobType, entry); }
+
+      const cle = `${jobType}::${unite}`;
+      let entry = map.get(cle);
+      if (!entry) { entry = { jobLabel: label, unite, prixUnitaires: [] }; map.set(cle, entry); }
       entry.prixUnitaires.push(prixUnit);
     }
   }
 
   const items = [...map.entries()]
-    .filter(([_, v]) => v.prixUnitaires.length >= 5)
-    .map(([jobType, v]) => {
-      const sorted = [...v.prixUnitaires].sort((a, b) => a - b);
-      const min = sorted[0];
-      const max = sorted[sorted.length - 1];
-      const median = sorted[Math.floor(sorted.length / 2)];
-      const cv = max > 0 && min > 0 ? max / min : 0;
-      return { jobType, label: v.jobLabel, min, max, median, cv, obsCount: v.prixUnitaires.length };
+    .filter(([_, v]) => v.prixUnitaires.length >= OBS_MIN_PUBLICATION)
+    .map(([cle, v]) => {
+      const brut = [...v.prixUnitaires].sort((a, b) => a - b);
+      // Un « forfait déguisé » : la ligne annonce l'unité « u » avec une
+      // quantité de 1, mais couvre en fait tout un lot — « Peinture porte :
+      // 1 u, 8 350 € » désigne toutes les portes de la maison, pas une seule.
+      // L'unité ne permet pas de le détecter ; l'ordre de grandeur, si. Une
+      // valeur à plus de 10× la médiane de son propre poste ne décrit pas le
+      // même travail : on l'écarte au lieu de la publier comme un prix.
+      const medBrute = quantile(brut, 0.50);
+      const sorted = medBrute > 0
+        ? brut.filter((p) => p <= medBrute * 10 && p >= medBrute / 10)
+        : brut;
+      if (sorted.length < OBS_MIN_PUBLICATION) return null;
+      // P90/P10 et non max/min : un seul devis atypique ne doit pas faire le
+      // classement. Sur « Faux plafond BA13 », 107 observations donnent 55 €/m²
+      // et un unique point à 1 724 € produisait un « ×86 » publié.
+      const p10 = quantile(sorted, 0.10);
+      const p90 = quantile(sorted, 0.90);
+      const median = quantile(sorted, 0.50);
+      const cv = p10 > 0 ? p90 / p10 : 0;
+      return { jobType: cle, label: v.jobLabel, unite: v.unite, min: p10, max: p90, median, cv, obsCount: sorted.length };
     })
+    .filter((it): it is NonNullable<typeof it> => it !== null)
+    // Une amplitude sous ×1,5 n'est pas une information : c'est un marché normal.
+    .filter((it) => it.cv >= 1.5)
     .sort((a, b) => b.cv - a.cv)
     .slice(0, 10);
 
@@ -267,12 +362,15 @@ async function generatePrixVariables(): Promise<EtudeData> {
     intro: `Pour le même poste, les artisans peuvent facturer du simple au triple. Voici les 10 postes où la variabilité de prix est la plus forte sur ${analyses?.length ?? 0} devis analysés. Demandez toujours 3 devis sur ces postes — l'écart peut atteindre plusieurs milliers d'euros.`,
     stats: items.map((it, idx) => ({
       rank: idx + 1,
-      label: it.label,
+      label: `${it.label} (au ${it.unite})`,
       value: `×${it.cv.toFixed(1)}`,
-      subtitle: `de ${Math.round(it.min)} € à ${Math.round(it.max)} € (médiane ${Math.round(it.median)} €)`,
-      context: `Sur ${it.obsCount} devis observés, l'amplitude max/min est de ×${it.cv.toFixed(1)}.`,
+      subtitle: `de ${Math.round(it.min)} € à ${Math.round(it.max)} € par ${it.unite} (médiane ${Math.round(it.median)} €)`,
+      context: `Sur ${it.obsCount} devis observés, les prix au ${it.unite} vont de ${Math.round(it.min)} € à ${Math.round(it.max)} € (9 devis sur 10 dans cette fourchette).`,
     })),
-    methodology: "Pour chaque poste avec ≥ 5 observations, calcul du ratio max/min des prix unitaires. Tri décroissant. Seuls les matchings catalogue HIGH (similarity ≥ 0.77) sont pris en compte pour éviter le bruit.",
+    methodology:
+      "Chaque poste est comparé À UNITÉ ÉGALE : les prix au m², au ml et à la pièce forment des séries distinctes, et les lignes facturées au forfait sont exclues — un forfait couvre un périmètre propre à chaque devis (repeindre une porte ou toutes celles de la maison), son montant n'est pas un prix unitaire. " +
+      `Minimum ${OBS_MIN_PUBLICATION} observations par poste. L'amplitude publiée est le rapport P90/P10 et non max/min : un seul devis atypique ne doit pas faire le classement. ` +
+      "Seuls les rapprochements catalogue de confiance haute (similarité ≥ 0,77) sont retenus.",
   };
 }
 
