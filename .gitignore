@@ -43,3 +43,11 @@ issue-body.md
 
 # Claude Code local settings (peut contenir des règles avec secrets)
 .claude/settings.local.json
+
+# Fichiers de travail locaux — jamais versionnes (incident 2026-09-05 : un
+# `git add -A` les avait embarques dans un commit de correctif).
+backup-*.json
+costa-surgery.mjs
+fm.cjs
+.astro/
+supabase/.temp/
