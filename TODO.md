@@ -470,3 +470,5 @@ Feature livrée (cf. `WIP.md` + `FEATURES.md § 2bis`). Aucun bloquant ; ces poi
 - **Quand on attaque un item** : retirer d'ici, créer une entrée `🟡 En cours` dans `WIP.md`.
 - **Quand on finit un item** : retirer du WIP, ajouter à `FEATURES.md` si user-facing.
 - **Quand on bloque** : reste dans WIP.md avec `🔴` et la raison ; ne pas remettre dans TODO.md.
+
+- [ ] **Relecture des fourchettes — 1er rendez-vous le 1er février 2027** : le cron `catalog-review-alert` (jobid 45, `0 8 1 2,8 *`) enverra à Johan + Julien les 25 entrées catalogue les plus utilisées dont la fourchette n'a pas été relue depuis 6 mois. À ce jour **916 des 919 entrées n'ont jamais été relues** — la liste sera donc pleine au premier envoi, mais classée par montant réellement rapproché : traiter les 5 à 10 premières suffit. Après correction : renseigner `last_reviewed_at` ET `source` (sinon l'entrée revient au tour suivant). ⚠️ Une fourchette se **source** (relevé public, barème de fédération, devis d'artisan) — jamais depuis nos propres analyses, ce serait circulaire. Test à la demande sans envoi : `POST /functions/v1/catalog-review-alert?dry_run=1`.

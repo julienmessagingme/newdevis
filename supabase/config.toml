@@ -89,3 +89,10 @@ verify_jwt = false
 # Agent relecteur IA des pending_review (cron */10 min, migration 20260827110000).
 [functions.ai-review-agent]
 verify_jwt = false
+
+# Relecture semestrielle des fourchettes catalogue (cron 1er fev + 1er aout
+# 08:00 UTC, migration 20260905160100). Envoie la liste des entrees a relire,
+# classee par montant reellement rapproche — jamais d'actualisation automatique
+# des prix : une fourchette se source, elle ne se deduit pas de nos devis.
+[functions.catalog-review-alert]
+verify_jwt = false
