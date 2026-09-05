@@ -11,6 +11,42 @@ import {
 const ENGINE_VERSION_FALLBACK = "1.0.0-refonte";
 
 /**
+ * Réaligne le hero (`verdict_ligne`) sur ce que l'expert vient de décider.
+ *
+ * `verdict_ligne` est construit AVANT la revue à partir du surcoût automatique.
+ * Sans ce rattrapage, la page continue d'afficher le motif et la marge
+ * d'origine sous un verdict corrigé — contradiction visible par l'utilisateur.
+ *
+ * Le motif vient du `expert_message` quand il existe : c'est l'expert qui vient
+ * de trancher, le levier n'est qu'un reste du calcul automatique qu'il corrige.
+ * La marge n'est reconduite que si un montant la porte encore.
+ */
+function resyncVerdictLigne(vl: any, conclusion: any): void {
+  const surcoutMax = Number(conclusion?.surcout_global?.max ?? 0) || 0;
+  const surcoutMin = Number(conclusion?.surcout_global?.min ?? 0) || 0;
+
+  const topLevier = Array.isArray(conclusion?.leviers) ? conclusion.leviers[0] : null;
+  vl.motif = deriveMotifHero(
+    conclusion?.expert_message,
+    typeof topLevier?.titre === "string" ? topLevier.titre : null,
+  );
+
+  // Une marge n'est annoncée que si l'expert a laissé un montant. À zéro, on ne
+  // promet pas une économie qu'il vient de retirer ; sinon on reprend SES
+  // chiffres, jamais ceux d'avant la correction.
+  vl.marge = surcoutMax > 0
+    ? `environ ${surcoutMin.toLocaleString("fr-FR")} à ${surcoutMax.toLocaleString("fr-FR")} €`
+    : null;
+
+  // Conserve le montant en tête du résumé (« 3 489 € HT — … »), qui reste vrai,
+  // et ne remplace que la partie devenue fausse.
+  const montant = typeof vl.resume === "string" && vl.resume.includes(" — ")
+    ? vl.resume.split(" — ")[0]
+    : null;
+  vl.resume = montant ? `${montant} — ${vl.motif}.` : `${vl.motif}.`;
+}
+
+/**
  * POST /api/admin/reviews/[id]/decide
  *
  * Action de l'expert sur une analyse en pending_review.
@@ -187,29 +223,22 @@ export const POST: APIRoute = async ({ request, params }) => {
       }
       const vl = conclusionToPersist.verdict_ligne;
       if (vl && typeof vl === "object") {
-        // Plus de surcoût = plus de marge chiffrée : on ne promet pas une
-        // économie que l'expert vient de retirer.
-        vl.marge = null;
-        // 2026-09-04 (cas DEV-202608-1) — le motif venait aveuglément du
-        // premier levier. L'expert avait passé le verdict à « ne pas signer »
-        // parce que l'entreprise a cessé son activité un an avant la date du
-        // devis, et le hero annonçait « faites chiffrer par un second devis »
-        // sous une pastille rouge : la vraie raison n'était visible que dans
-        // l'encadré expert, plus bas. Quand l'expert a écrit un message, sa
-        // première phrase EST le motif — c'est lui qui vient de trancher.
-        const topLevier = Array.isArray(conclusionToPersist.leviers)
-          ? conclusionToPersist.leviers[0]
-          : null;
-        vl.motif = deriveMotifHero(
-          conclusionToPersist.expert_message,
-          typeof topLevier?.titre === "string" ? topLevier.titre : null,
-        );
-        // Conserve le montant en tête du résumé ("219 583 € HT — …"), qui reste
-        // vrai, et ne remplace que la partie devenue fausse.
-        const montant = typeof vl.resume === "string" && vl.resume.includes(" — ")
-          ? vl.resume.split(" — ")[0]
-          : null;
-        vl.resume = montant ? `${montant} — ${vl.motif}.` : `${vl.motif}.`;
+        resyncVerdictLigne(vl, conclusionToPersist);
+      }
+    } else if (conclusionToPersist.verdict_ligne && typeof conclusionToPersist.verdict_ligne === "object") {
+      // 2026-09-05 (cas devis cuisine) — L'EXPERT A CORRIGÉ LE MONTANT SANS
+      // L'ANNULER : le rattrapage ci-dessus ne se déclenchait pas.
+      //
+      // L'expert avait ramené le surcoût de 579–1 075 € à 600–800 € et écrit
+      // un message ; la page continuait d'afficher « un poste dépasse les
+      // fourchettes du marché (environ 827 € d'écart) » et « marge : 579 à
+      // 1 075 € ». Le hero contredisait la correction qui venait d'être faite.
+      //
+      // Le rattrapage doit tourner dès qu'un montant OU un verdict est
+      // corrigé, pas seulement quand le montant tombe à zéro.
+      const montantCorrige = correctedSurcoutMin !== null || correctedSurcoutMax !== null;
+      if (montantCorrige || correctedVerdictGlobal || correctedVerdictDecisionnel) {
+        resyncVerdictLigne(conclusionToPersist.verdict_ligne, conclusionToPersist);
       }
     }
   }
