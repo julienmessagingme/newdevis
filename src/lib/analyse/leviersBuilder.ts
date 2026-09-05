@@ -284,7 +284,16 @@ function collectCandidates(s: LevierSignals): Candidate[] {
   const montantOpposable = aDesPostes && surcoutNomme !== null && surcoutNomme > 0
     ? surcoutNomme
     : null;
-  const surcoutMateriel = (montantOpposable ?? s.surcout.max) >= 300 &&
+  // 2026-09-05 (retour Johan) — `aDesPostes` devient une CONDITION du levier,
+  // plus seulement du wording. Avant, sans poste nommé, le levier sortait
+  // quand même en « Négociez les postes au-dessus du marché » suivi d'une
+  // fourchette : le client repartait avec un montant et aucune ligne où aller
+  // le chercher. Mesuré : 22 analyses sur 69 annonçaient un montant qu'aucune
+  // anomalie bornée n'étayait. `anomalies_postes` est désormais alimenté en
+  // dernier ressort par les postes du calcul serveur (conclusion.ts) — donc
+  // s'il reste vide, c'est qu'aucune ligne ne porte l'écart.
+  const surcoutMateriel = aDesPostes &&
+    (montantOpposable ?? s.surcout.max) >= 300 &&
     (s.total_ht === null || s.total_ht <= 0 ||
       (montantOpposable ?? s.surcout.max) >= s.total_ht * 0.015);
   if (surcoutMateriel) {
@@ -582,12 +591,6 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
     (s.total_ht === null || (s.surcout_nomme ?? 0) >= (s.total_ht ?? 0) * 0.015)
   ) {
     motif = `${s.anomalies_postes.length > 1 ? "quelques postes dépassent" : "un poste dépasse"} les fourchettes du marché (environ ${fmtEuros(s.surcout_nomme ?? 0)} € d'écart sur ${s.anomalies_postes.length > 1 ? "ces lignes" : "cette ligne"})`;
-  } else if (
-    s.anomalies_postes.length === 0 && s.surcout.max >= 300 &&
-    (s.total_ht === null || s.surcout.max >= (s.total_ht ?? 0) * 0.015)
-  ) {
-    // Aucun poste nommé : on reste sur l'agrégat, sans l'attribuer.
-    motif = `quelques postes dépassent les fourchettes du marché (${fmtEuros(s.surcout.min)}–${fmtEuros(s.surcout.max)} € d'écart estimé)`;
   } else if (s.acompte_cumule_pct !== null && s.acompte_cumule_pct > 30) {
     motif = s.comptes_opaques
       ? `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage alors que la société ne publie pas ses comptes — limitez votre exposition`
@@ -624,7 +627,15 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
   // promesse creuse qui décrédibilise le verdict.
   let marge: string | null = null;
   const hasNegoLevier = leviers.some((l) => l.objectif === "negocier");
-  if (s.surcout.max >= 300) {
+  // 2026-09-05 (retour Johan, cas EC'eau) — ON N'ANNONCE PAS UN MONTANT QU'ON
+  // NE PEUT PAS MONTRER. Une marge chiffrée exige au moins un poste nommé :
+  // sinon le client lit « 800 à 1 200 € à négocier » et n'a aucune ligne où
+  // aller les chercher — ni pour lui, ni face à l'artisan.
+  // `anomalies_postes` est alimenté par les anomalies de Gemini OU, à défaut,
+  // par les postes qui composent l'écart du calcul serveur (conclusion.ts).
+  // S'il est vide, c'est qu'aucune ligne ne porte l'écart : on se tait.
+  const montantAttribuable = s.anomalies_postes.length > 0;
+  if (s.surcout.max >= 300 && montantAttribuable) {
     marge = `environ ${fmtEuros(s.surcout.min)} à ${fmtEuros(s.surcout.max)} €`;
   } else if (leviers.some((l) => l.titre.startsWith("Demandez une révision tarifaire"))) {
     marge = "3 à 5 % (révision tarifaire)";

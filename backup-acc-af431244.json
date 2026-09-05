@@ -1,0 +1,7 @@
+{
+  "id": "af431244-3535-4e6a-8e25-2be19f48a9be",
+  "file_name": "Devis Mr Mélier  Cognac.pdf",
+  "created_at": "2026-06-23T10:31:28.465264+00:00",
+  "review_status": "auto_approved",
+  "conclusion_ia": "{\"verdict_global\":\"dans_la_norme\",\"phrase_intro\":\"Ce devis de 77 568,87 € HT pour une rénovation complète est dans la norme pour ce type de projet.\",\"anomalies\":[],\"justifications\":\"L'analyse ne révèle aucune anomalie majeure sur les postes comparables, et le montant global est cohérent avec l'étendue des travaux de rénovation proposés.\",\"has_anomalies\":false,\"verdict_decisionnel\":\"signer\",\"surcout_global\":{\"min\":0,\"max\":0},\"niveau_risque\":\"faible\",\"actions_avant_signature\":[\"Demandez à l'artisan une attestation d'assurance RC Pro et décennale en cours de validité pour les travaux concernés.\",\"Sollicitez des références de chantiers similaires réalisés par l'entreprise (3 minimum) afin de vérifier la qualité de leurs réalisations.\",\"Clarifiez les modalités de paiement des 70% restants après l'acompte de 30%, en demandant un échéancier lié à l'avancement des travaux.\"],\"verdict_reasons\":{\"summary\":\"Ce devis est cohérent avec les prix du marché\",\"reasons\":[\"✅ Aucun écart significatif détecté sur les postes\"],\"context\":[]},\"generated_at\":\"2026-06-23T10:32:51.035Z\",\"engine_version\":\"1.0.0-refonte\"}"
+}

@@ -54,17 +54,21 @@ describe("buildLeviers — on ne chiffre que ce qu'on peut nommer", () => {
     expect(vl.motif).toMatch(/887/);
   });
 
-  it("agrégat élevé mais AUCUN poste nommé → pas de levier surcoût attribué", () => {
+  // 2026-09-05 — CE TEST A CHANGÉ DE SENS, volontairement.
+  // Version du 2026-08-30 : sans poste nommé, le levier sortait quand même
+  // avec le libellé générique « Négociez les postes au-dessus du marché » et
+  // la fourchette agrégée. Le retour Johan sur le devis EC'eau a montré que
+  // c'est intenable : « j'annonce 1 000 € de négociation mais on ne sait pas
+  // où les trouver ». La règle énoncée à l'époque (« sans poste nommé, pas de
+  // chiffre du tout ») n'était donc pas appliquée par le code — elle l'est
+  // maintenant, et le levier disparaît entièrement.
+  it("agrégat élevé mais AUCUN poste nommé → aucun levier surcoût du tout", () => {
     const l = buildLeviers({
       ...alesSignals,
       anomalies_postes: [],
       surcout_nomme: null,
     }).find((x) => x.type === "surcout_postes");
-    // Sans poste nommé on garde l'ancien libellé estimatif, jamais une
-    // accusation attribuée à une ligne précise.
-    expect(l!.titre).toBe("Négociez les postes au-dessus du marché");
-    // fmtEuros formate en fr-FR : le séparateur est une espace insécable.
-    expect(l!.detail).toMatch(/entre 7\s405 et 13\s751/);
+    expect(l).toBeUndefined();
   });
 
   it("écart nommé négligeable (< 1,5 % du devis) → aucun levier surcoût", () => {
@@ -530,5 +534,60 @@ describe("rienNestComparable — on ne dit pas 'dans la norme' sans référence"
     };
     const v = buildVerdictLigne(s, buildLeviers(s));
     expect(v.motif).toMatch(/entreprise/i);
+  });
+});
+
+/**
+ * 2026-09-05 (cas EC'eau, retour Johan) — « j'annonce 1 000 € de négociation
+ * mais on ne sait pas où les trouver ». Un montant qu'aucun poste ne porte ne
+ * doit apparaître NULLE PART : ni en marge, ni en levier, ni dans le motif.
+ */
+describe("aucun montant sans poste nommé", () => {
+  it("surcoût sans aucun poste → ni marge, ni levier surcoût, ni motif chiffré", () => {
+    const s: LevierSignals = {
+      ...base,
+      total_ht: 12_666,
+      surcout: { min: 800, max: 1200 },
+      anomalies_postes: [],
+      surcout_nomme: null,
+    };
+    const leviers = buildLeviers(s);
+    expect(leviers.some((l) => l.type === "surcout_postes")).toBe(false);
+    const v = buildVerdictLigne(s, leviers);
+    expect(v.marge).toBeNull();
+    expect(v.motif).not.toMatch(/800|1 ?200|d'écart/i);
+  });
+
+  it("surcoût AVEC postes nommés → levier, marge et motif chiffrés comme avant", () => {
+    const s: LevierSignals = {
+      ...base,
+      total_ht: 12_666,
+      surcout: { min: 800, max: 1200 },
+      anomalies_postes: ["Climatisation gainable"],
+      surcout_nomme: 1000,
+    };
+    const leviers = buildLeviers(s);
+    const levier = leviers.find((l) => l.type === "surcout_postes");
+    expect(levier).toBeDefined();
+    expect(levier!.titre).toContain("Climatisation gainable");
+    const v = buildVerdictLigne(s, leviers);
+    expect(v.marge).toMatch(/800/);
+    expect(v.motif).toMatch(/Climatisation gainable|dépasse/i);
+  });
+
+  it("le motif ne retombe jamais sur un agrégat anonyme", () => {
+    const s: LevierSignals = {
+      ...base,
+      verdict_decisionnel: "signer_avec_negociation",
+      total_ht: 40_000,
+      surcout: { min: 2000, max: 3000 },
+      anomalies_postes: [],
+      surcout_nomme: null,
+      comparable_coverage_pct: 70,
+      montant_non_compare: 500,
+    };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).not.toMatch(/quelques postes dépassent/i);
+    expect(v.resume).not.toMatch(/2 ?000|3 ?000/);
   });
 });

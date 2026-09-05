@@ -175,7 +175,15 @@ export default function AvisSurLeDevis({
 
   // Chiffre nuancé (jamais isolé en grande typo, jamais accusatoire)
   const surcout = conclusion.surcout_global;
-  const hasMargin = !isSigner && surcout && surcout.max > 0;
+  // 2026-09-05 (retour Johan, cas EC'eau) — ce chemin ne sert plus que les
+  // conclusions SANS `verdict_ligne` (antérieures à la Phase 4). Il annonçait
+  // « environ X € peuvent être renégociés » sur le seul critère
+  // `surcout_global.max > 0`, sans qu'aucune anomalie ne soit listée en
+  // dessous : le lecteur repartait avec un montant et aucune ligne où aller le
+  // chercher. On exige désormais au moins une anomalie nommée — c'est elle qui
+  // rend le montant vérifiable dans le détail poste par poste.
+  const aUnPosteNomme = Array.isArray(conclusion.anomalies) && conclusion.anomalies.length > 0;
+  const hasMargin = !isSigner && surcout && surcout.max > 0 && aUnPosteNomme;
   const midRaw = hasMargin ? (surcout.min + surcout.max) / 2 : 0;
   const midSoft = hasMargin ? softRound(midRaw) : 0;
 

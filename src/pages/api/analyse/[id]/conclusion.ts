@@ -619,10 +619,18 @@ const SURFACE_MISMATCH_ACTION_THRESHOLD = 0.70;
  * Surcoût = Σ (devis_total_ht − theoreticalMaxHT) pour les postes où devis > max
  * theoreticalMaxHT = Σ (price_max_unit_ht × qty + fixed_max_ht)
  */
-function computeServerSurcout(priceData: unknown[]): { min: number; max: number } {
-  if (!Array.isArray(priceData)) return { min: 0, max: 0 };
+function computeServerSurcout(
+  priceData: unknown[],
+): { min: number; max: number; postes: Array<{ label: string; ecart: number }> } {
+  if (!Array.isArray(priceData)) return { min: 0, max: 0, postes: [] };
 
   let surcoutEstime = 0;
+  // 2026-09-05 — on retient QUELS postes composent l'écart. Sans cette liste,
+  // le montant existait sans que rien à l'écran ne puisse le rattacher à une
+  // ligne : « j'annonce 1 000 € de négociation mais on ne sait pas où les
+  // trouver » (retour Johan). Mesuré : 22 analyses sur 69 annonçaient un
+  // montant qu'aucune anomalie bornée n'étayait.
+  const postes: Array<{ label: string; ecart: number }> = [];
 
   for (const g of priceData) {
     if (!g || typeof g !== "object") continue;
@@ -662,13 +670,21 @@ function computeServerSurcout(priceData: unknown[]): { min: number; max: number 
     if (theoreticalMaxHT <= 0) continue;
 
     if (devisTotal > theoreticalMaxHT) {
-      surcoutEstime += devisTotal - theoreticalMaxHT;
+      const ecart = devisTotal - theoreticalMaxHT;
+      surcoutEstime += ecart;
+      const label = typeof group.job_type_label === "string" && group.job_type_label.trim()
+        ? group.job_type_label.trim()
+        : (typeof group.job_type === "string" ? group.job_type : "");
+      if (label) postes.push({ label, ecart: Math.round(ecart) });
     }
   }
+
+  postes.sort((a, b) => b.ecart - a.ecart);
 
   return {
     min: Math.round(surcoutEstime * 0.7),
     max: Math.round(surcoutEstime * 1.3),
+    postes,
   };
 }
 // ── Sanitisation texte LLM ───────────────────────────────────────────────────
@@ -2707,22 +2723,33 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       }
     }
 
-    const surcoutMin = surcoutInterdit ? 0 : serverSurcout.max > 0
-      ? serverSurcout.min
-      : (() => {
-          const rawSurcout = parsed.surcout_global;
-          return (rawSurcout && typeof rawSurcout.min === "number" && rawSurcout.min >= 0)
-            ? rawSurcout.min
-            : Math.round(sanitizedAnomalies.reduce((s, a) => s + (a.surcout_estime ?? 0), 0) * 0.7);
-        })();
-    const surcoutMax = surcoutInterdit ? 0 : serverSurcout.max > 0
-      ? serverSurcout.max
-      : (() => {
-          const rawSurcout = parsed.surcout_global;
-          return (rawSurcout && typeof rawSurcout.max === "number" && rawSurcout.max >= 0)
-            ? rawSurcout.max
-            : Math.round(sanitizedAnomalies.reduce((s, a) => s + (a.surcout_estime ?? 0), 0) * 1.3);
-        })();
+    // 2026-09-05 — LE MONTANT NE VIENT PLUS JAMAIS DU LLM.
+    //
+    // L'ancien repli prenait `parsed.surcout_global` — le chiffre que Gemini
+    // écrit lui-même — dès que le calcul serveur rendait 0. Sur le devis
+    // EC'eau, c'est ce chemin qui a publié « 800 à 1 200 € » alors que Gemini
+    // avait écrit dans la même réponse qu'il n'y avait aucune référence de
+    // prix. Mesuré : 22 analyses sur 69 annonçaient un montant qu'aucune
+    // anomalie bornée n'étayait.
+    //
+    // Deux sources autorisées désormais, toutes deux rattachables à des lignes :
+    //   1. `computeServerSurcout` — déterministe, et il rend maintenant les
+    //      postes qui composent l'écart (voir `postes`) ;
+    //   2. la somme des anomalies BORNÉES (celles sans fourchette ont déjà
+    //      perdu leur `surcout_estime` plus haut).
+    // Si aucune des deux ne donne rien, le montant est nul — et le levier
+    // comme la marge disparaissent (leviersBuilder exige un poste nommé).
+    const surcoutAnomalies = sanitizedAnomalies.reduce((s, a) => s + (a.surcout_estime ?? 0), 0);
+    const surcoutMin = surcoutInterdit
+      ? 0
+      : serverSurcout.max > 0
+        ? serverSurcout.min
+        : Math.round(surcoutAnomalies * 0.7);
+    const surcoutMax = surcoutInterdit
+      ? 0
+      : serverSurcout.max > 0
+        ? serverSurcout.max
+        : Math.round(surcoutAnomalies * 1.3);
 
     // Actions : garde exactement 3, complète avec des valeurs par défaut si nécessaire
     // V3.4.26 (2026-05-21) — Filtre des actions absurdes type "Vérifier l'existence
@@ -3198,7 +3225,18 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         total_ht: totalHT,
         work_type: workType || null,
         surcout: { min: surcoutMin, max: surcoutMax },
-        anomalies_postes: sanitizedAnomalies.map((a) => a.poste).filter((p): p is string => Boolean(p)),
+        // 2026-09-05 (retour Johan) — quand Gemini n'a nommé aucune anomalie
+        // mais que le calcul serveur trouve un écart, on prend les postes QUI
+        // LE COMPOSENT plutôt que de laisser la liste vide. Sinon le montant
+        // s'affichait sans que rien ne dise sur quelles lignes aller le
+        // chercher. On plafonne à 3 : au-delà, le hero devient illisible.
+        anomalies_postes: (() => {
+          const nommesParIA = sanitizedAnomalies
+            .map((a) => a.poste)
+            .filter((p): p is string => Boolean(p));
+          if (nommesParIA.length > 0) return nommesParIA;
+          return serverSurcout.postes.slice(0, 3).map((p) => p.label);
+        })(),
         quantites_manquantes: Boolean(unitsMissingEffective),
         clauses_litigieuses: clausesRaw,
         acompte_cumule_pct: acomptePct,
@@ -3267,7 +3305,14 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
             const v = Number(a?.surcout_estime ?? 0);
             return Number.isFinite(v) && v > 0 ? acc + v : acc;
           }, 0);
-          return total > 0 ? Math.round(total) : null;
+          if (total > 0) return Math.round(total);
+          // 2026-09-05 — repli sur les postes du calcul serveur : ils sont
+          // nommés (cf. anomalies_postes ci-dessus), donc le montant est
+          // attribuable. C'est la condition pour avoir le droit de le dire.
+          const serveur = serverSurcout.postes
+            .slice(0, 3)
+            .reduce((acc, p) => acc + p.ecart, 0);
+          return serveur > 0 ? Math.round(serveur) : null;
         })(),
         // 2026-08-29 (retour Johan, devis 25030) — le devis facture-t-il DÉJÀ
         // une dommages-ouvrage ? Si oui, conseiller d'en souscrire une (et
