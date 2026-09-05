@@ -2,7 +2,7 @@
   "slug": "erreurs-tva",
   "title": "Erreurs de TVA dans les devis travaux : quelle fréquence ?",
   "description": "Analyse des taux de TVA appliqués sur 360 devis : 20%, 10%, 5,5%. Combien d'erreurs détectables ?",
-  "lastGenerated": "2026-09-05T15:54:05.379Z",
+  "lastGenerated": "2026-09-05T16:07:50.197Z",
   "totalAnalyses": 360,
   "intro": "Le taux de TVA applicable dépend du type de travaux et de l'ancienneté du logement. 20% pour le neuf et certains équipements, 10% en rénovation classique, 5,5% pour la rénovation énergétique. Voici la répartition réelle observée sur 360 devis.",
   "stats": [

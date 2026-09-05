@@ -28,6 +28,8 @@ export interface EtudeData {
     context?: string;
   }>;
   methodology: string;
+  /** 2026-09-05 — période réellement couverte par les devis retenus. */
+  periode?: { debut: string; fin: string; label: string };
 }
 
 interface Props {
@@ -52,6 +54,13 @@ export default function EtudeVmdPage({ data }: Props) {
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">{data.title}</h1>
         <p className="text-base md:text-lg text-muted-foreground leading-relaxed mb-4">{data.intro}</p>
         <ObservatoireChip nbDevis={data.totalAnalyses} lastGenerated={data.lastGenerated} />
+        {/* 2026-09-05 — la période couverte est ce qui rend le chiffre
+            vérifiable : une médiane sans fenêtre d'observation n'engage à rien. */}
+        {data.periode && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Fenêtre d'observation : {data.periode.label}.
+          </p>
+        )}
       </header>
 
       {/* Liste des stats OU état "données en cours d'accumulation" */}

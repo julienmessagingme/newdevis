@@ -1,10 +1,15 @@
 {
   "slug": "prix-variables",
   "title": "Les prix les plus variables d'un devis à l'autre",
-  "description": "Top 10 des postes où le prix unitaire varie le plus selon l'artisan. Comparez avant de signer.",
-  "lastGenerated": "2026-09-05T15:54:04.787Z",
-  "totalAnalyses": 400,
-  "intro": "Pour le même poste, les artisans peuvent facturer du simple au triple. Voici les 10 postes où la variabilité de prix est la plus forte sur 400 devis analysés. Demandez toujours 3 devis sur ces postes — l'écart peut atteindre plusieurs milliers d'euros.",
+  "description": "Les postes où le prix à l'unité varie le plus d'un artisan à l'autre, relevés sur les 18 derniers mois.",
+  "lastGenerated": "2026-09-05T16:07:49.408Z",
+  "totalAnalyses": 272,
+  "periode": {
+    "debut": "2025-03-12",
+    "fin": "2026-09-04",
+    "label": "devis établis entre mars 2025 et septembre 2026"
+  },
+  "intro": "À prestation identique et à unité égale, les artisans ne facturent pas le même prix. Voici les 8 postes où l'écart est le plus marqué, relevés sur 272 devis des 18 derniers mois. Chaque fourchette est un prix par m², par mètre linéaire ou par pièce — jamais un montant global, qui dépendrait de la taille du chantier. Demandez plusieurs devis sur ces postes.",
   "stats": [
     {
       "rank": 1,
@@ -17,8 +22,8 @@
       "rank": 2,
       "label": "Pose faïence murale (au m²)",
       "value": "×3.6",
-      "subtitle": "de 50 € à 179 € par m² (médiane 54 €)",
-      "context": "Sur 10 devis observés, les prix au m² vont de 50 € à 179 € (9 devis sur 10 dans cette fourchette)."
+      "subtitle": "de 50 € à 179 € par m² (médiane 50 €)",
+      "context": "Sur 8 devis observés, les prix au m² vont de 50 € à 179 € (9 devis sur 10 dans cette fourchette)."
     },
     {
       "rank": 3,
@@ -29,53 +34,39 @@
     },
     {
       "rank": 4,
-      "label": "Pose carrelage sol (au m²)",
-      "value": "×3.3",
-      "subtitle": "de 42 € à 138 € par m² (médiane 48 €)",
-      "context": "Sur 10 devis observés, les prix au m² vont de 42 € à 138 € (9 devis sur 10 dans cette fourchette)."
-    },
-    {
-      "rank": 5,
       "label": "Peinture plafond (au m²)",
       "value": "×2.8",
       "subtitle": "de 10 € à 28 € par m² (médiane 10 €)",
-      "context": "Sur 9 devis observés, les prix au m² vont de 10 € à 28 € (9 devis sur 10 dans cette fourchette)."
+      "context": "Sur 8 devis observés, les prix au m² vont de 10 € à 28 € (9 devis sur 10 dans cette fourchette)."
     },
     {
-      "rank": 6,
+      "rank": 5,
       "label": "Pose receveur douche (au u)",
       "value": "×2.8",
       "subtitle": "de 225 € à 620 € par u (médiane 225 €)",
       "context": "Sur 13 devis observés, les prix au u vont de 225 € à 620 € (9 devis sur 10 dans cette fourchette)."
     },
     {
-      "rank": 7,
+      "rank": 6,
       "label": "Pose lavabo (au u)",
       "value": "×2.7",
       "subtitle": "de 70 € à 190 € par u (médiane 100 €)",
       "context": "Sur 8 devis observés, les prix au u vont de 70 € à 190 € (9 devis sur 10 dans cette fourchette)."
     },
     {
-      "rank": 8,
-      "label": "Doublage plâtre BA13 sur isolation (fourni+posé) (au m²)",
-      "value": "×1.7",
-      "subtitle": "de 36 € à 60 € par m² (médiane 50 €)",
-      "context": "Sur 14 devis observés, les prix au m² vont de 36 € à 60 € (9 devis sur 10 dans cette fourchette)."
-    },
-    {
-      "rank": 9,
+      "rank": 7,
       "label": "Dépose carrelage (au u)",
       "value": "×1.6",
       "subtitle": "de 430 € à 680 € par u (médiane 540 €)",
       "context": "Sur 16 devis observés, les prix au u vont de 430 € à 680 € (9 devis sur 10 dans cette fourchette)."
     },
     {
-      "rank": 10,
+      "rank": 8,
       "label": "Démolition cloison (au m²)",
       "value": "×1.5",
       "subtitle": "de 80 € à 120 € par m² (médiane 80 €)",
       "context": "Sur 10 devis observés, les prix au m² vont de 80 € à 120 € (9 devis sur 10 dans cette fourchette)."
     }
   ],
-  "methodology": "Chaque poste est comparé À UNITÉ ÉGALE : les prix au m², au ml et à la pièce forment des séries distinctes, et les lignes facturées au forfait sont exclues — un forfait couvre un périmètre propre à chaque devis (repeindre une porte ou toutes celles de la maison), son montant n'est pas un prix unitaire. Minimum 8 observations par poste. L'amplitude publiée est le rapport P90/P10 et non max/min : un seul devis atypique ne doit pas faire le classement. Seuls les rapprochements catalogue de confiance haute (similarité ≥ 0,77) sont retenus."
+  "methodology": "Chaque poste est comparé À UNITÉ ÉGALE : les prix au m², au ml et à la pièce forment des séries distinctes, et les lignes facturées au forfait sont exclues — un forfait couvre un périmètre propre à chaque devis (repeindre une porte ou toutes celles de la maison), son montant n'est pas un prix unitaire. Minimum 8 observations par poste. L'amplitude publiée est le rapport P90/P10 et non max/min : un seul devis atypique ne doit pas faire le classement. Seuls les rapprochements catalogue de confiance haute (similarité ≥ 0,77) sont retenus. Seuls les devis établis depuis moins de 18 mois entrent dans le calcul : un devis dont la date n'est pas lisible est écarté, pour que la période annoncée soit vérifiable sur l'ensemble du corpus."
 }

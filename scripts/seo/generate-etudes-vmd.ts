@@ -108,6 +108,67 @@ function quantile(triee: number[], q: number): number {
  */
 const OBS_MIN_PUBLICATION = 8;
 
+// ──────────────────────────────────────────────────────────────────────────
+// 2026-09-05 (décision Johan) — FENÊTRE D'OBSERVATION DE 18 MOIS.
+//
+// Le corpus mélangeait des devis de 2023 et de 2026 dans une même médiane,
+// sans le dire : 23 % des devis avaient plus de 2 ans, 33 % plus d'un an.
+//
+// Mesure avant application : filtrer à 18 mois écarte 32 % du corpus et ne
+// coûte QUE 2 lignes publiables (10 → 8), et les fourchettes ne bougent
+// pratiquement pas (pose carrelage sol reste 30–130 €/m², faïence 50–179,
+// peinture porte 40–139). Autrement dit, les devis anciens ne faussaient pas
+// les médianes : sur ces postes, l'écart entre artisans pèse plus que deux ans
+// d'inflation.
+//
+// Le filtre ne change donc pas les chiffres — il change ce qu'on a le DROIT
+// d'affirmer. « Prix relevés sur les 18 derniers mois » est vérifiable ; une
+// moyenne sans période ne l'est pas. Et le jour où l'inflation reprend sur un
+// poste, la garde est déjà en place.
+//
+// Les devis sans date exploitable (6 %) sont ÉCARTÉS et non conservés : si la
+// page annonce une fenêtre, chaque devis du corpus doit y être vérifiablement.
+// Les garder pour sauver une ligne abîmerait la phrase qui fait la crédibilité
+// de la page.
+// ──────────────────────────────────────────────────────────────────────────
+const FENETRE_MOIS = 18;
+
+/**
+ * Date du devis (celle imprimée sur le document, pas celle du dépôt chez nous),
+ * si elle est exploitable ET dans la fenêtre. `null` ⇒ le devis est écarté.
+ */
+function dateDevisRetenue(raw: any): Date | null {
+  const brut = raw?.extracted_data?.dates?.date_devis ?? raw?.extracted?.dates?.date_devis;
+  if (!brut) return null;
+  const d = new Date(String(brut));
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  if (d > now) return null; // date future = erreur d'extraction ou de saisie
+  const mois = (now.getTime() - d.getTime()) / (30.44 * 24 * 3600 * 1000);
+  return mois <= FENETRE_MOIS ? d : null;
+}
+
+/** Suit les bornes réelles du corpus retenu, pour les afficher sur la page. */
+function creerSuiviPeriode() {
+  let min: Date | null = null;
+  let max: Date | null = null;
+  const fmt = (d: Date) => d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  return {
+    ajouter(d: Date) {
+      if (!min || d < min) min = d;
+      if (!max || d > max) max = d;
+    },
+    resultat(): EtudeData["periode"] {
+      if (!min || !max) return undefined;
+      return {
+        debut: min.toISOString().slice(0, 10),
+        fin: max.toISOString().slice(0, 10),
+        label: `devis établis entre ${fmt(min)} et ${fmt(max)}`,
+      };
+    },
+  };
+}
+
 if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
 
 interface EtudeData {
@@ -125,6 +186,8 @@ interface EtudeData {
     context?: string;
   }>;
   methodology: string;
+  /** Période réellement couverte par les devis retenus (2026-09-05). */
+  periode?: { debut: string; fin: string; label: string };
 }
 
 function safeParse(s: unknown): any {
@@ -201,8 +264,14 @@ async function generatePostesSurfactures(): Promise<EtudeData> {
   interface PosteAgg { jobLabel: string; ratios: number[]; }
   const map = new Map<string, PosteAgg>();
   let totalGroups = 0;
+  const periode = creerSuiviPeriode();
+  let devisRetenus = 0;
   for (const a of analyses ?? []) {
     const raw = safeParse(a.raw_text);
+    const dateDevis = dateDevisRetenue(raw);
+    if (!dateDevis) continue; // hors fenêtre 18 mois, ou date inexploitable
+    periode.ajouter(dateDevis);
+    devisRetenus++;
     const groups = Array.isArray(raw?.n8n_price_data) ? raw.n8n_price_data : [];
     for (const g of groups) {
       totalGroups++;
@@ -258,10 +327,11 @@ async function generatePostesSurfactures(): Promise<EtudeData> {
   return {
     slug: "postes-surfactures",
     title: "Les postes les plus surfacturés sur les devis travaux",
-    description: `Top 10 des postes où le prix devis dépasse le plus le prix marché. Données réelles sur ${analyses?.length ?? 0} devis.`,
+    description: `Les postes où le prix des devis dépasse le plus les tarifs de référence, relevés sur les ${FENETRE_MOIS} derniers mois.`,
     lastGenerated: new Date().toISOString(),
-    totalAnalyses: analyses?.length ?? 0,
-    intro: `Tous les postes ne sont pas surfacturés de la même façon. Sur ${analyses?.length ?? 0} devis analysés et ${totalGroups} groupes matchés au catalogue marché, voici les 10 postes où l'écart médian entre prix devis et prix marché moyen est le plus élevé.`,
+    totalAnalyses: devisRetenus,
+    periode: periode.resultat(),
+    intro: `Tous les postes ne s'écartent pas du marché de la même façon. Sur ${devisRetenus} devis des ${FENETRE_MOIS} derniers mois et ${totalGroups} lignes rapprochées de notre catalogue, voici les ${items.length} postes où l'écart médian avec le tarif de référence est le plus élevé. Un écart n'est pas une preuve de surfacturation : il justifie de demander à l'artisan ce que le prix recouvre.`,
     stats: items.map((it, idx) => ({
       rank: idx + 1,
       label: it.label,
@@ -272,7 +342,8 @@ async function generatePostesSurfactures(): Promise<EtudeData> {
     methodology:
       "Pour chaque poste rapproché du catalogue avec une confiance haute (similarité ≥ 0,77), rapport entre le prix du devis et le prix moyen du marché, puis médiane par poste. " +
       "Les lignes dont l'unité ne correspond pas à celle du tarif de référence sont écartées : comparer un forfait à un prix au m² revient à multiplier par une quantité qui n'existe pas. " +
-      `Minimum ${OBS_MIN_PUBLICATION} observations par poste.`,
+      `Minimum ${OBS_MIN_PUBLICATION} observations par poste. ` +
+      `Seuls les devis établis depuis moins de ${FENETRE_MOIS} mois entrent dans le calcul ; un devis dont la date n'est pas lisible est écarté.`,
   };
 }
 
@@ -294,8 +365,14 @@ async function generatePrixVariables(): Promise<EtudeData> {
   // décrivent pas la même chose et ne peuvent pas entrer dans la même série.
   interface PosteAgg { jobLabel: string; unite: string; prixUnitaires: number[]; }
   const map = new Map<string, PosteAgg>();
+  const periode = creerSuiviPeriode();
+  let devisRetenus = 0;
   for (const a of analyses ?? []) {
     const raw = safeParse(a.raw_text);
+    const dateDevis = dateDevisRetenue(raw);
+    if (!dateDevis) continue; // hors fenêtre 18 mois, ou date inexploitable
+    periode.ajouter(dateDevis);
+    devisRetenus++;
     const groups = Array.isArray(raw?.n8n_price_data) ? raw.n8n_price_data : [];
     for (const g of groups) {
       const sim = g?.vectorial?.top_similarity;
@@ -356,10 +433,11 @@ async function generatePrixVariables(): Promise<EtudeData> {
   return {
     slug: "prix-variables",
     title: "Les prix les plus variables d'un devis à l'autre",
-    description: `Top 10 des postes où le prix unitaire varie le plus selon l'artisan. Comparez avant de signer.`,
+    description: `Les postes où le prix à l'unité varie le plus d'un artisan à l'autre, relevés sur les ${FENETRE_MOIS} derniers mois.`,
     lastGenerated: new Date().toISOString(),
-    totalAnalyses: analyses?.length ?? 0,
-    intro: `Pour le même poste, les artisans peuvent facturer du simple au triple. Voici les 10 postes où la variabilité de prix est la plus forte sur ${analyses?.length ?? 0} devis analysés. Demandez toujours 3 devis sur ces postes — l'écart peut atteindre plusieurs milliers d'euros.`,
+    totalAnalyses: devisRetenus,
+    periode: periode.resultat(),
+    intro: `À prestation identique et à unité égale, les artisans ne facturent pas le même prix. Voici les ${items.length} postes où l'écart est le plus marqué, relevés sur ${devisRetenus} devis des ${FENETRE_MOIS} derniers mois. Chaque fourchette est un prix par m², par mètre linéaire ou par pièce — jamais un montant global, qui dépendrait de la taille du chantier. Demandez plusieurs devis sur ces postes.`,
     stats: items.map((it, idx) => ({
       rank: idx + 1,
       label: `${it.label} (au ${it.unite})`,
@@ -370,7 +448,8 @@ async function generatePrixVariables(): Promise<EtudeData> {
     methodology:
       "Chaque poste est comparé À UNITÉ ÉGALE : les prix au m², au ml et à la pièce forment des séries distinctes, et les lignes facturées au forfait sont exclues — un forfait couvre un périmètre propre à chaque devis (repeindre une porte ou toutes celles de la maison), son montant n'est pas un prix unitaire. " +
       `Minimum ${OBS_MIN_PUBLICATION} observations par poste. L'amplitude publiée est le rapport P90/P10 et non max/min : un seul devis atypique ne doit pas faire le classement. ` +
-      "Seuls les rapprochements catalogue de confiance haute (similarité ≥ 0,77) sont retenus.",
+      "Seuls les rapprochements catalogue de confiance haute (similarité ≥ 0,77) sont retenus. " +
+      `Seuls les devis établis depuis moins de ${FENETRE_MOIS} mois entrent dans le calcul : un devis dont la date n'est pas lisible est écarté, pour que la période annoncée soit vérifiable sur l'ensemble du corpus.`,
   };
 }
 

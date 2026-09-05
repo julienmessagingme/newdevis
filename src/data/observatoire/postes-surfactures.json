@@ -1,10 +1,15 @@
 {
   "slug": "postes-surfactures",
   "title": "Les postes les plus surfacturés sur les devis travaux",
-  "description": "Top 10 des postes où le prix devis dépasse le plus le prix marché. Données réelles sur 400 devis.",
-  "lastGenerated": "2026-09-05T15:54:03.613Z",
-  "totalAnalyses": 400,
-  "intro": "Tous les postes ne sont pas surfacturés de la même façon. Sur 400 devis analysés et 3277 groupes matchés au catalogue marché, voici les 10 postes où l'écart médian entre prix devis et prix marché moyen est le plus élevé.",
+  "description": "Les postes où le prix des devis dépasse le plus les tarifs de référence, relevés sur les 18 derniers mois.",
+  "lastGenerated": "2026-09-05T16:07:48.390Z",
+  "totalAnalyses": 272,
+  "periode": {
+    "debut": "2025-03-12",
+    "fin": "2026-09-04",
+    "label": "devis établis entre mars 2025 et septembre 2026"
+  },
+  "intro": "Tous les postes ne s'écartent pas du marché de la même façon. Sur 272 devis des 18 derniers mois et 2475 lignes rapprochées de notre catalogue, voici les 3 postes où l'écart médian avec le tarif de référence est le plus élevé. Un écart n'est pas une preuve de surfacturation : il justifie de demander à l'artisan ce que le prix recouvre.",
   "stats": [
     {
       "rank": 1,
@@ -28,5 +33,5 @@
       "context": "Le prix devis dépasse en moyenne de 23% le prix marché moyen sur ce poste."
     }
   ],
-  "methodology": "Pour chaque poste rapproché du catalogue avec une confiance haute (similarité ≥ 0,77), rapport entre le prix du devis et le prix moyen du marché, puis médiane par poste. Les lignes dont l'unité ne correspond pas à celle du tarif de référence sont écartées : comparer un forfait à un prix au m² revient à multiplier par une quantité qui n'existe pas. Minimum 8 observations par poste."
+  "methodology": "Pour chaque poste rapproché du catalogue avec une confiance haute (similarité ≥ 0,77), rapport entre le prix du devis et le prix moyen du marché, puis médiane par poste. Les lignes dont l'unité ne correspond pas à celle du tarif de référence sont écartées : comparer un forfait à un prix au m² revient à multiplier par une quantité qui n'existe pas. Minimum 8 observations par poste. Seuls les devis établis depuis moins de 18 mois entrent dans le calcul ; un devis dont la date n'est pas lisible est écarté."
 }
