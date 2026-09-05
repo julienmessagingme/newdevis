@@ -40,7 +40,16 @@ import { buildLeviers, buildVerdictLigne, COUVERTURE_MIN_POUR_AFFIRMER_PCT } fro
 // 1.1.0-refonte (2026-08-20) — Phase 4 tranches 1+2 livrées : verdict_ligne +
 // leviers hiérarchisés + message aligné. Le bump invalide le cache des
 // conclusions du stock (regen lazy à la visite) pour servir Phase 4 partout.
-const ENGINE_VERSION = "1.1.0-refonte";
+// 1.2.0-refonte (2026-09-04) — garde « on n'affirme pas une conformité
+// tarifaire sans avoir comparé » (couverture < 5 % ⇒ `dans_la_norme` interdit).
+// Mesuré avant le bump : 14 analyses du stock sur 164 affirmaient « dans la
+// norme » avec 0 % du montant comparé. Deux effets à connaître :
+//   1. les analyses à signaux risqués repassent en `pending_review` à leur
+//      première revisite (Piste C by design) → file de revue à absorber ;
+//   2. les 22 analyses `corrected` NE sont PAS régénérées — filet ajouté au
+//      cache le même jour, sans quoi ce bump aurait effacé chaque correction
+//      d'expert, message client compris.
+const ENGINE_VERSION = "1.2.0-refonte";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // V3.5.16 (2026-06-15) — Piste C : revue humaine assistée
@@ -1043,7 +1052,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   // ── Récupère l'analyse ────────────────────────────────────────────────────
   const { data: analysis } = await (supabase as any)
     .from("analyses")
-    .select("id, user_id, raw_text, resume, work_type, score, conclusion_ia, file_name")
+    .select("id, user_id, raw_text, resume, work_type, score, conclusion_ia, file_name, review_status")
     .eq("id", analysisId)
     .single();
 
@@ -1079,7 +1088,40 @@ export const POST: APIRoute = async ({ params, request }) => {
       // Ainsi, dès qu'on déploie une version corrigée du moteur, toutes les analyses
       // existantes sont régénérées à la prochaine visite sans intervention utilisateur.
       const cachedVersion = (cached as any).engine_version as string | undefined;
-      if (cached.phrase_intro && cached.verdict_global && cached.verdict_decisionnel && cachedVersion === ENGINE_VERSION) {
+      const conclusionValide = Boolean(
+        cached.phrase_intro && cached.verdict_global && cached.verdict_decisionnel,
+      );
+
+      // ────────────────────────────────────────────────────────────────────
+      // 2026-09-04 — UNE CONCLUSION ÉCRITE PAR UN HUMAIN NE SE FAIT PAS
+      // ÉCRASER PAR LA MACHINE.
+      //
+      // L'invalidation par `engine_version` ne regardait que la version : un
+      // bump régénérait TOUT, y compris les analyses qu'un expert avait
+      // réécrites. Mesuré avant le bump 1.2.0 : **22 analyses `corrected`,
+      // dont 3 portant un `expert_message` affiché au client** — verdict
+      // corrigé, surcoût annulé, anomalies décochées et message d'expert
+      // auraient été remplacés par une sortie machine fraîche, en silence,
+      // à la première revisite.
+      //
+      // `corrected` = un humain a réécrit le CONTENU → intouchable.
+      // `validated` = un humain a approuvé le contenu machine → la machine
+      // peut le régénérer, c'est le comportement voulu (le moteur progresse).
+      //
+      // Échappatoire : `force: true` dans le body régénère quand même, pour
+      // le cas où l'on veut délibérément repartir de zéro.
+      // ────────────────────────────────────────────────────────────────────
+      if (conclusionValide && analysis.review_status === "corrected") {
+        if (cachedVersion !== ENGINE_VERSION) {
+          console.log(
+            `[conclusion] correction d'expert préservée — version cachée=${cachedVersion ?? "(absente)"} ` +
+            `≠ ${ENGINE_VERSION}, mais la conclusion a été réécrite par un humain.`,
+          );
+        }
+        return jsonOk({ conclusion: cached, cached: true });
+      }
+
+      if (conclusionValide && cachedVersion === ENGINE_VERSION) {
         return jsonOk({ conclusion: cached, cached: true });
       }
       console.log(`[conclusion] cache invalidé — version cachée=${cachedVersion ?? "(absente)"} attendue=${ENGINE_VERSION}`);
