@@ -24,7 +24,7 @@ import {
   lancerAnalysesEnLot,
   suivreAvancement,
   resumerAvancement,
-  DEVIS_MAX_SANS_CONFIRMATION,
+  DEVIS_MAX_PAR_LOT,
   type SuiviDevis,
 } from "@/lib/analyse/analysesEnLot";
 
@@ -296,7 +296,9 @@ const NewAnalysis = () => {
       // qu'il veut analyser ; il revient déposer le même document pour le
       // suivant. C'est moins fluide qu'un traitement en lot, mais c'est vrai.
       setDevisEnAttente(decoupe.fichiers);
-      setDevisCoches(decoupe.fichiers.map(() => true)); // tout coché par défaut
+      // Pré-coché dans la limite du lot : au-delà, l'utilisateur choisit
+      // lesquels analyser en premier.
+      setDevisCoches(decoupe.fichiers.map((_, i) => i < DEVIS_MAX_PAR_LOT));
       const nbTropLongs = decoupe.tropLongs.length;
       toast.success(
         `${decoupe.segments.length} devis détectés dans ce document.` +
@@ -518,14 +520,15 @@ const NewAnalysis = () => {
       toast.error("Cochez au moins un devis à analyser.");
       return;
     }
-    // Au-delà du seuil, un document est plus probablement déposé par erreur
-    // qu'analysé volontairement en entier : on demande avant de lancer.
-    if (
-      choisis.length > DEVIS_MAX_SANS_CONFIRMATION &&
-      !window.confirm(
-        `Vous êtes sur le point de lancer ${choisis.length} analyses depuis ce document. Continuer ?`,
-      )
-    ) {
+    // 2026-09-07 (décision Johan) — limite DURE, pas une confirmation. Chaque
+    // devis d'un lot est une analyse à suivre, une revue humaine possible et
+    // une page de plus à retrouver : au-delà de trois, l'utilisateur perd le
+    // fil de ce qu'il a lancé.
+    if (choisis.length > DEVIS_MAX_PAR_LOT) {
+      toast.error(
+        `${DEVIS_MAX_PAR_LOT} devis maximum par envoi. Décochez-en ${choisis.length - DEVIS_MAX_PAR_LOT} — ` +
+        `vous pourrez redéposer le document pour les suivants.`,
+      );
       return;
     }
 
@@ -735,7 +738,7 @@ const NewAnalysis = () => {
                     refuser après. */}
                 <div className="mt-4 pt-3 border-t border-border/60 text-xs text-muted-foreground/90 space-y-1 text-left max-w-xs mx-auto">
                   <p className="font-medium text-foreground/70">Pour une analyse fiable :</p>
-                  <p>• <strong>un devis à la fois</strong> — si votre document en contient plusieurs, nous les séparons et vous choisissez lequel analyser</p>
+                  <p>• <strong>un devis à la fois</strong> — si votre document en contient plusieurs, nous les séparons et vous en analysez jusqu'à {DEVIS_MAX_PAR_LOT} d'un coup</p>
                   <p>• <strong>{PAGES_MAX_EXTRACTION} pages maximum</strong> par devis</p>
                   <p>• un devis de <strong>travaux, établi en France</strong> — nos prix de référence sont français</p>
                 </div>

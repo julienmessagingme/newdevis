@@ -15,9 +15,21 @@
  * le premier devis pendant que le second travaille.
  */
 
-/** Au-delà, on demande confirmation : un document de dix devis est plus
- *  probablement une erreur de dépôt qu'une intention. */
-export const DEVIS_MAX_SANS_CONFIRMATION = 5;
+/**
+ * Nombre maximal de devis analysables en un seul lot.
+ *
+ * 2026-09-07 (décision Johan) — **limite dure, pas une confirmation**. Le
+ * premier réglage demandait confirmation au-delà de 5 ; à l'usage c'est trop :
+ * chaque devis d'un lot est une analyse à suivre, potentiellement une revue
+ * humaine, et une page de plus à retrouver. « Au-delà de trois, ça devient
+ * ingérable » — pour l'utilisateur d'abord, qui perd le fil de ce qu'il a
+ * lancé.
+ *
+ * Les devis au-delà du seuil ne disparaissent pas : ils restent listés et
+ * l'utilisateur peut choisir LESQUELS trois analyser, puis redéposer le
+ * document pour les suivants.
+ */
+export const DEVIS_MAX_PAR_LOT = 3;
 
 /** Fréquence d'interrogation des statuts. */
 const INTERVALLE_SUIVI_MS = 3_000;
@@ -76,6 +88,11 @@ function extensionEtType(fichier: File): { ext: string; contentType: string } {
 export async function lancerAnalysesEnLot(opts: OptionsLot): Promise<SuiviDevis[]> {
   const { supabase, userId, fichiers, onChange } = opts;
 
+  // 2026-09-07 — identifiant du DOCUMENT d'origine, partagé par toutes les
+  // analyses du lot. Sans lui, ouvrir la première analyse faisait perdre la
+  // trace des autres : elles existaient en base sans que rien ne les relie.
+  const batchId = fichiers.length > 1 ? crypto.randomUUID() : null;
+
   const suivi: SuiviDevis[] = fichiers.map((f) => ({
     nom: f.name,
     etat: "attente",
@@ -107,6 +124,7 @@ export async function lancerAnalysesEnLot(opts: OptionsLot): Promise<SuiviDevis[
           file_name: fichier.name,
           file_path: chemin,
           status: "pending",
+          ...(batchId ? { batch_id: batchId } : {}),
         })
         .select("id")
         .single();

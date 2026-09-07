@@ -8,7 +8,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   lancerAnalysesEnLot,
   resumerAvancement,
-  DEVIS_MAX_SANS_CONFIRMATION,
+  DEVIS_MAX_PAR_LOT,
   type SuiviDevis,
 } from "./analysesEnLot";
 
@@ -111,7 +111,7 @@ describe("resumerAvancement", () => {
     expect(resumerAvancement([s("echec"), s("echec")])).toMatch(/aucune analyse n'a abouti/i);
   });
 
-  it("le seuil de confirmation reste explicite", () => {
-    expect(DEVIS_MAX_SANS_CONFIRMATION).toBe(5);
+  it("la limite dure du lot reste explicite", () => {
+    expect(DEVIS_MAX_PAR_LOT).toBe(3);
   });
 });

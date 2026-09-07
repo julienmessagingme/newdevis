@@ -83,6 +83,9 @@ type DocumentDetection = {
   quotes_count?: number;
 };
 
+/** 2026-09-07 — un autre devis issu du même document déposé. */
+type DevisFrere = { id: string; file_name: string | null; status: string | null };
+
 type Analysis = {
   id: string;
   file_name: string;
@@ -341,6 +344,8 @@ function parseStepFromMessage(msg?: string | null): number {
 const AnalysisResult = () => {
   const id = window.location.pathname.split('/').pop();
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  // 2026-09-07 — les autres devis issus du même document déposé (cf. batch_id).
+  const [devisDuMemeDocument, setDevisDuMemeDocument] = useState<DevisFrere[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   // Raw conclusion_ia JSON received from ConclusionIA once generated (may arrive after initial render)
@@ -483,6 +488,28 @@ const AnalysisResult = () => {
     }
 
     setAnalysis(data as unknown as Analysis);
+
+    // 2026-09-07 (retour Johan) — RETROUVER LES AUTRES DEVIS DU MÊME DOCUMENT.
+    //
+    // « Si j'envoie les 2 analyses et que j'ouvre celle qui est finie, la 2e je
+    // ne la retrouve pas. » Elle existait pourtant, mais rien ne la reliait à
+    // celle affichée. `batch_id` relie les analyses issues d'un même PDF
+    // découpé : on va chercher les sœurs pour les proposer ici.
+    const batchId = (data as { batch_id?: string | null }).batch_id;
+    if (batchId) {
+      const { data: soeurs } = await supabase
+        .from("analyses")
+        .select("id, file_name, status")
+        .eq("batch_id", batchId)
+        // Portée explicite plutôt que confiance seule dans la RLS : un lot
+        // n'appartient qu'à celui qui l'a déposé.
+        .eq("user_id", user.id)
+        .neq("id", id)
+        .order("created_at", { ascending: true });
+      if (soeurs && soeurs.length > 0) {
+        setDevisDuMemeDocument(soeurs as DevisFrere[]);
+      }
+    }
     setLoading(false);
   }, [id, isPermanent]);
 
@@ -1273,6 +1300,48 @@ const AnalysisResult = () => {
               } catch { return null; }
             })()}
           />
+        )}
+
+        {/* 2026-09-07 (retour Johan) — LES AUTRES DEVIS DU MÊME DOCUMENT.
+            « J'ouvre celle qui est finie, et la 2e je ne la retrouve pas. »
+            Elles existaient, rien ne les reliait. Placé haut, avant le verdict :
+            c'est un repère de navigation, pas une information sur le devis. */}
+        {devisDuMemeDocument.length > 0 && (
+          <div className="bg-card border border-border rounded-lg p-4 mb-6">
+            <p className="text-sm text-foreground">
+              Ce devis provient d'un document qui en contenait{" "}
+              <strong>{devisDuMemeDocument.length + 1}</strong>.
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {devisDuMemeDocument.map((d) => {
+                const pret = d.status === "completed";
+                return pret ? (
+                  <a
+                    key={d.id}
+                    href={`/analyse/${d.id}`}
+                    className="inline-flex items-center gap-1.5 text-sm rounded-md border border-border px-3 py-1.5 hover:border-primary hover:text-primary transition-colors"
+                  >
+                    {d.file_name ?? "Autre devis"}
+                  </a>
+                ) : (
+                  <span
+                    key={d.id}
+                    className="inline-flex items-center gap-1.5 text-sm rounded-md border border-dashed border-border px-3 py-1.5 text-muted-foreground"
+                  >
+                    {d.file_name ?? "Autre devis"} — analyse en cours
+                  </span>
+                );
+              })}
+              {devisDuMemeDocument.every((d) => d.status === "completed") && (
+                <a
+                  href="/comparateur/nouveau"
+                  className="inline-flex items-center gap-1.5 text-sm rounded-md border border-primary text-primary px-3 py-1.5 hover:bg-accent transition-colors"
+                >
+                  Comparer ces devis
+                </a>
+              )}
+            </div>
+          </div>
         )}
 
         {/* V3.5.16 (2026-06-15) — Piste C : revue humaine assistée
