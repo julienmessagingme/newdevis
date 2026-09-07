@@ -48,7 +48,15 @@ export default function PreparezVotreRendezVous({
   );
 
   const prenom = useMemo(() => extractArtisanFirstName(entrepriseName), [entrepriseName]);
-  const titleSuffix = prenom ? prenom : "votre artisan";
+  // 2026-09-06 (décision Johan, cas « Les Artisans de l'Habitat ») — le titre
+  // reprenait le prénom deviné et affichait « Préparez votre rendez-vous avec
+  // Les ». Le titre est désormais TOUJOURS générique : aucune heuristique de
+  // prénom ne sera jamais fiable sur toutes les raisons sociales, et le gain
+  // de personnalisation ne vaut pas le ridicule d'un nom tronqué en tête de
+  // page. Le prénom reste utilisé pour la salutation du message copiable, où
+  // il est correctement gardé (`extractArtisanFirstName` renvoie null au
+  // moindre doute).
+  const titleSuffix = "l'artisan";
 
   // 2026-08-21 — message UNIQUE 100 % déterministe (questions de leviers
   // écrites à la main + gabarit URSSAF). null si aucun levier de négociation

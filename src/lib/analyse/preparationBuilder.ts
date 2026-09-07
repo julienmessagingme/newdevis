@@ -572,6 +572,14 @@ function simplifyPointOk(point: string): { key: string; short: string } | null {
     return null; // assurance mentionnée ≠ attestation vérifiée
   }
   if (lower.includes("avis") || lower.includes("note") || lower.includes("google")) {
+    // 2026-09-06 (retour Johan, cas Les Artisans de l'Habitat) — « bien notée
+    // par ses clients » reposait sur un 5/5 établi sur UN SEUL avis. Une
+    // moyenne sur moins de dix avis ne fonde aucune réputation : on ne la met
+    // pas en avant comme un point à rappeler à l'artisan.
+    // Le nombre d'avis est présent dans le libellé (« … (1 avis Google) ») ;
+    // s'il est absent, on s'abstient — on n'affirme pas sans savoir.
+    const nbAvis = lower.match(/(\d+)\s*avis/);
+    if (!nbAvis || parseInt(nbAvis[1], 10) < 10) return null;
     return { key: "avis", short: "bien notée par ses clients" };
   }
   if (lower.includes("ancien") || lower.includes("depuis")) {
@@ -778,6 +786,20 @@ export function extractArtisanFirstName(entrepriseName: string | null | undefine
   // Prend le premier mot (probable prénom si nom commercial personnel)
   const first = trimmed.split(/[\s&/,-]+/)[0];
   if (!first || first.length < 3 || first.length > 20) return null;
+
+  // 2026-09-06 (cas « Les Artisans de l'Habitat ») — le premier mot était pris
+  // pour un prénom, d'où « Préparez votre rendez-vous avec Les » et un message
+  // s'ouvrant sur « Bonjour Les ». Un article ou un mot de métier en tête de
+  // raison sociale n'est jamais un prénom : dans le doute on ne personnalise
+  // pas, la formule générique ne choque personne.
+  const MOTS_NON_PRENOMS = new Set([
+    "les", "le", "la", "des", "aux", "una", "atelier", "ateliers", "maison",
+    "artisan", "artisans", "batiment", "bâtiment", "travaux", "renov", "renovation",
+    "rénovation", "constructions", "construction", "menuiserie", "plomberie",
+    "electricite", "électricité", "peinture", "toiture", "habitat", "services",
+    "etablissements", "établissements", "ets", "ets.", "pro", "france", "euro",
+  ]);
+  if (MOTS_NON_PRENOMS.has(first.toLowerCase())) return null;
 
   // Refuse tout ce qui commence par une minuscule
   if (first[0] !== first[0].toUpperCase()) return null;

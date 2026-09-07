@@ -675,3 +675,38 @@ describe("preparationBuilder — extractArtisanFirstName", () => {
     expect(extractArtisanFirstName("Aaaaaaaaaaaaaaaaaaaaaaa Dupont")).toBeNull();
   });
 });
+
+/**
+ * 2026-09-06 (retour Johan) — deux affirmations que l'analyse n'avait pas le
+ * droit de faire sur le devis « Les Artisans de l'Habitat ».
+ */
+describe("preparationBuilder — garde-fous 2026-09-06", () => {
+  it("« Les Artisans de l'Habitat » ne donne pas le prénom « Les »", () => {
+    expect(extractArtisanFirstName("Les Artisans de l'Habitat")).toBeNull();
+    expect(extractArtisanFirstName("Atelier Bois & Cie")).toBeNull();
+    expect(extractArtisanFirstName("Habitat Renov")).toBeNull();
+  });
+
+  it("un vrai prénom reste reconnu", () => {
+    expect(extractArtisanFirstName("Marc Dubois")).toBe("Marc");
+    expect(extractArtisanFirstName("Damien Dubourg")).toBe("Damien");
+  });
+
+  it("une note sur moins de 10 avis n'est pas une réputation à rappeler", () => {
+    const peu = buildPreparationSections(
+      { verdict_global: "dans_la_norme" } as never,
+      ["🟢 Bonne réputation en ligne : 5/5 (1 avis Google)"],
+      [],
+    );
+    expect(JSON.stringify(peu)).not.toMatch(/bien notée/i);
+  });
+
+  it("une note sur assez d'avis reste mise en avant", () => {
+    const assez = buildPreparationSections(
+      { verdict_global: "dans_la_norme" } as never,
+      ["🟢 Bonne réputation en ligne : 4.6/5 (128 avis Google)"],
+      [],
+    );
+    expect(JSON.stringify(assez)).toMatch(/bien notée/i);
+  });
+});

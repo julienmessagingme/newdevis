@@ -33,20 +33,37 @@ export async function comptePagesPdf(fichier: Blob): Promise<number | null> {
     // fausserait les positions.
     const texte = new TextDecoder("latin1").decode(octets);
 
-    // Les flux d'objets compressés cachent la structure : comptage non fiable.
-    if (/\/ObjStm\b/.test(texte)) return null;
-
     // `/Count N` de l'arbre des pages, quand il est présent : c'est la source
     // la plus fiable. On prend le plus grand (l'arbre racine).
     const counts = [...texte.matchAll(/\/Count\s+(\d{1,4})\b/g)]
       .map((m) => Number(m[1]))
       .filter((n) => Number.isFinite(n) && n > 0);
-    if (counts.length > 0) return Math.max(...counts);
+    const parCount = counts.length > 0 ? Math.max(...counts) : null;
 
-    // Sinon, on dénombre les objets page. Le `[^s]` évite de compter
-    // « /Type /Pages », qui est le NŒUD de l'arbre, pas une page.
-    const pages = (texte.match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-    return pages > 0 ? pages : null;
+    // Dénombrement des objets page. Le `[^s]` évite de compter « /Type /Pages »,
+    // qui est le NŒUD de l'arbre, pas une page.
+    const parObjets = (texte.match(/\/Type\s*\/Page[^s]/g) ?? []).length || null;
+
+    // 2026-09-06 (cas « Devis complets.pdf », 18 pages, retour Johan) — LE
+    // BAIL-OUT SUR /ObjStm AVALAIT EXACTEMENT LES PDF QU'IL VISE.
+    //
+    // La version du 2026-09-03 renvoyait `null` dès qu'un flux d'objets
+    // compressés était détecté. Or les PDF fusionnés par les outils grand
+    // public (iLovePDF ici) en contiennent SYSTÉMATIQUEMENT — donc les gros
+    // documents multi-devis, ceux que la garde devait arrêter, passaient tous.
+    // Mesuré sur ce fichier : `/ObjStm` présent, mais `/Count 18` ET 18 objets
+    // page, parfaitement lisibles et concordants.
+    //
+    // La bonne règle n'est pas « ObjStm ⇒ je renonce » mais « je renonce si je
+    // n'ai pas deux signaux qui concordent ». Quand les deux méthodes tombent
+    // d'accord, le compte est sûr quelle que soit la compression.
+    const compresse = /\/ObjStm\b/.test(texte);
+    if (!compresse) return parCount ?? parObjets;
+
+    if (parCount !== null && parObjets !== null && parCount === parObjets) return parCount;
+    // Signaux absents ou divergents sur un PDF compressé : on ne sait pas, et
+    // rater un gros PDF reste moins grave que refuser un devis d'une page.
+    return null;
   } catch {
     return null;
   }

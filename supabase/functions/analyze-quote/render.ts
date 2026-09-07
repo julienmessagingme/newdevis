@@ -159,8 +159,27 @@ export function renderOutput(
   // Avant le fix : 3.3/5 sur 69 avis était listée comme "🟢 Note Google : 3.3/5"
   // dans "Autres points conformes" → contradiction avec le bandeau orange
   // "Réputation en ligne 3,3/5" affiché juste au-dessus.
+  // 2026-09-06 (retour Johan, cas Les Artisans de l'Habitat) — UNE NOTE N'EST
+  // PAS UNE RÉPUTATION TANT QU'ELLE NE REPOSE PAS SUR ASSEZ D'AVIS.
+  //
+  // L'analyse affirmait « l'entreprise est bien notée par ses clients » sur la
+  // foi d'un 5/5… établi sur **un seul avis**, pour une entreprise créée il y a
+  // 3 ans. Une moyenne sur un avis ne dit rien, et l'afficher comme un point
+  // fort donne au lecteur une assurance que nous n'avons pas.
+  //
+  // Le seuil porte sur le NOMBRE d'avis, pas sur l'âge : 2 avis à six mois sont
+  // aussi peu concluants que 2 avis à dix ans. En dessous, on ne se tait pas
+  // complètement — on donne le chiffre en information, sans en tirer un
+  // jugement. C'est la différence entre « bien notée » et « 5/5 sur 1 avis ».
+  const AVIS_MIN_REPUTATION = 10;
   if (verified.google_trouve && verified.google_note !== null) {
-    if (verified.google_note >= 4.2) {
+    const nbAvisConnu = verified.google_nb_avis ?? 0;
+    if (nbAvisConnu < AVIS_MIN_REPUTATION) {
+      points_ok.push(
+        `ℹ️ Note Google ${verified.google_note}/5, mais sur ${nbAvisConnu} avis seulement — ` +
+        `trop peu pour en tirer une conclusion sur la réputation de l'entreprise.`,
+      );
+    } else if (verified.google_note >= 4.2) {
       points_ok.push(`🟢 Bonne réputation en ligne : ${verified.google_note}/5 (${verified.google_nb_avis} avis Google)`);
     } else if (verified.google_note >= 4.0) {
       points_ok.push(`✓ Réputation en ligne correcte : ${verified.google_note}/5 (${verified.google_nb_avis} avis Google)`);
