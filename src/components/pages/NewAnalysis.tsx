@@ -689,7 +689,12 @@ const NewAnalysis = () => {
           <div className="space-y-4">
             <Label className="text-base font-semibold">Votre devis</Label>
 
-            {sourceImages.length === 0 && !file ? (
+            {/* 2026-09-07 — cette première condition doit connaître les deux
+                nouveaux écrans, sinon elle les masque : après découpage,
+                `file` est null (rien n'a encore été choisi) et la zone de
+                dépôt reprenait la main, laissant l'utilisateur devant un
+                bouton « Lancer l'analyse » grisé sans savoir pourquoi. */}
+            {sourceImages.length === 0 && !file && devisEnAttente.length === 0 && suiviLot.length === 0 ? (
               /* Zone de dépôt */
               <div
                 onClick={() => fileInputRef.current?.click()}
@@ -1029,6 +1034,12 @@ const NewAnalysis = () => {
                 </div>
               </div>
             </div>
+          ) : devisEnAttente.length > 0 || suiviLot.length > 0 ? (
+            // 2026-09-07 — sur l'écran de choix comme sur celui de suivi, ce
+            // bouton n'a rien à lancer : chacun porte le sien (« Analyser les
+            // N devis », puis « Ouvrir »). Le laisser affiché et grisé n'était
+            // pas seulement inutile, c'était trompeur.
+            null
           ) : (
             <Button type="submit" size="lg" className="w-full" disabled={!canSubmit}>
               {isMerging ? (
