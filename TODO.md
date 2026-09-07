@@ -473,7 +473,32 @@ Le socle est livré (`src/lib/observatoire/statsPrix.ts` + pages métier, cf. `C
 - [ ] **Migration `20260907200000_observatoire_lignes.sql` non appliquée** (CLI `supabase` en `spawn UNKNOWN` ce jour-là). Elle unifie la classification du type de chantier dans une fonction SQL appelée par les deux vues. Non bloquante : le générateur des pages chantier calcule la classification côté TypeScript. À appliquer pour supprimer la définition SQL dupliquée dans `mv_observatoire_chantiers`.
 - [ ] **Comparaison géographique** (Paris / grandes villes / province) demandée par Johan : **non publiable aujourd'hui**, seuls 3 couples (poste, unité) atteignent le seuil d'observations dans plus d'une zone. À reprendre quand le corpus aura doublé — la colonne `adresse_entreprise` existe déjà dans `mv_observatoire_base`.
 - [ ] **Caractéristiques produit** (marque, double/triple vitrage, épaisseur d'isolant) : expliquées en texte sur les pages métier, mais **jamais mesurées** — il faudrait les extraire des descriptions libres des lignes de devis. Ce serait la vraie valeur ajoutée d'un observatoire ; à chiffrer avant de s'y engager.
-- [ ] **Prix codés en dur incohérents entre pages** : `prix-travaux-maison.astro` et `budget-renovation.astro` se contredisent l'un l'autre ET contredisent le catalogue (peinture 15-35 vs 30-60 vs catalogue 18-65 ; carrelage 50-130 vs 90-170 vs 25-80/40-100). Règle Johan : « il ne peut pas y avoir 2 valorisations différentes dans un même site. »
+---
+
+## Audit des prix affichés sur le site — relevé du 2026-09-07
+
+Demande Johan : « vérifie dans l'ensemble du site qu'il n'y ait pas de contradictions sur les fourchettes de prix (calculatrice vs blog vs base de prix) ». **59 fourchettes au m²** relevées dans les sources (hors observatoire).
+
+**Ce qui est SAIN** — la calculette `/calculette-travaux` interroge `market_prices` en direct (catalogue + coefficient de zone) : elle ne peut pas diverger. Les cartes matériaux de `useMaterialSuggestions.ts` sont cohérentes avec le catalogue (carrelage 50-110 vs 46-94 ; bardage bois 60-120 vs 55-140). Les ratios « €/m² de logement » (250-400 rafraîchissement, 600-1 000 moyenne, 1 200-2 000 lourde…) sont identiques entre `budget-renovation` et `suivi-budget-travaux` : ce sont des coûts de PROJET par m² habitable, à ne pas confondre avec des prix de poste — ils ne contredisent pas le catalogue.
+
+**Les contradictions réelles**, avec les trois sources en regard (catalogue = `market_prices` ; mesuré = observatoire, P10-P90) :
+
+| Poste | `prix-travaux-maison` | `budget-renovation` | Catalogue | Mesuré (médiane) |
+|---|---|---|---|---|
+| Peinture murs/plafonds | **15-35** | **30-60** | 18-65 | 7-50 (**17**, 13 devis) |
+| Carrelage posé | **50-130** (pose + fourniture) | **90-170** (sol + faïence) | 46-94 (fourni+posé) | 87-132 (112, 6 devis) |
+| Parquet | 45-130 | — | 31-58 stratifié · 80-200 massif | — |
+| Isolation intérieure | 40-120 | 60-110 (placo + isolation) | 35-110 | — |
+| ITE | **90-220** | — | **90-180** | — |
+
+- [ ] **Peinture — le plancher varie du simple au double entre deux de nos pages** (15 vs 30 €/m²), et la mesure donne une médiane de 17 €/m² : c'est `budget-renovation` (30-60) qui est haut, pas l'inverse.
+- [ ] **Carrelage — 50-130 contre 90-170**, alors que le catalogue plafonne à 94 € pour du standard fourni+posé. Les deux pages dépassent le référentiel par le haut.
+- [ ] **ITE 90-220 contre 90-180 au catalogue** : +22 % sur le plafond.
+- [ ] **Parquet 45-130 mélange trois produits** (stratifié 31-58, contrecollé 50-135, massif 80-200) : la fourchette n'est pas fausse, elle n'est simplement comparable à rien.
+- [ ] **`analyser-devis-travaux.astro:283` annonce « marché 65-75 €/m² » pour un carrelage standard** — une précision qui ne vient d'aucune de nos sources (catalogue 46-94). C'est une capture d'exemple, mais elle affiche le mot « marché ».
+- [ ] **Formulation ambiguë** (pas une erreur) : `budget-renovation` L12 donne « Rénovation moyenne : 600-1 000 €/m² » et L22 « Rénovation moyenne : 800-1 300 €/m² ». Le second est qualifié « maison ancienne » — défendable, mais le libellé identique se lit comme une contradiction.
+
+**Correctif proposé** : faire lire ces tableaux à une source unique plutôt que de les réécrire à la main — un module `src/lib/prix/reference.ts` qui expose les fourchettes depuis le catalogue au build, comme `statsPrix.ts` le fait pour l'observatoire. Sinon la divergence reviendra au prochain enrichissement du catalogue.
 
 ---
 

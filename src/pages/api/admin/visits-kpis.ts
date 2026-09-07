@@ -25,6 +25,80 @@ interface JourKpi {
   analyses: number;
 }
 
+interface OutilKpi {
+  cle: string;
+  libelle: string;
+  /** Chemin de la page, `null` quand l'outil n'en a pas (fenêtre modale). */
+  path: string | null;
+  /** Visiteurs uniques de la page — `null` si l'outil n'a pas de page à lui. */
+  visiteurs: number | null;
+  /** Calculs effectivement produits sur la période. */
+  calculs: number;
+  /** Personnes distinctes ayant produit au moins un calcul. */
+  personnes: number;
+}
+
+/** Les trois outils en observation, avec le chemin qui leur correspond. */
+const OUTILS: Array<{ cle: string; libelle: string; path: string | null; event: string }> = [
+  {
+    cle: "calculette",
+    libelle: "Calculette de travaux",
+    path: "/calculette-travaux",
+    event: "calculette_travaux_calcul",
+  },
+  {
+    cle: "valorisation",
+    libelle: "Simulateur de valorisation",
+    path: "/simulateur-valorisation-travaux",
+    event: "simulateur_valorisation_calcul",
+  },
+  {
+    cle: "aides",
+    libelle: "Simulateur d'aides",
+    path: null, // carte de la page d'accueil, pas de page dédiée
+    event: "simulateur_aides_calcul",
+  },
+];
+
+/**
+ * Usage des calculettes : visiteurs de la page ET calculs aboutis.
+ *
+ * Best-effort : tant que la migration `20260907220000_site_events.sql` n'est
+ * pas appliquée, les RPC sont absentes — on renvoie des zéros plutôt que de
+ * faire échouer tout l'écran des KPI pour une section secondaire.
+ */
+async function lireUsageOutils(
+  supabase: ReturnType<typeof createServiceClient>,
+  days: number,
+): Promise<OutilKpi[]> {
+  const paths = OUTILS.map((o) => o.path).filter((p): p is string => p !== null);
+
+  const [usage, visites] = await Promise.all([
+    supabase.rpc("admin_events_usage", { p_days: days }),
+    supabase.rpc("admin_visits_by_path", { p_days: days, p_paths: paths }),
+  ]);
+
+  const parEvent = new Map(
+    (usage.data ?? []).map((r: Record<string, unknown>) => [String(r.event), r]),
+  );
+  const parPath = new Map(
+    (visites.data ?? []).map((r: Record<string, unknown>) => [String(r.path), r]),
+  );
+
+  return OUTILS.map((o) => {
+    const u = parEvent.get(o.event) as Record<string, unknown> | undefined;
+    const v = o.path ? (parPath.get(o.path) as Record<string, unknown> | undefined) : undefined;
+    return {
+      cle: o.cle,
+      libelle: o.libelle,
+      path: o.path,
+      visiteurs: o.path ? Number(v?.visiteurs ?? 0) : null,
+      calculs: Number(u?.occurrences ?? 0),
+      personnes: Number(u?.personnes ?? 0),
+    };
+  });
+}
+
 export const GET: APIRoute = async ({ request }) => {
   const ctx = await requireAuth(request);
   if (ctx instanceof Response) return ctx;
@@ -81,9 +155,23 @@ export const GET: APIRoute = async ({ request }) => {
   const totalVisiteurs = serie.reduce((s, j) => s + j.visiteurs, 0);
   const totalAnalyses = serie.reduce((s, j) => s + j.analyses, 0);
 
+  // ── Usage des calculettes (2026-09-07, décision Johan) ────────────────────
+  //
+  // On garde les calculettes 30 jours et on tranche sur ce tableau. Deux
+  // chiffres par outil, et il FAUT les deux : les visiteurs de la page disent
+  // si on y arrive, les calculs disent si on s'en sert. Une page très visitée
+  // sans aucun calcul et une page jamais atteinte appellent des décisions
+  // opposées — la première déçoit, la seconde est mal exposée.
+  //
+  // Le simulateur d'aides n'a pas de page à lui : c'est une carte de la page
+  // d'accueil qui ouvre une fenêtre. Son nombre de visiteurs est donc `null`,
+  // pas zéro — on ne l'a pas mesuré, il n'est pas nul.
+  const outils = await lireUsageOutils(supabase, days);
+
   return jsonOk({
     days,
     serie,
+    outils,
     totaux: {
       visiteurs: totalVisiteurs,
       pages_vues: serie.reduce((s, j) => s + j.pages_vues, 0),

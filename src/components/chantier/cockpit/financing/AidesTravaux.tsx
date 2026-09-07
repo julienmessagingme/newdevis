@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, ChevronRight, RotateCcw, Info, X } from 'lucide-react';
+import { trackEvent } from '@/lib/integrations/trackEvent';
 import {
   WORK_TYPES_EFFY,
   type EffyWorkType,
@@ -54,6 +55,13 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
     const res = computeEffyAides(workType, bracket, costNum, isOwner!, isOldEnough!, isMainResidence!);
     setResult(res);
     setStep(3);
+
+    // 2026-09-07 — mesure d'usage du simulateur PUBLIC uniquement (`standalone`,
+    // la carte de la page d'accueil). Ce composant sert aussi d'outil interne
+    // dans le cockpit GMC : y compter les calculs mélangerait l'usage de nos
+    // abonnés à la question posée, qui est « les visiteurs se servent-ils des
+    // calculettes ? ». Aucune donnée saisie n'est transmise.
+    if (standalone) trackEvent('simulateur_aides_calcul');
     onSimulationSave?.({
       workType, cost, isOwner: isOwner!, householdSize, annualIncome,
       isOldEnough: isOldEnough!, isMainResidence: isMainResidence!, result: res,

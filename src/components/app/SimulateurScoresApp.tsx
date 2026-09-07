@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import ReactApp from '@/components/ReactApp';
 import StrategicBadge from '@/components/analysis/StrategicBadge';
+import { trackEvent } from '@/lib/integrations/trackEvent';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,10 @@ function SimulateurScores() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<SimPayload>).detail;
       setPayload(detail);
+      // 2026-09-07 — on ne compte que les simulations ABOUTIES : la question
+      // posée est « ce simulateur sert-il ? », pas « combien ouvrent la page »
+      // (cf. `trackEvent`). Aucune donnée saisie n'est transmise.
+      if (detail?.status === 'done') trackEvent('simulateur_valorisation_calcul');
     };
     document.addEventListener('simulateur-scores-update', handler);
     return () => document.removeEventListener('simulateur-scores-update', handler);

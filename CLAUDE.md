@@ -869,6 +869,16 @@ Refonte du hero après audit concurrentiel. **Contexte qui commande tout** : mes
 - 🔴 **L’INSCRIPTION EST ANNONCÉE AVANT LE CLIC.** L’ancienne micro-copie disait « Analyse immédiate · Compte gratuit pour le détail complet » — **c’était faux** : `/nouvelle-analyse` redirige vers `/inscription` sans compte (règle du hard signup du 2026-05-11). Le visiteur cliquait en pensant déposer son PDF et tombait sur un formulaire. Elle dit désormais « Création de compte en 30 secondes, puis analyse immédiate — gratuit ». Décision Johan : **on assume le mur, on ne le déguise pas.**
 - Emojis retirés des arguments (ils doublaient les coches SVG et desservaient une promesse de rigueur) ; le bouton secondaire « Qu’est-ce qui est analysé ? » quitte le voisinage du CTA — il détournait du clic au moment de cliquer — et revient en lien discret sous les arguments, avec la mention de la **relecture humaine**.
 
+### Mesurer l’usage des calculettes avant de trancher (2026-09-07)
+
+Mesuré sur 4 jours : **425 visiteurs de la page d’accueil, 1 seul sur `/calculette-travaux`, aucun sur `/simulateur-valorisation-travaux`** (contre 15 sur `/nouvelle-analyse` depuis la même page). Décision Johan : **on garde, on instrumente, on tranche au 07/10/2026** plutôt que de supprimer sur un échantillon de 4 jours.
+
+- **Une vue de page ne suffit pas.** `site_visits` dit combien de gens ARRIVENT sur la calculette, pas combien s’en servent. Nouvelle table `site_events` + route `/api/track/event` : on compte les **calculs aboutis**. Une page très visitée sans aucun calcul et une page jamais atteinte appellent des décisions opposées — il faut les deux chiffres, ils sont côte à côte dans `/admin` (section « Usage des calculettes »).
+- **ALLOWLIST obligatoire** dans `/api/track/event` : la route est publique et non authentifiée ; sans liste fermée de noms d’événements elle devient un journal ouvert. Trois événements aujourd’hui : `calculette_travaux_calcul`, `simulateur_valorisation_calcul`, `simulateur_aides_calcul`.
+- **RGPD : même régime que `site_visits`** — aucun cookie, empreinte SHA-256 rotative quotidienne, ni IP ni user-agent conservés, et **aucune valeur saisie** (code postal, surface, type de travaux) n’est transmise. Donc pas de gate consentement, contrairement aux pixels publicitaires.
+- Le simulateur d’aides est **partagé avec le cockpit GMC** : le comptage est gaté sur la prop `standalone`, sinon l’usage de nos abonnés se mélangerait à la question posée. Il n’a pas de page à lui (carte + fenêtre) : sa colonne « visiteurs » vaut **`null`, pas zéro** — non mesuré n’est pas nul.
+- ⚠️ **Ce que la calculette n’est PAS** : elle interroge `market_prices` en direct (catalogue 919 entrées + coefficient de zone). Elle ne contredit donc pas nos prix — les contradictions sont dans les pages d’articles (voir `TODO.md` § audit des prix).
+
 ### Observatoire — publier un prix (2026-09-07)
 
 Déclencheur, mot pour mot : *« les prix de l’observatoire n’apportent rien comme information, 1 397 € de panier moyen et alors ? Soit on sort des chiffres clairs, chocs sur les plus gros postes et on en fait une vraie information, sinon ça fait du bruit pour rien. »* Il avait raison, et le défaut était **le même que celui corrigé la veille** sur `/observatoire/prix-variables` : on agrégeait des choses qui ne se comparent pas.

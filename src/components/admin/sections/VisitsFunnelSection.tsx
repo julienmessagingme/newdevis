@@ -14,7 +14,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users } from "lucide-react";
+import { Users, Calculator } from "lucide-react";
 import {
   ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
@@ -26,9 +26,19 @@ interface JourKpi {
   analyses: number;
 }
 
+interface OutilKpi {
+  cle: string;
+  libelle: string;
+  path: string | null;
+  visiteurs: number | null;
+  calculs: number;
+  personnes: number;
+}
+
 interface VisitsKpis {
   days: number;
   serie: JourKpi[];
+  outils?: OutilKpi[];
   totaux: {
     visiteurs: number;
     pages_vues: number;
@@ -157,6 +167,80 @@ export default function VisitsFunnelSection() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* ── Usage des calculettes (2026-09-07, décision Johan) ──────────────
+       *
+       * On les garde 30 jours et on tranche sur ce tableau. Deux colonnes, et
+       * il faut les deux : « visiteurs » dit si on arrive sur l'outil,
+       * « calculs » s'il sert. Une page visitée sans aucun calcul et une page
+       * jamais atteinte appellent des décisions opposées.
+       */}
+      {kpis.outils && kpis.outils.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-primary" />
+              Usage des calculettes
+            </CardTitle>
+            <CardDescription>
+              Décision prévue au 07/10/2026. Un calcul = un résultat réellement affiché,
+              pas une ouverture de page. Les essais de l'équipe sont exclus.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto overscroll-x-contain">
+              <table className="w-full text-sm min-w-[520px]">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b">
+                    <th className="py-2 pr-3 font-semibold">Outil</th>
+                    <th className="py-2 px-3 font-semibold text-right">Visiteurs</th>
+                    <th className="py-2 px-3 font-semibold text-right">Calculs</th>
+                    <th className="py-2 pl-3 font-semibold text-right">Personnes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kpis.outils.map((o) => (
+                    <tr key={o.cle} className="border-b border-border/60">
+                      <td className="py-2.5 pr-3">
+                        <div className="font-medium">{o.libelle}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {o.path ?? "carte de la page d'accueil"}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">
+                        {/* `null` = pas de page dédiée : non mesuré, pas zéro. */}
+                        {o.visiteurs === null ? (
+                          <span className="text-muted-foreground" title="Pas de page dédiée : la carte ouvre une fenêtre, il n'y a pas de visite à compter.">
+                            n/a
+                          </span>
+                        ) : (
+                          o.visiteurs.toLocaleString("fr-FR")
+                        )}
+                      </td>
+                      <td
+                        className={
+                          "py-2.5 px-3 text-right tabular-nums font-semibold " +
+                          (o.calculs === 0 ? "text-rose-600" : "")
+                        }
+                      >
+                        {o.calculs.toLocaleString("fr-FR")}
+                      </td>
+                      <td className="py-2.5 pl-3 text-right tabular-nums">
+                        {o.personnes.toLocaleString("fr-FR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Mesuré du côté serveur, sans cookie ni identifiant persistant : aucune donnée
+              saisie dans les calculettes n'est enregistrée, seulement le fait qu'un calcul a eu
+              lieu.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </section>
   );
 }

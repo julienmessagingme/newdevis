@@ -7,6 +7,7 @@ import { Calculator, Loader2, AlertCircle, CheckCircle2, AlertTriangle, MapPin }
 import JobTypeSelector, { type JobTypeItem } from "./JobTypeSelector";
 import { getZoneCoefficient, applyZoneCoefficient, getZoneLabel, type ZoneResult } from "@/hooks/useZoneCoefficient";
 import { supabase } from "@/integrations/supabase/client";
+import { trackEvent } from "@/lib/integrations/trackEvent";
 
 interface PriceResult {
   label: string;
@@ -107,6 +108,12 @@ const DevisCalculatorSection = () => {
         zone: zoneResult,
         adjustedTotals,
       });
+
+      // 2026-09-07 — on compte les CALCULS ABOUTIS, pas les visites de la page :
+      // une calculette qu'on ouvre sans s'en servir ne vaut rien, et c'est la
+      // question qui décidera de son sort (cf. `trackEvent`). Rien de ce que
+      // l'utilisateur a saisi n'est transmis.
+      trackEvent("calculette_travaux_calcul");
     } catch (err) {
       console.error("[Calculette] Error:", err);
       setError(err instanceof Error ? err.message : "Erreur lors du calcul");
