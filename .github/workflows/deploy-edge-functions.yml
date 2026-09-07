@@ -72,8 +72,24 @@ jobs:
         if: steps.changed.outputs.skip == 'false'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          # 2026-09-07 — le secret SUPABASE_PROJECT_REF a disparu des réglages
+          # du dépôt : `--project-ref ""` donnait « Cannot find project ref »
+          # et DEUX déploiements sont passés à l'échec sans que personne ne le
+          # voie (05/09 et 07/09) — le correctif de réputation est resté hors
+          # production jusqu'à un déploiement manuel.
+          #
+          # La référence de projet n'est pas un secret : elle figure en clair
+          # dans chaque migration, dans CLAUDE.md et dans l'URL Supabase servie
+          # au navigateur. En faire un secret n'apportait aucune protection et
+          # créait un point de panne unique. Le secret reste prioritaire s'il
+          # est présent, sinon on retombe sur la valeur connue.
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || 'vhrhgsqxwvouswjaiczn' }}
         run: |
+          if [ -z "$PROJECT_REF" ]; then
+            echo "::error::PROJECT_REF vide — déploiement impossible."
+            exit 1
+          fi
+          echo "Déploiement sur le projet $PROJECT_REF"
           for fn in ${{ steps.changed.outputs.functions }}; do
             if [ -d "supabase/functions/$fn" ]; then
               echo "::group::Deploying $fn"
