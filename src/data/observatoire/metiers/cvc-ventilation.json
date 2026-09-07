@@ -2,20 +2,42 @@
   "slug": "cvc-ventilation",
   "metier": "cvc_ventilation",
   "metier_label": "CVC & ventilation",
-  "title": "Prix cvc & ventilation 2026 : fourchette sur 34 devis",
-  "description": "CVC & ventilation : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-20T21:27:28.002Z",
-  "intro": "Nous avons analysé 34 devis contenant au moins une ligne du métier CVC & ventilation. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Climatisation split (mono-split, fourni+posé) : de 589 à 4 801 € — pourquoi un tel écart",
+  "description": "CVC & ventilation : prix réels relevés poste par poste sur 35 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T18:37:20.390Z",
+  "intro": "Sur 35 devis contenant au moins une ligne de cvc & ventilation, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Climatisation split (mono-split, fourni+posé)",
+      "unite": "u",
+      "nbObs": 10,
+      "p10": 588.6200000000001,
+      "mediane": 1534.375,
+      "p90": 4800.86,
+      "ecart": 8.156127892358395,
+      "nature_prix": "fourni_pose"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Climatisation split (mono-split, fourni+posé)",
+    "unite": "u",
+    "nbObs": 10,
+    "p10": 588.6200000000001,
+    "mediane": 1534.375,
+    "p90": 4800.86,
+    "ecart": 8.156127892358395,
+    "nature_prix": "fourni_pose"
+  },
   "kpis": {
-    "nb_devis": 34,
-    "nb_lignes": 41,
-    "prix_moyen": 2557.22,
+    "nb_devis": 35,
+    "nb_lignes": 42,
+    "prix_moyen": 2817.76,
     "prix_median": 760,
     "prix_min": 88.62,
     "prix_max": 14424.78,
-    "prix_p25": 350.28,
-    "prix_p75": 2650,
-    "panier_moyen": 6263.88,
+    "prix_p25": 357.71,
+    "prix_p75": 2725,
+    "panier_moyen": 6436.17,
     "ratio_moyen_vs_marche": 1.626
   },
   "postesSurfactures": [

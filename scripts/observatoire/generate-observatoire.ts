@@ -23,6 +23,12 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  agregerPostes,
+  faitMarquant,
+  OBS_MIN_PAGE_METIER,
+  type PostePublie,
+} from "../../src/lib/observatoire/statsPrix";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..");
@@ -544,7 +550,66 @@ function safeParse(s: unknown): any {
 // ─────────────────────────────────────────────────────────────────────
 
 async function generateMetierPages(): Promise<{ generated: number; empty: number }> {
-  console.log("\n🔧 Génération pages métier depuis mv_observatoire_metiers…");
+  console.log("\n🔧 Génération pages métier depuis mv_observatoire_base…");
+
+  // ────────────────────────────────────────────────────────────────────────
+  // 2026-09-07 (retour Johan) — LES POSTES, PAS LES MOYENNES.
+  //
+  // « 1 397 € de panier moyen, et alors ? » Les KPI venaient de
+  // `mv_observatoire_metiers`, qui moyennait `prix_unitaire` toutes unités
+  // confondues : sur menuiserie, 121 lignes à l'unité, 3 au mètre linéaire,
+  // 1 au m² et 3 forfaits dans la même médiane. Une poignée de porte et une
+  // baie vitrée dans le même chiffre.
+  //
+  // On lit désormais les LIGNES et on agrège avec la règle partagée
+  // (`statsPrix.ts`, testée) : une série par poste ET par unité, forfaits
+  // exclus, forfaits déguisés écartés, P90/P10 plutôt que max/min.
+  // ────────────────────────────────────────────────────────────────────────
+  const lignesParMetier = new Map<string, Array<{ label: string; unite: unknown; prix: number }>>();
+  try {
+    let debut = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("mv_observatoire_base")
+        .select("metier, market_label, main_unit, prix_unitaire")
+        .range(debut, debut + 999);
+      if (error) throw error;
+      for (const r of data ?? []) {
+        if (!r.metier || !r.market_label) continue;
+        const liste = lignesParMetier.get(r.metier) ?? [];
+        liste.push({ label: r.market_label, unite: r.main_unit, prix: Number(r.prix_unitaire) });
+        lignesParMetier.set(r.metier, liste);
+      }
+      if (!data || data.length < 1000) break;
+      debut += 1000;
+    }
+    console.log(`   ${lignesParMetier.size} métiers avec des lignes exploitables`);
+  } catch (e) {
+    console.warn(`   ⚠️  mv_observatoire_base inaccessible (${e instanceof Error ? e.message : String(e)}).`);
+  }
+
+  /**
+   * Le prix inclut-il la fourniture ? Le catalogue le dit dans son libellé —
+   * c'est la première question d'un lecteur devant « 1 760 € une fenêtre ».
+   * Vérifié sur le stock : 441 lignes sur 1 000 portent l'information.
+   */
+  const natureDuPrix = (label: string): "fourni_pose" | "pose_seule" | "non_precise" => {
+    if (/hors\s+fourniture|\(mo\)|main.d.?œuvre|main.d.?oeuvre|^pose\b|^d[ée]pose\b/i.test(label)) {
+      return "pose_seule";
+    }
+    if (/fourni.*pos|fourniture\s+et\s+pose|f\s*\+\s*p\b/i.test(label)) return "fourni_pose";
+    return "non_precise";
+  };
+
+  const postesDuMetier = (metier: string): PostePublie[] => {
+    const lignes = (lignesParMetier.get(metier) ?? []).map((l) => ({
+      label: l.label,
+      unite: l.unite,
+      prixUnitaire: l.prix,
+    }));
+    return agregerPostes(lignes, { obsMin: OBS_MIN_PAGE_METIER });
+  };
+
 
   // Fetch MVs — si elles n'existent pas encore, warning + skip
   let metiersRows: any[] = [];
@@ -594,18 +659,41 @@ async function generateMetierPages(): Promise<{ generated: number; empty: number
       nb_obs: p.nb_obs,
     }));
 
+    // Postes publiables, à poste ET unité égaux, plus le fait marquant qui
+    // remplace l'ancien « panier moyen » : une phrase qu'un lecteur retient et
+    // peut vérifier sur son propre devis.
+    const postes = postesDuMetier(row.metier).map((p) => ({
+      ...p,
+      nature_prix: natureDuPrix(p.label),
+    }));
+    const marquant = faitMarquant(postes);
+
+    // Le titre part du fait le plus parlant quand il existe : « Prix menuiserie
+    // 2026 : fourchette sur 86 devis » n'accroche personne ; « une fenêtre PVC
+    // posée coûte entre 910 et 2 968 € » est une question que les gens se posent.
+    const titrePrincipal = marquant
+      ? `${marquant.label} : de ${Math.round(marquant.p10).toLocaleString("fr-FR")} à ${Math.round(marquant.p90).toLocaleString("fr-FR")} € — pourquoi un tel écart`
+      : `Prix ${label.toLowerCase()} 2026 : ce que disent ${row.nb_devis} devis analysés`;
+
     const data = {
       slug,
       metier: row.metier,
       metier_label: label,
       ...applySeoOverride(
         slug,
-        `Prix ${label.toLowerCase()} 2026 : fourchette sur ${row.nb_devis} devis`,
-        `${label} : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.`,
+        titrePrincipal,
+        `${label} : prix réels relevés poste par poste sur ${row.nb_devis} devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.`,
         row.nb_devis,
       ),
       lastGenerated: new Date().toISOString(),
-      intro: `Nous avons analysé ${row.nb_devis} devis contenant au moins une ligne du métier ${label}. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.`,
+      intro: postes.length > 0
+        ? `Sur ${row.nb_devis} devis contenant au moins une ligne de ${label.toLowerCase()}, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.`
+        : `Nous avons analysé ${row.nb_devis} devis de ${label.toLowerCase()}, mais aucun poste n'atteint encore le nombre d'observations nécessaire pour publier une fourchette fiable.`,
+      /** 2026-09-07 — la matière de la page : des prix à unité égale. */
+      postes,
+      fait_marquant: marquant
+        ? { ...marquant, nature_prix: natureDuPrix(marquant.label) }
+        : null,
       kpis: {
         nb_devis: row.nb_devis,
         nb_lignes: row.nb_lignes,
@@ -624,12 +712,16 @@ async function generateMetierPages(): Promise<{ generated: number; empty: number
       conseils,
     };
 
-    if (row.nb_lignes === 0) empty++;
+    // Une page sans poste publiable ne montre AUCUN chiffre : elle dit qu on
+    // accumule encore. Mieux vaut une page honnete qu une moyenne qui ne repond
+    // a aucune question.
+    if (postes.length === 0) empty++;
     else generated++;
 
     writeFileSync(join(METIERS_DIR, `${slug}.json`), JSON.stringify(data, null, 2), "utf-8");
     console.log(
-      `   ✓ ${slug}.json (${row.nb_devis} devis · ${row.nb_lignes} lignes · top ${topPostes.length} postes)`,
+      `   ${postes.length ? "✓" : "○"} ${slug}.json — ${row.nb_devis} devis · ${postes.length} poste(s) publiable(s)` +
+        (marquant ? ` · fait marquant : ${marquant.label} x${marquant.ecart.toFixed(1)}` : ""),
     );
   }
 

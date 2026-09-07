@@ -4,8 +4,50 @@
   "metier_label": "Électricité",
   "title": "Prix rénovation électrique 2026 : sur 33 devis analysés",
   "description": "Rénovation électrique complète ou partielle : combien prévoir en 2026 ? Fourchette des devis analysés, tableau, prises, luminaires, aides.",
-  "lastGenerated": "2026-08-20T21:27:28.004Z",
-  "intro": "Nous avons analysé 33 devis contenant au moins une ligne du métier Électricité. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-09-07T18:37:20.391Z",
+  "intro": "Sur 33 devis contenant au moins une ligne de électricité, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Point lumineux",
+      "unite": "u",
+      "nbObs": 15,
+      "p10": 102.37733333333333,
+      "mediane": 116.42,
+      "p90": 160.08,
+      "ecart": 1.5636273654324528,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Prise RJ45 Cat 6 (fourni+posé)",
+      "unite": "pièce(s)",
+      "nbObs": 6,
+      "p10": 80,
+      "mediane": 80,
+      "p90": 80,
+      "ecart": 1,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Saignées / rebouchage (élec)",
+      "unite": "u",
+      "nbObs": 5,
+      "p10": 39.04666666666667,
+      "mediane": 71.44776119402985,
+      "p90": 182.4,
+      "ecart": 4.671333447157248,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Saignées / rebouchage (élec)",
+    "unite": "u",
+    "nbObs": 5,
+    "p10": 39.04666666666667,
+    "mediane": 71.44776119402985,
+    "p90": 182.4,
+    "ecart": 4.671333447157248,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
     "nb_devis": 33,
     "nb_lignes": 76,

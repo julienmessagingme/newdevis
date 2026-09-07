@@ -2,21 +2,113 @@
   "slug": "plomberie-sanitaires",
   "metier": "plomberie_sanitaires",
   "metier_label": "Plomberie & sanitaires",
-  "title": "Prix plomberie 2026 : fourchette sur 59 devis analysés",
+  "title": "Prix plomberie 2026 : fourchette sur 69 devis analysés",
   "description": "Plomberie, sanitaires, robinetterie : combien coûte une intervention en 2026 ? Fourchette des devis analysés, alertes sur les postes à risque.",
-  "lastGenerated": "2026-08-20T21:27:28.012Z",
-  "intro": "Nous avons analysé 59 devis contenant au moins une ligne du métier Plomberie & sanitaires. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-09-07T18:37:20.397Z",
+  "intro": "Sur 69 devis contenant au moins une ligne de plomberie & sanitaires, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Pose receveur douche",
+      "unite": "u",
+      "nbObs": 16,
+      "p10": 225,
+      "mediane": 284.41,
+      "p90": 700,
+      "ecart": 3.111111111111111,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose lavabo",
+      "unite": "u",
+      "nbObs": 9,
+      "p10": 70,
+      "mediane": 100,
+      "p90": 190,
+      "ecart": 2.7142857142857144,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose douche",
+      "unite": "u",
+      "nbObs": 7,
+      "p10": 330.802,
+      "mediane": 455.25095238095236,
+      "p90": 1150,
+      "ecart": 3.476399779928779,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Mitigeur (fourni+posé)",
+      "unite": "u",
+      "nbObs": 7,
+      "p10": 250,
+      "mediane": 430,
+      "p90": 480,
+      "ecart": 1.92,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Vasque (fourni+posé)",
+      "unite": "u",
+      "nbObs": 7,
+      "p10": 235,
+      "mediane": 235,
+      "p90": 235,
+      "ecart": 1,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Pose baignoire",
+      "unite": "u",
+      "nbObs": 5,
+      "p10": 224,
+      "mediane": 234.2,
+      "p90": 350,
+      "ecart": 1.5625,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Plomberie : petite intervention",
+      "unite": "u",
+      "nbObs": 5,
+      "p10": 110,
+      "mediane": 790.5,
+      "p90": 1040,
+      "ecart": 9.454545454545455,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Raccordement lave-linge",
+      "unite": "u",
+      "nbObs": 5,
+      "p10": 120,
+      "mediane": 193,
+      "p90": 250,
+      "ecart": 2.0833333333333335,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Plomberie : petite intervention",
+    "unite": "u",
+    "nbObs": 5,
+    "p10": 110,
+    "mediane": 790.5,
+    "p90": 1040,
+    "ecart": 9.454545454545455,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
-    "nb_devis": 59,
-    "nb_lignes": 131,
-    "prix_moyen": 795.9,
-    "prix_median": 330,
+    "nb_devis": 69,
+    "nb_lignes": 180,
+    "prix_moyen": 732.26,
+    "prix_median": 330.4,
     "prix_min": 3.58,
     "prix_max": 10759,
-    "prix_p25": 225,
-    "prix_p75": 697.92,
-    "panier_moyen": 1424.71,
-    "ratio_moyen_vs_marche": 7.081
+    "prix_p25": 209.95,
+    "prix_p75": 620,
+    "panier_moyen": 1190.72,
+    "ratio_moyen_vs_marche": 5.706
   },
   "postesSurfactures": [
     {

@@ -2,10 +2,42 @@
   "slug": "prestations-intellectuelles",
   "metier": "prestations_intellectuelles",
   "metier_label": "Prestations intellectuelles",
-  "title": "Prix prestations intellectuelles 2026 : fourchette sur 19 devis",
-  "description": "Prestations intellectuelles : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-20T21:27:28.013Z",
-  "intro": "Nous avons analysé 19 devis contenant au moins une ligne du métier Prestations intellectuelles. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Menuisier (taux horaire) : de 120 à 964 € — pourquoi un tel écart",
+  "description": "Prestations intellectuelles : prix réels relevés poste par poste sur 19 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T18:37:20.398Z",
+  "intro": "Sur 19 devis contenant au moins une ligne de prestations intellectuelles, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Menuisier (taux horaire)",
+      "unite": "u",
+      "nbObs": 9,
+      "p10": 120,
+      "mediane": 379.5,
+      "p90": 964.0533333333333,
+      "ecart": 8.033777777777777,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Menuisier (taux horaire)",
+      "unite": "h",
+      "nbObs": 7,
+      "p10": 52,
+      "mediane": 52,
+      "p90": 52,
+      "ecart": 1,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Menuisier (taux horaire)",
+    "unite": "u",
+    "nbObs": 9,
+    "p10": 120,
+    "mediane": 379.5,
+    "p90": 964.0533333333333,
+    "ecart": 8.033777777777777,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
     "nb_devis": 19,
     "nb_lignes": 20,

@@ -2,10 +2,32 @@
   "slug": "renovation-globale",
   "metier": "forfait_renovation_globale",
   "metier_label": "Rénovation globale",
-  "title": "Prix rénovation globale 2026 : fourchette sur 20 devis",
-  "description": "Rénovation globale : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-20T21:27:28.006Z",
-  "intro": "Nous avons analysé 20 devis contenant au moins une ligne du métier Rénovation globale. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Rénovation plomberie SDB (pose) : de 61 à 794 € — pourquoi un tel écart",
+  "description": "Rénovation globale : prix réels relevés poste par poste sur 20 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T18:37:20.392Z",
+  "intro": "Sur 20 devis contenant au moins une ligne de rénovation globale, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Rénovation plomberie SDB (pose)",
+      "unite": "u",
+      "nbObs": 5,
+      "p10": 61.18,
+      "mediane": 506.82,
+      "p90": 794.2,
+      "ecart": 12.98136645962733,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Rénovation plomberie SDB (pose)",
+    "unite": "u",
+    "nbObs": 5,
+    "p10": 61.18,
+    "mediane": 506.82,
+    "p90": 794.2,
+    "ecart": 12.98136645962733,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
     "nb_devis": 20,
     "nb_lignes": 26,

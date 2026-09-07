@@ -2,21 +2,123 @@
   "slug": "placo-isolation",
   "metier": "placo_isolation",
   "metier_label": "Placo & isolation",
-  "title": "Prix placo & isolation 2026 : fourchette sur 58 devis",
-  "description": "Placo & isolation : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-20T21:27:28.012Z",
-  "intro": "Nous avons analysé 58 devis contenant au moins une ligne du métier Placo & isolation. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Doublage placo : de 17 à 142 € — pourquoi un tel écart",
+  "description": "Placo & isolation : prix réels relevés poste par poste sur 63 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T18:37:20.397Z",
+  "intro": "Sur 63 devis contenant au moins une ligne de placo & isolation, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Faux plafond plâtre BA13 (fourni+posé)",
+      "unite": "m²",
+      "nbObs": 105,
+      "p10": 55,
+      "mediane": 55,
+      "p90": 55,
+      "ecart": 1,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Doublage plâtre BA13 sur isolation (fourni+posé)",
+      "unite": "m²",
+      "nbObs": 14,
+      "p10": 35.96,
+      "mediane": 50,
+      "p90": 60,
+      "ecart": 1.668520578420467,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Cloison placo",
+      "unite": "m²",
+      "nbObs": 10,
+      "p10": 22,
+      "mediane": 45.33531746031746,
+      "p90": 105.05,
+      "ecart": 4.7749999999999995,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Faux plafond",
+      "unite": "m²",
+      "nbObs": 9,
+      "p10": 54.18014527845037,
+      "mediane": 70.55172413793103,
+      "p90": 132,
+      "ecart": 2.4363168338070467,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "ITI laine de verre sur ossature (fourni+posé)",
+      "unite": "m²",
+      "nbObs": 8,
+      "p10": 24,
+      "mediane": 28,
+      "p90": 30,
+      "ecart": 1.25,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Isolation phonique cloison (laine + placo renforcé)",
+      "unite": "m²",
+      "nbObs": 6,
+      "p10": 50,
+      "mediane": 65.3330068560235,
+      "p90": 142.77027027027026,
+      "ecart": 2.855405405405405,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Isolation murs intérieurs",
+      "unite": "m²",
+      "nbObs": 5,
+      "p10": 29.955616438356163,
+      "mediane": 65,
+      "p90": 79.55365853658536,
+      "ecart": 2.6557176247831182,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Doublage placo",
+      "unite": "m²",
+      "nbObs": 5,
+      "p10": 17.333333333333332,
+      "mediane": 60,
+      "p90": 141.7866666666667,
+      "ecart": 8.180000000000001,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Cloison plâtre BA13 (fourni+posé)",
+      "unite": "m²",
+      "nbObs": 5,
+      "p10": 50,
+      "mediane": 62.41,
+      "p90": 89.41798941798942,
+      "ecart": 1.7883597883597884,
+      "nature_prix": "fourni_pose"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Doublage placo",
+    "unite": "m²",
+    "nbObs": 5,
+    "p10": 17.333333333333332,
+    "mediane": 60,
+    "p90": 141.7866666666667,
+    "ecart": 8.180000000000001,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
-    "nb_devis": 58,
-    "nb_lignes": 207,
-    "prix_moyen": 257.6,
+    "nb_devis": 63,
+    "nb_lignes": 224,
+    "prix_moyen": 241.22,
     "prix_median": 55,
     "prix_min": 9,
     "prix_max": 25420.67,
-    "prix_p25": 52.09,
-    "prix_p75": 60,
-    "panier_moyen": 2148.1,
-    "ratio_moyen_vs_marche": 5.767
+    "prix_p25": 50,
+    "prix_p75": 57.75,
+    "panier_moyen": 2199.89,
+    "ratio_moyen_vs_marche": 5.399
   },
   "postesSurfactures": [
     {

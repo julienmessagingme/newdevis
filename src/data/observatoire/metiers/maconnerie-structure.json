@@ -2,27 +2,40 @@
   "slug": "maconnerie-structure",
   "metier": "maconnerie_structure",
   "metier_label": "Maçonnerie & structure",
-  "title": "Prix maçonnerie & structure 2026 : fourchette sur 59 devis",
-  "description": "Maçonnerie & structure : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-20T21:27:28.007Z",
-  "intro": "Nous avons analysé 59 devis contenant au moins une ligne du métier Maçonnerie & structure. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix maçonnerie & structure 2026 : ce que disent 60 devis analysés",
+  "description": "Maçonnerie & structure : prix réels relevés poste par poste sur 60 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T18:37:20.393Z",
+  "intro": "Sur 60 devis contenant au moins une ligne de maçonnerie & structure, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Chape",
+      "unite": "m²",
+      "nbObs": 8,
+      "p10": 40,
+      "mediane": 40,
+      "p90": 40,
+      "ecart": 1,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": null,
   "kpis": {
-    "nb_devis": 59,
-    "nb_lignes": 77,
-    "prix_moyen": 954.42,
+    "nb_devis": 60,
+    "nb_lignes": 81,
+    "prix_moyen": 909.03,
     "prix_median": 190,
     "prix_min": 3,
     "prix_max": 16000,
-    "prix_p25": 52.67,
-    "prix_p75": 1000,
-    "panier_moyen": 4625.65,
-    "ratio_moyen_vs_marche": 7.293
+    "prix_p25": 43.84,
+    "prix_p75": 840.4,
+    "panier_moyen": 4486.38,
+    "ratio_moyen_vs_marche": 6.907
   },
   "postesSurfactures": [
     {
       "label": "Ragréage autonivelant chape liquide",
       "ratio_median": 24.091,
-      "nb_obs": 4
+      "nb_obs": 5
     },
     {
       "label": "Création muret",

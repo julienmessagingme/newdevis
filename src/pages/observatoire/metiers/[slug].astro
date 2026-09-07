@@ -1,6 +1,20 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import ObservatoireMetierApp from '@/components/app/ObservatoireMetierApp';
+// 2026-09-07 — RENDU STATIQUE, PAS UNE ÎLE.
+//
+// Cette page partait en `client:only="react"` : son contenu n'existait alors
+// PAS dans le HTML servi (27 Ko de page pour zéro texte indexable). Sur une
+// page dont la raison d'être est le référencement, c'est le défaut le plus
+// coûteux qu'on puisse avoir.
+//
+// La règle « toujours client:only » de CLAUDE.md protège les composants
+// INTERACTIFS (sans elle, leurs gestionnaires d'événements sont perdus). Ici il
+// n'y a ni état, ni effet, ni gestionnaire : ni dans la page, ni dans aucun de
+// ses composants (Breadcrumb, ObservatoireChip, Disclaimer, CrossLinks). Sans
+// directive, Astro la rend en HTML au build — texte indexable, zéro JS envoyé.
+//
+// ⚠️ Ajouter la moindre interactivité ici obligerait à repasser en île.
+import ObservatoireMetierPage from '@/components/pages/seo/ObservatoireMetierPage';
 import { articleSchema, breadcrumbSchema, combineSchemas } from '@/lib/seo/schemaOrg';
 import { getRelatedLinks } from '@/lib/seo/internalLinking';
 
@@ -45,5 +59,5 @@ export const prerender = true;
   {schemas.map((schema) => (
     <script type="application/ld+json" set:html={JSON.stringify(schema)} />
   ))}
-  <ObservatoireMetierApp data={data} related={related} client:only="react" />
+  <ObservatoireMetierPage data={data} related={related} />
 </BaseLayout>

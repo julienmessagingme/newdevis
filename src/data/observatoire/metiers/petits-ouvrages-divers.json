@@ -1,0 +1,25 @@
+{
+  "slug": "petits-ouvrages-divers",
+  "metier": "petits_ouvrages_divers",
+  "metier_label": "petits ouvrages divers",
+  "title": "Prix petits ouvrages divers 2026 : ce que disent 2 devis analysés",
+  "description": "petits ouvrages divers : prix réels relevés poste par poste sur 2 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T18:37:20.396Z",
+  "intro": "Nous avons analysé 2 devis de petits ouvrages divers, mais aucun poste n'atteint encore le nombre d'observations nécessaire pour publier une fourchette fiable.",
+  "postes": [],
+  "fait_marquant": null,
+  "kpis": {
+    "nb_devis": 2,
+    "nb_lignes": 2,
+    "prix_moyen": 117.46,
+    "prix_median": 117.46,
+    "prix_min": 117.46,
+    "prix_max": 117.46,
+    "prix_p25": 117.46,
+    "prix_p75": 117.46,
+    "panier_moyen": 117.46,
+    "ratio_moyen_vs_marche": 0.839
+  },
+  "postesSurfactures": [],
+  "conseils": []
+}

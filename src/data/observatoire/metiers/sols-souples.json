@@ -2,23 +2,70 @@
   "slug": "sols-souples",
   "metier": "sols_souples",
   "metier_label": "Sols souples",
-  "title": "Prix sols souples 2026 : fourchette sur 30 devis",
-  "description": "Sols souples : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-20T21:27:28.014Z",
-  "intro": "Nous avons analysé 30 devis contenant au moins une ligne du métier Sols souples. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Pose parquet collé (hors fourniture) : de 35 à 170 € — pourquoi un tel écart",
+  "description": "Sols souples : prix réels relevés poste par poste sur 33 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T18:37:20.399Z",
+  "intro": "Sur 33 devis contenant au moins une ligne de sols souples, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Pose plinthes",
+      "unite": "ml",
+      "nbObs": 9,
+      "p10": 5.5,
+      "mediane": 6,
+      "p90": 15.82,
+      "ecart": 2.8763636363636365,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Ponçage vitrification",
+      "unite": "u",
+      "nbObs": 5,
+      "p10": 428.56666666666666,
+      "mediane": 461.9,
+      "p90": 664.5666666666667,
+      "ecart": 1.5506727852531696,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Pose parquet collé (hors fourniture)",
+      "unite": "u",
+      "nbObs": 5,
+      "p10": 35,
+      "mediane": 170,
+      "p90": 170,
+      "ecart": 4.857142857142857,
+      "nature_prix": "pose_seule"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Pose parquet collé (hors fourniture)",
+    "unite": "u",
+    "nbObs": 5,
+    "p10": 35,
+    "mediane": 170,
+    "p90": 170,
+    "ecart": 4.857142857142857,
+    "nature_prix": "pose_seule"
+  },
   "kpis": {
-    "nb_devis": 30,
-    "nb_lignes": 47,
-    "prix_moyen": 115.3,
-    "prix_median": 52.25,
+    "nb_devis": 33,
+    "nb_lignes": 51,
+    "prix_moyen": 118.87,
+    "prix_median": 53,
     "prix_min": 0.51,
     "prix_max": 664.57,
     "prix_p25": 25.71,
-    "prix_p75": 142.95,
-    "panier_moyen": 1763.28,
-    "ratio_moyen_vs_marche": 4.264
+    "prix_p75": 170,
+    "panier_moyen": 1794.6,
+    "ratio_moyen_vs_marche": 4.524
   },
   "postesSurfactures": [
+    {
+      "label": "Ragréage",
+      "ratio_median": 13.793,
+      "nb_obs": 3
+    },
     {
       "label": "Ponçage vitrification",
       "ratio_median": 10.714,
@@ -31,18 +78,13 @@
     },
     {
       "label": "Parquet stratifié standard (fourni+posé)",
-      "ratio_median": 2.036,
-      "nb_obs": 4
+      "ratio_median": 1.681,
+      "nb_obs": 5
     },
     {
       "label": "Pose parquet collé (hors fourniture)",
       "ratio_median": 0.939,
       "nb_obs": 7
-    },
-    {
-      "label": "Pose parquet flottant",
-      "ratio_median": 0.833,
-      "nb_obs": 4
     }
   ],
   "conseils": [

@@ -2,21 +2,93 @@
   "slug": "menuiserie-vitrages",
   "metier": "menuiserie_vitrages",
   "metier_label": "Menuiserie & vitrages",
-  "title": "Prix menuiserie 2026 : fourchette sur 86 devis analysés",
+  "title": "Prix menuiserie 2026 : fourchette sur 91 devis analysés",
   "description": "Prix fenêtres, portes et vitrages en 2026 : fourchette réelle des devis analysés par VerifierMonDevis, écarts entre matériaux, pièges à éviter.",
-  "lastGenerated": "2026-08-20T21:27:28.008Z",
-  "intro": "Nous avons analysé 86 devis contenant au moins une ligne du métier Menuiserie & vitrages. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-09-07T18:37:20.394Z",
+  "intro": "Sur 91 devis contenant au moins une ligne de menuiserie & vitrages, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Fenêtre PVC fourni+posé",
+      "unite": "u",
+      "nbObs": 21,
+      "p10": 909.64,
+      "mediane": 1760.4957142857143,
+      "p90": 2967.53,
+      "ecart": 3.2623125632118204,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Châssis composé PVC fourni+posé",
+      "unite": "u",
+      "nbObs": 12,
+      "p10": 2103.44,
+      "mediane": 2587.8675000000003,
+      "p90": 2597.133333333333,
+      "ecart": 1.2347075901063653,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Pose fenêtre",
+      "unite": "u",
+      "nbObs": 11,
+      "p10": 914.7566666666669,
+      "mediane": 1685.63,
+      "p90": 2386.2625000000003,
+      "ecart": 2.6086308927328576,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Porte-fenêtre PVC fourni+posé",
+      "unite": "u",
+      "nbObs": 11,
+      "p10": 1491.65,
+      "mediane": 1753.65,
+      "p90": 1753.65,
+      "ecart": 1.1756444206080514,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Pose porte intérieure",
+      "unite": "u",
+      "nbObs": 6,
+      "p10": 120,
+      "mediane": 165.1,
+      "p90": 664.8,
+      "ecart": 5.54,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose poignée / garniture",
+      "unite": "u",
+      "nbObs": 5,
+      "p10": 40,
+      "mediane": 82.89,
+      "p90": 350,
+      "ecart": 8.75,
+      "nature_prix": "pose_seule"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Fenêtre PVC fourni+posé",
+    "unite": "u",
+    "nbObs": 21,
+    "p10": 909.64,
+    "mediane": 1760.4957142857143,
+    "p90": 2967.53,
+    "ecart": 3.2623125632118204,
+    "nature_prix": "fourni_pose"
+  },
   "kpis": {
-    "nb_devis": 86,
-    "nb_lignes": 121,
-    "prix_moyen": 1773.76,
-    "prix_median": 1158.5,
+    "nb_devis": 91,
+    "nb_lignes": 129,
+    "prix_moyen": 1712.83,
+    "prix_median": 1147.19,
     "prix_min": 30,
     "prix_max": 26075.8,
-    "prix_p25": 659.22,
-    "prix_p75": 2328.52,
-    "panier_moyen": 4149.84,
-    "ratio_moyen_vs_marche": 2.495
+    "prix_p25": 565,
+    "prix_p75": 2297.21,
+    "panier_moyen": 3958.81,
+    "ratio_moyen_vs_marche": 2.521
   },
   "postesSurfactures": [
     {

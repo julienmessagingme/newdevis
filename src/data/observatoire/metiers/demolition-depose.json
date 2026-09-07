@@ -2,21 +2,83 @@
   "slug": "demolition-depose",
   "metier": "demolition_depose",
   "metier_label": "Démolition & dépose",
-  "title": "Prix démolition & dépose 2026 : fourchette sur 72 devis",
-  "description": "Démolition & dépose : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-20T21:27:28.003Z",
-  "intro": "Nous avons analysé 72 devis contenant au moins une ligne du métier Démolition & dépose. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Démolition légère (cloison/revêtement) : de 595 à 1 080 € — pourquoi un tel écart",
+  "description": "Démolition & dépose : prix réels relevés poste par poste sur 78 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T18:37:20.390Z",
+  "intro": "Sur 78 devis contenant au moins une ligne de démolition & dépose, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Évacuation déchets menuiseries",
+      "unite": "u",
+      "nbObs": 15,
+      "p10": 100,
+      "mediane": 150,
+      "p90": 150,
+      "ecart": 1.5,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Démolition cloison",
+      "unite": "m²",
+      "nbObs": 11,
+      "p10": 80,
+      "mediane": 80,
+      "p90": 120.13,
+      "ecart": 1.501625,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Evacuation gravats",
+      "unite": "u",
+      "nbObs": 10,
+      "p10": 325,
+      "mediane": 325,
+      "p90": 550,
+      "ecart": 1.6923076923076923,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Démolition légère (cloison/revêtement)",
+      "unite": "u",
+      "nbObs": 7,
+      "p10": 594.76,
+      "mediane": 730,
+      "p90": 1080,
+      "ecart": 1.8158584975452283,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Démolition légère (cloison/revêtement)",
+      "unite": "m²",
+      "nbObs": 5,
+      "p10": 13.526655317623867,
+      "mediane": 45,
+      "p90": 201.12745098039215,
+      "ecart": 14.868971394454281,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Démolition légère (cloison/revêtement)",
+    "unite": "u",
+    "nbObs": 7,
+    "p10": 594.76,
+    "mediane": 730,
+    "p90": 1080,
+    "ecart": 1.8158584975452283,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
-    "nb_devis": 72,
-    "nb_lignes": 88,
-    "prix_moyen": 622.37,
-    "prix_median": 210.56,
+    "nb_devis": 78,
+    "nb_lignes": 94,
+    "prix_moyen": 775.95,
+    "prix_median": 194.26,
     "prix_min": 10,
-    "prix_max": 4368.32,
-    "prix_p25": 112,
-    "prix_p75": 670,
-    "panier_moyen": 1517.74,
-    "ratio_moyen_vs_marche": 21.21
+    "prix_max": 8950,
+    "prix_p25": 104,
+    "prix_p75": 710,
+    "panier_moyen": 1630.78,
+    "ratio_moyen_vs_marche": 30.544
   },
   "postesSurfactures": [
     {
@@ -32,17 +94,17 @@
     {
       "label": "Démolition cloison plâtre",
       "ratio_median": 16.8,
-      "nb_obs": 7
+      "nb_obs": 9
     },
     {
       "label": "Evacuation gravats",
       "ratio_median": 6.5,
-      "nb_obs": 17
+      "nb_obs": 19
     },
     {
       "label": "Démolition cloison",
-      "ratio_median": 2.667,
-      "nb_obs": 15
+      "ratio_median": 4.004,
+      "nb_obs": 17
     }
   ],
   "conseils": [

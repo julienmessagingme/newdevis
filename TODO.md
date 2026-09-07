@@ -464,6 +464,19 @@ Feature livrée (cf. `WIP.md` + `FEATURES.md § 2bis`). Aucun bloquant ; ces poi
 
 ---
 
+## Observatoire — suites de la refonte « publier un prix » (2026-09-07)
+
+Le socle est livré (`src/lib/observatoire/statsPrix.ts` + pages métier, cf. `CLAUDE.md` § Observatoire). Ce qui reste :
+
+- [ ] **Passer les pages chantier et études en rendu statique** — même défaut que celui corrigé sur les pages métier : `client:only="react"` ⇒ **aucun contenu dans le HTML servi** sur des pages dont la seule raison d'être est le référencement. Vérifier au préalable l'absence de `useState`/`useEffect`/`window` dans chaque composant, puis retirer la directive (pas `client:load`). Routes : `/observatoire/chantiers/[slug]`, `/etudes-vmd/[slug]`, et les 3 index déjà `prerender=true` mais qui montent peut-être des îles.
+- [ ] **Rendre `mv_observatoire_postes_surfactures` publiable** ou la supprimer : aujourd'hui rien ne l'affiche (elle sortait « +503 % » sur 3 devis, et « Pose fenêtre +222 % » qui mesurait notre propre défaut de rapprochement). Pour la republier il faut comparer à périmètre égal — même unité ET même nature de prix (fourni+posé vs pose seule) — et exiger 8 observations.
+- [ ] **Migration `20260907200000_observatoire_lignes.sql` non appliquée** (CLI `supabase` en `spawn UNKNOWN` ce jour-là). Elle unifie la classification du type de chantier dans une fonction SQL appelée par les deux vues. Non bloquante : le générateur des pages chantier calcule la classification côté TypeScript. À appliquer pour supprimer la définition SQL dupliquée dans `mv_observatoire_chantiers`.
+- [ ] **Comparaison géographique** (Paris / grandes villes / province) demandée par Johan : **non publiable aujourd'hui**, seuls 3 couples (poste, unité) atteignent le seuil d'observations dans plus d'une zone. À reprendre quand le corpus aura doublé — la colonne `adresse_entreprise` existe déjà dans `mv_observatoire_base`.
+- [ ] **Caractéristiques produit** (marque, double/triple vitrage, épaisseur d'isolant) : expliquées en texte sur les pages métier, mais **jamais mesurées** — il faudrait les extraire des descriptions libres des lignes de devis. Ce serait la vraie valeur ajoutée d'un observatoire ; à chiffrer avant de s'y engager.
+- [ ] **Prix codés en dur incohérents entre pages** : `prix-travaux-maison.astro` et `budget-renovation.astro` se contredisent l'un l'autre ET contredisent le catalogue (peinture 15-35 vs 30-60 vs catalogue 18-65 ; carrelage 50-130 vs 90-170 vs 25-80/40-100). Règle Johan : « il ne peut pas y avoir 2 valorisations différentes dans un même site. »
+
+---
+
 ## Comment ce fichier fonctionne
 
 - **Quand on ajoute un item** : description courte + fichier:ligne quand pertinent + effort estimé si on l'a.

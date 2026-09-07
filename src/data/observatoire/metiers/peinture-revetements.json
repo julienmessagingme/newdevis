@@ -2,21 +2,94 @@
   "slug": "peinture-revetements",
   "metier": "peinture_revetements",
   "metier_label": "Peinture & revêtements",
-  "title": "Prix peinture 2026 : fourchette au m² sur 65 devis",
+  "title": "Prix peinture 2026 : fourchette au m² sur 72 devis",
   "description": "Prix peinture, papier peint, revêtements de sol : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts entre finitions.",
-  "lastGenerated": "2026-08-20T21:27:28.011Z",
-  "intro": "Nous avons analysé 65 devis contenant au moins une ligne du métier Peinture & revêtements. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-09-07T18:37:20.396Z",
+  "intro": "Sur 72 devis contenant au moins une ligne de peinture & revêtements, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Peinture murs",
+      "unite": "m²",
+      "nbObs": 17,
+      "p10": 7,
+      "mediane": 17.02,
+      "p90": 50,
+      "ecart": 7.142857142857143,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Peinture porte",
+      "unite": "u",
+      "nbObs": 13,
+      "p10": 40,
+      "mediane": 130,
+      "p90": 178.66666666666666,
+      "ecart": 4.466666666666667,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Peinture SDB pièces humides",
+      "unite": "u",
+      "nbObs": 13,
+      "p10": 80,
+      "mediane": 80,
+      "p90": 80,
+      "ecart": 1,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Peinture plafond",
+      "unite": "m²",
+      "nbObs": 11,
+      "p10": 10,
+      "mediane": 28,
+      "p90": 45.682758620689654,
+      "ecart": 4.568275862068965,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Peinture salle de bain (pièce)",
+      "unite": "u",
+      "nbObs": 9,
+      "p10": 860,
+      "mediane": 860,
+      "p90": 860,
+      "ecart": 1,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Peinture SDB pièces humides",
+      "unite": "m²",
+      "nbObs": 8,
+      "p10": 21,
+      "mediane": 22,
+      "p90": 22,
+      "ecart": 1.0476190476190477,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Peinture boiseries (plinthes, encadrements)",
+      "unite": "ml",
+      "nbObs": 5,
+      "p10": 3,
+      "mediane": 3,
+      "p90": 6.79185520361991,
+      "ecart": 2.2639517345399702,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": null,
   "kpis": {
-    "nb_devis": 65,
-    "nb_lignes": 117,
-    "prix_moyen": 609.67,
-    "prix_median": 58.12,
+    "nb_devis": 72,
+    "nb_lignes": 134,
+    "prix_moyen": 554.45,
+    "prix_median": 47.84,
     "prix_min": 2.99,
     "prix_max": 14666.67,
-    "prix_p25": 25.19,
-    "prix_p75": 480,
-    "panier_moyen": 2909.43,
-    "ratio_moyen_vs_marche": 16.87
+    "prix_p25": 22,
+    "prix_p75": 278.61,
+    "panier_moyen": 2583.58,
+    "ratio_moyen_vs_marche": 15.076
   },
   "postesSurfactures": [
     {
@@ -32,7 +105,7 @@
     {
       "label": "Peinture SDB pièces humides",
       "ratio_median": 4,
-      "nb_obs": 14
+      "nb_obs": 22
     },
     {
       "label": "Peinture murs",
@@ -40,9 +113,9 @@
       "nb_obs": 24
     },
     {
-      "label": "Peinture porte",
-      "ratio_median": 0.875,
-      "nb_obs": 14
+      "label": "Pose papier peint",
+      "ratio_median": 0.75,
+      "nb_obs": 4
     }
   ],
   "conseils": [

@@ -2,21 +2,43 @@
   "slug": "cuisine-agencement",
   "metier": "cuisine_agencement",
   "metier_label": "Cuisine & agencement",
-  "title": "Prix cuisine & agencement 2026 : fourchette sur 30 devis",
-  "description": "Cuisine & agencement : combien coûte le poste en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts observés, postes à surveiller avant de signer.",
-  "lastGenerated": "2026-08-20T21:27:28.002Z",
-  "intro": "Nous avons analysé 30 devis contenant au moins une ligne du métier Cuisine & agencement. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Raccordements électricité cuisine : de 27 à 77 € — pourquoi un tel écart",
+  "description": "Cuisine & agencement : prix réels relevés poste par poste sur 36 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T18:37:20.389Z",
+  "intro": "Sur 36 devis contenant au moins une ligne de cuisine & agencement, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Raccordements électricité cuisine",
+      "unite": "u",
+      "nbObs": 8,
+      "p10": 27.174,
+      "mediane": 42.845,
+      "p90": 76.55970149253731,
+      "ecart": 2.8173879992837754,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Raccordements électricité cuisine",
+    "unite": "u",
+    "nbObs": 8,
+    "p10": 27.174,
+    "mediane": 42.845,
+    "p90": 76.55970149253731,
+    "ecart": 2.8173879992837754,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
-    "nb_devis": 30,
-    "nb_lignes": 61,
-    "prix_moyen": 1453.47,
-    "prix_median": 400,
+    "nb_devis": 36,
+    "nb_lignes": 69,
+    "prix_moyen": 1327.33,
+    "prix_median": 300,
     "prix_min": 0.83,
     "prix_max": 7500,
-    "prix_p25": 76.56,
-    "prix_p75": 2750,
-    "panier_moyen": 2478.68,
-    "ratio_moyen_vs_marche": 5.115
+    "prix_p25": 80.96,
+    "prix_p75": 2200,
+    "panier_moyen": 2284.39,
+    "ratio_moyen_vs_marche": 4.847
   },
   "postesSurfactures": [
     {
@@ -33,6 +55,11 @@
       "label": "Pose meuble SDB",
       "ratio_median": 1.091,
       "nb_obs": 8
+    },
+    {
+      "label": "Miroir salon / dressing (fourni+posé)",
+      "ratio_median": 0.3,
+      "nb_obs": 4
     },
     {
       "label": "Crédence carrelage cuisine (fourni+posé)",
