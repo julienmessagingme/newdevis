@@ -57,6 +57,13 @@ export interface ConclusionData {
    *  - Garde le verdict `signer_avec_negociation` (action de précaution conseillée)
    */
   comparison_indicative?: boolean;
+  /**
+   * 2026-09-06 — postes qu'aucun tarif de référence ne couvre, NOMMÉS (3 max,
+   * les plus gros d'abord). Avant, la page écrivait « certaines prestations
+   * sont trop spécifiques » sans jamais dire lesquelles, alors que le moteur
+   * le sait : ce sont les groupes qui ne sortent pas en confiance haute.
+   */
+  postes_sans_reference?: string[];
 
   /**
    * V3.4.14 (2026-05-16) — Devis étranger (Belgique, Luxembourg, Suisse, etc.).

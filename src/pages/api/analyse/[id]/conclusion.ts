@@ -1300,6 +1300,13 @@ export const POST: APIRoute = async ({ params, request }) => {
   // (note de prompt + verdict_ligne + levier « second avis »).
   let priceDataTotalHT = 0;
   let comparableHT = 0;
+  // 2026-09-06 (retour Johan, cas Les Artisans de l'Habitat) — « certaines
+  // prestations sont trop spécifiques » sans jamais dire LESQUELLES. Nous le
+  // savons pourtant : ce sont exactement les groupes qui ne sortent pas en
+  // confiance haute. Les nommer transforme un aveu de faiblesse en information
+  // actionnable — l'utilisateur sait sur quelles lignes demander un second
+  // devis. Triés par montant décroissant, les plus gros d'abord.
+  const sansReference: Array<{ label: string; ht: number }> = [];
 
   if (Array.isArray(priceData) && priceData.length > 0) {
     const beforeConfidenceFilter = priceData.length;
@@ -1310,6 +1317,12 @@ export const POST: APIRoute = async ({ params, request }) => {
       // Pas de méta vectorielle (V3.6 legacy) → considéré comparable (permissif,
       // aligné sur le filtre ci-dessous).
       if (!vect || typeof vect !== "object" || vect.confidence === "high") comparableHT += t;
+      else {
+        const label = typeof g?.job_type_label === "string" ? g.job_type_label.trim() : "";
+        // « Non comparable » est notre propre étiquette de repli : la citer
+        // n'apprendrait rien au lecteur.
+        if (label && !/^non comparable$/i.test(label)) sansReference.push({ label, ht: t });
+      }
     }
     priceData = priceData.filter((g) => {
       if (!g || typeof g !== "object") return true;
@@ -3175,6 +3188,17 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       verdict_reasons,
       ...(market_context_note     ? { market_context_note } : {}),
       ...(comparisonIndicative    ? { comparison_indicative: true } : {}),
+      // 2026-09-06 — les postes qu'aucun tarif de référence ne couvre, NOMMÉS.
+      // 3 au plus, les plus gros d'abord : au-delà la phrase devient une liste
+      // illisible et perd son intérêt.
+      ...(sansReference.length > 0
+        ? {
+            postes_sans_reference: [...sansReference]
+              .sort((a, b) => b.ht - a.ht)
+              .slice(0, 3)
+              .map((p) => p.label),
+          }
+        : {}),
       generated_at:            new Date().toISOString(),
       // V3.2 — version du moteur, permet l'invalidation automatique du cache lors d'un futur fix.
       engine_version:          ENGINE_VERSION,

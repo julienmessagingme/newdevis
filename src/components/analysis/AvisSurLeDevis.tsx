@@ -167,10 +167,26 @@ export default function AvisSurLeDevis({
   const isNegocier = conclusion.verdict_decisionnel === "signer_avec_negociation";
   const isRefuser = conclusion.verdict_decisionnel === "ne_pas_signer";
 
+  // 2026-09-06 (retour Johan, cas Les Artisans de l'Habitat) — « Ce devis nous
+  // paraît négociable » s'affichait sur un devis SANS écart chiffré, SANS
+  // anomalie et SANS le moindre levier de négociation : le motif juste en
+  // dessous disait d'ailleurs « quelques prestations méritent une
+  // clarification ». Le titre promettait une marge que rien ne soutenait.
+  //
+  // « Négociable » suppose quelque chose à négocier. À défaut, on annonce ce
+  // qu'on a réellement : des points à clarifier. Le verdict et la couleur ne
+  // changent pas — seule la promesse disparaît.
+  const aDeQuoiNegocier =
+    (conclusion.leviers ?? []).some((l) => l.objectif === "negocier") ||
+    Boolean(conclusion.verdict_ligne?.marge) ||
+    (conclusion.anomalies?.length ?? 0) > 0;
+
   const title = isSigner
     ? "Ce devis nous paraît cohérent."
     : isNegocier
-    ? "Ce devis nous paraît négociable."
+    ? (aDeQuoiNegocier
+        ? "Ce devis nous paraît négociable."
+        : "Ce devis demande quelques clarifications avant signature.")
     : "Ce devis présente plusieurs points qui méritent d'être clarifiés avant signature.";
 
   // Chiffre nuancé (jamais isolé en grande typo, jamais accusatoire)
@@ -248,6 +264,18 @@ export default function AvisSurLeDevis({
       return "Nous avons comparé au marché toutes les prestations standards de ce devis. Les prestations spécifiques (sur-mesure, réglementaires) n'ont de prix de référence nulle part — un second devis reste le meilleur comparatif sur cette partie.";
     }
     if (conclusion.comparison_indicative) {
+      // 2026-09-06 (retour Johan) — « certaines prestations » sans jamais dire
+      // lesquelles laissait le lecteur devant six lignes aux statuts différents
+      // sans savoir de quoi on parlait. Le serveur les nomme désormais.
+      const postes = conclusion.postes_sans_reference ?? [];
+      if (postes.length > 0) {
+        const liste = postes.length === 1
+          ? `« ${postes[0]} »`
+          : `${postes.slice(0, -1).map((p) => `« ${p} »`).join(", ")} et « ${postes[postes.length - 1]} »`;
+        return `${postes.length === 1 ? "Un poste n'a" : "Certains postes n'ont"} pas d'équivalent dans nos références de prix — ${liste}. `
+          + `Ce n'est pas un défaut du devis : ces prestations sont sur-mesure ou trop spécifiques pour qu'un référentiel existe. `
+          + `C'est sur elles qu'un second devis apporte le plus.`;
+      }
       return "Certaines prestations de ce devis sont trop spécifiques pour avoir un prix de référence — notre avis reste indicatif sur ces points précis.";
     }
     return null;
