@@ -1,6 +1,10 @@
 /**
  * TrustpilotSection — Carrousel d'avis Trustpilot + CTA "Laisser un avis".
- * Avis hardcodés depuis la boîte de réception Trustpilot (8 avis, tous 5 étoiles).
+ * Avis hardcodés depuis la boîte de réception Trustpilot : 8 avis recopiés ici
+ * pour le carrousel. ⚠️ Ce n'est PAS le total du profil — Trustpilot en compte
+ * 24 (4,7/5, vérifié le 2026-09-07). Le commentaire précédent laissait croire
+ * l'inverse et m'a fait conclure à tort que le balisage aggregateRating était
+ * inventé.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Star, ExternalLink } from 'lucide-react';

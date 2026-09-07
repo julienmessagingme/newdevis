@@ -108,7 +108,7 @@ export function softwareApplicationSchema() {
     "@type": "SoftwareApplication",
     name: "VerifierMonDevis.fr",
     description:
-      "Outil d'analyse de devis travaux avec IA. Compare votre devis à une base de plus de 891 prix marché et alerte sur les anomalies.",
+      "Outil d'analyse de devis travaux. Compare chaque poste à 919 références de prix, vérifie l'entreprise dans les registres officiels et détecte les clauses abusives.",
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     offers: {
@@ -117,10 +117,22 @@ export function softwareApplicationSchema() {
       priceCurrency: "EUR",
       description: "Analyse gratuite, Pass Sérénité 4,99 €/mois",
     },
+    // 2026-09-07 — note corrigée : ce helper annonçait « 4,7 sur 127 avis ».
+    // La source réelle est le profil Trustpilot public de verifiermondevis.fr,
+    // vérifié ce jour : **4,7 sur 24 avis**. Le 127 était faux ; la note, elle,
+    // était juste.
+    //
+    // ⚠️ Ces deux valeurs sont RÉPÉTÉES dans six fichiers (BaseLayout, index,
+    // verifier/analyser/comparer-devis-travaux, logiciel-suivi-chantier). Elles
+    // doivent être reprises PARTOUT à chaque évolution du profil Trustpilot —
+    // sinon elles divergent, et un balisage qui ne correspond plus à la source
+    // devient un balisage faux. Cf. `TODO.md` : les centraliser.
     aggregateRating: {
       "@type": "AggregateRating",
       ratingValue: "4.7",
-      ratingCount: "127",
+      bestRating: "5",
+      worstRating: "1",
+      ratingCount: "24",
     },
   };
 }

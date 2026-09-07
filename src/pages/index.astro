@@ -163,12 +163,33 @@ const jsonLd = {
               <!-- 2026-09-07 — le « qu'est-ce qui est analysé ? » revient ici,
                    en lien discret : disponible pour qui hésite, sans concurrencer
                    le bouton d'action. -->
-              <!-- 2026-09-07 — la relecture humaine : ce qui justifie qu'on nous
-                   croie. Placée sous les bullets plutôt que dedans, pour ne pas
-                   diluer les quatre arguments principaux. -->
+              <!-- 2026-09-07 (retour Johan) — LA RELECTURE HUMAINE, EN BLOC ET
+                   NON EN NOTE DE BAS DE PAGE.
+                   C'est l'argument qui justifie qu'on nous croie, et le seul
+                   qu'un concurrent entièrement automatisé ne peut pas tenir.
+                   Il a donc son propre encadré plutôt qu'une cinquième puce qui
+                   se serait noyée dans la liste.
+                   ⚠️ Formulation exacte : on n'affirme pas que la publication est
+                   bloquée — on dit ce qui est vrai depuis le 2026-08-30, à savoir
+                   qu'AUCUN MONTANT n'est affiché tant que l'expert n'a pas
+                   tranché (prop `provisoire` de AvisSurLeDevis). -->
+              <div class="mt-6 px-2">
+                <div class="inline-flex items-start gap-3 rounded-xl border border-primary-foreground/25 bg-primary-foreground/10 px-4 py-3 text-left max-w-xl">
+                  <svg class="h-5 w-5 text-score-green flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 2l7 4v6c0 4.4-3 8.3-7 10-4-1.7-7-5.6-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/>
+                  </svg>
+                  <p class="text-sm text-primary-foreground/90 leading-relaxed">
+                    <strong class="text-primary-foreground">Relu par un expert, pas seulement par une machine.</strong><br />
+                    Quand une analyse touche un point sensible — entreprise à risque, écart de prix
+                    important, clause litigieuse — un expert la reprend. Et tant qu'il n'a pas tranché,
+                    <strong class="text-primary-foreground">nous n'affichons aucun montant</strong> : mieux vaut
+                    ne rien dire que vous envoyer négocier sur un chiffre que nous ne pouvons pas défendre.
+                  </p>
+                </div>
+              </div>
+
               <p class="mt-4 text-xs text-primary-foreground/70 text-center lg:text-left px-2">
-                Les analyses qui touchent un signal sensible sont relues par un expert avant publication.
-                <a href="/comprendre-score" class="underline underline-offset-2 hover:text-primary-foreground ml-1">
+                <a href="/comprendre-score" class="underline underline-offset-2 hover:text-primary-foreground">
                   Voir en détail ce qui est analysé
                 </a>
               </p>
