@@ -42,6 +42,17 @@ const autoCanonical = canonical ?? (() => {
     : raw;
 })();
 
+// 2026-09-07 — MARQUE DÉDUITE DU CANONICAL, PAS DES EN-TÊTES.
+//
+// Première tentative : `Astro.request.headers.get('host')`. Elle échoue — les
+// landings sont PRÉRENDUES, et Astro avertit que les en-têtes n'y existent pas
+// (un avertissement par page au build). Le canonical, lui, est connu à la
+// compilation et porte déjà le bon domaine sur toutes les pages GMC de contenu.
+// Repli sur `Astro.url.hostname`, qui fonctionne en SSR sans avertissement.
+const estGmc =
+  autoCanonical.includes('gerermonchantier') ||
+  Astro.url.hostname.includes('gerermonchantier');
+
 const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
@@ -95,35 +106,76 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
       <script type="application/ld+json" set:html={JSON.stringify(breadcrumbLd)} />
     )}
 
-    <script type="application/ld+json" set:html={JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "@id": "https://www.verifiermondevis.fr/#organization",
-      "name": "VerifierMonDevis.fr",
-      "url": "https://www.verifiermondevis.fr",
-      "logo": {
-        "@type": "ImageObject",
-        "url": "https://www.verifiermondevis.fr/images/logo.webp",
-        "width": 128,
-        "height": 128
-      },
-      "email": "contact@verifiermondevis.fr",
-      "description": "Service gratuit d'analyse de devis d'artisans. Score de fiabilité, vérification entreprise, comparaison prix marché.",
-      "contactPoint": {
-        "@type": "ContactPoint",
-        "email": "contact@verifiermondevis.fr",
-        "contactType": "customer service",
-        "availableLanguage": "French"
-      },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.7",
-        "bestRating": "5",
-        "worstRating": "1",
-        "ratingCount": "24",
-        "reviewCount": "24"
-      }
-    })} />
+    {/* 2026-09-07 — CETTE ORGANISATION DOIT SUIVRE LE DOMAINE.
+        Ce bloc était codé en dur sur VerifierMonDevis.fr — nom, URL, logo,
+        e-mail, `@id` ET la note Trustpilot — alors que `BaseLayout` sert LES
+        DEUX domaines. Chaque page de gerermonchantier.fr déclarait donc
+        appartenir à VMD et portait ses 24 avis, qui ne la concernent pas.
+        Le hostname est déjà utilisé plus bas pour choisir le flux GA4 : on
+        applique la même règle ici. */}
+    <script type="application/ld+json" set:html={JSON.stringify(
+      (() => {
+        if (estGmc) {
+          return {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "@id": "https://www.gerermonchantier.fr/#organization",
+            "name": "GérerMonChantier",
+            "url": "https://www.gerermonchantier.fr",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://www.gerermonchantier.fr/images/logo.webp",
+              "width": 128,
+              "height": 128,
+            },
+            "email": "contact@gerermonchantier.fr",
+            "description":
+              "Copilote de chantier pour particuliers : planning, budget, documents et coordination des artisans.",
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "email": "contact@gerermonchantier.fr",
+              "contactType": "customer service",
+              "availableLanguage": "French",
+            },
+            // Pas d'aggregateRating : GérerMonChantier n'a pas de profil
+            // Trustpilot (la page renvoie 404) ni d'avis collectés.
+          };
+        }
+        return {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "@id": "https://www.verifiermondevis.fr/#organization",
+          "name": "VerifierMonDevis.fr",
+          "url": "https://www.verifiermondevis.fr",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.verifiermondevis.fr/images/logo.webp",
+            "width": 128,
+            "height": 128,
+          },
+          "email": "contact@verifiermondevis.fr",
+          "description":
+            "Service gratuit d'analyse de devis d'artisans. Score de fiabilité, vérification entreprise, comparaison prix marché.",
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "email": "contact@verifiermondevis.fr",
+            "contactType": "customer service",
+            "availableLanguage": "French",
+          },
+          // Source : profil Trustpilot public de verifiermondevis.fr, vérifié
+          // le 2026-09-07 (4,7 sur 24 avis). Valeur également répétée dans
+          // cinq autres fichiers — cf. TODO.md, à centraliser.
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.7",
+            "bestRating": "5",
+            "worstRating": "1",
+            "ratingCount": "24",
+            "reviewCount": "24",
+          },
+        };
+      })(),
+    )} />
 
     <!-- 2026-07-19 — SoftwareApplication global retiré du BaseLayout.
          Google Search Console levait « Fiches de marchand » + « Extraits de

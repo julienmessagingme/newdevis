@@ -850,6 +850,14 @@ Tout le tracking vit dans `src/layouts/BaseLayout.astro`, conditionné au consen
 
 ---
 
+### Données structurées — deux marques, une seule mise en page (2026-09-07)
+
+- **L’organisation suit désormais le DOMAINE.** `BaseLayout` émettait un `Organization` codé en dur sur VerifierMonDevis.fr — nom, URL, logo, e-mail, `@id` **et sa note Trustpilot** — sur *toutes* les pages des DEUX domaines. Chaque page de gerermonchantier.fr déclarait donc appartenir à VMD et portait ses 24 avis. Vérifié après correction : page GMC → « GérerMonChantier », aucune note ; page VMD → « VerifierMonDevis.fr », 4,7/24.
+- ⚠️ **La marque se déduit du `canonical`, PAS de `Astro.request.headers`.** Première tentative avec les en-têtes : elle échoue, les landings sont **prérendues** et Astro avertit à chaque page que les en-têtes n’y existent pas — le repli VMD s’appliquait donc partout, y compris sur GMC. Le `canonical` est connu à la compilation et porte le bon domaine sur toutes les pages GMC de contenu ; repli sur `Astro.url.hostname` pour le SSR.
+- **`aggregateRating` de GMC supprimé** : il annonçait « 4,8 sur 42 avis ». Trois vérifications concordantes le contredisent — aucun profil Trustpilot pour gerermonchantier.fr (404), table `gmc_feedback` **vide**, et **14 comptes GMC au total**. 42 avis ne peuvent pas en sortir.
+- 🔴 **La note VMD, elle, est VRAIE : 4,7 sur 24 avis**, vérifiée sur le profil Trustpilot public. ⚠️ **Je m’étais trompé** en concluant l’inverse d’un commentaire de code (« 8 avis hardcodés depuis la boîte de réception Trustpilot ») : ces 8 avis sont ceux **recopiés dans le carrousel**, pas le total du profil. Johan a arrêté la suppression à temps. Le commentaire a été corrigé pour que la déduction ne se refasse pas. **Leçon : un commentaire de code n’est pas une source ; le profil public l’est.**
+- Ces deux valeurs restent **dupliquées en dur dans six fichiers** — à centraliser (`TODO.md`), sinon elles divergeront au fil des avis et le balisage deviendra faux.
+
 ### Page d’accueil VMD — ce qu’elle promet (2026-09-07)
 
 Refonte du hero après audit concurrentiel. **Contexte qui commande tout** : mesuré le 06/09, **151 visiteurs sur 157 ne voient que `/`** (1,14 page par visiteur), 6 atteignent `/nouvelle-analyse`, 5 `/inscription`, 1 analyse aboutit. Tout se joue dans le hero ; ce qui est sous la ligne de flottaison n’est quasiment pas vu.

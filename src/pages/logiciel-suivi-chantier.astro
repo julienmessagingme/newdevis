@@ -74,8 +74,18 @@ const jsonLd = [
       { "@type": "Offer", "price": "0", "priceCurrency": "EUR", "description": "Essai gratuit 15 jours sans carte bancaire" },
       { "@type": "Offer", "price": "12", "priceCurrency": "EUR", "description": "Essentiel mensuel · 1 chantier" },
       { "@type": "Offer", "price": "25", "priceCurrency": "EUR", "description": "Multi-chantiers mensuel · illimité" }
-    ],
-    "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "ratingCount": "42" }
+    ]
+    // 2026-09-07 — `aggregateRating` RETIRÉ : il publiait « 4,8 sur 42 avis ».
+    // Trois vérifications concordantes le contredisent :
+    //   · aucun profil Trustpilot pour gerermonchantier.fr (la page renvoie 404,
+    //     contrairement à verifiermondevis.fr qui affiche bien ses 4,7/24) ;
+    //   · la table `gmc_feedback` est VIDE — zéro avis collecté ;
+    //   · GMC compte 14 comptes au total. 42 avis ne peuvent pas en sortir.
+    //
+    // Un balisage d'avis fabriqué expose à une sanction manuelle Google
+    // (« balisage structuré trompeur ») et contredit frontalement ce que VMD
+    // défend. ⚠️ À ne réintroduire que contre une source vérifiable — et si
+    // une telle source existe et m'a échappé, elle doit être citée ici.
   },
   {
     "@context": "https://schema.org",
