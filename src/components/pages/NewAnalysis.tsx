@@ -18,7 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnonymousAuth } from "@/hooks/useAnonymousAuth";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
 import { FILE_VALIDATION, UPLOAD, ANALYSIS } from "@/lib/constants";
-import { verifierLongueurPdf } from "@/lib/analyse/comptePagesPdf";
+import { verifierLongueurPdf, PAGES_MAX_EXTRACTION } from "@/lib/analyse/comptePagesPdf";
+import { tenterDecoupe } from "@/lib/analyse/pdfDecoupeNavigateur";
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
@@ -27,6 +28,11 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const NewAnalysis = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  // 2026-09-07 — decoupage navigateur des PDF multi-devis : les devis restants
+  // apres celui qu'on analyse, et l'indicateur pendant le traitement (lecture
+  // du texte + ecriture des fichiers prennent quelques secondes sur 18 pages).
+  const [devisEnAttente, setDevisEnAttente] = useState<File[]>([]);
+  const [decoupageEnCours, setDecoupageEnCours] = useState(false);
   const [notes, setNotes] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -226,7 +232,45 @@ const NewAnalysis = () => {
     // plutôt que de laisser l'utilisateur devant un spinner qui finira mal.
     const tropLong = await verifierLongueurPdf(selectedFile);
     if (tropLong) {
-      toast.error(tropLong, { duration: 10000 });
+      // 2026-09-07 (demande Johan) — AVANT DE REFUSER, ON ESSAIE DE DÉCOUPER.
+      //
+      // « Les utilisateurs ne vont pas forcément avoir le temps de redécouper
+      // leur devis en 8 pages max, et ils vont préférer abandonner. » Un
+      // document qui contient plusieurs devis est découpé ICI, dans le
+      // navigateur — rien n'est envoyé avant. On analyse le premier devis
+      // tout de suite et on garde les autres sous la main.
+      setDecoupageEnCours(true);
+      // Lire le texte de 18 pages puis réécrire les fichiers prend quelques
+      // secondes : sans ce retour, l'écran paraît figé après le dépôt.
+      const attente = toast.loading("Document long — nous vérifions s'il contient plusieurs devis…");
+      let decoupe = null;
+      try {
+        decoupe = await tenterDecoupe(selectedFile, PAGES_MAX_EXTRACTION);
+      } catch (err) {
+        console.warn("[decoupe] echec :", err);
+      }
+      toast.dismiss(attente);
+      setDecoupageEnCours(false);
+
+      if (!decoupe || decoupe.fichiers.length === 0) {
+        toast.error(tropLong, { duration: 10000 });
+        return;
+      }
+
+      // On NE lance rien tout seul : l'analyse redirige vers son résultat, donc
+      // une file d'attente en mémoire serait perdue et la promesse « les autres
+      // vous seront proposés » serait fausse. L'utilisateur choisit le devis
+      // qu'il veut analyser ; il revient déposer le même document pour le
+      // suivant. C'est moins fluide qu'un traitement en lot, mais c'est vrai.
+      setDevisEnAttente(decoupe.fichiers);
+      const nbTropLongs = decoupe.tropLongs.length;
+      toast.success(
+        `${decoupe.segments.length} devis détectés dans ce document.` +
+        (nbTropLongs > 0
+          ? ` ${nbTropLongs} dépasse${nbTropLongs > 1 ? "nt" : ""} ${PAGES_MAX_EXTRACTION} pages et ne ${nbTropLongs > 1 ? "sont" : "peut"} pas être analysé${nbTropLongs > 1 ? "s" : ""}.`
+          : ""),
+        { duration: 9000 },
+      );
       return;
     }
 
@@ -402,6 +446,7 @@ const NewAnalysis = () => {
     setFile(null);
     setSourceImages([]);
     setIsMerging(false);
+    setDevisEnAttente([]);
     resetUploadState();
   };
 
@@ -594,6 +639,44 @@ const NewAnalysis = () => {
                   <p>• <strong>un seul devis</strong> par envoi — si vous en avez plusieurs, envoyez-les l'un après l'autre pour pouvoir les comparer ensuite</p>
                   <p>• <strong>8 pages maximum</strong></p>
                   <p>• un devis de <strong>travaux, établi en France</strong> — nos prix de référence sont français</p>
+                </div>
+              </div>
+            ) : devisEnAttente.length > 0 ? (
+              /* 2026-09-07 — le document contenait plusieurs devis : ils ont été
+                 découpés dans le navigateur (rien n'est encore parti), et
+                 l'utilisateur choisit lequel analyser. */
+              <div className="bg-card border border-border rounded-xl p-4">
+                <div className="flex items-start justify-between mb-3 gap-3">
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {devisEnAttente.length} devis analysables dans ce document
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Choisissez celui à analyser maintenant. Pour les autres, redéposez
+                      le même document ensuite — vous pourrez alors les comparer.
+                    </p>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" onClick={handleRemoveFile}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {devisEnAttente.map((f, i) => (
+                    <button
+                      key={`${f.name}-${i}`}
+                      type="button"
+                      onClick={async () => {
+                        setDevisEnAttente([]);
+                        setFile(f);
+                        if (user) await uploadFile(f);
+                      }}
+                      className="w-full flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-left hover:border-primary hover:bg-accent transition-colors"
+                    >
+                      <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span className="flex-1 min-w-0 text-sm text-foreground truncate">{f.name}</span>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    </button>
+                  ))}
                 </div>
               </div>
             ) : sourceImages.length > 0 ? (
