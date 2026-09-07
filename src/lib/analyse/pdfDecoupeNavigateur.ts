@@ -39,23 +39,47 @@ export async function lireTextePages(fichier: Blob): Promise<string[]> {
     pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
     const donnees = new Uint8Array(await fichier.arrayBuffer());
-    const doc = await pdfjs.getDocument({ data: donnees }).promise;
+
+    // 2026-09-07 — `destroy()` appartient à la TÂCHE DE CHARGEMENT, pas au
+    // document : en pdf.js v6, `doc.destroy()` n'existe pas.
+    //
+    // La version précédente lisait correctement les 18 pages puis appelait
+    // `doc.destroy()` à la dernière ligne — l'exception remontait au `catch`,
+    // qui rendait un tableau vide. **Le nettoyage jetait tout le travail.**
+    // D'où « texte illisible » sur un document parfaitement lisible, et le
+    // message de refus qui suivait.
+    //
+    // Leçon, au-delà du nom de méthode : une libération de ressource est du
+    // BEST-EFFORT et ne doit jamais pouvoir faire échouer l'opération qu'elle
+    // conclut. Elle est donc isolée dans son propre try, après que le résultat
+    // est constitué.
+    const tache = pdfjs.getDocument({ data: donnees });
+    const doc = await tache.promise;
+
+    const liberer = () => {
+      try { tache.destroy?.(); } catch { /* sans conséquence */ }
+    };
+
     if (doc.numPages > PAGES_MAX_LECTURE) {
-      doc.destroy();
+      liberer();
       return [];
     }
 
     const pages: string[] = [];
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const contenu = await page.getTextContent();
-      const texte = contenu.items
-        .map((it) => (typeof (it as { str?: unknown }).str === "string" ? (it as { str: string }).str : ""))
-        .join(" ");
-      pages.push(texte);
-      page.cleanup();
+    try {
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const contenu = await page.getTextContent();
+        pages.push(
+          contenu.items
+            .map((it) => (typeof (it as { str?: unknown }).str === "string" ? (it as { str: string }).str : ""))
+            .join(" "),
+        );
+        try { page.cleanup?.(); } catch { /* sans conséquence */ }
+      }
+    } finally {
+      liberer();
     }
-    doc.destroy();
     return pages;
   } catch (e) {
     console.warn("[decoupe] lecture du texte impossible :", e instanceof Error ? e.message : e);
