@@ -2,20 +2,81 @@
   "slug": "cloisons",
   "chantier_type": "cloisons",
   "chantier_label": "Cloisons & isolation",
-  "title": "Prix cloisons & isolation 2026 : fourchette sur 48 devis",
-  "description": "Cloisons & isolation : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.",
-  "lastGenerated": "2026-09-07T18:37:20.467Z",
-  "intro": "Nous avons analysé 48 devis contenant des travaux de type cloisons & isolation. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Doublage placo : de 17 à 142 € — pourquoi un tel écart",
+  "description": "Cloisons & isolation : prix réels relevés poste par poste sur 43 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T19:34:53.030Z",
+  "intro": "Sur 43 devis comportant des travaux de type cloisons & isolation, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Faux plafond plâtre BA13 (fourni+posé)",
+      "unite": "m²",
+      "nbObs": 105,
+      "nbDevis": 12,
+      "p10": 55,
+      "mediane": 55,
+      "p90": 55,
+      "ecart": 1,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Cloison placo",
+      "unite": "m²",
+      "nbObs": 10,
+      "nbDevis": 10,
+      "p10": 22,
+      "mediane": 45.33531746031746,
+      "p90": 105.05,
+      "ecart": 4.7749999999999995,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Faux plafond",
+      "unite": "m²",
+      "nbObs": 9,
+      "nbDevis": 7,
+      "p10": 54.18014527845037,
+      "mediane": 70.55172413793103,
+      "p90": 132,
+      "ecart": 2.4363168338070467,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Doublage placo",
+      "unite": "m²",
+      "nbObs": 5,
+      "nbDevis": 5,
+      "p10": 17.333333333333332,
+      "mediane": 60,
+      "p90": 141.7866666666667,
+      "ecart": 8.180000000000001,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Cloison plâtre BA13 (fourni+posé)",
+      "unite": "m²",
+      "nbObs": 5,
+      "nbDevis": 5,
+      "p10": 50,
+      "mediane": 62.41,
+      "p90": 89.41798941798942,
+      "ecart": 1.7883597883597884,
+      "nature_prix": "fourni_pose"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Doublage placo",
+    "unite": "m²",
+    "nbObs": 5,
+    "nbDevis": 5,
+    "p10": 17.333333333333332,
+    "mediane": 60,
+    "p90": 141.7866666666667,
+    "ecart": 8.180000000000001,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
-    "nb_devis": 48,
-    "nb_lignes": 159,
-    "ligne_moyenne": 1468.81,
-    "prix_moyen_unitaire": 286.39,
-    "prix_median": 55,
-    "prix_p25": 55,
-    "prix_p75": 55,
-    "prix_min": 10,
-    "prix_max": 25420.67
+    "nb_devis": 43,
+    "nb_lignes": 159
   },
   "pointsVigilance": [
     "Type de placo (BA13 standard, hydrofuge, phonique).",

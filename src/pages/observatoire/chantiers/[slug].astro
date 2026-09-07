@@ -1,6 +1,11 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import ObservatoireChantierApp from '@/components/app/ObservatoireChantierApp';
+// 2026-09-07 — RENDU STATIQUE, PAS UNE ÎLE (cf. /observatoire/metiers/[slug].astro).
+// En `client:only`, le HTML servi ne contenait aucun texte de la page, sur une
+// page dont la raison d'être est le référencement. Ni la page ni ses composants
+// n'ont d'état ou de gestionnaire : sans directive, Astro la rend au build.
+// ⚠️ Y ajouter la moindre interactivité obligerait à repasser en île.
+import ObservatoireChantierPage from '@/components/pages/seo/ObservatoireChantierPage';
 import { articleSchema, breadcrumbSchema, combineSchemas } from '@/lib/seo/schemaOrg';
 import { getRelatedLinks } from '@/lib/seo/internalLinking';
 
@@ -45,5 +50,5 @@ export const prerender = true;
   {schemas.map((schema) => (
     <script type="application/ld+json" set:html={JSON.stringify(schema)} />
   ))}
-  <ObservatoireChantierApp data={data} related={related} client:only="react" />
+  <ObservatoireChantierPage data={data} related={related} />
 </BaseLayout>

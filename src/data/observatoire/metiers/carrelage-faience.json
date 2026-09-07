@@ -2,25 +2,16 @@
   "slug": "carrelage-faience",
   "metier": "carrelage_faience",
   "metier_label": "Carrelage & faïence",
-  "title": "Prix carrelage 2026 : fourchette au m² sur 68 devis",
+  "title": "Prix carrelage 2026 : fourchette au m² sur 62 devis",
   "description": "Prix pose carrelage sol et faïence : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, dépose et primaire à surveiller.",
-  "lastGenerated": "2026-09-07T18:37:20.388Z",
-  "intro": "Sur 68 devis contenant au moins une ligne de carrelage & faïence, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "lastGenerated": "2026-09-07T19:34:53.001Z",
+  "intro": "Sur 62 devis contenant au moins une ligne de carrelage & faïence, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
   "postes": [
-    {
-      "label": "Dépose carrelage",
-      "unite": "u",
-      "nbObs": 20,
-      "p10": 150,
-      "mediane": 540,
-      "p90": 730,
-      "ecart": 4.866666666666666,
-      "nature_prix": "pose_seule"
-    },
     {
       "label": "Pose carrelage sol (hors fourniture)",
       "unite": "m²",
       "nbObs": 16,
+      "nbDevis": 12,
       "p10": 30,
       "mediane": 80,
       "p90": 130,
@@ -28,19 +19,10 @@
       "nature_prix": "pose_seule"
     },
     {
-      "label": "Pose carrelage sol",
-      "unite": "m²",
-      "nbObs": 11,
-      "p10": 42,
-      "mediane": 48,
-      "p90": 137.5,
-      "ecart": 3.2738095238095237,
-      "nature_prix": "pose_seule"
-    },
-    {
       "label": "Pose faïence murale",
       "unite": "m²",
       "nbObs": 11,
+      "nbDevis": 11,
       "p10": 50,
       "mediane": 54,
       "p90": 179,
@@ -48,9 +30,32 @@
       "nature_prix": "pose_seule"
     },
     {
+      "label": "Dépose carrelage",
+      "unite": "u",
+      "nbObs": 20,
+      "nbDevis": 9,
+      "p10": 150,
+      "mediane": 540,
+      "p90": 730,
+      "ecart": 4.866666666666666,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose carrelage sol",
+      "unite": "m²",
+      "nbObs": 11,
+      "nbDevis": 8,
+      "p10": 42,
+      "mediane": 48,
+      "p90": 137.5,
+      "ecart": 3.2738095238095237,
+      "nature_prix": "pose_seule"
+    },
+    {
       "label": "Pose faïence murale (hors fourniture)",
       "unite": "m²",
       "nbObs": 9,
+      "nbDevis": 6,
       "p10": 80,
       "mediane": 80,
       "p90": 82.85150291610587,
@@ -58,19 +63,10 @@
       "nature_prix": "pose_seule"
     },
     {
-      "label": "Carrelage sol 30m² (MO)",
-      "unite": "m²",
-      "nbObs": 8,
-      "p10": 25,
-      "mediane": 25,
-      "p90": 25,
-      "ecart": 1,
-      "nature_prix": "pose_seule"
-    },
-    {
       "label": "Carrelage standard (fourni+posé)",
       "unite": "m²",
       "nbObs": 6,
+      "nbDevis": 6,
       "p10": 87.32142857142857,
       "mediane": 112.01298701298701,
       "p90": 131.61866902237927,
@@ -78,9 +74,21 @@
       "nature_prix": "fourni_pose"
     },
     {
+      "label": "Carrelage sol 30m² (MO)",
+      "unite": "m²",
+      "nbObs": 8,
+      "nbDevis": 5,
+      "p10": 25,
+      "mediane": 25,
+      "p90": 25,
+      "ecart": 1,
+      "nature_prix": "pose_seule"
+    },
+    {
       "label": "Dépose carrelage",
       "unite": "m²",
       "nbObs": 5,
+      "nbDevis": 5,
       "p10": 22,
       "mediane": 32.81956521739131,
       "p90": 50,
@@ -91,6 +99,7 @@
       "label": "Pose plinthes carrelage",
       "unite": "ml",
       "nbObs": 5,
+      "nbDevis": 5,
       "p10": 13,
       "mediane": 18,
       "p90": 25.545454545454547,
@@ -101,6 +110,7 @@
       "label": "Pose carrelage salle de bains avec étanchéité",
       "unite": "m²",
       "nbObs": 5,
+      "nbDevis": 5,
       "p10": 54,
       "mediane": 78.33333333333333,
       "p90": 228.75,
@@ -112,6 +122,7 @@
     "label": "Dépose carrelage",
     "unite": "u",
     "nbObs": 20,
+    "nbDevis": 9,
     "p10": 150,
     "mediane": 540,
     "p90": 730,
@@ -119,7 +130,7 @@
     "nature_prix": "pose_seule"
   },
   "kpis": {
-    "nb_devis": 68,
+    "nb_devis": 62,
     "nb_lignes": 162,
     "prix_moyen": 342.3,
     "prix_median": 80,

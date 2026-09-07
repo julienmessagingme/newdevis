@@ -17,6 +17,38 @@
 -- vues : une seule définition, pas de dérive possible.
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- 🔴 DEUX DÉFAUTS DU CASE D'ORIGINE, MESURÉS LE 2026-09-07 : 196 lignes sur
+-- 1 628 (12 % du corpus) étaient mal classées.
+--
+--   1. `ILIKE '%iti%'` attrapait « démol-ITI-on » : TOUTES les lignes de
+--      démolition comptaient en isolation. La page isolation affichait 83 devis
+--      au lieu de 43, et son fait marquant sortait sur de la plomberie. Les
+--      sigles ITE / ITI se cherchent en MOT ENTIER.
+--   2. La comparaison était sensible aux accents : `%fenetre%` ne matche pas
+--      « Fenêtre ». La page fenêtres annonçait 2 devis quand le corpus en
+--      contient 56. Idem gouttière, façade, clôture — toiture 38 → 62,
+--      façade 10 → 22, clôture 5 → 17.
+--
+-- Le repli d'accents se fait par TRANSLATE plutôt que par `unaccent` : cette
+-- extension n'est pas installée sur le projet, et l'exiger ferait échouer la
+-- migration.
+--
+-- ⚠️ La même règle vit dans `typeDeChantier()` (scripts/observatoire/
+-- generate-observatoire.ts), qui pilote le contenu publié tant que cette
+-- migration n'est pas appliquée. Toute évolution se fait DES DEUX CÔTÉS.
+
+CREATE OR REPLACE FUNCTION public.observatoire_sans_accents(p TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT TRANSLATE(
+    lower(COALESCE(p, '')),
+    'àáâãäçèéêëìíîïñòóôõöùúûüýÿ',
+    'aaaaaceeeeiiiinooooouuuuyy'
+  );
+$$;
+
 CREATE OR REPLACE FUNCTION public.observatoire_chantier_type(
   p_label  TEXT,
   p_metier TEXT
@@ -25,38 +57,41 @@ RETURNS TEXT
 LANGUAGE sql
 IMMUTABLE
 AS $$
+  WITH n AS (SELECT public.observatoire_sans_accents(p_label) AS l)
   SELECT CASE
-    WHEN p_label ILIKE '%salle de bain%' OR p_label ILIKE '%sdb%'
-      OR p_label ILIKE '%douche%' OR p_label ILIKE '%baignoire%'
-      OR p_label ILIKE '%lavabo%' OR p_label ILIKE '%wc%'
-      OR p_label ILIKE '%receveur%' OR p_label ILIKE '%vasque%' THEN 'salle-de-bain'
-    WHEN p_label ILIKE '%cuisine%' THEN 'cuisine'
-    WHEN p_label ILIKE '%toiture%' OR p_label ILIKE '%couverture%'
-      OR p_label ILIKE '%charpente%' OR p_label ILIKE '%tuile%'
-      OR p_label ILIKE '%ardoise%' OR p_label ILIKE '%zinc%'
-      OR p_label ILIKE '%gouttiere%' THEN 'toiture'
-    WHEN p_label ILIKE '%isolation%' OR p_label ILIKE '%ite%'
-      OR p_label ILIKE '%iti%' THEN 'isolation'
-    WHEN p_label ILIKE '%fenetre%' OR p_label ILIKE '%porte-fenetre%'
-      OR p_label ILIKE '%chassis%' OR p_label ILIKE '%velux%' THEN 'fenetres'
-    WHEN p_label ILIKE '%facade%' OR p_label ILIKE '%bardage%'
-      OR p_label ILIKE '%ravalement%' THEN 'facade'
-    WHEN p_label ILIKE '%terrasse%' THEN 'terrasse'
-    WHEN p_label ILIKE '%piscine%' THEN 'piscine'
-    WHEN p_label ILIKE '%cloture%' OR p_label ILIKE '%portail%' THEN 'cloture'
-    WHEN p_label ILIKE '%garage%' THEN 'garage'
+    WHEN n.l LIKE '%salle de bain%' OR n.l LIKE '%sdb%'
+      OR n.l LIKE '%douche%' OR n.l LIKE '%baignoire%'
+      OR n.l LIKE '%lavabo%' OR n.l ~ '(^|[^a-z0-9])wc([^a-z0-9]|$)'
+      OR n.l LIKE '%receveur%' OR n.l LIKE '%vasque%' THEN 'salle-de-bain'
+    WHEN n.l LIKE '%cuisine%' THEN 'cuisine'
+    WHEN n.l LIKE '%toiture%' OR n.l LIKE '%couverture%'
+      OR n.l LIKE '%charpente%' OR n.l LIKE '%tuile%'
+      OR n.l LIKE '%ardoise%' OR n.l LIKE '%zinc%'
+      OR n.l LIKE '%gouttiere%' THEN 'toiture'
+    -- ITE / ITI en mot entier : sinon « démolition » devient de l'isolation.
+    WHEN n.l LIKE '%isolation%' OR n.l LIKE '%isolant%'
+      OR n.l ~ '(^|[^a-z0-9])(ite|iti)([^a-z0-9]|$)' THEN 'isolation'
+    WHEN n.l LIKE '%fenetre%' OR n.l LIKE '%chassis%'
+      OR n.l LIKE '%velux%' THEN 'fenetres'
+    WHEN n.l LIKE '%facade%' OR n.l LIKE '%bardage%'
+      OR n.l LIKE '%ravalement%' THEN 'facade'
+    WHEN n.l LIKE '%terrasse%' THEN 'terrasse'
+    WHEN n.l LIKE '%piscine%' THEN 'piscine'
+    WHEN n.l LIKE '%cloture%' OR n.l LIKE '%portail%' THEN 'cloture'
+    WHEN n.l LIKE '%garage%' THEN 'garage'
     WHEN p_metier = 'chauffage' THEN 'chauffage'
     WHEN p_metier = 'electricite' THEN 'electricite'
+    WHEN p_metier = 'plomberie_sanitaires' THEN 'plomberie'
     WHEN p_metier = 'peinture_revetements' THEN 'peinture'
-    WHEN p_metier = 'placo_isolation' THEN 'placo'
+    WHEN p_metier = 'placo_isolation' THEN 'cloisons'
     WHEN p_metier = 'carrelage_faience' THEN 'carrelage'
-    WHEN p_metier = 'sols_souples' OR p_metier = 'sols_durs' THEN 'sols'
     ELSE NULL
-  END;
+  END
+  FROM n;
 $$;
 
 COMMENT ON FUNCTION public.observatoire_chantier_type(TEXT, TEXT) IS
-  'Type de chantier déduit du libellé de poste et du métier. Définition UNIQUE, appelée par mv_observatoire_lignes et mv_observatoire_chantiers.';
+  'Type de chantier déduit du libellé de groupe et du métier, insensible aux accents, ITE/ITI en mot entier. Définition UNIQUE, appelée par mv_observatoire_lignes et mv_observatoire_chantiers. Doit rester alignée avec typeDeChantier() du générateur.';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Vue de lignes : une observation = une ligne de devis rapprochée du catalogue.

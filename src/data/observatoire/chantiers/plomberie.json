@@ -2,20 +2,15 @@
   "slug": "plomberie",
   "chantier_type": "plomberie",
   "chantier_label": "Plomberie",
-  "title": "Prix plomberie 2026 : fourchette sur 35 devis",
-  "description": "Plomberie : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.",
-  "lastGenerated": "2026-09-07T18:37:20.470Z",
-  "intro": "Nous avons analysé 35 devis contenant des travaux de type plomberie. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix plomberie 2026 : ce que disent 38 devis analysés",
+  "description": "Plomberie : prix réels relevés poste par poste sur 38 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T19:34:53.029Z",
+  "intro": "Nous avons analysé 38 devis de plomberie, mais aucun poste n'atteint encore le nombre d'observations nécessaire pour publier une fourchette fiable.",
+  "postes": [],
+  "fait_marquant": null,
   "kpis": {
-    "nb_devis": 35,
-    "nb_lignes": 44,
-    "ligne_moyenne": 1992.17,
-    "prix_moyen_unitaire": 953.29,
-    "prix_median": 282.94,
-    "prix_p25": 144.87,
-    "prix_p75": 620,
-    "prix_min": 41.9,
-    "prix_max": 10759
+    "nb_devis": 38,
+    "nb_lignes": 66
   },
   "pointsVigilance": [
     "Longueur des tuyauteries à préciser (cuivre / PER / multicouche).",

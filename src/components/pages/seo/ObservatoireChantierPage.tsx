@@ -5,6 +5,13 @@
  * Ex : /observatoire/chantiers/salle-de-bain
  *
  * Structure similaire à MetierPage mais avec le prisme "type de chantier".
+ *
+ * 2026-09-07 (retour Johan) — mêmes blocs que la page métier, servis par le
+ * composant partagé PrixPostes : le chiffre à retenir, les prix poste par poste
+ * à unité égale, puis ce qui fait varier un prix. Les quatre tuiles de moyennes
+ * (panier moyen par ligne, médiane unitaire, P25-P75, min-max) ont disparu :
+ * elles agrégeaient toutes les unités ensemble et ne répondaient à aucune
+ * question.
  */
 
 import Breadcrumb from "@/components/seo/Breadcrumb";
@@ -12,6 +19,12 @@ import ObservatoireChip from "@/components/seo/ObservatoireChip";
 import ObservatoireDisclaimer from "@/components/seo/ObservatoireDisclaimer";
 import ObservatoireCrossLinks from "@/components/seo/ObservatoireCrossLinks";
 import { Database } from "lucide-react";
+import {
+  FaitMarquantBloc,
+  TablePostes,
+  CommentLireCesPrix,
+  type PostePublieVue,
+} from "@/components/seo/PrixPostes";
 import type { InternalLink } from "@/lib/seo/internalLinking";
 import { getObservatoireCrossLinks } from "@/lib/seo/observatoireCrossLinks";
 
@@ -23,16 +36,13 @@ export interface ChantierData {
   description: string;
   lastGenerated: string;
   intro: string;
+  /** Postes publiables (≥ 5 observations, unité connue, forfaits exclus). */
+  postes?: PostePublieVue[];
+  /** Le poste au plus fort écart parmi ceux qui pèsent — l'accroche de la page. */
+  fait_marquant?: PostePublieVue | null;
   kpis: {
     nb_devis: number;
     nb_lignes: number;
-    ligne_moyenne: number;
-    prix_moyen_unitaire: number;
-    prix_median: number;
-    prix_p25: number;
-    prix_p75: number;
-    prix_min: number;
-    prix_max: number;
   };
   pointsVigilance: string[];
   erreursFrequentes: string[];
@@ -43,13 +53,11 @@ interface Props {
   related?: InternalLink[];
 }
 
-function fmtEUR(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "—";
-  return Math.round(n).toLocaleString("fr-FR") + " €";
-}
-
 export default function ObservatoireChantierPage({ data }: Props) {
-  const hasData = data.kpis.nb_lignes > 0;
+  const postes = data.postes ?? [];
+  const marquant = data.fait_marquant ?? null;
+  // Une page ne montre des chiffres que si au moins un poste est publiable.
+  const hasData = postes.length > 0;
   const crossLinks = getObservatoireCrossLinks("chantier", data.slug);
 
   return (
@@ -86,36 +94,9 @@ export default function ObservatoireChantierPage({ data }: Props) {
         </section>
       ) : (
         <>
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-3 my-8">
-            <div className="bg-card border border-border rounded-xl p-4">
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
-                Panier moyen par ligne
-              </div>
-              <div className="text-2xl font-bold">{fmtEUR(data.kpis.ligne_moyenne)}</div>
-            </div>
-            <div className="bg-card border border-border rounded-xl p-4">
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
-                Prix médian unitaire
-              </div>
-              <div className="text-2xl font-bold">{fmtEUR(data.kpis.prix_median)}</div>
-            </div>
-            <div className="bg-card border border-border rounded-xl p-4">
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
-                Fourchette P25-P75
-              </div>
-              <div className="text-lg font-bold">
-                {fmtEUR(data.kpis.prix_p25)} – {fmtEUR(data.kpis.prix_p75)}
-              </div>
-            </div>
-            <div className="bg-card border border-border rounded-xl p-4">
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
-                Écart min - max
-              </div>
-              <div className="text-lg font-bold">
-                {fmtEUR(data.kpis.prix_min)} – {fmtEUR(data.kpis.prix_max)}
-              </div>
-            </div>
-          </section>
+          <FaitMarquantBloc poste={marquant} />
+          <TablePostes postes={postes} />
+          <CommentLireCesPrix />
 
           {data.pointsVigilance.length > 0 && (
             <section className="my-10 bg-amber-50 border border-amber-200 rounded-xl p-6">

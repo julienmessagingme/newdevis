@@ -2,20 +2,48 @@
   "slug": "toiture",
   "chantier_type": "toiture",
   "chantier_label": "Toiture",
-  "title": "Prix rénovation toiture 2026 : fourchette sur 38 devis",
+  "title": "Prix rénovation toiture 2026 : fourchette sur 50 devis",
   "description": "Réfection toiture complète ou partielle : combien prévoir en 2026 ? Fourchette des devis analysés, ardoise, tuile, zinc, aides mobilisables.",
-  "lastGenerated": "2026-09-07T18:37:20.471Z",
-  "intro": "Nous avons analysé 38 devis contenant des travaux de type toiture. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-09-07T19:34:53.025Z",
+  "intro": "Sur 50 devis comportant des travaux de type toiture, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Pose gouttière",
+      "unite": "ml",
+      "nbObs": 25,
+      "nbDevis": 16,
+      "p10": 24.523387096774194,
+      "mediane": 24.523387096774194,
+      "p90": 24.523387096774194,
+      "ecart": 1,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Toiture - réfection complète",
+      "unite": "m²",
+      "nbObs": 11,
+      "nbDevis": 11,
+      "p10": 28.933333333333334,
+      "mediane": 154.49075,
+      "p90": 308.7307692307692,
+      "ecart": 10.670418291386033,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Toiture - réfection complète",
+    "unite": "m²",
+    "nbObs": 11,
+    "nbDevis": 11,
+    "p10": 28.933333333333334,
+    "mediane": 154.49075,
+    "p90": 308.7307692307692,
+    "ecart": 10.670418291386033,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
-    "nb_devis": 38,
-    "nb_lignes": 63,
-    "ligne_moyenne": 5990.07,
-    "prix_moyen_unitaire": 1210.09,
-    "prix_median": 91.8,
-    "prix_p25": 33.22,
-    "prix_p75": 275.42,
-    "prix_min": 6,
-    "prix_max": 45000
+    "nb_devis": 50,
+    "nb_lignes": 88
   },
   "pointsVigilance": [
     "Marque et type de tuile ou d'ardoise précisés.",

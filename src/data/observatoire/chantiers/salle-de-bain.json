@@ -2,20 +2,92 @@
   "slug": "salle-de-bain",
   "chantier_type": "salle-de-bain",
   "chantier_label": "Salle de bain",
-  "title": "Prix rénovation salle de bain 2026 : 70 devis analysés",
-  "description": "Salle de bain : quelle fourchette de prix en 2026 ? Postes qui varient le plus, erreurs à éviter, sur 70 devis analysés par VerifierMonDevis.",
-  "lastGenerated": "2026-09-07T18:37:20.470Z",
-  "intro": "Nous avons analysé 70 devis contenant des travaux de type salle de bain. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix rénovation salle de bain 2026 : 64 devis analysés",
+  "description": "Salle de bain : quelle fourchette de prix en 2026 ? Postes qui varient le plus, erreurs à éviter, sur 64 devis analysés par VerifierMonDevis.",
+  "lastGenerated": "2026-09-07T19:34:53.024Z",
+  "intro": "Sur 64 devis comportant des travaux de type salle de bain, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Pose receveur douche",
+      "unite": "u",
+      "nbObs": 16,
+      "nbDevis": 12,
+      "p10": 225,
+      "mediane": 284.41,
+      "p90": 700,
+      "ecart": 3.111111111111111,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose douche",
+      "unite": "u",
+      "nbObs": 7,
+      "nbDevis": 7,
+      "p10": 330.802,
+      "mediane": 455.25095238095236,
+      "p90": 1150,
+      "ecart": 3.476399779928779,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Peinture salle de bain (pièce)",
+      "unite": "u",
+      "nbObs": 9,
+      "nbDevis": 6,
+      "p10": 860,
+      "mediane": 860,
+      "p90": 860,
+      "ecart": 1,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Pose lavabo",
+      "unite": "u",
+      "nbObs": 9,
+      "nbDevis": 6,
+      "p10": 70,
+      "mediane": 100,
+      "p90": 190,
+      "ecart": 2.7142857142857144,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose baignoire",
+      "unite": "u",
+      "nbObs": 5,
+      "nbDevis": 5,
+      "p10": 224,
+      "mediane": 234.2,
+      "p90": 350,
+      "ecart": 1.5625,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose carrelage salle de bains avec étanchéité",
+      "unite": "m²",
+      "nbObs": 5,
+      "nbDevis": 5,
+      "p10": 54,
+      "mediane": 78.33333333333333,
+      "p90": 228.75,
+      "ecart": 4.236111111111111,
+      "nature_prix": "pose_seule"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Pose douche",
+    "unite": "u",
+    "nbObs": 7,
+    "nbDevis": 7,
+    "p10": 330.802,
+    "mediane": 455.25095238095236,
+    "p90": 1150,
+    "ecart": 3.476399779928779,
+    "nature_prix": "pose_seule"
+  },
   "kpis": {
-    "nb_devis": 70,
-    "nb_lignes": 229,
-    "ligne_moyenne": 1206.6,
-    "prix_moyen_unitaire": 766.4,
-    "prix_median": 289.22,
-    "prix_p25": 93.18,
-    "prix_p75": 683,
-    "prix_min": 7.47,
-    "prix_max": 8950
+    "nb_devis": 64,
+    "nb_lignes": 229
   },
   "pointsVigilance": [
     "L'étanchéité sous carrelage (SPEC ou SEL) doit être présente.",

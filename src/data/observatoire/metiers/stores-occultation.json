@@ -4,13 +4,14 @@
   "metier_label": "Stores & occultation",
   "title": "Volet roulant (fourni+pose) : de 781 à 1 747 € — pourquoi un tel écart",
   "description": "Stores & occultation : prix réels relevés poste par poste sur 14 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
-  "lastGenerated": "2026-09-07T18:37:20.399Z",
+  "lastGenerated": "2026-09-07T19:34:53.013Z",
   "intro": "Sur 14 devis contenant au moins une ligne de stores & occultation, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
   "postes": [
     {
       "label": "Volet roulant (fourni+pose)",
       "unite": "u",
       "nbObs": 7,
+      "nbDevis": 7,
       "p10": 781.0783333333334,
       "mediane": 805.39,
       "p90": 1747,
@@ -22,6 +23,7 @@
     "label": "Volet roulant (fourni+pose)",
     "unite": "u",
     "nbObs": 7,
+    "nbDevis": 7,
     "p10": 781.0783333333334,
     "mediane": 805.39,
     "p90": 1747,

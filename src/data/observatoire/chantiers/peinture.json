@@ -2,20 +2,59 @@
   "slug": "peinture",
   "chantier_type": "peinture",
   "chantier_label": "Peinture",
-  "title": "Prix peinture 2026 : fourchette au m² sur 61 devis",
+  "title": "Prix peinture 2026 : fourchette au m² sur 52 devis",
   "description": "Peinture intérieure ou extérieure : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, écarts entre finitions et pièges à éviter.",
-  "lastGenerated": "2026-09-07T18:37:20.469Z",
-  "intro": "Nous avons analysé 61 devis contenant des travaux de type peinture. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-09-07T19:34:53.030Z",
+  "intro": "Sur 52 devis comportant des travaux de type peinture, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Peinture murs",
+      "unite": "m²",
+      "nbObs": 17,
+      "nbDevis": 13,
+      "p10": 7,
+      "mediane": 17.02,
+      "p90": 50,
+      "ecart": 7.142857142857143,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Peinture porte",
+      "unite": "u",
+      "nbObs": 13,
+      "nbDevis": 9,
+      "p10": 40,
+      "mediane": 130,
+      "p90": 178.66666666666666,
+      "ecart": 4.466666666666667,
+      "nature_prix": "non_precise"
+    },
+    {
+      "label": "Peinture plafond",
+      "unite": "m²",
+      "nbObs": 11,
+      "nbDevis": 5,
+      "p10": 10,
+      "mediane": 28,
+      "p90": 45.682758620689654,
+      "ecart": 4.568275862068965,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Peinture plafond",
+    "unite": "m²",
+    "nbObs": 11,
+    "nbDevis": 5,
+    "p10": 10,
+    "mediane": 28,
+    "p90": 45.682758620689654,
+    "ecart": 4.568275862068965,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
-    "nb_devis": 61,
-    "nb_lignes": 99,
-    "ligne_moyenne": 3037.58,
-    "prix_moyen_unitaire": 639.2,
-    "prix_median": 38.5,
-    "prix_p25": 17.02,
-    "prix_p75": 214.33,
-    "prix_min": 2.99,
-    "prix_max": 14666.67
+    "nb_devis": 52,
+    "nb_lignes": 101
   },
   "pointsVigilance": [
     "Nombre de couches (2 minimum).",

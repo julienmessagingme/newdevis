@@ -2,32 +2,12 @@
   "slug": "renovation-globale",
   "metier": "forfait_renovation_globale",
   "metier_label": "Rénovation globale",
-  "title": "Rénovation plomberie SDB (pose) : de 61 à 794 € — pourquoi un tel écart",
+  "title": "Prix rénovation globale 2026 : ce que disent 20 devis analysés",
   "description": "Rénovation globale : prix réels relevés poste par poste sur 20 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
-  "lastGenerated": "2026-09-07T18:37:20.392Z",
-  "intro": "Sur 20 devis contenant au moins une ligne de rénovation globale, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
-  "postes": [
-    {
-      "label": "Rénovation plomberie SDB (pose)",
-      "unite": "u",
-      "nbObs": 5,
-      "p10": 61.18,
-      "mediane": 506.82,
-      "p90": 794.2,
-      "ecart": 12.98136645962733,
-      "nature_prix": "non_precise"
-    }
-  ],
-  "fait_marquant": {
-    "label": "Rénovation plomberie SDB (pose)",
-    "unite": "u",
-    "nbObs": 5,
-    "p10": 61.18,
-    "mediane": 506.82,
-    "p90": 794.2,
-    "ecart": 12.98136645962733,
-    "nature_prix": "non_precise"
-  },
+  "lastGenerated": "2026-09-07T19:34:53.006Z",
+  "intro": "Nous avons analysé 20 devis de rénovation globale, mais aucun poste n'atteint encore le nombre d'observations nécessaire pour publier une fourchette fiable.",
+  "postes": [],
+  "fait_marquant": null,
   "kpis": {
     "nb_devis": 20,
     "nb_lignes": 26,

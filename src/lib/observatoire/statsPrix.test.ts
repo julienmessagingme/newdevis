@@ -120,6 +120,44 @@ describe("agregerPostes", () => {
   it("le seuil par défaut reste explicite", () => {
     expect(OBS_MIN_PUBLICATION).toBe(8);
   });
+
+  it("le seuil compte les DEVIS distincts, pas les lignes", () => {
+    // Cas réel de la page salle de bain : « Peinture SDB pièces humides »
+    // annonçait 13 observations à 80 € pile — c'était UN devis répétant la même
+    // ligne treize fois. L'habitude d'un artisan n'est pas un prix de marché.
+    const unSeulDevis = Array.from({ length: 13 }, () => ({
+      label: "Peinture SDB",
+      unite: "u",
+      prixUnitaire: 80,
+      source: "devis-A",
+    }));
+    expect(agregerPostes(unSeulDevis, { obsMin: 5 })).toHaveLength(0);
+
+    const cinqDevis = [80, 90, 100, 110, 120].map((p, i) => ({
+      label: "Peinture SDB",
+      unite: "u",
+      prixUnitaire: p,
+      source: `devis-${i}`,
+    }));
+    const [poste] = agregerPostes(cinqDevis, { obsMin: 5 });
+    expect(poste.nbDevis).toBe(5);
+  });
+
+  it("plusieurs lignes d'un même devis comptent pour un seul devis", () => {
+    const lignes = [
+      ...Array.from({ length: 4 }, () => ({ label: "P", unite: "m²", prixUnitaire: 50, source: "A" })),
+      { label: "P", unite: "m²", prixUnitaire: 60, source: "B" },
+      { label: "P", unite: "m²", prixUnitaire: 70, source: "C" },
+    ];
+    const [poste] = agregerPostes(lignes, { obsMin: 3 });
+    expect(poste.nbObs).toBe(6);
+    expect(poste.nbDevis).toBe(3);
+  });
+
+  it("sans source connue, chaque ligne vaut un devis (comportement d'avant)", () => {
+    const postes = agregerPostes(serie("Poste", "m²", [10, 12, 14, 16, 18, 20, 22, 24]));
+    expect(postes[0].nbDevis).toBe(8);
+  });
 });
 
 describe("faitMarquant", () => {

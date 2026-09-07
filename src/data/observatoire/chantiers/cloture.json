@@ -2,20 +2,15 @@
   "slug": "cloture",
   "chantier_type": "cloture",
   "chantier_label": "Clôture",
-  "title": "Prix clôture 2026 : fourchette sur 5 devis",
-  "description": "Clôture : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.",
-  "lastGenerated": "2026-09-07T18:37:20.467Z",
-  "intro": "Nous avons analysé 5 devis contenant des travaux de type clôture. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix clôture 2026 : ce que disent 16 devis analysés",
+  "description": "Clôture : prix réels relevés poste par poste sur 16 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T19:34:53.027Z",
+  "intro": "Nous avons analysé 16 devis de clôture, mais aucun poste n'atteint encore le nombre d'observations nécessaire pour publier une fourchette fiable.",
+  "postes": [],
+  "fait_marquant": null,
   "kpis": {
-    "nb_devis": 5,
-    "nb_lignes": 5,
-    "ligne_moyenne": 3552.68,
-    "prix_moyen_unitaire": 3031.42,
-    "prix_median": 885.71,
-    "prix_p25": 818.18,
-    "prix_p75": 1044,
-    "prix_min": 56,
-    "prix_max": 12353.22
+    "nb_devis": 16,
+    "nb_lignes": 20
   },
   "pointsVigilance": [
     "Longueur en ml + hauteur précisées.",

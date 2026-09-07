@@ -4,18 +4,35 @@
   "chantier_label": "Électricité",
   "title": "Prix rénovation électrique 2026 : sur 30 devis analysés",
   "description": "Rénovation électrique complète ou partielle : combien prévoir en 2026 ? Fourchette des devis analysés, tableau, prises, luminaires, aides.",
-  "lastGenerated": "2026-09-07T18:37:20.468Z",
-  "intro": "Nous avons analysé 30 devis contenant des travaux de type électricité. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-09-07T19:34:53.029Z",
+  "intro": "Sur 30 devis comportant des travaux de type électricité, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Point lumineux",
+      "unite": "u",
+      "nbObs": 15,
+      "nbDevis": 5,
+      "p10": 102.37733333333333,
+      "mediane": 116.42,
+      "p90": 160.08,
+      "ecart": 1.5636273654324528,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Point lumineux",
+    "unite": "u",
+    "nbObs": 15,
+    "nbDevis": 5,
+    "p10": 102.37733333333333,
+    "mediane": 116.42,
+    "p90": 160.08,
+    "ecart": 1.5636273654324528,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
     "nb_devis": 30,
-    "nb_lignes": 73,
-    "ligne_moyenne": 2469.99,
-    "prix_moyen_unitaire": 885.58,
-    "prix_median": 137.19,
-    "prix_p25": 82.82,
-    "prix_p75": 415.67,
-    "prix_min": 13.49,
-    "prix_max": 13200
+    "nb_lignes": 73
   },
   "pointsVigilance": [
     "Nombre de circuits, prises, points lumineux détaillés.",

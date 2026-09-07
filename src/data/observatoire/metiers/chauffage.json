@@ -2,15 +2,16 @@
   "slug": "chauffage",
   "metier": "chauffage",
   "metier_label": "Chauffage",
-  "title": "Prix chauffage 2026 : fourchette sur 41 devis analysés",
+  "title": "Prix chauffage 2026 : fourchette sur 36 devis analysés",
   "description": "Chaudière, pompe à chaleur, poêle : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, aides MaPrimeRénov' et CEE.",
-  "lastGenerated": "2026-09-07T18:37:20.389Z",
-  "intro": "Sur 41 devis contenant au moins une ligne de chauffage, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "lastGenerated": "2026-09-07T19:34:53.003Z",
+  "intro": "Sur 36 devis contenant au moins une ligne de chauffage, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
   "postes": [
     {
       "label": "Remplacement chauffe-eau (pose)",
       "unite": "u",
       "nbObs": 15,
+      "nbDevis": 10,
       "p10": 143.16,
       "mediane": 545,
       "p90": 1554,
@@ -22,6 +23,7 @@
     "label": "Remplacement chauffe-eau (pose)",
     "unite": "u",
     "nbObs": 15,
+    "nbDevis": 10,
     "p10": 143.16,
     "mediane": 545,
     "p90": 1554,
@@ -29,7 +31,7 @@
     "nature_prix": "non_precise"
   },
   "kpis": {
-    "nb_devis": 41,
+    "nb_devis": 36,
     "nb_lignes": 52,
     "prix_moyen": 1418.37,
     "prix_median": 545,

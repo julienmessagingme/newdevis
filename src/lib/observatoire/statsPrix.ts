@@ -63,13 +63,21 @@ export interface LignePrix {
   label: string | null | undefined;
   unite: unknown;
   prixUnitaire: number | null | undefined;
+  /**
+   * Devis d'origine. Deux lignes du MÊME devis ne sont pas deux observations
+   * indépendantes : c'est le nombre de devis DISTINCTS qui décide de la
+   * publication (cf. `agregerPostes`).
+   */
+  source?: string | null;
 }
 
 export interface PostePublie {
   label: string;
   unite: string;
-  /** Nombre d'observations RETENUES (après retrait des valeurs aberrantes). */
+  /** Nombre de lignes retenues (après retrait des valeurs aberrantes). */
   nbObs: number;
+  /** Nombre de DEVIS distincts derrière ces lignes — c'est ce qu'on affiche. */
+  nbDevis: number;
   p10: number;
   mediane: number;
   p90: number;
@@ -80,14 +88,20 @@ export interface PostePublie {
 /**
  * Agrège des lignes de devis en postes publiables.
  *
- * Trois garde-fous, tous nés d'un cas réel :
+ * Quatre garde-fous, tous nés d'un cas réel :
  *   1. **une série par (poste, unité)** — un prix au m² et un prix à la pièce ne
  *      décrivent pas la même chose ;
  *   2. **forfaits exclus** — un forfait couvre un périmètre propre à chaque
  *      devis (repeindre une porte ou toutes celles de la maison) ;
  *   3. **forfaits déguisés écartés** — une valeur à plus de dix fois la médiane
  *      de son propre poste ne décrit pas le même travail (cas « Peinture porte :
- *      1 u, 8 350 € », où l'unité dit « u » mais couvre tout un lot).
+ *      1 u, 8 350 € », où l'unité dit « u » mais couvre tout un lot) ;
+ *   4. **le seuil compte les DEVIS, pas les lignes** — sur la page salle de
+ *      bain, « Peinture SDB pièces humides » annonçait 13 observations à 80 €
+ *      pile, min = médiane = max : c'était UN devis répétant la même ligne
+ *      treize fois. Un poste n'est publiable que si plusieurs devis distincts
+ *      le documentent, sans quoi on présente l'habitude d'un seul artisan comme
+ *      un prix de marché.
  *
  * L'amplitude publiée est P90/P10 et non max/min : un seul devis atypique ne
  * doit pas faire le classement.
@@ -97,7 +111,10 @@ export function agregerPostes(
   options: { obsMin?: number } = {},
 ): PostePublie[] {
   const obsMin = options.obsMin ?? OBS_MIN_PUBLICATION;
-  const series = new Map<string, { label: string; unite: string; valeurs: number[] }>();
+  const series = new Map<
+    string,
+    { label: string; unite: string; valeurs: Array<{ prix: number; source: string }> }
+  >();
 
   for (const l of lignes) {
     const unite = normaliserUnite(l.unite);
@@ -110,26 +127,32 @@ export function agregerPostes(
     const cle = `${label}::${unite}`;
     let s = series.get(cle);
     if (!s) { s = { label, unite, valeurs: [] }; series.set(cle, s); }
-    s.valeurs.push(prix);
+    // Sans source connue, chaque ligne compte pour un devis distinct : c'est le
+    // comportement d'avant, et il ne peut que sous-estimer la concentration.
+    s.valeurs.push({ prix, source: l.source ?? `${cle}#${s.valeurs.length}` });
   }
 
   const postes: PostePublie[] = [];
   for (const { label, unite, valeurs } of series.values()) {
-    const brut = [...valeurs].sort((a, b) => a - b);
-    const medBrute = quantile(brut, 0.5);
+    const brut = [...valeurs].sort((a, b) => a.prix - b.prix);
+    const medBrute = quantile(brut.map((v) => v.prix), 0.5);
     const retenues = medBrute > 0
-      ? brut.filter((p) => p <= medBrute * 10 && p >= medBrute / 10)
+      ? brut.filter((v) => v.prix <= medBrute * 10 && v.prix >= medBrute / 10)
       : brut;
-    if (retenues.length < obsMin) continue;
 
-    const p10 = quantile(retenues, 0.10);
-    const p90 = quantile(retenues, 0.90);
+    const nbDevis = new Set(retenues.map((v) => v.source)).size;
+    if (nbDevis < obsMin) continue;
+
+    const prix = retenues.map((v) => v.prix);
+    const p10 = quantile(prix, 0.10);
+    const p90 = quantile(prix, 0.90);
     postes.push({
       label,
       unite,
       nbObs: retenues.length,
+      nbDevis,
       p10,
-      mediane: quantile(retenues, 0.5),
+      mediane: quantile(prix, 0.5),
       p90,
       ecart: p10 > 0 ? p90 / p10 : 0,
     });
@@ -137,7 +160,7 @@ export function agregerPostes(
 
   // Les postes les mieux documentés d'abord : c'est sur eux que le lecteur peut
   // s'appuyer, pas sur celui qui a l'écart le plus spectaculaire.
-  return postes.sort((a, b) => b.nbObs - a.nbObs);
+  return postes.sort((a, b) => b.nbDevis - a.nbDevis || b.nbObs - a.nbObs);
 }
 
 /**

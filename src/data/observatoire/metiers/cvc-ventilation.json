@@ -3,14 +3,15 @@
   "metier": "cvc_ventilation",
   "metier_label": "CVC & ventilation",
   "title": "Climatisation split (mono-split, fourni+posé) : de 589 à 4 801 € — pourquoi un tel écart",
-  "description": "CVC & ventilation : prix réels relevés poste par poste sur 35 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
-  "lastGenerated": "2026-09-07T18:37:20.390Z",
-  "intro": "Sur 35 devis contenant au moins une ligne de cvc & ventilation, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "description": "CVC & ventilation : prix réels relevés poste par poste sur 33 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T19:34:53.003Z",
+  "intro": "Sur 33 devis contenant au moins une ligne de cvc & ventilation, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
   "postes": [
     {
       "label": "Climatisation split (mono-split, fourni+posé)",
       "unite": "u",
       "nbObs": 10,
+      "nbDevis": 10,
       "p10": 588.6200000000001,
       "mediane": 1534.375,
       "p90": 4800.86,
@@ -22,6 +23,7 @@
     "label": "Climatisation split (mono-split, fourni+posé)",
     "unite": "u",
     "nbObs": 10,
+    "nbDevis": 10,
     "p10": 588.6200000000001,
     "mediane": 1534.375,
     "p90": 4800.86,
@@ -29,7 +31,7 @@
     "nature_prix": "fourni_pose"
   },
   "kpis": {
-    "nb_devis": 35,
+    "nb_devis": 33,
     "nb_lignes": 42,
     "prix_moyen": 2817.76,
     "prix_median": 760,

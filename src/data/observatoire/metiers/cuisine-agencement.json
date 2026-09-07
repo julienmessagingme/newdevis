@@ -3,14 +3,15 @@
   "metier": "cuisine_agencement",
   "metier_label": "Cuisine & agencement",
   "title": "Raccordements électricité cuisine : de 27 à 77 € — pourquoi un tel écart",
-  "description": "Cuisine & agencement : prix réels relevés poste par poste sur 36 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
-  "lastGenerated": "2026-09-07T18:37:20.389Z",
-  "intro": "Sur 36 devis contenant au moins une ligne de cuisine & agencement, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "description": "Cuisine & agencement : prix réels relevés poste par poste sur 35 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T19:34:53.003Z",
+  "intro": "Sur 35 devis contenant au moins une ligne de cuisine & agencement, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
   "postes": [
     {
       "label": "Raccordements électricité cuisine",
       "unite": "u",
       "nbObs": 8,
+      "nbDevis": 8,
       "p10": 27.174,
       "mediane": 42.845,
       "p90": 76.55970149253731,
@@ -22,6 +23,7 @@
     "label": "Raccordements électricité cuisine",
     "unite": "u",
     "nbObs": 8,
+    "nbDevis": 8,
     "p10": 27.174,
     "mediane": 42.845,
     "p90": 76.55970149253731,
@@ -29,7 +31,7 @@
     "nature_prix": "non_precise"
   },
   "kpis": {
-    "nb_devis": 36,
+    "nb_devis": 35,
     "nb_lignes": 69,
     "prix_moyen": 1327.33,
     "prix_median": 300,

@@ -2,20 +2,37 @@
   "slug": "cuisine",
   "chantier_type": "cuisine",
   "chantier_label": "Cuisine",
-  "title": "Prix rénovation cuisine 2026 : fourchette sur 26 devis",
+  "title": "Prix rénovation cuisine 2026 : fourchette sur 25 devis",
   "description": "Cuisine équipée avec pose : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus.",
-  "lastGenerated": "2026-09-07T18:37:20.467Z",
-  "intro": "Nous avons analysé 26 devis contenant des travaux de type cuisine. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-09-07T19:34:53.025Z",
+  "intro": "Sur 25 devis comportant des travaux de type cuisine, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Raccordements électricité cuisine",
+      "unite": "u",
+      "nbObs": 8,
+      "nbDevis": 8,
+      "p10": 27.174,
+      "mediane": 42.845,
+      "p90": 76.55970149253731,
+      "ecart": 2.8173879992837754,
+      "nature_prix": "non_precise"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Raccordements électricité cuisine",
+    "unite": "u",
+    "nbObs": 8,
+    "nbDevis": 8,
+    "p10": 27.174,
+    "mediane": 42.845,
+    "p90": 76.55970149253731,
+    "ecart": 2.8173879992837754,
+    "nature_prix": "non_precise"
+  },
   "kpis": {
-    "nb_devis": 26,
-    "nb_lignes": 46,
-    "ligne_moyenne": 2761.43,
-    "prix_moyen_unitaire": 1663.56,
-    "prix_median": 345,
-    "prix_p25": 56.32,
-    "prix_p75": 3344,
-    "prix_min": 0.83,
-    "prix_max": 7500
+    "nb_devis": 25,
+    "nb_lignes": 46
   },
   "pointsVigilance": [
     "L'installation de la crédence, du plan de travail et de l'évier doit être distinguée.",

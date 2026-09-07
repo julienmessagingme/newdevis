@@ -40,7 +40,7 @@ const CHANTIERS_DIR = join(OUTPUT_DIR, "chantiers");
  * Overrides SEO manuels par slug. Les slugs non listés utilisent le template
  * default. Écrit à la main pour titre/description CTR-optimisés (chiffres,
  * année, bénéfice), synchro avec l'audit SEO business.
- * NB : {nb} est remplacé par row.nb_devis au moment du build.
+ * NB : {nb} est remplacé par le nombre de devis au moment du build.
  */
 const SEO_OVERRIDES: Record<string, { title: string; description: string }> = {
   // Chantiers TOP (haute priorité SEO)
@@ -549,66 +549,192 @@ function safeParse(s: unknown): any {
 // GÉNÉRATION 2 : 1 JSON par métier
 // ─────────────────────────────────────────────────────────────────────
 
-async function generateMetierPages(): Promise<{ generated: number; empty: number }> {
-  console.log("\n🔧 Génération pages métier depuis mv_observatoire_base…");
+// ────────────────────────────────────────────────────────────────────────
+// 2026-09-07 (retour Johan) — LES POSTES, PAS LES MOYENNES.
+//
+// « 1 397 € de panier moyen, et alors ? » Les KPI venaient de
+// `mv_observatoire_metiers` / `mv_observatoire_chantiers`, qui moyennaient
+// `prix_unitaire` toutes unités confondues : sur menuiserie, 121 lignes à
+// l'unité, 3 au mètre linéaire, 1 au m² et 3 forfaits dans la même médiane.
+// Une poignée de porte et une baie vitrée dans le même chiffre.
+//
+// On lit désormais les LIGNES, une seule fois, et on agrège avec la règle
+// partagée (`statsPrix.ts`, testée) : une série par poste ET par unité,
+// forfaits exclus, forfaits déguisés écartés, P90/P10 plutôt que max/min.
+// ────────────────────────────────────────────────────────────────────────
 
-  // ────────────────────────────────────────────────────────────────────────
-  // 2026-09-07 (retour Johan) — LES POSTES, PAS LES MOYENNES.
-  //
-  // « 1 397 € de panier moyen, et alors ? » Les KPI venaient de
-  // `mv_observatoire_metiers`, qui moyennait `prix_unitaire` toutes unités
-  // confondues : sur menuiserie, 121 lignes à l'unité, 3 au mètre linéaire,
-  // 1 au m² et 3 forfaits dans la même médiane. Une poignée de porte et une
-  // baie vitrée dans le même chiffre.
-  //
-  // On lit désormais les LIGNES et on agrège avec la règle partagée
-  // (`statsPrix.ts`, testée) : une série par poste ET par unité, forfaits
-  // exclus, forfaits déguisés écartés, P90/P10 plutôt que max/min.
-  // ────────────────────────────────────────────────────────────────────────
-  const lignesParMetier = new Map<string, Array<{ label: string; unite: unknown; prix: number }>>();
-  try {
-    let debut = 0;
-    for (;;) {
-      const { data, error } = await supabase
-        .from("mv_observatoire_base")
-        .select("metier, market_label, main_unit, prix_unitaire")
-        .range(debut, debut + 999);
-      if (error) throw error;
-      for (const r of data ?? []) {
-        if (!r.metier || !r.market_label) continue;
-        const liste = lignesParMetier.get(r.metier) ?? [];
-        liste.push({ label: r.market_label, unite: r.main_unit, prix: Number(r.prix_unitaire) });
-        lignesParMetier.set(r.metier, liste);
-      }
-      if (!data || data.length < 1000) break;
-      debut += 1000;
+interface LigneObs {
+  analysisId: string;
+  /**
+   * Clé du DOCUMENT d'origine (`user_id|file_name`), et non de l'analyse.
+   *
+   * 2026-09-07 — un même PDF re-déposé compte autant d'analyses que de dépôts :
+   * « devis combiné.pdf » figurait cinq fois pour le même utilisateur, et le
+   * poste « Peinture salle de bain » annonçait 9 devis à 860 € pile alors que
+   * sept lignes venaient de ce seul document. Mesuré sur le stock : 331
+   * analyses pour **276 documents**, soit 17 % de gonflement — davantage sur
+   * les postes rares, ceux qui approchent justement le seuil de publication.
+   */
+  docId: string;
+  metier: string;
+  /** Libellé du groupe dans l'analyse — c'est lui que classe typeDeChantier. */
+  jobLabel: string;
+  label: string;
+  unite: unknown;
+  prix: number;
+}
+
+/** Toutes les lignes rapprochées du catalogue, chargées une fois. */
+async function chargerLignes(): Promise<LigneObs[]> {
+  const lignes: LigneObs[] = [];
+  let debut = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from("mv_observatoire_base")
+      .select("analysis_id, metier, job_type_label, market_label, main_unit, prix_unitaire")
+      .range(debut, debut + 999);
+    if (error) throw error;
+    for (const r of data ?? []) {
+      if (!r.metier || !r.market_label) continue;
+      lignes.push({
+        analysisId: r.analysis_id,
+        docId: r.analysis_id, // remplacé juste après par la clé du document
+        metier: r.metier,
+        jobLabel: r.job_type_label ?? "",
+        label: r.market_label,
+        unite: r.main_unit,
+        prix: Number(r.prix_unitaire),
+      });
     }
-    console.log(`   ${lignesParMetier.size} métiers avec des lignes exploitables`);
-  } catch (e) {
-    console.warn(`   ⚠️  mv_observatoire_base inaccessible (${e instanceof Error ? e.message : String(e)}).`);
+    if (!data || data.length < 1000) break;
+    debut += 1000;
   }
 
-  /**
-   * Le prix inclut-il la fourniture ? Le catalogue le dit dans son libellé —
-   * c'est la première question d'un lecteur devant « 1 760 € une fenêtre ».
-   * Vérifié sur le stock : 441 lignes sur 1 000 portent l'information.
-   */
-  const natureDuPrix = (label: string): "fourni_pose" | "pose_seule" | "non_precise" => {
-    if (/hors\s+fourniture|\(mo\)|main.d.?œuvre|main.d.?oeuvre|^pose\b|^d[ée]pose\b/i.test(label)) {
-      return "pose_seule";
+  // Résolution de la clé de document. `user_id|file_name` plutôt qu'un hachage
+  // de fichier (`analyses` n'en porte pas) : deux dépôts du même fichier par la
+  // même personne comptent pour un. On ne déduplique PAS entre utilisateurs —
+  // « devis.pdf » est un nom trop courant pour que la collision soit un doublon.
+  const ids = [...new Set(lignes.map((l) => l.analysisId))];
+  const cleParAnalyse = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase
+      .from("analyses")
+      .select("id, user_id, file_name")
+      .in("id", ids.slice(i, i + 200));
+    if (error) throw error;
+    for (const a of data ?? []) {
+      cleParAnalyse.set(a.id, a.file_name ? `${a.user_id}|${a.file_name}` : a.id);
     }
-    if (/fourni.*pos|fourniture\s+et\s+pose|f\s*\+\s*p\b/i.test(label)) return "fourni_pose";
-    return "non_precise";
-  };
+  }
+  for (const l of lignes) l.docId = cleParAnalyse.get(l.analysisId) ?? l.analysisId;
 
-  const postesDuMetier = (metier: string): PostePublie[] => {
-    const lignes = (lignesParMetier.get(metier) ?? []).map((l) => ({
+  const nbDocs = new Set(lignes.map((l) => l.docId)).size;
+  console.log(`   ${ids.length} analyses → ${nbDocs} documents distincts`);
+
+  return lignes;
+}
+
+/**
+ * Le prix inclut-il la fourniture ? Le catalogue le dit dans son libellé —
+ * c'est la première question d'un lecteur devant « 1 760 € une fenêtre ».
+ * Vérifié sur le stock : 441 lignes sur 1 000 portent l'information.
+ */
+function natureDuPrix(label: string): "fourni_pose" | "pose_seule" | "non_precise" {
+  if (/hors\s+fourniture|\(mo\)|main.d.?œuvre|main.d.?oeuvre|^pose\b|^d[ée]pose\b/i.test(label)) {
+    return "pose_seule";
+  }
+  if (/fourni.*pos|fourniture\s+et\s+pose|f\s*\+\s*p\b/i.test(label)) return "fourni_pose";
+  return "non_precise";
+}
+
+/** Agrège un lot de lignes en postes publiables, étiquetés fourniture/pose. */
+function postesPublies(lignes: LigneObs[], obsMin: number) {
+  return agregerPostes(
+    lignes.map((l) => ({
       label: l.label,
       unite: l.unite,
       prixUnitaire: l.prix,
-    }));
-    return agregerPostes(lignes, { obsMin: OBS_MIN_PAGE_METIER });
-  };
+      source: l.docId,
+    })),
+    { obsMin },
+  ).map((p) => ({ ...p, nature_prix: natureDuPrix(p.label) }));
+}
+
+/** Minuscules sans accents — « Fenêtre » et « fenetre » sont le même mot. */
+function sansAccents(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+/**
+ * Type de chantier déduit du libellé du groupe et du métier.
+ *
+ * 🔴 **DEUX DÉFAUTS DE LA VERSION SQL D'ORIGINE, MESURÉS LE 2026-09-07**
+ * (`mv_observatoire_chantiers`, migration `20260701090000`) — 196 lignes sur
+ * 1 628, soit 12 % du corpus, étaient mal classées :
+ *
+ *   1. **`ILIKE '%iti%'` attrapait « démol-ITI-on ».** Toute ligne de
+ *      démolition comptait comme de l'isolation : la page isolation affichait
+ *      83 devis au lieu de 43, et son fait marquant sortait sur… de la
+ *      plomberie. Les sigles ITE / ITI doivent être cherchés en MOT ENTIER.
+ *   2. **La comparaison était sensible aux accents.** `%fenetre%` ne matche pas
+ *      « Fenêtre » : la page fenêtres annonçait **2 devis** quand le corpus en
+ *      contient **56**. Idem gouttière, façade, clôture — toiture 38 → 62,
+ *      façade 10 → 22, clôture 5 → 17.
+ *
+ * ⚠️ Toute correction ici doit être reportée dans
+ * `supabase/migrations/20260907200000_observatoire_lignes.sql`, qui porte la
+ * même règle côté SQL. La migration n'a pas pu être appliquée le 07/09 (CLI en
+ * échec) : cette fonction pilote donc seule le contenu publié (`TODO.md`).
+ *
+ * ⚠️ Et ne pas « améliorer » la liste au passage : un premier jet avait inventé
+ * des types `sols`/`placo` absents du dictionnaire tout en perdant `plomberie`
+ * et `cloisons` — deux pages vivantes seraient passées à zéro devis en silence.
+ */
+function typeDeChantier(jobLabel: string, metier: string): string | null {
+  const l = sansAccents(jobLabel);
+  const a = (...mots: string[]) => mots.some((m) => l.includes(m));
+  const mot = (...mots: string[]) =>
+    mots.some((m) => new RegExp(`(^|[^a-z0-9])${m}([^a-z0-9]|$)`).test(l));
+
+  if (a("salle de bain", "sdb", "douche", "baignoire", "lavabo", "receveur", "vasque") || mot("wc"))
+    return "salle-de-bain";
+  if (a("cuisine")) return "cuisine";
+  if (a("toiture", "couverture", "charpente", "tuile", "ardoise", "zinc", "gouttiere"))
+    return "toiture";
+  if (a("isolation", "isolant") || mot("ite", "iti")) return "isolation";
+  if (a("fenetre", "chassis", "velux")) return "fenetres";
+  if (a("facade", "bardage", "ravalement")) return "facade";
+  if (a("terrasse")) return "terrasse";
+  if (a("piscine")) return "piscine";
+  if (a("cloture", "portail")) return "cloture";
+  if (a("garage")) return "garage";
+  if (metier === "chauffage") return "chauffage";
+  if (metier === "electricite") return "electricite";
+  if (metier === "plomberie_sanitaires") return "plomberie";
+  if (metier === "peinture_revetements") return "peinture";
+  if (metier === "placo_isolation") return "cloisons";
+  if (metier === "carrelage_faience") return "carrelage";
+  return null;
+}
+
+async function generateMetierPages(
+  lignesToutes: LigneObs[],
+): Promise<{ generated: number; empty: number }> {
+  console.log("\n🔧 Génération pages métier depuis mv_observatoire_base…");
+
+  const lignesParMetier = new Map<string, LigneObs[]>();
+  for (const l of lignesToutes) {
+    const liste = lignesParMetier.get(l.metier) ?? [];
+    liste.push(l);
+    lignesParMetier.set(l.metier, liste);
+  }
+  console.log(`   ${lignesParMetier.size} métiers avec des lignes exploitables`);
+
+  const postesDuMetier = (metier: string) =>
+    postesPublies(lignesParMetier.get(metier) ?? [], OBS_MIN_PAGE_METIER);
 
 
   // Fetch MVs — si elles n'existent pas encore, warning + skip
@@ -662,18 +788,18 @@ async function generateMetierPages(): Promise<{ generated: number; empty: number
     // Postes publiables, à poste ET unité égaux, plus le fait marquant qui
     // remplace l'ancien « panier moyen » : une phrase qu'un lecteur retient et
     // peut vérifier sur son propre devis.
-    const postes = postesDuMetier(row.metier).map((p) => ({
-      ...p,
-      nature_prix: natureDuPrix(p.label),
-    }));
+    const postes = postesDuMetier(row.metier);
     const marquant = faitMarquant(postes);
+    // Documents distincts, pas analyses : un PDF re-déposé ne compte qu une fois.
+    const lignesMetier = lignesParMetier.get(row.metier) ?? [];
+    const nbDevis = new Set(lignesMetier.map((l) => l.docId)).size || row.nb_devis;
 
     // Le titre part du fait le plus parlant quand il existe : « Prix menuiserie
     // 2026 : fourchette sur 86 devis » n'accroche personne ; « une fenêtre PVC
     // posée coûte entre 910 et 2 968 € » est une question que les gens se posent.
     const titrePrincipal = marquant
       ? `${marquant.label} : de ${Math.round(marquant.p10).toLocaleString("fr-FR")} à ${Math.round(marquant.p90).toLocaleString("fr-FR")} € — pourquoi un tel écart`
-      : `Prix ${label.toLowerCase()} 2026 : ce que disent ${row.nb_devis} devis analysés`;
+      : `Prix ${label.toLowerCase()} 2026 : ce que disent ${nbDevis} devis analysés`;
 
     const data = {
       slug,
@@ -682,21 +808,19 @@ async function generateMetierPages(): Promise<{ generated: number; empty: number
       ...applySeoOverride(
         slug,
         titrePrincipal,
-        `${label} : prix réels relevés poste par poste sur ${row.nb_devis} devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.`,
-        row.nb_devis,
+        `${label} : prix réels relevés poste par poste sur ${nbDevis} devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.`,
+        nbDevis,
       ),
       lastGenerated: new Date().toISOString(),
       intro: postes.length > 0
-        ? `Sur ${row.nb_devis} devis contenant au moins une ligne de ${label.toLowerCase()}, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.`
-        : `Nous avons analysé ${row.nb_devis} devis de ${label.toLowerCase()}, mais aucun poste n'atteint encore le nombre d'observations nécessaire pour publier une fourchette fiable.`,
+        ? `Sur ${nbDevis} devis contenant au moins une ligne de ${label.toLowerCase()}, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.`
+        : `Nous avons analysé ${nbDevis} devis de ${label.toLowerCase()}, mais aucun poste n'atteint encore le nombre d'observations nécessaire pour publier une fourchette fiable.`,
       /** 2026-09-07 — la matière de la page : des prix à unité égale. */
       postes,
-      fait_marquant: marquant
-        ? { ...marquant, nature_prix: natureDuPrix(marquant.label) }
-        : null,
+      fait_marquant: marquant,
       kpis: {
-        nb_devis: row.nb_devis,
-        nb_lignes: row.nb_lignes,
+        nb_devis: nbDevis,
+        nb_lignes: lignesMetier.length,
         prix_moyen: Number(row.prix_moyen),
         prix_median: Number(row.prix_median),
         prix_min: Number(row.prix_min),
@@ -720,7 +844,7 @@ async function generateMetierPages(): Promise<{ generated: number; empty: number
 
     writeFileSync(join(METIERS_DIR, `${slug}.json`), JSON.stringify(data, null, 2), "utf-8");
     console.log(
-      `   ${postes.length ? "✓" : "○"} ${slug}.json — ${row.nb_devis} devis · ${postes.length} poste(s) publiable(s)` +
+      `   ${postes.length ? "✓" : "○"} ${slug}.json — ${nbDevis} devis · ${postes.length} poste(s) publiable(s)` +
         (marquant ? ` · fait marquant : ${marquant.label} x${marquant.ecart.toFixed(1)}` : ""),
     );
   }
@@ -732,61 +856,68 @@ async function generateMetierPages(): Promise<{ generated: number; empty: number
 // GÉNÉRATION 3 : 1 JSON par type de chantier
 // ─────────────────────────────────────────────────────────────────────
 
-async function generateChantierPages(): Promise<{ generated: number; empty: number }> {
-  console.log("\n🏗️  Génération pages chantier depuis mv_observatoire_chantiers…");
+async function generateChantierPages(
+  lignesToutes: LigneObs[],
+): Promise<{ generated: number; empty: number }> {
+  console.log("\n🏗️  Génération pages chantier depuis mv_observatoire_base…");
 
-  let rows: any[] = [];
-  try {
-    const { data, error } = await supabase.from("mv_observatoire_chantiers").select("*");
-    if (error) throw error;
-    rows = data ?? [];
-  } catch (e) {
-    console.warn(`   ⚠️  mv_observatoire_chantiers absente (${e instanceof Error ? e.message : String(e)}). Skip.`);
-    return { generated: 0, empty: 0 };
+  // Même refonte que les pages métier : on regroupe les LIGNES par type de
+  // chantier et on applique la règle de publication partagée, au lieu de lire
+  // les moyennes toutes unités confondues de `mv_observatoire_chantiers`.
+  const lignesParChantier = new Map<string, LigneObs[]>();
+  for (const l of lignesToutes) {
+    const type = typeDeChantier(l.jobLabel, l.metier);
+    if (!type) continue;
+    const liste = lignesParChantier.get(type) ?? [];
+    liste.push(l);
+    lignesParChantier.set(type, liste);
   }
 
   let generated = 0;
   let empty = 0;
 
-  for (const row of rows) {
-    const meta = CHANTIER_META[row.chantier_type];
-    if (!meta) {
-      console.warn(`   ⚠️  Chantier '${row.chantier_type}' non dans le dictionnaire.`);
-      continue;
-    }
-    const slug = row.chantier_type;
+  for (const slug of Object.keys(CHANTIER_META)) {
+    const meta = CHANTIER_META[slug];
+    const lignes = lignesParChantier.get(slug) ?? [];
+    const nbDevis = new Set(lignes.map((l) => l.docId)).size;
+    const postes = postesPublies(lignes, OBS_MIN_PAGE_METIER);
+    const marquant = faitMarquant(postes);
+
+    // Le titre part du fait le plus parlant quand il existe : « Prix salle de
+    // bain 2026 : fourchette sur 70 devis » n'accroche personne.
+    const titrePrincipal = marquant
+      ? `${marquant.label} : de ${Math.round(marquant.p10).toLocaleString("fr-FR")} à ${Math.round(marquant.p90).toLocaleString("fr-FR")} € — pourquoi un tel écart`
+      : `Prix ${meta.label.toLowerCase()} 2026 : ce que disent ${nbDevis} devis analysés`;
+
     const data = {
       slug,
-      chantier_type: row.chantier_type,
+      chantier_type: slug,
       chantier_label: meta.label,
       ...applySeoOverride(
         slug,
-        `Prix ${meta.label.toLowerCase()} 2026 : fourchette sur ${row.nb_devis} devis`,
-        `${meta.label} : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.`,
-        row.nb_devis,
+        titrePrincipal,
+        `${meta.label} : prix réels relevés poste par poste sur ${nbDevis} devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.`,
+        nbDevis,
       ),
       lastGenerated: new Date().toISOString(),
-      intro: `Nous avons analysé ${row.nb_devis} devis contenant des travaux de type ${meta.label.toLowerCase()}. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.`,
-      kpis: {
-        nb_devis: row.nb_devis,
-        nb_lignes: row.nb_lignes,
-        ligne_moyenne: Number(row.ligne_moyenne),
-        prix_moyen_unitaire: Number(row.prix_moyen_unitaire),
-        prix_median: Number(row.prix_median),
-        prix_p25: Number(row.prix_p25),
-        prix_p75: Number(row.prix_p75),
-        prix_min: Number(row.prix_min),
-        prix_max: Number(row.prix_max),
-      },
+      intro: postes.length > 0
+        ? `Sur ${nbDevis} devis comportant des travaux de type ${meta.label.toLowerCase()}, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.`
+        : `Nous avons analysé ${nbDevis} devis de ${meta.label.toLowerCase()}, mais aucun poste n'atteint encore le nombre d'observations nécessaire pour publier une fourchette fiable.`,
+      postes,
+      fait_marquant: marquant,
+      kpis: { nb_devis: nbDevis, nb_lignes: lignes.length },
       pointsVigilance: meta.pointsVigilance,
       erreursFrequentes: meta.erreursFrequentes,
     };
 
-    if (row.nb_lignes === 0) empty++;
+    if (postes.length === 0) empty++;
     else generated++;
 
     writeFileSync(join(CHANTIERS_DIR, `${slug}.json`), JSON.stringify(data, null, 2), "utf-8");
-    console.log(`   ✓ ${slug}.json (${row.nb_devis} devis · ${row.nb_lignes} lignes)`);
+    console.log(
+      `   ${postes.length ? "✓" : "○"} ${slug}.json — ${nbDevis} devis · ${postes.length} poste(s) publiable(s)` +
+        (marquant ? ` · fait marquant : ${marquant.label} x${marquant.ecart.toFixed(1)}` : ""),
+    );
   }
 
   return { generated, empty };
@@ -799,8 +930,18 @@ async function generateChantierPages(): Promise<{ generated: number; empty: numb
 async function main(): Promise<void> {
   console.log("🟢 Génération Observatoire V1\n");
 
-  const metiers = await generateMetierPages();
-  const chantiers = await generateChantierPages();
+  let lignes: LigneObs[] = [];
+  try {
+    lignes = await chargerLignes();
+    console.log(`   ${lignes.length} lignes rapprochées du catalogue chargées`);
+  } catch (e) {
+    console.warn(
+      `   ⚠️  mv_observatoire_base inaccessible (${e instanceof Error ? e.message : String(e)}).`,
+    );
+  }
+
+  const metiers = await generateMetierPages(lignes);
+  const chantiers = await generateChantierPages(lignes);
 
   console.log(`\n──── Résumé ────`);
   console.log(`  Métiers   : ${metiers.generated} générés · ${metiers.empty} vides`);

@@ -2,20 +2,15 @@
   "slug": "piscine",
   "chantier_type": "piscine",
   "chantier_label": "Piscine",
-  "title": "Prix piscine 2026 : fourchette sur 6 devis",
-  "description": "Piscine : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.",
-  "lastGenerated": "2026-09-07T18:37:20.469Z",
-  "intro": "Nous avons analysé 6 devis contenant des travaux de type piscine. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Prix piscine 2026 : ce que disent 4 devis analysés",
+  "description": "Piscine : prix réels relevés poste par poste sur 4 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T19:34:53.027Z",
+  "intro": "Nous avons analysé 4 devis de piscine, mais aucun poste n'atteint encore le nombre d'observations nécessaire pour publier une fourchette fiable.",
+  "postes": [],
+  "fait_marquant": null,
   "kpis": {
-    "nb_devis": 6,
-    "nb_lignes": 9,
-    "ligne_moyenne": 18036.89,
-    "prix_moyen_unitaire": 16773.01,
-    "prix_median": 5050,
-    "prix_p25": 1675,
-    "prix_p75": 9130,
-    "prix_min": 16.36,
-    "prix_max": 98210
+    "nb_devis": 4,
+    "nb_lignes": 9
   },
   "pointsVigilance": [
     "Type : coque polyester, béton, ou liner ?",

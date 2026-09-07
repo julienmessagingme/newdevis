@@ -2,20 +2,125 @@
   "slug": "carrelage",
   "chantier_type": "carrelage",
   "chantier_label": "Carrelage",
-  "title": "Prix carrelage 2026 : fourchette au m² sur 57 devis",
+  "title": "Prix carrelage 2026 : fourchette au m² sur 51 devis",
   "description": "Pose carrelage et faïence : combien au m² en 2026 ? Fourchette des devis analysés par VerifierMonDevis, dépose et primaire à surveiller.",
-  "lastGenerated": "2026-09-07T18:37:20.466Z",
-  "intro": "Nous avons analysé 57 devis contenant des travaux de type carrelage. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "lastGenerated": "2026-09-07T19:34:53.030Z",
+  "intro": "Sur 51 devis comportant des travaux de type carrelage, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Pose carrelage sol (hors fourniture)",
+      "unite": "m²",
+      "nbObs": 16,
+      "nbDevis": 12,
+      "p10": 30,
+      "mediane": 80,
+      "p90": 130,
+      "ecart": 4.333333333333333,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose faïence murale",
+      "unite": "m²",
+      "nbObs": 11,
+      "nbDevis": 11,
+      "p10": 50,
+      "mediane": 54,
+      "p90": 179,
+      "ecart": 3.58,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Dépose carrelage",
+      "unite": "u",
+      "nbObs": 20,
+      "nbDevis": 9,
+      "p10": 150,
+      "mediane": 540,
+      "p90": 730,
+      "ecart": 4.866666666666666,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose carrelage sol",
+      "unite": "m²",
+      "nbObs": 11,
+      "nbDevis": 8,
+      "p10": 42,
+      "mediane": 48,
+      "p90": 137.5,
+      "ecart": 3.2738095238095237,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose faïence murale (hors fourniture)",
+      "unite": "m²",
+      "nbObs": 9,
+      "nbDevis": 6,
+      "p10": 80,
+      "mediane": 80,
+      "p90": 82.85150291610587,
+      "ecart": 1.0356437864513235,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Carrelage standard (fourni+posé)",
+      "unite": "m²",
+      "nbObs": 6,
+      "nbDevis": 6,
+      "p10": 87.32142857142857,
+      "mediane": 112.01298701298701,
+      "p90": 131.61866902237927,
+      "ecart": 1.5072894611969814,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Carrelage sol 30m² (MO)",
+      "unite": "m²",
+      "nbObs": 8,
+      "nbDevis": 5,
+      "p10": 25,
+      "mediane": 25,
+      "p90": 25,
+      "ecart": 1,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Dépose carrelage",
+      "unite": "m²",
+      "nbObs": 5,
+      "nbDevis": 5,
+      "p10": 22,
+      "mediane": 32.81956521739131,
+      "p90": 50,
+      "ecart": 2.272727272727273,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Pose plinthes carrelage",
+      "unite": "ml",
+      "nbObs": 5,
+      "nbDevis": 5,
+      "p10": 13,
+      "mediane": 18,
+      "p90": 25.545454545454547,
+      "ecart": 1.9650349650349652,
+      "nature_prix": "pose_seule"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Dépose carrelage",
+    "unite": "u",
+    "nbObs": 20,
+    "nbDevis": 9,
+    "p10": 150,
+    "mediane": 540,
+    "p90": 730,
+    "ecart": 4.866666666666666,
+    "nature_prix": "pose_seule"
+  },
   "kpis": {
-    "nb_devis": 57,
-    "nb_lignes": 129,
-    "ligne_moyenne": 1328.66,
-    "prix_moyen_unitaire": 271.36,
-    "prix_median": 80,
-    "prix_p25": 30,
-    "prix_p75": 256,
-    "prix_min": 0.44,
-    "prix_max": 3272.73
+    "nb_devis": 51,
+    "nb_lignes": 129
   },
   "pointsVigilance": [
     "Surface en m² précisée, pas de forfait.",

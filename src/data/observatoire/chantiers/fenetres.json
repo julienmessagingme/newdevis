@@ -2,20 +2,70 @@
   "slug": "fenetres",
   "chantier_type": "fenetres",
   "chantier_label": "Fenêtres",
-  "title": "Prix fenêtres 2026 : fourchette sur 2 devis",
-  "description": "Fenêtres : combien prévoir en 2026 ? Fourchette des devis analysés par VerifierMonDevis, postes qui varient le plus, erreurs à éviter avant de signer.",
-  "lastGenerated": "2026-09-07T18:37:20.468Z",
-  "intro": "Nous avons analysé 2 devis contenant des travaux de type fenêtres. Voici les fourchettes de prix, les postes qui varient le plus et les points à vérifier avant de signer.",
+  "title": "Fenêtre PVC fourni+posé : de 910 à 2 968 € — pourquoi un tel écart",
+  "description": "Fenêtres : prix réels relevés poste par poste sur 45 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T19:34:53.026Z",
+  "intro": "Sur 45 devis comportant des travaux de type fenêtres, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "postes": [
+    {
+      "label": "Fenêtre PVC fourni+posé",
+      "unite": "u",
+      "nbObs": 21,
+      "nbDevis": 20,
+      "p10": 909.64,
+      "mediane": 1760.4957142857143,
+      "p90": 2967.53,
+      "ecart": 3.2623125632118204,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Pose fenêtre",
+      "unite": "u",
+      "nbObs": 11,
+      "nbDevis": 8,
+      "p10": 914.7566666666669,
+      "mediane": 1685.63,
+      "p90": 2386.2625000000003,
+      "ecart": 2.6086308927328576,
+      "nature_prix": "pose_seule"
+    },
+    {
+      "label": "Châssis composé PVC fourni+posé",
+      "unite": "u",
+      "nbObs": 12,
+      "nbDevis": 6,
+      "p10": 2103.44,
+      "mediane": 2587.8675000000003,
+      "p90": 2597.133333333333,
+      "ecart": 1.2347075901063653,
+      "nature_prix": "fourni_pose"
+    },
+    {
+      "label": "Porte-fenêtre PVC fourni+posé",
+      "unite": "u",
+      "nbObs": 11,
+      "nbDevis": 6,
+      "p10": 1491.65,
+      "mediane": 1753.65,
+      "p90": 1753.65,
+      "ecart": 1.1756444206080514,
+      "nature_prix": "fourni_pose"
+    }
+  ],
+  "fait_marquant": {
+    "label": "Fenêtre PVC fourni+posé",
+    "unite": "u",
+    "nbObs": 21,
+    "nbDevis": 20,
+    "p10": 909.64,
+    "mediane": 1760.4957142857143,
+    "p90": 2967.53,
+    "ecart": 3.2623125632118204,
+    "nature_prix": "fourni_pose"
+  },
   "kpis": {
-    "nb_devis": 2,
-    "nb_lignes": 2,
-    "ligne_moyenne": 688,
-    "prix_moyen_unitaire": 536,
-    "prix_median": 536,
-    "prix_p25": 344,
-    "prix_p75": 728,
-    "prix_min": 152,
-    "prix_max": 920
+    "nb_devis": 45,
+    "nb_lignes": 77
   },
   "pointsVigilance": [
     "Uw ≤ 1.3 W/m².K pour la RE2020 et l'accès aux aides.",

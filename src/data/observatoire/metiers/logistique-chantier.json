@@ -3,14 +3,15 @@
   "metier": "logistique_chantier",
   "metier_label": "Logistique de chantier",
   "title": "Frais de déplacement : de 120 à 1 105 € — pourquoi un tel écart",
-  "description": "Logistique de chantier : prix réels relevés poste par poste sur 48 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
-  "lastGenerated": "2026-09-07T18:37:20.393Z",
-  "intro": "Sur 48 devis contenant au moins une ligne de logistique de chantier, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
+  "description": "Logistique de chantier : prix réels relevés poste par poste sur 46 devis analysés — à unité égale, avec ou sans fourniture, et l'écart observé entre artisans.",
+  "lastGenerated": "2026-09-07T19:34:53.006Z",
+  "intro": "Sur 46 devis contenant au moins une ligne de logistique de chantier, voici les prix réellement pratiqués — poste par poste, à unité égale, et en précisant à chaque fois si la fourniture est comprise.",
   "postes": [
     {
       "label": "Nettoyage fin de chantier",
       "unite": "u",
       "nbObs": 8,
+      "nbDevis": 8,
       "p10": 40,
       "mediane": 212.8,
       "p90": 230,
@@ -21,6 +22,7 @@
       "label": "Frais de déplacement",
       "unite": "u",
       "nbObs": 6,
+      "nbDevis": 6,
       "p10": 120,
       "mediane": 180,
       "p90": 1105.465,
@@ -32,6 +34,7 @@
     "label": "Frais de déplacement",
     "unite": "u",
     "nbObs": 6,
+    "nbDevis": 6,
     "p10": 120,
     "mediane": 180,
     "p90": 1105.465,
@@ -39,7 +42,7 @@
     "nature_prix": "non_precise"
   },
   "kpis": {
-    "nb_devis": 48,
+    "nb_devis": 46,
     "nb_lignes": 58,
     "prix_moyen": 778.14,
     "prix_median": 223.85,
