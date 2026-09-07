@@ -20,6 +20,13 @@ import FunnelStepper from "@/components/funnel/FunnelStepper";
 import { FILE_VALIDATION, UPLOAD, ANALYSIS } from "@/lib/constants";
 import { verifierLongueurPdf, comptePagesPdf, PAGES_MAX_EXTRACTION } from "@/lib/analyse/comptePagesPdf";
 import { tenterDecoupe } from "@/lib/analyse/pdfDecoupeNavigateur";
+import {
+  lancerAnalysesEnLot,
+  suivreAvancement,
+  resumerAvancement,
+  DEVIS_MAX_SANS_CONFIRMATION,
+  type SuiviDevis,
+} from "@/lib/analyse/analysesEnLot";
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
@@ -33,6 +40,12 @@ const NewAnalysis = () => {
   // du texte + ecriture des fichiers prennent quelques secondes sur 18 pages).
   const [devisEnAttente, setDevisEnAttente] = useState<File[]>([]);
   const [decoupageEnCours, setDecoupageEnCours] = useState(false);
+  // 2026-09-07 — « lot consenti » : les devis cochés (tous par défaut), puis le
+  // suivi une fois les analyses lancées. Tant que `suiviLot` est vide, on est
+  // dans l'écran de choix ; dès qu'il est rempli, dans l'écran de suivi.
+  const [devisCoches, setDevisCoches] = useState<boolean[]>([]);
+  const [suiviLot, setSuiviLot] = useState<SuiviDevis[]>([]);
+  const [lotEnCours, setLotEnCours] = useState(false);
   const [notes, setNotes] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -89,6 +102,11 @@ const NewAnalysis = () => {
     };
     checkAuthOrRedirect();
   }, []);
+
+  // Arrêt du suivi au démontage : sans ça, l'interrogation périodique des
+  // statuts continue après que l'utilisateur a quitté la page.
+  const arretSuiviRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { arretSuiviRef.current?.(); }, []);
 
   const resetUploadState = () => {
     setUploadStatus("idle");
@@ -278,6 +296,7 @@ const NewAnalysis = () => {
       // qu'il veut analyser ; il revient déposer le même document pour le
       // suivant. C'est moins fluide qu'un traitement en lot, mais c'est vrai.
       setDevisEnAttente(decoupe.fichiers);
+      setDevisCoches(decoupe.fichiers.map(() => true)); // tout coché par défaut
       const nbTropLongs = decoupe.tropLongs.length;
       toast.success(
         `${decoupe.segments.length} devis détectés dans ce document.` +
@@ -469,12 +488,65 @@ const NewAnalysis = () => {
     setSourceImages([]);
     setIsMerging(false);
     setDevisEnAttente([]);
+    setDevisCoches([]);
+    setSuiviLot([]);
+    arretSuiviRef.current?.();
     resetUploadState();
   };
 
   const handleRetryUpload = async () => {
     if (file && user) {
       await uploadFile(file);
+    }
+  };
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 2026-09-07 — LOT CONSENTI.
+  //
+  // Volontairement ÉCRIT À CÔTÉ de `handleSubmit`, jamais dedans : ce chemin-là
+  // est le plus critique du produit, chaque analyse y passe. Le lot s'y ajoute,
+  // il ne le réécrit pas. La mécanique vit dans `analysesEnLot.ts` (testée) ;
+  // ici il ne reste que le branchement à l'écran.
+  // ──────────────────────────────────────────────────────────────────────────
+  const lancerLot = async () => {
+    if (!user) {
+      toast.error("Session expirée. Veuillez réessayer.");
+      return;
+    }
+    const choisis = devisEnAttente.filter((_, i) => devisCoches[i]);
+    if (choisis.length === 0) {
+      toast.error("Cochez au moins un devis à analyser.");
+      return;
+    }
+    // Au-delà du seuil, un document est plus probablement déposé par erreur
+    // qu'analysé volontairement en entier : on demande avant de lancer.
+    if (
+      choisis.length > DEVIS_MAX_SANS_CONFIRMATION &&
+      !window.confirm(
+        `Vous êtes sur le point de lancer ${choisis.length} analyses depuis ce document. Continuer ?`,
+      )
+    ) {
+      return;
+    }
+
+    setLotEnCours(true);
+    trackEvent("batch_analysis_started", { nb_devis: choisis.length });
+    try {
+      const suivi = await lancerAnalysesEnLot({
+        supabase,
+        userId: user.id,
+        fichiers: choisis,
+        onChange: setSuiviLot,
+      });
+      setDevisEnAttente([]);
+      // Le suivi prend le relais : on n'attend pas la fin des analyses, pour
+      // que le premier devis prêt soit ouvrable pendant que les autres tournent.
+      arretSuiviRef.current = suivreAvancement({ supabase, suivi, onChange: setSuiviLot });
+    } catch (err) {
+      console.error("[lot] echec", err);
+      toast.error("Le lancement des analyses a échoué. Réessayez.");
+    } finally {
+      setLotEnCours(false);
     }
   };
 
@@ -663,19 +735,79 @@ const NewAnalysis = () => {
                   <p>• un devis de <strong>travaux, établi en France</strong> — nos prix de référence sont français</p>
                 </div>
               </div>
+            ) : suiviLot.length > 0 ? (
+              /* 2026-09-07 — ÉCRAN DE SUIVI. Sans lui, un lot est une attente
+                 muette de plusieurs minutes et un échec sur l'un des devis
+                 passerait inaperçu. Chaque devis prêt est ouvrable tout de
+                 suite, sans attendre les autres. */
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="font-medium text-foreground">{resumerAvancement(suiviLot)}</p>
+                <p className="text-sm text-muted-foreground mt-0.5 mb-3">
+                  Chaque devis est analysé séparément. Vous pouvez ouvrir les analyses
+                  terminées sans attendre les autres.
+                </p>
+                <div className="space-y-2">
+                  {suiviLot.map((s, i) => (
+                    <div
+                      key={`${s.nom}-${i}`}
+                      className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5"
+                    >
+                      <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span className="flex-1 min-w-0 text-sm text-foreground truncate">{s.nom}</span>
+                      {s.etat === "pret" && s.analysisId ? (
+                        <a
+                          href={`/analyse/${s.analysisId}`}
+                          className="text-sm font-medium text-primary hover:underline flex items-center gap-1 flex-shrink-0"
+                        >
+                          Ouvrir <ArrowRight className="h-3.5 w-3.5" />
+                        </a>
+                      ) : s.etat === "echec" ? (
+                        <span className="text-sm text-destructive flex items-center gap-1.5 flex-shrink-0">
+                          <AlertCircle className="h-4 w-4" /> Échec
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground flex items-center gap-1.5 flex-shrink-0">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {s.etat === "televersement" ? "Envoi…" : "Analyse…"}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {/* 2026-09-07 — le gain final du lot : deux analyses prêtes
+                    rendent le comparateur utilisable tout de suite, alors qu'il
+                    exigeait jusqu'ici deux dépôts séparés. */}
+                {suiviLot.filter((s) => s.etat === "pret").length >= 2 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full mt-3"
+                    onClick={() => (window.location.href = "/comparateur/nouveau")}
+                  >
+                    Comparer ces devis
+                  </Button>
+                )}
+                {suiviLot.some((s) => s.etat === "echec") && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Les devis en échec peuvent être redéposés séparément — les autres analyses
+                    ne sont pas affectées.
+                  </p>
+                )}
+              </div>
             ) : devisEnAttente.length > 0 ? (
-              /* 2026-09-07 — le document contenait plusieurs devis : ils ont été
-                 découpés dans le navigateur (rien n'est encore parti), et
-                 l'utilisateur choisit lequel analyser. */
+              /* 2026-09-07 — ÉCRAN DE CHOIX. Le document contenait plusieurs
+                 devis : ils ont été découpés dans le navigateur, rien n'est
+                 encore parti. Tout est coché ; l'utilisateur décoche ce qu'il
+                 ne veut pas, puis lance d'un seul geste. */
               <div className="bg-card border border-border rounded-xl p-4">
                 <div className="flex items-start justify-between mb-3 gap-3">
                   <div>
                     <p className="font-medium text-foreground">
-                      {devisEnAttente.length} devis analysables dans ce document
+                      {devisEnAttente.length} devis détectés dans ce document
                     </p>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      Choisissez celui à analyser maintenant. Pour les autres, redéposez
-                      le même document ensuite — vous pourrez alors les comparer.
+                      Décochez ceux que vous ne voulez pas analyser. Vous pourrez ensuite
+                      les comparer entre eux.
                     </p>
                   </div>
                   <Button type="button" variant="ghost" size="icon" onClick={handleRemoveFile}>
@@ -684,22 +816,37 @@ const NewAnalysis = () => {
                 </div>
                 <div className="space-y-2">
                   {devisEnAttente.map((f, i) => (
-                    <button
+                    <label
                       key={`${f.name}-${i}`}
-                      type="button"
-                      onClick={async () => {
-                        setDevisEnAttente([]);
-                        setFile(f);
-                        if (user) await uploadFile(f);
-                      }}
-                      className="w-full flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-left hover:border-primary hover:bg-accent transition-colors"
+                      className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 cursor-pointer hover:border-primary transition-colors"
                     >
+                      <input
+                        type="checkbox"
+                        checked={devisCoches[i] ?? false}
+                        onChange={() =>
+                          setDevisCoches((c) => c.map((v, j) => (j === i ? !v : v)))
+                        }
+                        className="h-4 w-4 accent-primary flex-shrink-0"
+                      />
                       <FileText className="h-4 w-4 text-primary flex-shrink-0" />
                       <span className="flex-1 min-w-0 text-sm text-foreground truncate">{f.name}</span>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    </button>
+                    </label>
                   ))}
                 </div>
+                <Button
+                  type="button"
+                  onClick={lancerLot}
+                  disabled={lotEnCours || devisCoches.filter(Boolean).length === 0}
+                  className="w-full mt-3"
+                >
+                  {lotEnCours ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Lancement…</>
+                  ) : (
+                    `Analyser ${devisCoches.filter(Boolean).length > 1
+                      ? `les ${devisCoches.filter(Boolean).length} devis`
+                      : "le devis"}`
+                  )}
+                </Button>
               </div>
             ) : sourceImages.length > 0 ? (
               /* Carte multi-photos */
