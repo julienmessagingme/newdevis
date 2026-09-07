@@ -72,3 +72,30 @@ describe("gros œuvre — cas qui doivent DÉCLENCHER", () => {
     expect(m).toMatch(/mur porteur/);
   });
 });
+
+/**
+ * 2026-09-07 — 3e faux positif signalé par Johan, même schéma que l'« IPE »
+ * du poêle : un élément structurel cité comme SUPPORT, pas comme objet des
+ * travaux.
+ */
+describe("un élément structurel cité comme support ne déclenche pas la DO", () => {
+  it("cas d'origine : faux plafond sous dalle béton", () => {
+    expect(ligneEstGrosOeuvre("Faux plafonds Type F530 Sous Dalle Béton")).toBe(false);
+  });
+
+  it("autres formulations de support, sur des termes réellement structurels", () => {
+    expect(ligneEstGrosOeuvre("Rail de suspension fixé sous dalle béton")).toBe(false);
+    expect(ligneEstGrosOeuvre("Habillage contre le mur porteur")).toBe(false);
+  });
+
+  it("une ACTION sur l'élément reste un vrai déclencheur", () => {
+    expect(ligneEstGrosOeuvre("Ouverture dans le mur porteur avec pose IPN 200")).toBe(true);
+    expect(ligneEstGrosOeuvre("Reprise de la dalle béton fissurée")).toBe(true);
+    expect(ligneEstGrosOeuvre("Démolition du mur porteur du séjour")).toBe(true);
+  });
+
+  it("un faux plafond seul n'est jamais du gros œuvre", () => {
+    expect(ligneEstGrosOeuvre("Faux plafond démontable 600x600")).toBe(false);
+    expect(ligneEstGrosOeuvre("Plafond suspendu en plaques de plâtre")).toBe(false);
+  });
+});

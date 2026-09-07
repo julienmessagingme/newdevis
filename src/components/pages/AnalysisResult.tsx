@@ -88,6 +88,9 @@ type DevisFrere = { id: string; file_name: string | null; status: string | null 
 
 type Analysis = {
   id: string;
+  user_id?: string | null;
+  /** 2026-09-07 — lot d'origine, quand le devis vient d'un document découpé. */
+  batch_id?: string | null;
   file_name: string;
   file_path: string;
   score: string | null;
@@ -346,6 +349,10 @@ const AnalysisResult = () => {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   // 2026-09-07 — les autres devis issus du même document déposé (cf. batch_id).
   const [devisDuMemeDocument, setDevisDuMemeDocument] = useState<DevisFrere[]>([]);
+  // Y a-t-il encore une analyse du lot en train de tourner ? Booléen dérivé, et
+  // non le tableau lui-même : il reste stable pendant tout le suivi, donc
+  // l'effet de rafraîchissement ne se remonte pas à chaque tour.
+  const lotEnAttente = devisDuMemeDocument.some((d) => d.status !== "completed");
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   // Raw conclusion_ia JSON received from ConclusionIA once generated (may arrive after initial render)
@@ -502,8 +509,10 @@ const AnalysisResult = () => {
         .select("id, file_name, status")
         .eq("batch_id", batchId)
         // Portée explicite plutôt que confiance seule dans la RLS : un lot
-        // n'appartient qu'à celui qui l'a déposé.
-        .eq("user_id", user.id)
+        // n'appartient qu'à celui qui l'a déposé. On prend le propriétaire de
+        // l'analyse affichée, pas l'utilisateur courant — sinon un admin en
+        // consultation ne verrait jamais le lot.
+        .eq("user_id", (data as { user_id: string }).user_id)
         .neq("id", id)
         .order("created_at", { ascending: true });
       if (soeurs && soeurs.length > 0) {
@@ -521,6 +530,47 @@ const AnalysisResult = () => {
       domain: (analysis as any).domain ?? 'travaux',
     });
   }, [analysis, id]);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 2026-09-07 (retour Johan) — RAFRAÎCHIR LE LOT TANT QU'UNE ANALYSE TOURNE.
+  //
+  // Sans ça, la bannière affichait « analyse en cours » indéfiniment : il
+  // fallait recharger la page pour voir la sœur devenir ouvrable.
+  //
+  // Trois bornes, pour que ce sondage reste l'exception et non un bruit de
+  // fond : il ne démarre QUE si le devis appartient à un lot ET qu'une sœur
+  // n'a pas fini ; il s'arrête dès que tout est prêt ou au bout de six minutes
+  // (au-delà, c'est le cron `analysis-maintenance` qui tranche) ; et il saute
+  // les tours pendant que l'onglet est en arrière-plan.
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const batchId = analysis?.batch_id;
+    const proprietaire = analysis?.user_id;
+    if (!batchId || !proprietaire || !lotEnAttente) return;
+
+    let arrete = false;
+    const debut = Date.now();
+    const DUREE_MAX_MS = 6 * 60_000;
+    const INTERVALLE_MS = 8_000;
+
+    const timer = setInterval(async () => {
+      if (arrete) return;
+      if (Date.now() - debut > DUREE_MAX_MS) { clearInterval(timer); return; }
+      if (typeof document !== "undefined" && document.hidden) return;
+
+      const { data: soeurs } = await supabase
+        .from("analyses")
+        .select("id, file_name, status")
+        .eq("batch_id", batchId)
+        .eq("user_id", proprietaire)
+        .neq("id", id)
+        .order("created_at", { ascending: true });
+
+      if (!arrete && soeurs) setDevisDuMemeDocument(soeurs as DevisFrere[]);
+    }, INTERVALLE_MS);
+
+    return () => { arrete = true; clearInterval(timer); };
+  }, [analysis?.batch_id, analysis?.user_id, lotEnAttente, id]);
 
   useEffect(() => {
     fetchAnalysis();

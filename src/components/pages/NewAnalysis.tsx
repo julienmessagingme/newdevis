@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import { trackEvent } from "@/lib/integrations/amplitude";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Upload,
   FileText,
@@ -46,7 +45,6 @@ const NewAnalysis = () => {
   const [devisCoches, setDevisCoches] = useState<boolean[]>([]);
   const [suiviLot, setSuiviLot] = useState<SuiviDevis[]>([]);
   const [lotEnCours, setLotEnCours] = useState(false);
-  const [notes, setNotes] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -997,20 +995,12 @@ const NewAnalysis = () => {
             )}
           </div>
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-base font-semibold">
-              Notes complémentaires (optionnel)
-            </Label>
-            <Textarea
-              id="notes"
-              placeholder="Informations supplémentaires sur votre projet..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              disabled={loading}
-            />
-          </div>
+          {/* 2026-09-07 (décision Johan) — le champ « Notes complémentaires » a
+              été retiré : son contenu n'était NI enregistré NI transmis à
+              l'analyse. Vérifié avant suppression — `notes` n'était qu'un état
+              local lié à une zone de texte, jamais lu ailleurs. Un champ qui
+              recueille un texte allant nulle part est pire qu'inutile : il
+              laisse croire qu'on en tiendra compte. */}
 
           {/* Submit */}
           {loading ? (

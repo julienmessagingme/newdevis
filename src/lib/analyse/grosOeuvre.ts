@@ -56,7 +56,27 @@ const STRUCTUREL_RE = new RegExp(
  * chaudière ou un tubage de poêle n'engage pas la solidité de l'ouvrage.
  */
 const HORS_PERIMETRE_RE =
-  /\b(traitement|xylo|insecticide|fongicide|curatif|pr[ée]ventif|nettoyage|d[ée]moussage|peinture|lasure|ravalement|percement|carottage|ventouse|grille|a[ée]ration|tubage|conduit|placo|plaque\s+de\s+pl[âa]tre|doublage|cloison)\b/i;
+  /\b(traitement|xylo|insecticide|fongicide|curatif|pr[ée]ventif|nettoyage|d[ée]moussage|peinture|lasure|ravalement|percement|carottage|ventouse|grille|a[ée]ration|tubage|conduit|placo|plaque\s+de\s+pl[âa]tre|doublage|cloison|faux[-\s]?plafonds?|plafonds?\s+suspendus?)\b/i;
+
+/**
+ * 2026-09-07 (3e faux positif, cas « Faux plafonds Type F530 Sous Dalle Béton »)
+ * — UN ÉLÉMENT STRUCTUREL CITÉ COMME SUPPORT N'EST PAS UN TRAVAIL DESSUS.
+ *
+ * Les deux faux positifs précédents (l'« IPE » d'un poêle, ce faux plafond)
+ * partagent le même schéma : le mot structurel décrit **où** la prestation se
+ * fixe, pas ce qu'on touche. « Sous dalle béton », « contre le mur porteur »,
+ * « sur la charpente existante » situent l'ouvrage — ils n'y touchent pas.
+ *
+ * On neutralise donc la mention structurelle quand elle est introduite par une
+ * préposition de localisation, sauf si une ACTION est explicitement portée sur
+ * elle (« reprise sur mur porteur », « ouverture dans le mur porteur »).
+ */
+const SUPPORT_RE =
+  /\b(sous|sur|contre|le\s+long\s+de|au\s+droit\s+de|fix[ée]s?\s+(?:sur|sous|à)|suspendus?\s+(?:sous|à))\s+(?:la\s+|le\s+|les\s+|l['’])?(dalle|plancher|charpente|poutre|mur\s+porteur|structure|solive)/i;
+
+/** Une action portée sur l'élément, qui annule la lecture « support ». */
+const ACTION_SUR_STRUCTURE_RE =
+  /\b(reprise|ouverture|percer\s+(?:un\s+)?mur\s+porteur|d[ée]pose|d[ée]molition|renfort|renforcement|cr[ée]ation|remplacement|r[ée]fection|abattre|d[ée]molir)\b/i;
 
 export interface LigneTravaux {
   description?: string | null;
@@ -70,7 +90,11 @@ function texteLigne(l: LigneTravaux): string {
 /** Une ligne engage-t-elle la structure ? */
 export function ligneEstGrosOeuvre(texte: string): boolean {
   if (!texte) return false;
-  return STRUCTUREL_RE.test(texte) && !HORS_PERIMETRE_RE.test(texte);
+  if (!STRUCTUREL_RE.test(texte)) return false;
+  if (HORS_PERIMETRE_RE.test(texte)) return false;
+  // Élément structurel cité comme simple support, sans action portée dessus.
+  if (SUPPORT_RE.test(texte) && !ACTION_SUR_STRUCTURE_RE.test(texte)) return false;
+  return true;
 }
 
 /**
