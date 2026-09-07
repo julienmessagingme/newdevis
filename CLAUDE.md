@@ -850,6 +850,16 @@ Tout le tracking vit dans `src/layouts/BaseLayout.astro`, conditionné au consen
 
 ---
 
+### Page d’accueil VMD — ce qu’elle promet (2026-09-07)
+
+Refonte du hero après audit concurrentiel. **Contexte qui commande tout** : mesuré le 06/09, **151 visiteurs sur 157 ne voient que `/`** (1,14 page par visiteur), 6 atteignent `/nouvelle-analyse`, 5 `/inscription`, 1 analyse aboutit. Tout se joue dans le hero ; ce qui est sous la ligne de flottaison n’est quasiment pas vu.
+
+- **Chiffre du catalogue : 919, pas 470.** L’ancienne valeur annonçait la moitié du référentiel réel. ⚠️ **À réactualiser à chaque enrichissement du catalogue** — c’est une promesse chiffrée affichée en page d’accueil et dans la meta description.
+- **Les arguments cités sont les plus forts, pas les plus faciles.** « Avis clients » a disparu (on vient de refuser de l’afficher sous 10 avis) au profit de **radiation / procédure collective**, **santé financière** et **certifications RGE contrôlées dans les registres**. « Mentions absentes » a cédé la place aux **clauses abusives** — cinq types détectés, dont deux illégales, et personne ne l’attend d’un outil de prix.
+- **Quatrième ligne, la signature** : « sans commission d’artisan, sans revente de lead ». Seule promesse structurellement incopiable — les comparateurs et plateformes de mise en relation vivent de ça. Elle est vraie aujourd’hui : aucun lead n’est transmis à un tiers. ⚠️ **Si un partenariat rémunéré arrive un jour, cette ligne doit tomber ou être requalifiée le même jour.** Nuance validée par Johan : proposer une DO ou un crédit ne l’affaiblit pas — l’assureur et le prêteur ne sont pas sur le marché de l’artisan, on ne peut pas nous accuser d’affaiblir un devis pour pousser un partenaire.
+- 🔴 **L’INSCRIPTION EST ANNONCÉE AVANT LE CLIC.** L’ancienne micro-copie disait « Analyse immédiate · Compte gratuit pour le détail complet » — **c’était faux** : `/nouvelle-analyse` redirige vers `/inscription` sans compte (règle du hard signup du 2026-05-11). Le visiteur cliquait en pensant déposer son PDF et tombait sur un formulaire. Elle dit désormais « Création de compte en 30 secondes, puis analyse immédiate — gratuit ». Décision Johan : **on assume le mur, on ne le déguise pas.**
+- Emojis retirés des arguments (ils doublaient les coches SVG et desservaient une promesse de rigueur) ; le bouton secondaire « Qu’est-ce qui est analysé ? » quitte le voisinage du CTA — il détournait du clic au moment de cliquer — et revient en lien discret sous les arguments, avec la mention de la **relecture humaine**.
+
 ## Conventions mobile
 
 Patterns établis pendant les passes mobile (Axe 2 + Quick Wins P0 cockpit). Tout est **additif** via prefixes Tailwind (`sm:`/`md:`/`lg:`) → zero régression desktop.

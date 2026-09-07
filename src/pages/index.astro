@@ -53,7 +53,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Votre devis est-il trop cher… ou risqué ? | VerifierMonDevis.fr"
-  description="Uploadez votre devis PDF. Surcoût estimé, entreprise vérifiée, anomalies détectées. Signez en confiance — ou refusez avec les bons arguments."
+  description="Analysez votre devis travaux : surcoût poste par poste sur 919 références de prix, entreprise vérifiée (radiation, santé financière), clauses abusives détectées. Sans commission d'artisan."
   canonical="https://www.verifiermondevis.fr/"
   jsonLd={jsonLd}
 >
@@ -109,16 +109,22 @@ const jsonLd = {
                     </svg>
                   </button>
                 </a>
-                <a href="/comprendre-score" class="w-full sm:w-auto">
-                  <button class="inline-flex items-center justify-center w-full text-primary-foreground hover:bg-primary-foreground/10 font-medium px-6 py-3 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-base transition-colors">
-                    Qu'est-ce qui est analysé ?
-                  </button>
-                </a>
+                <!-- 2026-09-07 — le second bouton a été retiré d'à côté du CTA :
+                     il détournait du clic au moment exact où il faut cliquer.
+                     Il revient plus bas, en lien discret. -->
               </div>
 
-              <!-- Micro-copy CTA -->
-              <p class="text-xs text-primary-foreground/60 text-center lg:text-left px-2 -mt-2 mb-4">
-                Analyse immédiate · Compte gratuit pour le détail complet
+              <!-- Micro-copy CTA
+                   2026-09-07 (décision Johan) — L'INSCRIPTION EST ASSUMÉE EN CLAIR.
+                   L'ancienne formule « Analyse immédiate · Compte gratuit pour le
+                   détail complet » était fausse : `/nouvelle-analyse` redirige vers
+                   `/inscription` tant qu'on n'a pas de compte. Le visiteur cliquait
+                   en attendant de déposer son PDF et tombait sur un formulaire.
+                   Mesuré le 06/09 : 151 visiteurs sur la home, 6 clics, 5 arrivées
+                   sur /inscription, 1 analyse. Annoncer le compte AVANT le clic
+                   coûte moins cher que de le découvrir après. -->
+              <p class="text-sm text-primary-foreground/75 text-center lg:text-left px-2 -mt-2 mb-4">
+                Création de compte en 30 secondes, puis analyse immédiate — gratuit.
               </p>
 
               <!-- Proof bullets -->
@@ -127,21 +133,45 @@ const jsonLd = {
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>💶 Surcoût estimé en euros — poste par poste, <strong>470+ références marché</strong></span>
+                  <span>Surcoût estimé en euros, poste par poste — <strong>919 références de prix</strong></span>
                 </div>
                 <div class="flex items-center gap-2">
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>🏢 Entreprise vérifiée — SIRET, ancienneté, avis clients</span>
+                  <span>Entreprise vérifiée — <strong>radiation, procédure collective</strong>, santé financière, certifications RGE contrôlées dans les registres</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>⚠️ Risques détectés — acompte excessif, mentions absentes, incohérences</span>
+                  <span><strong>Clauses abusives</strong>, acompte excessif, IBAN suspect — détectés et expliqués</span>
+                </div>
+                <!-- 2026-09-07 — la ligne signature. C'est la seule promesse que
+                     les comparateurs et les plateformes de mise en relation ne
+                     peuvent pas copier : ils vivent de la commission ou de la
+                     revente de lead. Elle est vraie aujourd'hui — aucun lead
+                     n'est transmis à un tiers (cf. CLAUDE.md, tests d'intérêt). -->
+                <div class="flex items-center gap-2">
+                  <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+                  </svg>
+                  <span><strong>Sans commission d'artisan, sans revente de lead</strong> — nous ne vendons rien à personne d'autre que la vérité sur votre devis</span>
                 </div>
               </div>
+
+              <!-- 2026-09-07 — le « qu'est-ce qui est analysé ? » revient ici,
+                   en lien discret : disponible pour qui hésite, sans concurrencer
+                   le bouton d'action. -->
+              <!-- 2026-09-07 — la relecture humaine : ce qui justifie qu'on nous
+                   croie. Placée sous les bullets plutôt que dedans, pour ne pas
+                   diluer les quatre arguments principaux. -->
+              <p class="mt-4 text-xs text-primary-foreground/70 text-center lg:text-left px-2">
+                Les analyses qui touchent un signal sensible sont relues par un expert avant publication.
+                <a href="/comprendre-score" class="underline underline-offset-2 hover:text-primary-foreground ml-1">
+                  Voir en détail ce qui est analysé
+                </a>
+              </p>
 
             </div>
 
