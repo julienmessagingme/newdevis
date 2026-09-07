@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnonymousAuth } from "@/hooks/useAnonymousAuth";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
 import { FILE_VALIDATION, UPLOAD, ANALYSIS } from "@/lib/constants";
-import { verifierLongueurPdf, PAGES_MAX_EXTRACTION } from "@/lib/analyse/comptePagesPdf";
+import { verifierLongueurPdf, comptePagesPdf, PAGES_MAX_EXTRACTION } from "@/lib/analyse/comptePagesPdf";
 import { tenterDecoupe } from "@/lib/analyse/pdfDecoupeNavigateur";
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
@@ -231,18 +231,26 @@ const NewAnalysis = () => {
     // AI_TIMEOUT à 93 s sur 11 pages fusionnées). On le dit tout de suite
     // plutôt que de laisser l'utilisateur devant un spinner qui finira mal.
     const tropLong = await verifierLongueurPdf(selectedFile);
-    if (tropLong) {
-      // 2026-09-07 (demande Johan) — AVANT DE REFUSER, ON ESSAIE DE DÉCOUPER.
-      //
-      // « Les utilisateurs ne vont pas forcément avoir le temps de redécouper
-      // leur devis en 8 pages max, et ils vont préférer abandonner. » Un
-      // document qui contient plusieurs devis est découpé ICI, dans le
-      // navigateur — rien n'est envoyé avant. On analyse le premier devis
-      // tout de suite et on garde les autres sous la main.
+
+    // 2026-09-07 — DÉCOUPER D'ABORD, REFUSER ENSUITE — ET PAS SEULEMENT SUR
+    // LES GROS FICHIERS.
+    //
+    // Mesure du 07/09 sur « Devis complets.pdf » : fusionné, ses 18 pages
+    // PASSENT l'extraction en 32,8 s — mais elles produisent une analyse de
+    // 91 lignes mélangeant DEUX devis sous un seul en-tête et un seul total.
+    // Une chimère qui a l'air correcte : c'est pire qu'un refus.
+    //
+    // Le découpage n'est donc pas un contournement de la limite de pages,
+    // c'est une correction à part entière. Il tourne dès qu'un PDF a de quoi
+    // contenir deux devis, quelle que soit sa longueur. En dessous de 3 pages
+    // on s'abstient : deux devis n'y tiennent pas, et on épargne à l'envoi le
+    // plus courant le coût de la lecture du texte.
+    const nbPages = await comptePagesPdf(selectedFile);
+    if (nbPages !== null && nbPages >= 3) {
       setDecoupageEnCours(true);
-      // Lire le texte de 18 pages puis réécrire les fichiers prend quelques
-      // secondes : sans ce retour, l'écran paraît figé après le dépôt.
-      const attente = toast.loading("Document long — nous vérifions s'il contient plusieurs devis…");
+      // Lire le texte puis réécrire les fichiers prend quelques secondes sur un
+      // gros document : sans ce retour, l'écran paraît figé après le dépôt.
+      const attente = toast.loading("Nous vérifions si ce document contient plusieurs devis…");
       let decoupe = null;
       try {
         decoupe = await tenterDecoupe(selectedFile, PAGES_MAX_EXTRACTION);
@@ -252,8 +260,15 @@ const NewAnalysis = () => {
       toast.dismiss(attente);
       setDecoupageEnCours(false);
 
+      // Un seul devis (ou lecture impossible) : on reprend le cours normal, et
+      // le refus pour longueur ne s'applique que s'il était justifié.
       if (!decoupe || decoupe.fichiers.length === 0) {
-        toast.error(tropLong, { duration: 10000 });
+        if (tropLong) {
+          toast.error(tropLong, { duration: 10000 });
+          return;
+        }
+        setFile(selectedFile);
+        if (user) await uploadFile(selectedFile);
         return;
       }
 
@@ -271,6 +286,13 @@ const NewAnalysis = () => {
           : ""),
         { duration: 9000 },
       );
+      return;
+    }
+
+    // PDF court (moins de 3 pages) ou non-PDF : seule la longueur peut encore
+    // s'y opposer, et elle ne s'y oppose quasiment jamais à cette taille.
+    if (tropLong) {
+      toast.error(tropLong, { duration: 10000 });
       return;
     }
 
@@ -636,8 +658,8 @@ const NewAnalysis = () => {
                     refuser après. */}
                 <div className="mt-4 pt-3 border-t border-border/60 text-xs text-muted-foreground/90 space-y-1 text-left max-w-xs mx-auto">
                   <p className="font-medium text-foreground/70">Pour une analyse fiable :</p>
-                  <p>• <strong>un seul devis</strong> par envoi — si vous en avez plusieurs, envoyez-les l'un après l'autre pour pouvoir les comparer ensuite</p>
-                  <p>• <strong>8 pages maximum</strong></p>
+                  <p>• <strong>un devis à la fois</strong> — si votre document en contient plusieurs, nous les séparons et vous choisissez lequel analyser</p>
+                  <p>• <strong>{PAGES_MAX_EXTRACTION} pages maximum</strong> par devis</p>
                   <p>• un devis de <strong>travaux, établi en France</strong> — nos prix de référence sont français</p>
                 </div>
               </div>

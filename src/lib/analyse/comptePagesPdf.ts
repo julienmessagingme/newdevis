@@ -21,7 +21,28 @@
  */
 
 /** Au-delà, l'extraction dépasse son budget de façon quasi certaine. */
-export const PAGES_MAX_EXTRACTION = 8;
+/**
+ * 2026-09-07 — MESURÉ, plus supposé.
+ *
+ * Le plafond de 8 pages reposait sur UN échec observé le 2026-09-03 (un
+ * `ilovepdf_merged_compressed.pdf` de 11 pages, `AI_TIMEOUT` à 93 s) — un
+ * fichier qu'on n'a plus. Mesure refaite sur des documents réels, avec la
+ * configuration exacte de production (gemini-2.5-flash, `thinkingBudget: 0`,
+ * 32 768 tokens de sortie, plafond edge à 80 s) :
+ *
+ *   3 pages,   6 lignes de travaux →  8,1 s
+ *  15 pages,  84 lignes            → 28,8 s
+ *  18 pages,  91 lignes            → 32,8 s   ← JSON complet, `finishReason: STOP`
+ *
+ * Le plafond réel n'est donc pas atteint à 18 pages : il reste plus de 45 s de
+ * marge. Ce qui pilote le temps n'est d'ailleurs pas le nombre de PAGES mais le
+ * nombre de LIGNES à écrire en sortie — 91 lignes ne consomment que 7 975 des
+ * 32 768 tokens disponibles.
+ *
+ * On monte donc à 15, borne mesurée deux fois et confortable, sans aller
+ * jusqu'à 18 : au-delà, on n'a pas de mesure et le vrai filet est le découpage.
+ */
+export const PAGES_MAX_EXTRACTION = 15;
 
 /**
  * @returns le nombre de pages, ou `null` si le comptage n'est pas fiable.
