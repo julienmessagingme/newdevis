@@ -13,6 +13,17 @@
  */
 
 import { detecterDevis, type SegmentDevis } from "./decoupeDevis";
+// 2026-09-07 — le worker doit être résolu par Vite, PAS par `new URL()`.
+//
+// Première version : `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`.
+// Vite ne résout pas les specifiers de PAQUET dans `new URL()` — seulement les
+// chemins relatifs. L'URL produite pointait donc vers `/pdfjs-dist/...` sur
+// notre domaine, qui n'existe pas : 404, worker mort, lecture du PDF en échec,
+// et l'utilisateur retombait sur le message de refus « 18 pages, trop long »
+// sans jamais voir le découpage. Le suffixe `?url` fait émettre l'asset par le
+// bundler et rend son adresse réelle. Servi depuis notre origine, donc couvert
+// par `default-src 'self'` — aucune règle CSP à ajouter.
+import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 /** Au-delà, on renonce : le temps de traitement navigateur cesse d'être tenable. */
 const PAGES_MAX_LECTURE = 60;
@@ -25,12 +36,7 @@ const PAGES_MAX_LECTURE = 60;
 export async function lireTextePages(fichier: Blob): Promise<string[]> {
   try {
     const pdfjs = await import("pdfjs-dist");
-    // Le worker est servi depuis le bundle : pas de CDN, donc rien à autoriser
-    // dans la CSP (`script-src` n'accepte que nos propres origines).
-    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-      "pdfjs-dist/build/pdf.worker.min.mjs",
-      import.meta.url,
-    ).toString();
+    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
     const donnees = new Uint8Array(await fichier.arrayBuffer());
     const doc = await pdfjs.getDocument({ data: donnees }).promise;
@@ -105,13 +111,26 @@ export async function tenterDecoupe(
   pagesMax: number,
 ): Promise<ResultatDecoupe | null> {
   const pages = await lireTextePages(fichier);
-  if (pages.length === 0) return null;
+  // On distingue les trois « rien à découper » dans le journal : sans ça, un
+  // worker cassé et un document mono-devis produisent le même silence côté
+  // utilisateur — c'est ce qui a masqué le bug du worker le 07/09.
+  if (pages.length === 0) {
+    console.warn("[decoupe] texte illisible — aucun découpage possible");
+    return null;
+  }
 
   const segments = detecterDevis(pages);
-  if (segments.length < 2) return null;
+  if (segments.length < 2) {
+    console.info(`[decoupe] un seul devis détecté sur ${pages.length} pages`);
+    return null;
+  }
 
   const analysables = segments.filter((s) => s.pages <= pagesMax);
-  if (analysables.length === 0) return null;
+  if (analysables.length === 0) {
+    console.info(`[decoupe] ${segments.length} devis détectés, tous au-delà de ${pagesMax} pages`);
+    return null;
+  }
+  console.info(`[decoupe] ${segments.length} devis détectés, ${analysables.length} analysable(s)`);
 
   const fichiers = await ecrireSegments(fichier, analysables);
   return {
