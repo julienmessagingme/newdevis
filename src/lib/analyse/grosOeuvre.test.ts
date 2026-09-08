@@ -98,4 +98,32 @@ describe("un élément structurel cité comme support ne déclenche pas la DO", 
     expect(ligneEstGrosOeuvre("Faux plafond démontable 600x600")).toBe(false);
     expect(ligneEstGrosOeuvre("Plafond suspendu en plaques de plâtre")).toBe(false);
   });
+
+  /**
+   * 4ᵉ faux positif, 2026-09-08 — devis de climatisation DEV-05675. Le conseil
+   * s'est déclenché sur « Extension de garantie 5 ans » : le mot `extension`
+   * suffisait. Sept lignes du même devis étaient concernées.
+   */
+  it("« extension de garantie » n'est pas une extension de maison", () => {
+    expect(
+      ligneEstGrosOeuvre(
+        "Multi-split Mitsubishi Electric 6.8 kW - Référence: MXZ-3F68VF3 - Puissance nominale à froid / chaud: 6.8 kW / 8.6 kW - COP: 4.5/SCOP: 4.12 - Extension de garantie 5 ans: Pièces + Main d'œuvre + Déplacement",
+      ),
+    ).toBe(false);
+    expect(ligneEstGrosOeuvre("Extension de garantie 5 ans pièces et main d'œuvre")).toBe(false);
+    expect(ligneEstGrosOeuvre("Extension de ligne frigorifique 4 ml")).toBe(false);
+    expect(ligneEstGrosOeuvre("Extension du tableau électrique existant")).toBe(false);
+  });
+
+  it("un NOM structurel isolé ne déclenche plus rien", () => {
+    // C'est le cœur du resserrement : sans action ni contexte bâtiment, un mot
+    // ne dit pas qu'on touche à l'ouvrage.
+    expect(ligneEstGrosOeuvre("Extension")).toBe(false);
+    expect(ligneEstGrosOeuvre("Toiture")).toBe(false);
+    expect(ligneEstGrosOeuvre("Charpente traditionnelle apparente")).toBe(false);
+    // …alors que l'action, elle, déclenche toujours.
+    expect(ligneEstGrosOeuvre("Réfection complète de la charpente")).toBe(true);
+    expect(ligneEstGrosOeuvre("Coulage des fondations en béton armé")).toBe(true);
+    expect(ligneEstGrosOeuvre("Création d'une extension de 25 m²")).toBe(true);
+  });
 });

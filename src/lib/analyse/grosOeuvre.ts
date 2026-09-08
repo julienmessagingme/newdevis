@@ -23,32 +23,103 @@
  */
 
 /**
- * Actions réellement structurelles. Chaque motif exige un CONTEXTE, jamais un
- * simple sigle : « IPE » seul est un piège (indice environnemental, référence
- * produit), « poutre IPE 180 » n'en est pas un.
+ * 2026-09-08 — 4ᵉ FAUX POSITIF, ET LA RÈGLE CHANGE DE NATURE.
+ *
+ * Le conseil s'est déclenché sur un devis de CLIMATISATION, à cause de
+ * **« Extension de garantie 5 ans »**. Le mot `extension` suffisait.
+ *
+ * Les quatre cas partagent la même faille : **un NOM structurel isolé**.
+ *   · « IPE = 0,5 » — l'indice environnemental d'un poêle ;
+ *   · « Faux plafonds sous dalle béton » — l'élément cité comme support ;
+ *   · « Extension de garantie » — un mot de contrat, pas de bâtiment.
+ *
+ * Un nom seul ne dira jamais si on TOUCHE à l'ouvrage. La règle exige donc
+ * désormais **une ACTION portée sur un ÉLÉMENT PORTEUR, dans la même ligne**.
+ * Seule une courte liste de termes qui n'existent que dans le gros œuvre se
+ * suffit à elle-même.
+ *
+ * Arbitrage assumé, et c'est celui de Johan : « resserre vraiment, sinon on
+ * sera obligé de l'arrêter ». On ratera des cas limites — un devis qui écrit
+ * « Fondations : 12 m³ » sans verbe. C'est le prix à payer pour ne plus
+ * proposer une assurance dommages-ouvrage à quelqu'un qui fait poser une
+ * climatisation.
  */
-const STRUCTUREL_RE = new RegExp(
+
+/** Ce sur quoi on travaille : les éléments qui portent le bâtiment. */
+const OBJET_PORTEUR = [
+  "extension",
+  "fondations?", "dalle\\s+b[ée]ton", "plancher\\s+porteur", "plancher\\s+b[ée]ton",
+  "charpente", "toiture", "couverture",
+  "mur\\s+porteur", "mur\\s+de\\s+refend", "structure\\s+porteuse", "ouvrage",
+].join("|");
+
+/**
+ * Ce qu'on lui fait. Sans action, aucun conseil.
+ *
+ * « surélévation » et « agrandissement » sont ici et non parmi les objets :
+ * ce sont des noms d'ACTION. « Surélévation de la toiture » se lit action +
+ * objet, et c'est bien du gros œuvre.
+ */
+const ACTION = [
+  "cr[ée]ation", "cr[ée]er", "construction", "construire", "r[ée]alisation",
+  "coulage", "ferraillage", "ouverture", "percement", "d[ée]molition", "d[ée]molir",
+  "abattre", "d[ée]pose", "reprise", "renfort", "renforcement", "[ée]taiement",
+  "r[ée]fection", "remplacement", "terrassement",
+  "sur[ée]l[ée]vation", "sur[ée]lever", "agrandissement", "agrandir",
+].join("|");
+
+/**
+ * Termes qui n'existent QUE dans le gros œuvre : les rencontrer suffit.
+ * `ossature métallique` est volontairement absent — dans 99 % des devis c'est
+ * le rail d'une cloison en placo. `IPE` exige une section chiffrée : le sigle
+ * seul est l'indice de performance environnementale d'un appareil.
+ */
+const AUTOSUFFISANT_RE = new RegExp(
   [
-    // Créations d'ouvrage
-    "extension", "agrandissement", "sur[ée]l[ée]vation", "construction\\s+neuve",
-    "v[ée]randa\\s+ma[çc]onn",
-    // Ossature bois porteuse (la maison ossature bois). « ossature métallique »
-    // est volontairement ABSENT : dans 99 % des devis c'est le rail d'une
-    // cloison en placo, pas une charpente.
-    "ossature\\s+bois",
-    // Fondations et planchers porteurs
-    "fondation", "semelle\\s+filante", "longrine", "radier", "dalle\\s+b[ée]ton",
-    "terrassement\\s+(?:de\\s+)?fondation",
-    // Éléments porteurs : le mot « porteur » ou une section de profilé chiffrée
-    "mur\\s+porteur", "mur\\s+de\\s+refend",
-    "poutre\\s+(?:m[ée]tallique|acier|porteuse|b[ée]ton)",
+    "mur\\s+porteur", "mur\\s+de\\s+refend", "longrine", "radier",
+    // « Semelle et fondation sur 11 M, béton armé ferraillé » : de vraies
+    // fondations, sans verbe. Retrouvé dans la mesure du 08/09 — c'était le
+    // seul regret parmi les cas que le resserrement faisait perdre.
+    "semelle\\s+(?:filante|et\\s+fondation|de\\s+fondation)",
+    "linteau", "poutre\\s+(?:m[ée]tallique|acier|porteuse|b[ée]ton)",
     "\\b(?:ipn|hea|heb|ipe)\\s*\\d{2,3}\\b",
-    "linteau",
-    // Charpente et toiture : refaites ou déposées, pas entretenues
-    "(?:r[ée]fection|remplacement|d[ée]pose|cr[ée]ation|reprise)\\s+(?:compl[èe]te\\s+)?(?:de\\s+)?(?:la\\s+)?(?:charpente|toiture|couverture)",
+    // « ossature bois » désigne une paroi porteuse ; c'est « ossature
+    // métallique » qui est le rail de cloison, et elle reste exclue.
+    "ossature\\s+bois", "construction\\s+neuve", "v[ée]randa\\s+ma[çc]onn",
+    // Une extension DE BÂTIMENT : le mot doit être suivi de près par ce qu'on
+    // étend, ou par une surface. « Extension de 20 m² accolée à la maison »
+    // passe ; « Extension de garantie 5 ans » n'a ni l'un ni l'autre — et est
+    // de toute façon déjà écartée par FAUX_AMIS_RE.
+    "extension\\b[^.;]{0,40}?(?:maison|habitation|b[âa]timent|villa|logement|pavillon|\\d+\\s*m[²2])",
   ].join("|"),
   "i",
 );
+
+/**
+ * Une action ET un objet porteur — l'objet devant suivre l'action DE PRÈS.
+ *
+ * ⚠️ La fenêtre est le cœur de la règle, et elle a été mesurée. À 40
+ * caractères, « Démolition **carrelage** scellé au sol **sur dalle béton** »
+ * passait : le voisinage confondait proximité et complément d'objet. Ce qu'on
+ * démolit, c'est le carrelage. À 25, la phrase est écartée (28 caractères
+ * séparent les deux), tandis que « Réfection complète de la charpente » (15)
+ * et « Dépose de l'ancienne couverture » (14) passent toujours.
+ *
+ * Élargir cette fenêtre, c'est réintroduire des faux positifs. Le vérifier
+ * sur le corpus avant d'y toucher (`scripts/` — mesure du 08/09 : 429 devis).
+ */
+const ACTION_SUR_PORTEUR_RE = new RegExp(
+  `(?:${ACTION})[^.;]{0,25}?(?:${OBJET_PORTEUR})|(?:${OBJET_PORTEUR})[^.;]{0,15}?(?:${ACTION})`,
+  "i",
+);
+
+/**
+ * Les emplois NON bâtimentaires des mots porteurs. Ils sont écartés d'entrée,
+ * avant toute autre règle : « extension de garantie » sur un devis de
+ * climatisation est le 4ᵉ faux positif de ce levier.
+ */
+const FAUX_AMIS_RE =
+  /extension\s+de\s+(?:garantie|la\s+garantie|ligne|c[âa]ble|r[ée]seau|tableau|point|prise|chauffage)/i;
 
 /**
  * Travaux qui ne touchent pas à la structure, même s'ils percent un mur.
@@ -56,7 +127,7 @@ const STRUCTUREL_RE = new RegExp(
  * chaudière ou un tubage de poêle n'engage pas la solidité de l'ouvrage.
  */
 const HORS_PERIMETRE_RE =
-  /\b(traitement|xylo|insecticide|fongicide|curatif|pr[ée]ventif|nettoyage|d[ée]moussage|peinture|lasure|ravalement|percement|carottage|ventouse|grille|a[ée]ration|tubage|conduit|placo|plaque\s+de\s+pl[âa]tre|doublage|cloison|faux[-\s]?plafonds?|plafonds?\s+suspendus?)\b/i;
+  /\b(traitement|xylo|insecticide|fongicide|curatif|pr[ée]ventif|nettoyage|d[ée]moussage|peinture|lasure|ravalement|percement|carottage|ventouse|grille|a[ée]ration|tubage|conduit|placo|plaque\s+de\s+pl[âa]tre|doublage|cloison|faux[-\s]?plafonds?|plafonds?\s+suspendus?|sous[-\s]?toiture)\b/i;
 
 /**
  * 2026-09-07 (3e faux positif, cas « Faux plafonds Type F530 Sous Dalle Béton »)
@@ -90,10 +161,24 @@ function texteLigne(l: LigneTravaux): string {
 /** Une ligne engage-t-elle la structure ? */
 export function ligneEstGrosOeuvre(texte: string): boolean {
   if (!texte) return false;
-  if (!STRUCTUREL_RE.test(texte)) return false;
+
+  // 1. Les emplois non bâtimentaires sortent d'abord : « extension de garantie »
+  //    ne doit même pas être examiné.
+  if (FAUX_AMIS_RE.test(texte)) return false;
+
+  // 2. Un terme qui n'existe que dans le gros œuvre se suffit à lui-même…
+  //    …sauf s'il n'est là que pour situer l'ouvrage (« sous dalle béton »).
+  const autosuffisant = AUTOSUFFISANT_RE.test(texte);
+  //    …ou une action explicite portée sur un élément porteur.
+  const actionSurPorteur = ACTION_SUR_PORTEUR_RE.test(texte);
+  if (!autosuffisant && !actionSurPorteur) return false;
+
+  // 3. Entretien, finitions, percements de confort : hors périmètre légal.
   if (HORS_PERIMETRE_RE.test(texte)) return false;
-  // Élément structurel cité comme simple support, sans action portée dessus.
+
+  // 4. Élément structurel cité comme simple support, sans action portée dessus.
   if (SUPPORT_RE.test(texte) && !ACTION_SUR_STRUCTURE_RE.test(texte)) return false;
+
   return true;
 }
 
