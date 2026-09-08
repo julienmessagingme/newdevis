@@ -47,7 +47,21 @@ export default function ComparateurNouveau() {
         .order("created_at", { ascending: false })
         .limit(50);
       if (e) setError(e.message);
-      else setAnalyses(data ?? []);
+      else {
+        setAnalyses(data ?? []);
+        // 2026-09-08 — pré-sélection depuis `?pre=id1,id2`. C'est ce qui rend
+        // la proposition faite après une analyse (« Comparer ces deux devis »)
+        // utilisable en un clic : sans elle, l'utilisateur retrouve une liste
+        // et doit refaire le rapprochement lui-même.
+        try {
+          const pre = new URLSearchParams(window.location.search).get("pre");
+          if (pre) {
+            const connus = new Set((data ?? []).map((a) => a.id));
+            const ids = pre.split(",").map((s) => s.trim()).filter((s) => connus.has(s));
+            if (ids.length >= 2) setSelected(new Set(ids.slice(0, 4)));
+          }
+        } catch { /* une pré-sélection ratée ne doit pas casser la page */ }
+      }
       setLoading(false);
     })();
   }, []);

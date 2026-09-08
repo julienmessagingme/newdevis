@@ -1138,6 +1138,15 @@ Permet de cohorter "feedbacks négatifs sur des verdicts ROUGE" → wording trop
 
 ---
 
+## 18ter. Retrouver ses devis liés, et comparer sans y penser (2026-09-07/08)
+
+Deux repères en tête de page d'analyse, qui ne s'affichent que lorsqu'ils ont un sens.
+
+- **Les devis du même document** — un PDF contenant plusieurs devis est découpé au dépôt ; les analyses qui en sortent partagent un `batch_id`. La page les liste (celles encore en cours en pointillés, pas cachées) et propose le comparateur dès que deux sont prêtes. Sans ce lien, un utilisateur qui ouvrait la première ne retrouvait plus les autres — elles existaient en base, rien ne les reliait.
+- **Le devis concurrent** — quand l'utilisateur a analysé, dans les 30 jours, un autre devis d'un **autre prestataire** décrivant le même projet, la page le lui dit et propose de les comparer en un clic (le comparateur s'ouvre pré-rempli). Le rapprochement se fait sur le vocabulaire des lignes de travaux **et** sur l'ordre de grandeur des montants ; la proposition est formulée en question, parce que la règle ne peut pas savoir que c'est le même chantier. Elle se tait dans 97 % des cas — c'est voulu.
+
+---
+
 ## 18bis. Détection devis étranger — bannière 🌍 (V3.4.14, 2026-05-16)
 
 Quand l'utilisateur upload un devis émis par une entreprise hors-France (Belgique, Luxembourg, Suisse, Allemagne, etc.), l'outil détecte automatiquement la nationalité du devis et bypass complètement le scoring catalogue marché — qui est calibré sur la réglementation et les tarifs français.

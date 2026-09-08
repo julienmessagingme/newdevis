@@ -353,6 +353,12 @@ const AnalysisResult = () => {
   // non le tableau lui-même : il reste stable pendant tout le suivi, donc
   // l'effet de rafraîchissement ne se remonte pas à chaque tour.
   const lotEnAttente = devisDuMemeDocument.some((d) => d.status !== "completed");
+  // 2026-09-08 (demande Johan) — le devis d'un AUTRE prestataire pour le même
+  // projet, quand il existe. Différent du lot ci-dessus : celui-ci vient d'un
+  // dépôt séparé. `null` est le cas normal (3 % des paires sur le stock).
+  const [devisApparente, setDevisApparente] = useState<{
+    id: string; entreprise: string | null; montantHt: number | null; createdAt: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   // Raw conclusion_ia JSON received from ConclusionIA once generated (may arrive after initial render)
@@ -571,6 +577,39 @@ const AnalysisResult = () => {
 
     return () => { arrete = true; clearInterval(timer); };
   }, [analysis?.batch_id, analysis?.user_id, lotEnAttente, id]);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 2026-09-08 (demande Johan) — PROPOSER LA COMPARAISON QUAND ELLE A UN SENS.
+  //
+  // « La même personne a téléchargé deux devis de clim de deux prestataires
+  // différents ; il aurait été intéressant de lui proposer de les comparer. »
+  // Le comparateur existait déjà, mais exigeait deux dépôts puis une navigation
+  // délibérée : personne ne le trouvait.
+  //
+  // La décision est prise côté serveur (`devisApparentes.ts`, 13 tests, seuils
+  // calibrés sur 585 paires du stock). Ici, on affiche ou on se tait — et se
+  // taire est le cas normal.
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!id || !analysis || analysis.status !== "completed") return;
+    let annule = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await fetch(`/api/analyse/${id}/devis-apparente`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!annule) setDevisApparente(json?.data?.apparente ?? json?.apparente ?? null);
+      } catch {
+        // Une suggestion qui ne se charge pas ne doit jamais gêner la lecture
+        // du verdict : on ne montre rien, et c'est tout.
+      }
+    })();
+    return () => { annule = true; };
+  }, [id, analysis?.status]);
 
   useEffect(() => {
     fetchAnalysis();
@@ -1350,6 +1389,40 @@ const AnalysisResult = () => {
               } catch { return null; }
             })()}
           />
+        )}
+
+        {/* 2026-09-08 (demande Johan) — LE DEVIS CONCURRENT, QUAND IL EXISTE.
+            Formulé en QUESTION, jamais en affirmation : la règle rapproche deux
+            devis sur leur vocabulaire et l'ordre de grandeur de leur montant,
+            elle ne sait pas que c'est le même chantier. Une suggestion à tort
+            au moment du résultat coûte cher — c'est la leçon des quatre faux
+            positifs dommages-ouvrage. Affiché seulement si le lot du document
+            ne l'est pas déjà : deux invitations à comparer se contrediraient. */}
+        {devisApparente && devisDuMemeDocument.length === 0 && (
+          <div className="bg-accent border border-primary/20 rounded-lg p-4 mb-6">
+            <p className="text-sm text-foreground">
+              Vous avez analysé un autre devis qui ressemble à celui-ci
+              {devisApparente.entreprise ? <> — <strong>{devisApparente.entreprise}</strong></> : null}
+              {devisApparente.montantHt
+                ? <>, {Math.round(devisApparente.montantHt).toLocaleString("fr-FR")} € HT</>
+                : null}
+              . Les comparer&nbsp;?
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <a
+                href={`/comparateur/nouveau?pre=${id},${devisApparente.id}`}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90 transition-colors"
+              >
+                Comparer les deux devis
+              </a>
+              <a
+                href={`/analyse/${devisApparente.id}`}
+                className="inline-flex items-center gap-1.5 text-sm rounded-md border border-border px-3 py-1.5 hover:border-primary hover:text-primary transition-colors"
+              >
+                Voir l'autre analyse
+              </a>
+            </div>
+          </div>
         )}
 
         {/* 2026-09-07 (retour Johan) — LES AUTRES DEVIS DU MÊME DOCUMENT.
