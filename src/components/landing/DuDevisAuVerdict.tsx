@@ -140,9 +140,18 @@ const DuDevisAuVerdict = () => {
               </div>
 
               <div className="px-4 py-4">
-                <div className="flex items-baseline gap-2.5 mb-3">
-                  <span className="text-3xl font-bold text-destructive tracking-tight tabular-nums">
-                    +1 480 €
+                {/* 2026-09-08 — sur mobile, « +1 480 € » se cassait en TROIS lignes.
+                    Un élément flex peut rétrécir sous la largeur de son contenu : le
+                    montant se faisait comprimer par la légende à côté de lui. D'où
+                    `whitespace-nowrap` sur le chiffre — un montant ne se coupe jamais —
+                    et l'empilement en dessous de `sm`, où les deux ne tiennent pas
+                    côte à côte.
+                    ⚠️ Séparateur de milliers en insécable NORMALE (U+00A0) : l'espace
+                    fine U+202F, pourtant correcte en typographie française, ne rend pas
+                    dans DM Sans — on lisait « +1480 € ». Vérifié à l'écran. */}
+                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2.5 mb-3">
+                  <span className="text-3xl font-bold text-destructive tracking-tight tabular-nums whitespace-nowrap">
+                    +1&nbsp;480&nbsp;€
                   </span>
                   <span className="text-xs text-muted-foreground">
                     au-dessus des fourchettes, sur 2 postes nommés
