@@ -1,0 +1,152 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Rafraîchissement hebdomadaire des données publiées (2026-09-08)
+#
+# POURQUOI CE WORKFLOW EXISTE
+#
+# Deux jeux de données publiques sont des FICHIERS DU DÉPÔT, lus au build :
+#   · src/data/prix/reference.json      → les fourchettes de prix des pages
+#                                          éditoriales (source unique, cf.
+#                                          CLAUDE.md § « Une seule valorisation »)
+#   · src/data/observatoire/**.json     → les pages métier et chantier
+#
+# Le cron Postgres `refresh-observatoire` (04:00 UTC, quotidien) rafraîchit les
+# vues matérialisées côté base — mais il ne peut ni écrire dans le dépôt ni
+# déclencher un déploiement. Sans ce workflow, les pages affichent indéfiniment
+# l'état figé au dernier build : le catalogue s'enrichit, le site ment.
+#
+# 🔴 PIÈGE À NE PAS RÉINTRODUIRE
+#
+# Le déploiement passe par `vercel-ci-deploy.yml`, déclenché `on: push`. Or un
+# push effectué avec le `GITHUB_TOKEN` par défaut NE DÉCLENCHE AUCUN autre
+# workflow (garde-fou GitHub contre les boucles). Un simple commit ici laisserait
+# donc le JSON à quai — exactement l'incident des « commits dormants » de
+# mai 2026 (cf. deploy-edge-functions.yml). D'où l'appel EXPLICITE au workflow de
+# déploiement en fin de job.
+#
+# SETUP REQUIS (une fois) — Settings → Secrets and variables → Actions :
+#   SUPABASE_SERVICE_ROLE_KEY  ← Supabase Dashboard → Settings → API → service_role
+# Tant qu'il est absent, le workflow s'arrête proprement avec un avertissement,
+# sans échec rouge hebdomadaire.
+# ═══════════════════════════════════════════════════════════════════════════
+name: Rafraîchir les données publiées (hebdo)
+
+on:
+  schedule:
+    # Lundi 05:00 UTC — après le cron Postgres de 04:00 qui rafraîchit les vues
+    # matérialisées, et avant la journée de travail en France.
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: refresh-donnees-publiees
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write   # committer les JSON régénérés
+      actions: write    # déclencher le déploiement (cf. piège ci-dessus)
+
+    steps:
+      - name: Vérifier la présence du secret
+        id: garde
+        run: |
+          if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+            echo "::warning::SUPABASE_SERVICE_ROLE_KEY absent — rafraîchissement ignoré. Ajoute le secret dans Settings → Secrets → Actions."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.garde.outputs.ok == 'true'
+        uses: actions/checkout@v6
+        with:
+          # Historique complet : le clone superficiel par défaut fait échouer le
+          # `git pull --rebase` avant le push.
+          fetch-depth: 0
+
+      - name: Setup Node 20
+        if: steps.garde.outputs.ok == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Installer les dépendances
+        if: steps.garde.outputs.ok == 'true'
+        run: npm ci
+
+      - name: Régénérer la référence de prix
+        if: steps.garde.outputs.ok == 'true'
+        env:
+          # L'URL du projet n'est pas un secret : elle est publique côté client.
+          SUPABASE_URL: https://vhrhgsqxwvouswjaiczn.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        # `tsx` n'est pas une dépendance du projet : on épingle une version
+        # majeure plutôt que de laisser npx tirer la dernière publiée, qui
+        # pourrait changer de comportement entre deux lundis.
+        run: npx --yes tsx@4 scripts/prix/generate-reference.ts
+
+      - name: Régénérer les pages de l'observatoire
+        if: steps.garde.outputs.ok == 'true'
+        env:
+          SUPABASE_URL: https://vhrhgsqxwvouswjaiczn.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx --yes tsx@4 scripts/observatoire/generate-observatoire.ts
+
+      - name: Vérifier les garde-fous de publication
+        if: steps.garde.outputs.ok == 'true'
+        # Les règles de publication (une série par poste ET unité, seuil
+        # d'observations, écrêtage des forfaits déguisés) sont testées. Si un
+        # test tombe, on NE PUBLIE PAS : mieux vaut des données d'une semaine
+        # que des chiffres qu'on ne peut pas défendre.
+        run: npx vitest run src/lib/prix/reference.test.ts src/lib/observatoire/statsPrix.test.ts
+
+      - name: Détecter un vrai changement
+        if: steps.garde.outputs.ok == 'true'
+        id: diff
+        run: |
+          CIBLES="src/data/prix/reference.json src/data/observatoire"
+          # Les générateurs réécrivent systématiquement leur horodatage : sans
+          # cette exclusion, on committerait chaque semaine même sans un seul
+          # chiffre modifié, et l'historique deviendrait illisible.
+          REEL=$(git diff -U0 -- $CIBLES \
+            | grep -E '^[+-]' \
+            | grep -vE '^(\+\+\+|---)' \
+            | grep -vcE '"(genereLe|lastGenerated)"' || true)
+          echo "Lignes réellement modifiées : ${REEL}"
+          if [ "${REEL}" -gt 0 ]; then
+            echo "change=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "change=false" >> "$GITHUB_OUTPUT"
+            git checkout -- $CIBLES
+            echo "Aucun chiffre modifié — rien à publier."
+          fi
+
+      - name: Committer et pousser
+        if: steps.garde.outputs.ok == 'true' && steps.diff.outputs.change == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/prix/reference.json src/data/observatoire
+          git commit \
+            -m "data: rafraichissement hebdomadaire des prix et de l'observatoire" \
+            -m "Regenere depuis market_prices et les vues de l'observatoire par .github/workflows/refresh-donnees-publiees.yml. Les garde-fous de publication sont passes avant ecriture."
+          # Quelqu'un a pu pousser pendant la generation : sans ce rebase, le
+          # push serait rejete et le rafraichissement perdu jusqu'au lundi suivant.
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Déclencher le déploiement
+        if: steps.garde.outputs.ok == 'true' && steps.diff.outputs.change == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # 🔴 INDISPENSABLE : le push ci-dessus utilise le GITHUB_TOKEN, qui ne
+        # déclenche AUCUN workflow `on: push`. Sans cet appel explicite, le JSON
+        # régénéré resterait dans le dépôt sans jamais partir en production.
+        run: |
+          gh workflow run vercel-ci-deploy.yml --ref main
+          echo "Déploiement demandé — suivre dans l'onglet Actions."
