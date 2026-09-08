@@ -2464,7 +2464,28 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       console.warn(`[conclusion] ${heterogeneousLabels.size} groupe(s) hétérogène(s) détecté(s) — anomalies LLM correspondantes filtrées : ${Array.from(heterogeneousLabels).join(", ")}`);
     }
 
-    const sanitizedAnomalies: AnomalieConclusion[] = Array.isArray(parsed.anomalies)
+    // ──────────────────────────────────────────────────────────────────────
+    // 2026-09-08 — AUCUNE LIGNE DE TRAVAUX ⇒ AUCUN CHIFFRAGE, JAMAIS.
+    //
+    // Cas réel (devis D-261053, climatisation) : le découpage a fabriqué un
+    // second « devis » à partir de la seule page CGV + RIB + total.
+    // L'extraction a rendu `travaux: []`… et l'analyse est sortie ORANGE avec
+    // « environ 210 à 390 € » de marge, sur une anomalie nommée « Prestation
+    // de conseil et d'étude technique » que Gemini avait inventée en lisant
+    // les conditions générales.
+    //
+    // La règle du 05/09 — « aucun montant sans poste nommé » — était respectée
+    // À LA LETTRE : le poste existait, mais dans aucune ligne du devis. D'où
+    // cette garde, indépendante du découpage : sans une seule ligne extraite,
+    // il n'y a rien à chiffrer, et se taire coûte moins cher qu'inventer une
+    // négociation.
+    // ──────────────────────────────────────────────────────────────────────
+    const aucuneLigneTravaux =
+      !Array.isArray(extractedView?.travaux) || extractedView.travaux.length === 0;
+
+    const sanitizedAnomalies: AnomalieConclusion[] = aucuneLigneTravaux
+      ? []
+      : Array.isArray(parsed.anomalies)
       ? parsed.anomalies
           .filter((a: any) => a && typeof a === "object" && a.poste)
           // V3.3.4 — filtre les anomalies sur des groupes hétérogènes (Niveau 1)
@@ -2725,7 +2746,16 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // Le repli LLM garde sa raison d'être quand une part réelle du devis a été
     // rapprochée : il ne disparaît que lorsqu'il n'y a rien pour l'étayer.
     // ──────────────────────────────────────────────────────────────────────
-    const surcoutInterdit = rienDeComparable && serverSurcout.max <= 0;
+    if (aucuneLigneTravaux) {
+      console.warn(
+        `[conclusion] analyse ${analysisId} : AUCUNE ligne de travaux extraite — ` +
+        `tout chiffrage est écarté (surcoût LLM ${JSON.stringify(parsed.surcout_global)}, ` +
+        `${(parsed.anomalies ?? []).length} anomalie(s) proposée(s)).`,
+      );
+    }
+
+    const surcoutInterdit =
+      aucuneLigneTravaux || (rienDeComparable && serverSurcout.max <= 0);
     if (surcoutInterdit) {
       const llmMax = Number((parsed.surcout_global as any)?.max ?? 0) || 0;
       if (llmMax > 0) {
@@ -3255,6 +3285,11 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         // s'affichait sans que rien ne dise sur quelles lignes aller le
         // chercher. On plafonne à 3 : au-delà, le hero devient illisible.
         anomalies_postes: (() => {
+          // Sans une seule ligne de travaux, un poste « nommé » ne peut venir
+          // que d'une hallucination : c'est ainsi qu'un fragment de CGV a
+          // produit « Prestation de conseil et d'étude technique » à 300 €
+          // (cf. la garde `aucuneLigneTravaux` plus haut).
+          if (aucuneLigneTravaux) return [];
           const nommesParIA = sanitizedAnomalies
             .map((a) => a.poste)
             .filter((p): p is string => Boolean(p));

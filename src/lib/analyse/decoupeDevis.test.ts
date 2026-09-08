@@ -124,3 +124,38 @@ describe("decoupageUtile", () => {
     expect(decoupageUtile(detecterDevis(pages), 8)).toBe(false);
   });
 });
+
+/**
+ * 2026-09-08 — cas réel D-261053 (climatisation). La page de conditions
+ * générales portait « le présent devis 21.09.2026 est valable trois mois ».
+ * Lue comme un numéro, la date a ouvert un SECOND devis sur cette seule page ;
+ * ce fragment — RIB, CGV et total — est parti en analyse et en est ressorti
+ * ORANGE avec une marge de 210 à 390 €, bâtie sur un poste que Gemini avait
+ * inventé en lisant les CGV.
+ */
+describe("une date n'est pas un numéro de devis", () => {
+  it("rejette les dates sous leurs graphies courantes", () => {
+    expect(numeroDevisDePage("Le présent devis 21.09.2026 est valable 3 mois")).toBeNull();
+    expect(numeroDevisDePage("devis 21/09/2026")).toBeNull();
+    expect(numeroDevisDePage("Devis 21092026")).toBeNull();
+    expect(numeroDevisDePage("devis 2026-09-21")).toBeNull();
+  });
+
+  it("garde les vrais numéros qui RESSEMBLENT à une date", () => {
+    // « 2026-0417 » donne huit chiffres une fois les séparateurs retirés, et
+    // se lirait comme un 17 avril. C'est la forme brute qui tranche.
+    expect(numeroDevisDePage("DEVIS N° 2026-0417")).toBe("20260417");
+    expect(numeroDevisDePage("Devis n°D2025000567")).toBe("D2025000567");
+  });
+
+  it("une page de CGV ou de RIB n'ouvre jamais un devis", () => {
+    const pages = [
+      "Devis n° D-261053 SIRET 111 111 111 11111 — Climatisation multi-split",
+      "Suite des prestations, unités intérieures",
+      "Conditions générales de vente — le présent devis 21.09.2026 est valable trois mois. Coordonnées bancaires : IBAN FR76…",
+    ];
+    const segments = detecterDevis(pages);
+    expect(segments).toHaveLength(1);
+    expect(segments[0]).toMatchObject({ debut: 0, fin: 2, pages: 3 });
+  });
+});

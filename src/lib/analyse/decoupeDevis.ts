@@ -56,13 +56,54 @@ function normaliseSiret(brut: string): string {
   return brut.replace(/[\s.]/g, "");
 }
 
+/**
+ * 2026-09-08 — UNE DATE N'EST PAS UN NUMÉRO DE DEVIS.
+ *
+ * Cas réel (devis D-261053, climatisation) : la page de conditions générales
+ * portait « le présent devis 21.09.2026 est valable trois mois ». Lu comme le
+ * numéro « 21092026 », donc différent de « D261053 » → le découpage a ouvert un
+ * SECOND devis sur cette seule page. Ce fragment, qui ne contenait que le RIB,
+ * les CGV et le total, est parti en analyse et en est ressorti ORANGE avec une
+ * marge de négociation de 210 à 390 € — bâtie sur un poste que Gemini avait
+ * inventé en lisant les CGV.
+ */
+/**
+ * ⚠️ Le test porte sur la forme BRUTE, avant normalisation — les séparateurs
+ * sont précisément ce qui distingue une date d'une référence. Une fois retirés,
+ * « 2026-0417 » (un vrai numéro de devis) et « 21.09.2026 » (une date) donnent
+ * tous deux huit chiffres, et le premier ressemble à un 17 avril 2026.
+ * C'est le piège dans lequel est tombé mon premier correctif.
+ */
+function estUneDate(brut: string): boolean {
+  const s = brut.trim();
+  // JJ/MM/AAAA, JJ.MM.AAAA, JJ-MM-AAAA — et la forme inverse.
+  if (/^([0-2]\d|3[01])[./-](0\d|1[0-2])[./-](19|20)\d{2}$/.test(s)) return true;
+  if (/^(19|20)\d{2}[./-](0\d|1[0-2])[./-]([0-2]\d|3[01])$/.test(s)) return true;
+  // Huit chiffres collés formant une date plausible : « devis 21092026 ».
+  if (/^([0-2]\d|3[01])(0\d|1[0-2])(19|20)\d{2}$/.test(s)) return true;
+  // Une année seule.
+  return /^(19|20)\d{2}$/.test(s);
+}
+
+/**
+ * Une page qui n'est que des mentions légales ou bancaires ne peut pas OUVRIR
+ * un devis : elle appartient à celui qui précède. Le découpage reste ainsi
+ * conservateur — rater une frontière produit un devis un peu trop gros, en
+ * inventer une fabrique une analyse entière à partir de rien.
+ */
+const PAGE_ANNEXE_RE =
+  /\b(conditions\s+g[ée]n[ée]rales|CGV|coordonn[ée]es\s+bancaires|relev[ée]\s+d['’]identit[ée]\s+bancaire|\bRIB\b|m[ée]diation\s+de\s+la\s+consommation|droit\s+de\s+r[ée]tractation)\b/i;
+
+export function estPageAnnexe(texte: string): boolean {
+  return PAGE_ANNEXE_RE.test(texte ?? "");
+}
+
 /** Premier numéro de devis d'une page, normalisé. */
 export function numeroDevisDePage(texte: string): string | null {
   const m = texte.match(NUMERO_DEVIS_RE);
   if (!m) return null;
+  if (estUneDate(m[1])) return null;
   const n = normaliseNumero(m[1]);
-  // Un numéro purement « 2026 » ou « 2025 » est une année, pas une référence.
-  if (/^(19|20)\d{2}$/.test(n)) return null;
   return n.length >= 3 ? n : null;
 }
 
@@ -123,6 +164,16 @@ export function detecterDevis(pagesTexte: string[]): SegmentDevis[] {
     const premierIdentifiant =
       numeroCourant === null && siretCourant === null &&
       (numero !== null || siret !== null) && ENTETE_RE.test(texte);
+
+    // Une page de conditions générales, de RIB ou de mentions légales n'ouvre
+    // JAMAIS un devis : elle appartient à celui qui précède. Sans cette garde,
+    // un numéro cité dans les CGV (« le présent devis 21.09.2026 ») suffit à
+    // fabriquer un second devis, et donc une analyse entière à partir de rien.
+    if (estPageAnnexe(texte)) {
+      if (numeroCourant === null) numeroCourant = numero;
+      if (siretCourant === null) siretCourant = siret;
+      continue;
+    }
 
     if (numeroRompt || siretRompt || premierIdentifiant) {
       cloturer(i - 1);
