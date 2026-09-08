@@ -1,0 +1,189 @@
+{
+  "genereLe": "2026-09-08T06:20:31.982Z",
+  "source": "market_prices",
+  "tva": "HT",
+  "catalogueTaille": 919,
+  "analysesTotal": 424,
+  "postes": {
+    "peinture_murs_plafonds": {
+      "libelle": "Peinture murs et plafonds",
+      "note": "Préparation + 2 couches",
+      "unite": "m²",
+      "min": 18,
+      "moy": 35,
+      "max": 65,
+      "job_type": "peinture_murs_alias",
+      "label_catalogue": "Travaux de préparation et application de deux couches de peinture sur murs et plafonds"
+    },
+    "carrelage_fourni_pose": {
+      "libelle": "Carrelage sol (fourni + posé)",
+      "note": "Grès cérame standard",
+      "unite": "m²",
+      "min": 46,
+      "moy": 70,
+      "max": 94,
+      "job_type": "carrelage_standard_fourni_pose",
+      "label_catalogue": "Carrelage standard (fourni+posé)"
+    },
+    "carrelage_pose_seule": {
+      "libelle": "Pose de carrelage sol (hors fourniture)",
+      "note": "Main-d'œuvre seule",
+      "unite": "m²",
+      "min": 40,
+      "moy": 65,
+      "max": 100,
+      "job_type": "carrelage_sol_pose",
+      "label_catalogue": "Pose carrelage sol (hors fourniture)"
+    },
+    "parquet_stratifie": {
+      "libelle": "Parquet stratifié (fourni + posé)",
+      "note": "Entrée / milieu de gamme",
+      "unite": "m²",
+      "min": 31,
+      "moy": 45,
+      "max": 58,
+      "job_type": "parquet_stratifie_standard",
+      "label_catalogue": "Parquet stratifié standard (fourni+posé)"
+    },
+    "parquet_massif": {
+      "libelle": "Parquet massif (fourni + posé)",
+      "note": "Chêne, essence courante",
+      "unite": "m²",
+      "min": 80,
+      "moy": 130,
+      "max": 200,
+      "job_type": "pose_parquet_massif",
+      "label_catalogue": "Pose parquet massif (fourni+posé)"
+    },
+    "cloison_placo": {
+      "libelle": "Cloison placo",
+      "note": "Ossature + BA13, hors isolation",
+      "unite": "m²",
+      "min": 40,
+      "moy": 60,
+      "max": 95,
+      "job_type": "cloison_placo",
+      "label_catalogue": "Cloison placo"
+    },
+    "demolition_cloison": {
+      "libelle": "Démolition de cloison",
+      "note": "Évacuation comprise",
+      "unite": "m²",
+      "min": 15,
+      "moy": 30,
+      "max": 60,
+      "job_type": "demolition_cloison",
+      "label_catalogue": "Démolition cloison"
+    },
+    "isolation_interieure": {
+      "libelle": "Isolation des murs par l'intérieur",
+      "note": "Doublage + isolant",
+      "unite": "m²",
+      "min": 35,
+      "moy": 72,
+      "max": 110,
+      "job_type": "isolation_murs_interieurs",
+      "label_catalogue": "Isolation murs intérieurs"
+    },
+    "isolation_combles": {
+      "libelle": "Isolation des combles perdus",
+      "note": "Soufflage ou rouleaux",
+      "unite": "m²",
+      "min": 18,
+      "moy": 28,
+      "max": 45,
+      "job_type": "isolation_combles_perdus",
+      "label_catalogue": "Isolation combles perdus"
+    },
+    "isolation_exterieure": {
+      "libelle": "Isolation thermique par l'extérieur (ITE)",
+      "note": "Bardage ou enduit",
+      "unite": "m²",
+      "min": 90,
+      "moy": 130,
+      "max": 180,
+      "job_type": "isolation_murs_exterieurs",
+      "label_catalogue": "Isolation thermique par l'extérieur (ITE)"
+    },
+    "toiture_refection": {
+      "libelle": "Toiture — réfection complète",
+      "note": "Charpente non comprise",
+      "unite": "m²",
+      "min": 100,
+      "moy": 160,
+      "max": 260,
+      "job_type": "toiture",
+      "label_catalogue": "Toiture - réfection complète"
+    },
+    "couverture_tuile": {
+      "libelle": "Couverture tuile terre cuite (fourni + posé)",
+      "note": "Hors charpente",
+      "unite": "m²",
+      "min": 70,
+      "moy": 100,
+      "max": 140,
+      "job_type": "couverture_tuile_terre_cuite",
+      "label_catalogue": "Couverture tuile terre cuite (fourni+posé)"
+    },
+    "fenetre_pvc": {
+      "libelle": "Fenêtre PVC double vitrage (fourni + posé)",
+      "note": "Dimensions courantes",
+      "unite": "unité",
+      "min": 400,
+      "moy": 660,
+      "max": 1050,
+      "job_type": "fenetre_pvc_fourniture_pose",
+      "label_catalogue": "Fenêtre PVC double vitrage (fourni+posé)"
+    },
+    "ravalement_facade": {
+      "libelle": "Ravalement de façade (enduit + peinture)",
+      "note": "Échafaudage compris",
+      "unite": "m²",
+      "min": 62,
+      "moy": 95,
+      "max": 128,
+      "job_type": "ravalement_facade",
+      "label_catalogue": "Ravalement façade (enduit + peinture)"
+    },
+    "cuisine_complete": {
+      "libelle": "Rénovation de cuisine complète",
+      "note": "Hors électroménager",
+      "unite": "forfait",
+      "min": 5100,
+      "moy": 8500,
+      "max": 11900,
+      "job_type": "renovation_cuisine_standard",
+      "label_catalogue": "Rénovation cuisine (standard)"
+    },
+    "sdb_complete": {
+      "libelle": "Rénovation de salle de bain complète",
+      "note": "Petite SDB 4-6 m²",
+      "unite": "forfait",
+      "min": 3900,
+      "moy": 6500,
+      "max": 9100,
+      "job_type": "renovation_salle_de_bain_standard",
+      "label_catalogue": "Rénovation salle de bain (standard)"
+    },
+    "electricite_logement": {
+      "libelle": "Rénovation électrique complète",
+      "note": "Logement de 80 m²",
+      "unite": "forfait",
+      "min": 4225,
+      "moy": 6500,
+      "max": 8775,
+      "job_type": "renovation_elec_complete_80m2",
+      "label_catalogue": "Rénovation électricité complète 80m²"
+    },
+    "plomberie_logement": {
+      "libelle": "Plomberie et sanitaires — logement complet",
+      "note": "Installation neuve",
+      "unite": "forfait",
+      "min": 7300,
+      "moy": 12000,
+      "max": 18200,
+      "job_type": "lot_plomberie_complet_logement",
+      "label_catalogue": "Plomberie et sanitaires — installation complète d'un logement"
+    }
+  }
+}

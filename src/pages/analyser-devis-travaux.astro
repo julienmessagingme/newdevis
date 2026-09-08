@@ -3,9 +3,14 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
 import CrossLinkGMC from '@/components/analysis/CrossLinkGMC.astro';
+// 2026-09-08 — l exemple annoncait « marche 65-75 €/m² », une precision qui ne
+// venait d aucune de nos sources. Meme dans une capture d exemple, le mot
+// « marche » engage : il vient desormais du referentiel.
+import { poste } from '@/lib/prix/reference';
 
 // SEO V2026-05-26 : repositionnement landing transactionnelle SaaS.
 // Avant : H1 "guide complet" + JSON-LD Article + ogType article
+const carrelage = poste("carrelage_fourni_pose");
 //   → signaux contradictoires (mix éditorial + produit) → cannibalisation
 //   avec /verifier-devis-travaux et ranking médiocre sur "analyse devis travaux".
 // Après : positionnement outil SaaS + JSON-LD SoftwareApplication + FAQPage.
@@ -280,7 +285,7 @@ const checklistRefuse = [
                 <span class="text-red-500 font-bold flex-shrink-0">✗</span>
                 <div class="min-w-0">
                   <p class="text-sm font-semibold text-red-900 mb-0.5">Carrelage sol +32 % vs marché</p>
-                  <p class="text-xs text-red-700">95 €/m² facturé pour un carrelage standard 30×30 — marché 65-75 €/m² pour cette gamme.</p>
+                  <p class="text-xs text-red-700">{Math.round(carrelage.max * 1.32)} €/m² facturé pour un carrelage standard 30×30 — notre référentiel donne {carrelage.min}-{carrelage.max} € HT/m² pour cette gamme.</p>
                 </div>
               </div>
 

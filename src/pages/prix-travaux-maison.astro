@@ -3,22 +3,38 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
 
-const prixParType = [
-  { type: "Rénovation complète maison", unite: "m²", min: 800, moy: 1200, max: 1800, note: "Hors extension" },
-  { type: "Rénovation légère (rafraîchissement)", unite: "m²", min: 150, moy: 300, max: 500, note: "Peinture, revêtements" },
-  { type: "Cuisine équipée (pose + plomberie)", unite: "forfait", min: 5000, moy: 12000, max: 30000, note: "Hors électroménager" },
-  { type: "Salle de bain complète", unite: "forfait", min: 4000, moy: 8000, max: 20000, note: "Petite SDB 4–6 m²" },
-  { type: "Toiture (réfection complète)", unite: "m²", min: 80, moy: 130, max: 200, note: "Tuiles terre cuite" },
-  { type: "Isolation intérieure (ITI)", unite: "m²", min: 40, moy: 65, max: 120, note: "Doublage placo + isolant" },
-  { type: "Isolation extérieure (ITE)", unite: "m²", min: 90, moy: 140, max: 220, note: "Bardage ou enduit" },
-  { type: "Carrelage pose + fourniture", unite: "m²", min: 50, moy: 75, max: 130, note: "Grès cérame standard" },
-  { type: "Peinture murs et plafonds", unite: "m²", min: 15, moy: 22, max: 35, note: "2 couches + sous-couche" },
-  { type: "Parquet bois (pose + fourniture)", unite: "m²", min: 45, moy: 70, max: 130, note: "Contrecollé standard" },
-  { type: "Fenêtres double vitrage PVC", unite: "unité", min: 400, moy: 700, max: 1200, note: "Pose incluse" },
-  { type: "Electricité (mise aux normes)", unite: "m²", min: 60, moy: 110, max: 180, note: "Logement de 80 m²" },
-  { type: "Plomberie (remplacement complet)", unite: "m²", min: 40, moy: 80, max: 140, note: "Logement de 80 m²" },
-  { type: "Extension maison (structure)", unite: "m²", min: 1200, moy: 1800, max: 3000, note: "Hors finitions" },
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-09-08 — LES PRIX VIENNENT DU CATALOGUE, PLUS DE LA MAIN.
+//
+// Ce tableau était écrit en dur et divergeait à la fois du catalogue et de nos
+// autres pages : « peinture 15-35 €/m² » ici, « 30-60 » sur budget-renovation,
+// 18-65 dans `market_prices`. Il lit désormais `src/data/prix/reference.json`,
+// généré depuis le catalogue (`scripts/prix/generate-reference.ts`).
+//
+// ⚠️ Les prix du catalogue sont HORS TAXES — la note sous le tableau le dit.
+// ⚠️ Les lignes « coût de projet » (rénovation complète, extension) restent
+// écrites à la main : ce sont des ratios au m² HABITABLE, pas des prix de
+// poste, et le catalogue n'en contient pas. Elles sont donc affichées à part,
+// avec leur source annoncée pour ce qu'elle est — un ordre de grandeur.
+// ─────────────────────────────────────────────────────────────────────────────
+import { tousLesPostes, poste, fourchette, GENERE_LE, CATALOGUE_TAILLE, ANALYSES_TOTAL } from '@/lib/prix/reference';
+
+const prixParType = tousLesPostes().map((p) => ({
+  type: p.libelle,
+  unite: p.unite,
+  min: p.min,
+  moy: p.moy,
+  max: p.max,
+  note: p.note,
+}));
+
+const referenceDatee = new Date(GENERE_LE).toLocaleDateString('fr-FR', {
+  day: 'numeric', month: 'long', year: 'numeric',
+});
+
+/** Les trois postes mis en avant en haut de page — même source que le tableau. */
+const postesClefs = ['sdb_complete', 'cuisine_complete', 'toiture_refection']
+  .map((cle) => poste(cle as Parameters<typeof poste>[0]));
 
 const faqs = [
   {
@@ -51,7 +67,9 @@ const faqs = [
   },
   {
     question: "Quel est le prix moyen au m² pour les travaux de rénovation ?",
-    answer: "Le prix au m² varie fortement selon le type de travaux : peinture murs et plafonds de 15 à 35 €/m², carrelage pose + fourniture de 50 à 130 €/m², parquet de 45 à 130 €/m², isolation intérieure de 40 à 120 €/m², isolation extérieure (ITE) de 90 à 220 €/m². Ces fourchettes intègrent la main-d'œuvre et les matériaux standards, hors déplacements exceptionnels."
+    // Prix tirés du référentiel, jamais réécrits ici : cette réponse partait
+    // dans le JSON-LD et se contredisait avec le tableau de la même page.
+    answer: `Le prix au m² varie fortement selon le type de travaux : peinture murs et plafonds ${fourchette('peinture_murs_plafonds')}, carrelage sol fourni et posé ${fourchette('carrelage_fourni_pose')}, parquet stratifié ${fourchette('parquet_stratifie')}, isolation des murs par l'intérieur ${fourchette('isolation_interieure')}, isolation par l'extérieur (ITE) ${fourchette('isolation_exterieure')}. Ces fourchettes couvrent la main-d'œuvre et des matériaux standards. Attention : elles sont hors taxes, ajoutez la TVA de votre chantier pour les comparer à un devis TTC.`
   },
   {
     question: "Comment vérifier que son devis travaux n'est pas trop cher ?",
@@ -75,7 +93,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Prix des travaux maison 2026 : fourchettes réelles par métier"
-  description="Fourchettes constatées sur plus de 380 devis réels : cuisine, salle de bain, toiture, isolation, électricité… Les postes les plus surfacturés et comment vérifier votre devis gratuitement en 2 min."
+  description={`Prix de référence hors taxes pour ${CATALOGUE_TAILLE} postes de travaux : peinture, carrelage, isolation, toiture, cuisine, salle de bain. Le référentiel qui sert à analyser les devis, et comment vérifier le vôtre gratuitement en 2 min.`}
   canonical="https://www.verifiermondevis.fr/prix-travaux-maison"
   ogType="article"
   jsonLd={jsonLd}
@@ -121,15 +139,20 @@ const jsonLd = {
           <section class="mb-12">
             <p class="text-slate-600 leading-relaxed mb-4 text-base sm:text-lg">
               Prévoir un budget travaux sans référence, c'est naviguer à l'aveugle.
-              Un artisan peut vous facturer 80 €/m² pour poser du carrelage alors que le prix du marché
-              est à 50 €/m² — soit 30 % de surcoût sur l'ensemble du chantier.
-              À l'inverse, un prix anormalement bas peut cacher une malfaçon future.
+              Un carrelage sol fourni et posé se facture {fourchette('carrelage_fourni_pose')} :
+              au-delà, l'écart doit s'expliquer par autre chose que le hasard — un format
+              particulier, une chape à reprendre, un accès difficile. À l'inverse, un prix
+              anormalement bas peut cacher une malfaçon future.
             </p>
             <p class="text-slate-600 leading-relaxed mb-4">
-              Ce guide rassemble les <strong>prix moyens constatés en 2026</strong> pour tous les
-              grands types de travaux de rénovation et de construction, issus de l'analyse de
-              milliers de devis réels sur VerifierMonDevis.fr. Ces fourchettes vous permettent de
-              savoir immédiatement si votre devis est dans la norme — avant même de
+              {/* 2026-09-08 — ce paragraphe annonçait « issus de l'analyse de milliers de devis
+                  réels ». C'était faux : ces fourchettes viennent de notre RÉFÉRENTIEL de prix,
+                  sourcé poste par poste, pas d'une moyenne de nos analyses. Une provenance
+                  inexacte sur une page de prix décrédibilise tout le reste. */}
+              Ce guide rassemble les fourchettes de notre <strong>référentiel de prix</strong> —
+              {' '}{CATALOGUE_TAILLE.toLocaleString('fr-FR')} postes de travaux, sourcés un par un,
+              celui-là même que notre outil utilise pour analyser un devis ligne à ligne. Elles
+              vous permettent de savoir immédiatement si votre devis est dans la norme, avant même de
               <a href="/verifier-devis-travaux" class="text-indigo-600 font-medium hover:underline">vérifier un devis travaux</a> en détail.
             </p>
 
@@ -148,15 +171,19 @@ const jsonLd = {
             </div>
           </section>
 
-          <!-- Preuves sociales -->
+          {/* 2026-09-08 — ces trois chiffres annonçaient « +100 devis analysés chaque mois »
+              et « -30 % d'écart détecté en moyenne ». Le premier était vrai en mars-avril
+              (124 puis 104 analyses), faux depuis (22 en juillet, 29 en août) ; le second
+              n'était étayé par aucune mesure. Ils sont remplacés par deux chiffres qu'on peut
+              produire à la demande, et qui viennent du fichier généré. */}
           <div class="grid grid-cols-3 gap-4 mb-12">
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-amber-500 mb-1">+100</p>
-              <p class="text-xs text-slate-500 leading-snug">devis analysés chaque mois</p>
+              <p class="text-2xl font-bold text-amber-500 mb-1">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-500 leading-snug">devis analysés à ce jour</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-amber-500 mb-1">-30%</p>
-              <p class="text-xs text-slate-500 leading-snug">d'écart détecté en moyenne</p>
+              <p class="text-2xl font-bold text-amber-500 mb-1">{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-500 leading-snug">postes de référence comparés</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
               <p class="text-2xl font-bold text-amber-500 mb-1">2 min</p>
@@ -167,7 +194,14 @@ const jsonLd = {
           <!-- Tableau synthétique grands postes -->
           <section class="mb-8">
             <h2 class="text-2xl font-bold text-slate-900 mb-3">Budget travaux par pièce : les 3 postes clés</h2>
-            <p class="text-xs text-slate-400 mb-4 italic">Ces estimations sont basées sur des devis réels analysés en 2026 sur VerifierMonDevis.fr.</p>
+            {/* 2026-09-08 — ce tableau annonçait « Salle de bain 8 000 à 25 000 € » alors que
+                celui d'en dessous, désormais tiré du référentiel, donne 3 900 à 9 100 € HT.
+                Deux chiffres pour la même chose sur la même page : c'est précisément ce qu'on
+                corrige. Il lit maintenant la même source, et dit ce que le prix couvre. */}
+            <p class="text-xs text-slate-400 mb-4 italic">
+              Fourchettes hors taxes de notre référentiel de prix, pour les travaux eux-mêmes —
+              hors électroménager, hors mobilier et hors charpente pour la toiture.
+            </p>
             <div class="overflow-x-auto rounded-xl border border-slate-200 shadow-sm mb-4">
               <table class="w-full text-sm border-collapse">
                 <thead>
@@ -179,16 +213,17 @@ const jsonLd = {
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    { type: "Salle de bain", min: "8 000 €", moy: "15 000 €", max: "25 000 €" },
-                    { type: "Cuisine", min: "10 000 €", moy: "20 000 €", max: "35 000 €" },
-                    { type: "Toiture", min: "8 000 €", moy: "15 000 €", max: "30 000 €" },
-                  ].map((r, i) => (
+                  {postesClefs.map((r, i) => (
                     <tr class={`border-t border-slate-100 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                      <td class="px-4 py-3 font-semibold text-slate-800">{r.type}</td>
-                      <td class="px-4 py-3 text-right font-semibold text-emerald-700">{r.min}</td>
-                      <td class="px-4 py-3 text-right font-bold text-slate-900">{r.moy}</td>
-                      <td class="px-4 py-3 text-right font-semibold text-red-600">{r.max}</td>
+                      <td class="px-4 py-3 font-semibold text-slate-800">
+                        {r.libelle}
+                        <span class="block text-xs font-normal text-slate-400">
+                          {r.unite === 'forfait' ? 'pour la pièce' : `par ${r.unite}`} · {r.note}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 text-right font-semibold text-emerald-700">{r.min.toLocaleString('fr-FR')} €</td>
+                      <td class="px-4 py-3 text-right font-bold text-slate-900">{r.moy.toLocaleString('fr-FR')} €</td>
+                      <td class="px-4 py-3 text-right font-semibold text-red-600">{r.max.toLocaleString('fr-FR')} €</td>
                     </tr>
                   ))}
                 </tbody>
@@ -206,7 +241,7 @@ const jsonLd = {
           <section id="tableau-prix" class="mb-12">
             <h2 class="text-2xl font-bold text-slate-900 mb-4">Prix des travaux par type : tableau comparatif 2026</h2>
             <p class="text-slate-600 mb-6 leading-relaxed">
-              Ces fourchettes sont issues de l'analyse de devis réels en France métropolitaine.
+              Ces fourchettes viennent de notre référentiel de prix, sourcé poste par poste.
               Les prix incluent la main-d'œuvre et les matériaux standards, hors déplacements exceptionnels.
               <strong>La zone géographique peut faire varier ces tarifs de ±20 %.</strong>
             </p>
@@ -237,7 +272,13 @@ const jsonLd = {
                 </tbody>
               </table>
             </div>
-            <p class="text-xs text-slate-400 mt-2">* Prix indicatifs TTC en France métropolitaine, incluant main-d'œuvre et matériaux. Mis à jour en 2026.</p>
+            <p class="text-xs text-slate-400 mt-2">
+              * Fourchettes <strong>hors taxes</strong>, France métropolitaine. Elles proviennent de
+              notre référentiel de prix de {CATALOGUE_TAILLE.toLocaleString('fr-FR')} postes, celui-là même qui sert à
+              analyser les devis — mis à jour le {referenceDatee}. Ajoutez la TVA applicable à votre
+              chantier (10 % en rénovation d'un logement de plus de deux ans, 5,5 % sur les travaux
+              d'amélioration énergétique, 20 % sinon) pour les comparer à un devis TTC.
+            </p>
           </section>
 
           <!-- CTA intermédiaire -->

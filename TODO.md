@@ -498,7 +498,12 @@ Demande Johan : « vérifie dans l'ensemble du site qu'il n'y ait pas de contrad
 - [ ] **`analyser-devis-travaux.astro:283` annonce « marché 65-75 €/m² » pour un carrelage standard** — une précision qui ne vient d'aucune de nos sources (catalogue 46-94). C'est une capture d'exemple, mais elle affiche le mot « marché ».
 - [ ] **Formulation ambiguë** (pas une erreur) : `budget-renovation` L12 donne « Rénovation moyenne : 600-1 000 €/m² » et L22 « Rénovation moyenne : 800-1 300 €/m² ». Le second est qualifié « maison ancienne » — défendable, mais le libellé identique se lit comme une contradiction.
 
-**Correctif proposé** : faire lire ces tableaux à une source unique plutôt que de les réécrire à la main — un module `src/lib/prix/reference.ts` qui expose les fourchettes depuis le catalogue au build, comme `statsPrix.ts` le fait pour l'observatoire. Sinon la divergence reviendra au prochain enrichissement du catalogue.
+✅ **Source unique livrée le 2026-09-08** (`src/lib/prix/reference.ts` + `scripts/prix/generate-reference.ts`, 18 postes, 9 tests). Les tableaux et FAQ de `prix-travaux-maison`, `budget-renovation` et l'exemple d'`analyser-devis-travaux` lisent désormais le catalogue au build. Cf. `CLAUDE.md` § « Une seule valorisation ». Ce qui reste :
+
+- [ ] **Décompositions de FAQ encore écrites à la main** dans `budget-renovation.astro` : « Combien coûte une rénovation de salle de bain ? » annonce un total de **6 400-16 800 €** et la cuisine **10 000-37 000 €**, quand le référentiel donne 3 900-9 100 € HT pour une SDB standard et 5 100-11 900 € HT pour une cuisine. L'écart s'explique sans doute par la TVA et l'équipement inclus — mais il n'est écrit nulle part, et les deux chiffres cohabitent sur le site. À reprendre avec un périmètre explicite (HT/TTC, équipement compris ou non).
+- [ ] **Ratios « €/m² de logement »** (250-400 rafraîchissement, 600-1 000 moyenne, 1 200-2 000 lourde, 1 500-2 500 neuf) : cohérents entre `budget-renovation` et `suivi-budget-travaux`, mais sans source citée. Soit on les source, soit on les présente comme un ordre de grandeur d'origine éditoriale.
+- [ ] **`budget-renovation` L13 vs L26** : « Rénovation moyenne 600-1 000 €/m² » puis « Rénovation moyenne 800-1 300 €/m² ». Le second est qualifié « maison ancienne » — défendable, mais le libellé identique se lit comme une contradiction. Renommer le second.
+- [ ] **Regénérer `reference.json` après chaque enrichissement du catalogue** (`npx tsx scripts/prix/generate-reference.ts`) — sinon les pages affichent l'état figé au dernier build. À câbler dans le cron hebdomadaire qui rafraîchit déjà l'observatoire.
 
 ---
 
