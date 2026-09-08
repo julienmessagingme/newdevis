@@ -102,27 +102,47 @@ const jsonLd = {
               <div class="flex flex-col gap-3 sm:gap-4 sm:flex-row justify-center lg:justify-start mb-8 sm:mb-10 px-2">
                 <a href="/nouvelle-analyse" class="w-full sm:w-auto group">
                   <button class="inline-flex items-center justify-center gap-2 w-full bg-white text-primary hover:bg-white/90 font-semibold px-6 py-3 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-base transition-colors">
-                    Voir si je paye trop cher →
-                    <!-- ArrowRight -->
+                    {/* 2026-09-08 (retour Johan) — « Voir si je paye trop cher » ne reprenait
+                        QUE la moitié de la promesse du titre (« trop cher… ou risqué ? »).
+                        C'est la dernière ligne lue avant le clic : le visiteur venu avec un
+                        doute sur l'entreprise — radiation, RGE, acompte de 50 % — ne s'y
+                        reconnaissait pas.
+                        « Savoir si je peux signer » nomme la décision réelle, englobe le prix
+                        ET le risque sans les énumérer, et reprend les mots du sous-titre
+                        (« signez, négociez ou refusez »).
+                        ⚠️ Écarté : « Vérifier mon devis », qui est le nom du site — le bouton
+                        se lirait comme un élément de navigation — et qui nomme la tâche là où
+                        il faut nommer le bénéfice.
+                        Non testable en A/B : à ~106 visiteurs/jour et 3,5 % de clic, détecter
+                        un gain de 20 % demanderait environ sept mois. Décidé au jugement.
+
+                        ⚠️ Ce commentaire est en accolades (style JSX) et non en commentaire
+                        HTML : dans un fichier .astro, un commentaire HTML est SERVI AU PUBLIC.
+                        Vérifié sur ce bloc même. Et ne jamais écrire la séquence de fermeture
+                        à l'intérieur du texte : elle refermerait le commentaire trop tôt et le
+                        reste s'afficherait dans le bouton — vécu ici même. */}
+                    Savoir si je peux signer
+                    {/* ArrowRight — la flèche est ici, pas dans le libellé : le texte portait
+                        un « → » en double de cette icône, seule à s'animer au survol. */}
                     <svg class="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M5 12h14M12 5l7 7-7 7"/>
                     </svg>
                   </button>
                 </a>
-                <!-- 2026-09-07 — le second bouton a été retiré d'à côté du CTA :
-                     il détournait du clic au moment exact où il faut cliquer.
-                     Il revient plus bas, en lien discret. -->
+                {/* 2026-09-07 — le second bouton a été retiré d'à côté du CTA :
+                    il détournait du clic au moment exact où il faut cliquer.
+                    Il revient plus bas, en lien discret. */}
               </div>
 
-              <!-- Micro-copy CTA
-                   2026-09-07 (décision Johan) — L'INSCRIPTION EST ASSUMÉE EN CLAIR.
-                   L'ancienne formule « Analyse immédiate · Compte gratuit pour le
-                   détail complet » était fausse : `/nouvelle-analyse` redirige vers
-                   `/inscription` tant qu'on n'a pas de compte. Le visiteur cliquait
-                   en attendant de déposer son PDF et tombait sur un formulaire.
-                   Mesuré le 06/09 : 151 visiteurs sur la home, 6 clics, 5 arrivées
-                   sur /inscription, 1 analyse. Annoncer le compte AVANT le clic
-                   coûte moins cher que de le découvrir après. -->
+              {/* Micro-copy CTA
+                  2026-09-07 (décision Johan) — L'INSCRIPTION EST ASSUMÉE EN CLAIR.
+                  L'ancienne formule « Analyse immédiate · Compte gratuit pour le
+                  détail complet » était fausse : `/nouvelle-analyse` redirige vers
+                  `/inscription` tant qu'on n'a pas de compte. Le visiteur cliquait
+                  en attendant de déposer son PDF et tombait sur un formulaire.
+                  Mesuré le 06/09 : 151 visiteurs sur la home, 6 clics, 5 arrivées
+                  sur /inscription, 1 analyse. Annoncer le compte AVANT le clic
+                  coûte moins cher que de le découvrir après. */}
               <p class="text-sm text-primary-foreground/75 text-center lg:text-left px-2 -mt-2 mb-4">
                 Création de compte en 30 secondes, puis analyse immédiate — gratuit.
               </p>
