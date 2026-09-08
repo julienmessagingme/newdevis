@@ -150,3 +150,31 @@ jobs:
         run: |
           gh workflow run vercel-ci-deploy.yml --ref main
           echo "Déploiement demandé — suivre dans l'onglet Actions."
+
+      - name: Vérifier qu'un déploiement est bien parti
+        if: steps.garde.outputs.ok == 'true' && steps.diff.outputs.change == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # ⚠️ Mesuré le 2026-09-08 : `vercel-ci-deploy.yml` se termine en 5 s (ses
+        # secrets VERCEL_* sont absents) — le déploiement qui aboutit vraiment
+        # vient de l'INTÉGRATION GIT de Vercel, qui réagit au webhook du push.
+        # Or rien ne garantit qu'elle accepte un commit signé par un bot : le
+        # dépôt est privé, et sur le plan Hobby Vercel a déjà refusé des commits
+        # dont l'auteur n'était pas le propriétaire du projet.
+        #
+        # Plutôt que de le supposer, on le VÉRIFIE : sans statut de déploiement
+        # au bout de cinq minutes, le workflow échoue bruyamment. Un échec rouge
+        # se voit ; des données à quai, non.
+        run: |
+          SHA=$(git rev-parse HEAD)
+          for i in $(seq 1 10); do
+            ETAT=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/status" --jq '.statuses[]?.context' 2>/dev/null | tr '\n' ' ')
+            if echo "$ETAT" | grep -qi vercel; then
+              echo "Déploiement pris en charge par Vercel (${ETAT})."
+              exit 0
+            fi
+            echo "Tentative ${i}/10 — aucun statut de déploiement pour ${SHA}…"
+            sleep 30
+          done
+          echo "::error::Aucun déploiement déclenché pour ${SHA} après 5 minutes. Les données rafraîchies sont dans le dépôt mais PAS en ligne. Cause probable : Vercel refuse un commit dont l'auteur est github-actions[bot]. Remède : renseigner les secrets VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID pour que vercel-ci-deploy.yml déploie vraiment."
+          exit 1
