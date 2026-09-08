@@ -11,8 +11,12 @@ import DisclaimerSection from '@/components/landing/DisclaimerSection';
 import CTASection from '@/components/landing/CTASection';
 import TrustpilotSection from '@/components/landing/TrustpilotSection';
 import BlogTeaser from '@/components/landing/BlogTeaser';
-import HowItWorksSection from '@/components/landing/HowItWorksSection';
-import WhatYouGetSection from '@/components/landing/WhatYouGetSection';
+// 2026-09-08 (retour Johan) — « Comment ça marche ? » + « Ce que vous obtenez »
+// fusionnés en un seul bloc : huit boîtes blanches quasi identiques dans deux
+// bandes grises, qui se répétaient l'une l'autre. Cf. DuDevisAuVerdict.tsx.
+// Sans directive client : le composant n'a ni état ni gestionnaire, donc HTML
+// rendu au build et zéro JS envoyé.
+import DuDevisAuVerdict from '@/components/landing/DuDevisAuVerdict';
 import SimulateurAidesCard from '@/components/homepage/SimulateurAidesCard';
 import SocialProofTicker from '@/components/homepage/SocialProofTicker';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
@@ -340,8 +344,7 @@ const jsonLd = {
       <SocialProofTicker client:visible />
 
       <div id="comment-ca-marche"></div>
-      <HowItWorksSection client:visible />
-      <WhatYouGetSection client:visible />
+      <DuDevisAuVerdict />
 
       <!-- ══ Vous préparez des travaux ? ══ -->
       <section class="py-16 sm:py-20 bg-white border-b border-slate-100">

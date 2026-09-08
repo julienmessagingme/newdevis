@@ -216,6 +216,40 @@ input[type='range']:focus::-webkit-slider-thumb {
     box-shadow: var(--card-shadow-lg);
   }
 
+  /* 2026-09-08 — le balayage de la fiche de résultat, page d'accueil
+     (DuDevisAuVerdict). UNE seule animation sur la page, et sur l'objet qu'elle
+     décrit : l'analyse en train de lire le devis. Décorative, donc `aria-hidden`
+     par construction (pseudo-élément) et coupée net si le visiteur a demandé
+     moins de mouvement. */
+  .vmd-scan::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    height: 34%;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      hsl(24 95% 53% / 0) 0%,
+      hsl(24 95% 53% / 0.14) 55%,
+      hsl(24 95% 53% / 0) 100%
+    );
+    animation: vmd-balayage 3.6s ease-in-out infinite;
+  }
+
+  @keyframes vmd-balayage {
+    0%, 8%    { transform: translateY(-40%); opacity: 0; }
+    18%       { opacity: 1; }
+    72%       { opacity: 1; }
+    82%, 100% { transform: translateY(320%); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vmd-scan::after {
+      animation: none;
+      opacity: 0;
+    }
+  }
+
   .score-badge-green {
     @apply bg-score-green-bg text-score-green-foreground border-score-green;
   }

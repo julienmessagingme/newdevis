@@ -869,6 +869,19 @@ Refonte du hero après audit concurrentiel. **Contexte qui commande tout** : mes
 - 🔴 **L’INSCRIPTION EST ANNONCÉE AVANT LE CLIC.** L’ancienne micro-copie disait « Analyse immédiate · Compte gratuit pour le détail complet » — **c’était faux** : `/nouvelle-analyse` redirige vers `/inscription` sans compte (règle du hard signup du 2026-05-11). Le visiteur cliquait en pensant déposer son PDF et tombait sur un formulaire. Elle dit désormais « Création de compte en 30 secondes, puis analyse immédiate — gratuit ». Décision Johan : **on assume le mur, on ne le déguise pas.**
 - Emojis retirés des arguments (ils doublaient les coches SVG et desservaient une promesse de rigueur) ; le bouton secondaire « Qu’est-ce qui est analysé ? » quitte le voisinage du CTA — il détournait du clic au moment de cliquer — et revient en lien discret sous les arguments, avec la mention de la **relecture humaine**.
 
+### Milieu de la home — un bloc au lieu de huit boîtes (2026-09-08)
+
+Retour Johan : *« cette partie du site est un peu triste, ne se démarque pas »*. Le fond gris n’était pas seul en cause : « Comment ça marche ? » puis « Ce que vous obtenez » empilaient **huit boîtes blanches quasi identiques** — même rayon, même bordure, même ombre — dans deux bandes grises successives. Rien ne ressortait parce que tout ressortait pareil. Les deux composants sont remplacés par [`DuDevisAuVerdict.tsx`](src/components/landing/DuDevisAuVerdict.tsx) : le parcours à gauche, **un exemple de résultat à droite**.
+
+- **La redondance était la vraie cause.** L’étape « Verdict clair + arguments prêts » et les cartes « Verdict global » / « Arguments pour négocier » disaient la même chose à trois écrans d’écart. Fusionner supprime le doublon ; ajouter de la couleur ne l’aurait pas fait.
+- **On MONTRE la sortie au lieu de la décrire.** C’est le seul actif incopiable de la page — un comparateur peut recopier nos arguments, pas nos fourchettes. Les références affichées dans l’exemple viennent de [`prix/reference`](src/lib/prix/reference.ts) : **si le catalogue bouge, l’exemple ne devient pas faux**.
+- ⚠️ **La fiche est un exemple FABRIQUÉ et la page le dit** (« Exemple illustratif »). Ne jamais la faire passer pour l’analyse d’un vrai client, et ne jamais y mettre de données réelles.
+- **Emojis retirés** (🔍 💶 📋 🏢 ⚠️) : ce sont les mêmes qu’au hero le 07/09 — ils desservent une promesse de rigueur.
+- **Une seule animation, sur l’objet qu’elle décrit** : `.vmd-scan` (`index.css`) fait passer un balayage orange sur la fiche — l’analyse en train de lire le devis. Coupée sous `prefers-reduced-motion`.
+- **Rendu SANS directive client** : le composant n’a ni état ni gestionnaire, donc HTML au build et zéro JS. Y ajouter la moindre interactivité obligerait à repasser en île.
+- ⚠️ **Piège corrigé au passage : `id="comment-ca-marche"` était EN DOUBLE** — `index.astro` pose un div d’ancrage (pour que le header collant ne recouvre pas le titre) et l’ancien `HowItWorksSection` portait le même id sur sa section. Le lien du menu sautait donc sur le premier, qui est vide. L’id reste sur le div, jamais sur la section.
+- `HowItWorksSection.tsx` et `WhatYouGetSection.tsx` sont conservés : ils sont encore référencés par `src/components/pages/Index.tsx`, une home React **orpheline** (importée nulle part). À supprimer ensemble un jour.
+
 ### Une seule valorisation dans tout le site (2026-09-08)
 
 Règle Johan : *« il ne peut pas y avoir 2 valorisations différentes dans un même site. »* L’audit du 07/09 en a trouvé partout — peinture « 15 à 35 €/m² » sur une page et « 30 à 60 » sur une autre, quand le catalogue dit 18-65 ; carrelage « 50-130 » contre « 90-170 » alors que le catalogue plafonne à 94 €. Des tableaux écrits à la main divergent un peu plus à chaque enrichissement du catalogue : aucune discipline ne tient sur la durée.
