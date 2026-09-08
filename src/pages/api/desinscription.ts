@@ -17,11 +17,14 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
+import { resendApiKey } from "@/lib/integrations/resendKey";
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL;
 const serviceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-const resendKey = import.meta.env.RESEND_API_KEY_VMD || import.meta.env.RESEND_API_KEY;
+// 2026-09-08 — lecture au RUNTIME : `import.meta.env` etait inline a
+// `undefined` au build, et tout le bloc d'envoi disparaissait du bundle.
+const resendKey = resendApiKey();
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 

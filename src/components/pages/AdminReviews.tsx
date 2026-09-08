@@ -227,6 +227,17 @@ function ReviewDetail({
         setError(err.error || "Erreur API");
         return;
       }
+      // 2026-09-08 — La décision est enregistrée, mais l'utilisateur a-t-il été
+      // PRÉVENU ? Julien n'a rien reçu le 06/09 et l'écran ne le disait pas :
+      // un envoi qui échoue en silence est pire que pas d'envoi, on croit la
+      // personne informée. La raison remonte désormais de l'API.
+      const json = await res.json().catch(() => null);
+      const notif = json?.data?.notification ?? json?.notification;
+      if (notif && !notif.ok) {
+        setError(
+          `Décision enregistrée, mais l'utilisateur n'a PAS été prévenu — ${notif.raison}`,
+        );
+      }
       onActionComplete();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur réseau");

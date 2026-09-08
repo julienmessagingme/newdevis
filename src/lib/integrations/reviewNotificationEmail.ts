@@ -12,7 +12,21 @@
 // Best-effort : ne throw jamais. Si Resend plante, on log + on retourne false.
 // ============================================================
 
+import { resendApiKey, diagnosticCleResend } from "./resendKey";
+
 export type ReviewAction = "validated" | "corrected" | "rejected";
+
+/**
+ * Le resultat de l envoi, avec sa RAISON.
+ *
+ * Un booleen ne suffisait pas : quand Julien n a rien recu le 06/09, rien ne
+ * permettait de dire si la cle manquait, si Resend avait refuse, ou si le mail
+ * etait parti en indesirables. La raison remonte jusqu a l ecran de revue.
+ */
+export interface ResultatEnvoi {
+  ok: boolean;
+  raison: string;
+}
 
 export interface ReviewEmailInput {
   toEmail: string;
@@ -154,16 +168,22 @@ function buildHtml(input: ReviewEmailInput): string {
  * Best-effort : ne throw jamais. Retourne `true` si Resend a accepté la requête,
  * `false` sinon. À appeler en fire-and-forget après le UPDATE analyses.
  */
-export async function sendReviewNotificationEmail(input: ReviewEmailInput): Promise<boolean> {
-  const RESEND_API_KEY =
-    process.env.RESEND_API_KEY_VMD ?? process.env.RESEND_API_KEY ?? "";
+export async function sendReviewNotificationEmail(
+  input: ReviewEmailInput,
+): Promise<ResultatEnvoi> {
+  // ⚠️ Lecture au RUNTIME via `resendApiKey()`, jamais `import.meta.env` :
+  // Vite inline cette dernière au build et supprime tout le bloc d'envoi.
+  // Trois routes du projet en étaient mortes sans que rien ne le signale.
+  const RESEND_API_KEY = resendApiKey();
   if (!RESEND_API_KEY) {
-    console.warn("[reviewEmail] RESEND_API_KEY manquant — email non envoyé");
-    return false;
+    const raison = diagnosticCleResend();
+    console.warn(`[reviewEmail] email NON envoyé — ${raison}`);
+    return { ok: false, raison };
   }
   if (!input.toEmail || !input.toEmail.includes("@")) {
-    console.warn(`[reviewEmail] email destinataire invalide : "${input.toEmail}"`);
-    return false;
+    const raison = `adresse destinataire invalide : « ${input.toEmail} »`;
+    console.warn(`[reviewEmail] ${raison}`);
+    return { ok: false, raison };
   }
 
   const subject = SUBJECT_BY_ACTION[input.action];
@@ -189,15 +209,20 @@ export async function sendReviewNotificationEmail(input: ReviewEmailInput): Prom
       }),
     });
     if (!res.ok) {
-      console.error(`[reviewEmail] Resend ${res.status}:`, await res.text());
-      return false;
+      // Le corps de la réponse porte la vraie cause — domaine non vérifié, clé
+      // révoquée, destinataire refusé. Sans lui, « échec » n'aide personne.
+      const detail = (await res.text()).slice(0, 300);
+      const raison = `Resend a refusé (HTTP ${res.status}) : ${detail}`;
+      console.error(`[reviewEmail] ${raison}`);
+      return { ok: false, raison };
     }
     console.log(
       `[reviewEmail] envoyé à ${input.toEmail} (action=${input.action}, analysis=${input.analysisId.slice(0, 8)})`,
     );
-    return true;
+    return { ok: true, raison: `envoyé à ${input.toEmail}` };
   } catch (e) {
-    console.error("[reviewEmail] fetch failed:", e instanceof Error ? e.message : String(e));
-    return false;
+    const raison = `appel à Resend impossible : ${e instanceof Error ? e.message : String(e)}`;
+    console.error(`[reviewEmail] ${raison}`);
+    return { ok: false, raison };
   }
 }

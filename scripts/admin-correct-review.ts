@@ -227,10 +227,13 @@ async function main(): Promise<void> {
           verdictDecisionnel: patched.verdict_decisionnel ?? verdictDecisionnel,
           verdictGlobal: patched.verdict_global ?? verdictGlobal,
         });
+        // `sent` porte désormais la RAISON, pas un simple booléen : un objet est
+        // toujours vrai, donc l'ancien test aurait affiché « envoyé » même en
+        // cas d'échec.
         console.log(
-          sent
+          sent.ok
             ? `✓ Email envoyé à ${recipient.email}`
-            : `⚠️  Email NON envoyé (cf. logs au-dessus)`,
+            : `⚠️  Email NON envoyé — ${sent.raison}`,
         );
       } else {
         console.log("⏭  Pas d'email sur le compte user → email skippé");

@@ -8,12 +8,14 @@ import { subPeriodEndISO, gmcStatusFromStripe, invoiceSubscriptionId } from '@/l
 // Module de templates email PUR (aucun import Deno) -> importable cote Astro/Vercel comme cote edge function.
 import { renderGmcEmail } from '../../../supabase/functions/_shared/gmc-emails';
 import { captureError } from '@/lib/integrations/errorReporter';
+import { resendApiKey } from '@/lib/integrations/resendKey';
 
 const stripeSecretKey = import.meta.env.STRIPE_SECRET_KEY;
 const webhookSecret = import.meta.env.STRIPE_WEBHOOK_SECRET;
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-const resendApiKey = import.meta.env.RESEND_API_KEY;
+// 2026-09-08 — lecture au RUNTIME (cf. src/lib/integrations/resendKey.ts).
+const resendApiKeyValue = resendApiKey();
 
 // Trace un passage de statut dans la timeline "Mon abonnement". Best-effort, jamais bloquant.
 async function logGmcEvent(
@@ -33,7 +35,7 @@ async function logGmcEvent(
 // Si le cron l'a deja envoye -> conflit -> skip. Si l'envoi Resend echoue -> rollback du log -> le cron reprendra.
 // L'ancre des emails payants suivants (paid_onboard J+2, paid_checkin J+14) = le sent_at de cette ligne.
 async function sendGmcPaidWelcome(supabase: SupabaseClient, userId: string): Promise<void> {
-  if (!resendApiKey) return; // pas de cle Resend cote Vercel -> on laisse le cron s'en charger
+  if (!resendApiKeyValue) return; // pas de cle Resend cote Vercel -> on laisse le cron s'en charger
   try {
     const { data: ins, error: insErr } = await supabase
       .from('gmc_email_log')
@@ -62,7 +64,7 @@ async function sendGmcPaidWelcome(supabase: SupabaseClient, userId: string): Pro
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${resendApiKeyValue}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'GererMonChantier <bonjour@gerermonchantier.fr>',
         to: [email],

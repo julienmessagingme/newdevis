@@ -292,6 +292,15 @@ export const POST: APIRoute = async ({ request, params }) => {
   // return → on AWAIT volontairement (fire-and-forget pur perdrait l'email).
   // Le pattern await ici reste fiable car Resend répond généralement en < 300ms.
   // L'envoi ne peut JAMAIS faire échouer la décision admin (try/catch + best-effort).
+  // 2026-09-08 — La raison remonte jusqu'à l'écran de revue. Julien n'a rien
+  // reçu le 06/09 et rien ne permettait de dire pourquoi : clé absente ? refus
+  // de Resend ? indésirables ? Un envoi silencieux qui échoue est pire qu'une
+  // absence d'envoi — on croit l'utilisateur prévenu.
+  let notification: { ok: boolean; raison: string } = {
+    ok: false,
+    raison: "aucun destinataire (analyse sans utilisateur)",
+  };
+
   try {
     if (analysis.user_id) {
       const { data: userData } = await supabase.auth.admin.getUserById(analysis.user_id);
@@ -300,7 +309,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       const prenom =
         (meta.first_name || (meta.full_name || meta.name || "").split(" ")[0] || "").trim() || null;
       if (recipient?.email) {
-        await sendReviewNotificationEmail({
+        notification = await sendReviewNotificationEmail({
           toEmail: recipient.email,
           prenom,
           fileName: analysis.file_name ?? null,
@@ -310,13 +319,19 @@ export const POST: APIRoute = async ({ request, params }) => {
             (conclusionToPersist as any)?.verdict_decisionnel ?? correctedVerdictDecisionnel,
           verdictGlobal: (conclusionToPersist as any)?.verdict_global ?? correctedVerdictGlobal,
         });
+      } else {
+        notification = {
+          ok: false,
+          raison: "le compte de cet utilisateur n'a pas d'adresse email",
+        };
       }
     }
   } catch (e) {
-    console.error(
-      "[decide.ts] notification email failed:",
-      e instanceof Error ? e.message : String(e),
-    );
+    notification = {
+      ok: false,
+      raison: e instanceof Error ? e.message : String(e),
+    };
+    console.error("[decide.ts] notification email failed:", notification.raison);
     // pas de propagation : la décision admin reste OK même si l'email a échoué
   }
 
@@ -324,6 +339,9 @@ export const POST: APIRoute = async ({ request, params }) => {
     success: true,
     action,
     review_status: newReviewStatus,
+    // L'écran de revue l'affiche : sans cette information, on ne sait pas si
+    // l'utilisateur a réellement été prévenu.
+    notification,
   });
 };
 

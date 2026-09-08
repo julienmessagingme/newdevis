@@ -2,12 +2,15 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
+import { resendApiKey } from '@/lib/integrations/resendKey';
 
 const JSON_HEADERS: Record<string, string> = { 'Content-Type': 'application/json' };
 
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-const RESEND_API_KEY = import.meta.env.RESEND_API_KEY;
+// 2026-09-08 — lecture au RUNTIME : verifie sur le build du 08/09, ce fichier
+// ne contenait plus AUCUNE occurrence de Resend une fois bundle.
+const RESEND_API_KEY = resendApiKey();
 const ADMIN_EMAILS = ['julien@messagingme.fr', 'bridey.johan@gmail.com'];
 
 function clip(s: unknown, max: number): string | null {
