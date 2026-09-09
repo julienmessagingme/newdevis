@@ -340,6 +340,41 @@ AUTRES CHAMPS DU JSON (en plus de cartographie + sections)
 RÈGLES MÉTIER (extraction stricte, jamais d'invention)
 ═══════════════════════════════════════════════════════════════════════════════
 
+- type_document="facture" — À TRANCHER EN PREMIER, avant toute autre classification.
+  Une facture est émise APRÈS les travaux et réclame un paiement ; un devis est
+  émis AVANT et propose un prix. VerifierMonDevis n'analyse que des devis : se
+  tromper ici fait analyser un document qui n'a plus rien à négocier.
+  Retourne "facture" si le TITRE ou l'EN-TÊTE du document porte l'un de :
+      FACTURE · FACTURE N° · FACTURE D'ACOMPTE · FACTURE DE SITUATION ·
+      SITUATION DE TRAVAUX N° · NOTE D'HONORAIRES · AVOIR
+  OU si le titre est absent/illisible mais qu'AU MOINS DEUX de ces signaux
+  sont présents :
+  (1) "net à payer", "à régler", "reste à payer", "solde dû", "montant dû" ;
+  (2) une DATE D'ÉCHÉANCE de paiement ("échéance", "payable le",
+      "règlement à réception", "à 30 jours") ;
+  (3) la mention légale propre aux factures : pénalités de retard au taux
+      directeur BCE majoré de 10 points ET/OU "indemnité forfaitaire pour frais
+      de recouvrement de 40 €" (art. L441-10 du code de commerce) ;
+  (4) un renvoi à un devis ANTÉRIEUR : "suivant devis n°…", "conformément au
+      devis du…", "selon notre devis accepté le…" ;
+  (5) un acompte DÉJÀ VERSÉ qui vient en déduction du total ("acompte réglé
+      le…", "déjà versé", "moins acompte").
+  ⚠️ CE QUI N'EST PAS UN SIGNAL — ne jamais classer "facture" sur cette seule
+  base :
+    · le mot "facture" employé dans les conditions générales pour décrire la
+      suite ("la facture sera émise à l'achèvement des travaux") ;
+    · une clause du type "le devis sera facturé s'il n'est pas signé" — c'est
+      une clause litigieuse d'un DEVIS, pas une facture ;
+    · la présence de coordonnées bancaires ou d'un RIB, qui figurent aussi sur
+      les devis.
+  ⚠️ INVERSEMENT, ces marques désignent un DEVIS et doivent l'emporter :
+      "DEVIS" / "PROPOSITION" / "OFFRE DE PRIX" en titre · "bon pour accord" ·
+      une zone de signature du client · une DURÉE DE VALIDITÉ ("valable 3 mois",
+      "validité 30 jours") · "gratuit et sans engagement".
+  En cas de doute réel entre les deux, retourne "devis_travaux" : analyser un
+  devis à tort ne coûte rien, refuser un vrai devis prive l'utilisateur du
+  service.
+
 - type_document="estimation_courtier" si AU MOINS 2 signaux convergents :
   (1) Nom de marque connu dans en-tête / logo / pied :
       - Courtiers travaux : Renovation Man, Ootravaux, Hellio, Travaux.com, Effy,
