@@ -150,7 +150,8 @@ function ReviewDetail({
   onActionComplete,
 }: {
   detail: ReviewDetail;
-  onActionComplete: () => void;
+  /** Reçoit le sort de la notification pour que le PARENT l'affiche. */
+  onActionComplete: (notification: { ok: boolean; raison: string }) => void;
 }) {
   const [mode, setMode] = useState<"view" | "correct">("view");
   const [notes, setNotes] = useState("");
@@ -227,18 +228,23 @@ function ReviewDetail({
         setError(err.error || "Erreur API");
         return;
       }
-      // 2026-09-08 — La décision est enregistrée, mais l'utilisateur a-t-il été
-      // PRÉVENU ? Julien n'a rien reçu le 06/09 et l'écran ne le disait pas :
-      // un envoi qui échoue en silence est pire que pas d'envoi, on croit la
-      // personne informée. La raison remonte désormais de l'API.
+      // 2026-09-08/09 — La décision est enregistrée, mais l'utilisateur a-t-il
+      // été PRÉVENU ? Un envoi qui échoue en silence est pire que pas d'envoi :
+      // on croit la personne informée.
+      //
+      // 🔴 CORRECTIF DU 09/09 — le message était posé ici en état LOCAL, puis
+      // `onActionComplete()` faisait `setDetail(null)` : ce composant se
+      // démontait dans le même tick et le message n'était JAMAIS affiché. Il
+      // remonte donc au parent, qui survit. Et il s'affiche AUSSI en cas de
+      // succès : sans confirmation visible, « rien ne s'affiche » se confond
+      // avec « rien ne s'est passé ».
       const json = await res.json().catch(() => null);
       const notif = json?.data?.notification ?? json?.notification;
-      if (notif && !notif.ok) {
-        setError(
-          `Décision enregistrée, mais l'utilisateur n'a PAS été prévenu — ${notif.raison}`,
-        );
-      }
-      onActionComplete();
+      onActionComplete(
+        notif
+          ? { ok: Boolean(notif.ok), raison: String(notif.raison ?? "") }
+          : { ok: false, raison: "l'API n'a rien répondu sur la notification" },
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur réseau");
     } finally {
@@ -686,6 +692,14 @@ export default function AdminReviews() {
   const [count, setCount] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
+  /**
+   * Sort de la notification de la dernière décision. Affiché en bandeau, en
+   * SUCCÈS comme en ÉCHEC : ne rien montrer quand tout va bien rend l'absence
+   * de message indistinguable d'une panne — c'est ce qui s'est passé le 09/09.
+   */
+  const [notifDerniereAction, setNotifDerniereAction] = useState<
+    { ok: boolean; raison: string } | null
+  >(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -765,12 +779,19 @@ export default function AdminReviews() {
     else setDetail(null);
   }, [selectedId, fetchDetail]);
 
-  const onActionComplete = useCallback(() => {
-    // Refetch + désélection
-    setSelectedId(null);
-    setDetail(null);
-    fetchReviews();
-  }, [fetchReviews]);
+  const onActionComplete = useCallback(
+    (notification?: { ok: boolean; raison: string }) => {
+      // Le bandeau vit ICI, pas dans le panneau de détail : ce dernier est
+      // démonté à la ligne suivante, un message posé dans son état local ne
+      // s'afficherait jamais (défaut vécu, corrigé le 09/09).
+      if (notification) setNotifDerniereAction(notification);
+      // Refetch + désélection
+      setSelectedId(null);
+      setDetail(null);
+      fetchReviews();
+    },
+    [fetchReviews],
+  );
 
   if (loading) return <AdminLoading />;
   if (!isAdmin || error) return <AdminAccessDenied />;
@@ -794,6 +815,40 @@ export default function AdminReviews() {
             <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} /> Rafraîchir
           </button>
         </div>
+
+        {/* Sort de la notification de la dernière décision — visible dans les
+            DEUX cas. Sans le cas « envoyé », on ne peut pas distinguer un
+            succès d'un écran muet. */}
+        {notifDerniereAction && (
+          <div
+            className={`mb-5 rounded-lg border px-4 py-3 text-sm flex items-start justify-between gap-4 ${
+              notifDerniereAction.ok
+                ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                : "bg-rose-50 border-rose-200 text-rose-900"
+            }`}
+          >
+            <span>
+              {notifDerniereAction.ok ? (
+                <>
+                  <strong>Décision enregistrée et utilisateur prévenu</strong> —{" "}
+                  {notifDerniereAction.raison}
+                </>
+              ) : (
+                <>
+                  <strong>Décision enregistrée, mais l'utilisateur n'a PAS été prévenu</strong> —{" "}
+                  {notifDerniereAction.raison}
+                </>
+              )}
+            </span>
+            <button
+              onClick={() => setNotifDerniereAction(null)}
+              aria-label="Masquer le message"
+              className="shrink-0 opacity-60 hover:opacity-100"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6">
           {/* Liste */}
