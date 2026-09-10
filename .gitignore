@@ -52,3 +52,4 @@ fm.cjs
 .astro/
 supabase/.temp/
 scratch/
+.cache-rejeu/
