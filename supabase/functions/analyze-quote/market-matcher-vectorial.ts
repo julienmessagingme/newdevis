@@ -265,6 +265,54 @@ const QUALIFICATIFS_TARIF = new Set([
 const PORTEE_TOTALE_RE =
   /r[ée]fection\s+(totale?|compl[eè]te)|installation\s+compl[eè]te|totalit[ée]\s+d|tout\s+le\s+(logement|b[âa]timent)/i;
 
+/**
+ * 2026-09-10 (décision Johan) — UNE PRESTATION INTELLECTUELLE NE SE CHIFFRE PAS
+ * AU CATALOGUE.
+ *
+ * Maîtrise d'œuvre, bureau d'études, honoraires, permis de construire, suivi de
+ * chantier, géomètre : leur prix dépend du chantier — un pourcentage du montant
+ * des travaux, le plus souvent — pas d'un tarif unitaire. Les rapprocher d'une
+ * entrée du catalogue fabrique des écarts absurdes. Le cas d'origine, en mai :
+ * une mission de maîtrise d'œuvre à 4 706 € comparée à un « diagnostic
+ * immobilier » à 250 €, d'où une anomalie annoncée de +4 500 €.
+ *
+ * Une garde équivalente existait dans le matcher V3.6 (`isNonWorkSignature`).
+ * **Elle n'a jamais été reportée lors du passage au matcher vectoriel en mai** :
+ * ces lignes cherchent donc un prix depuis quatre mois. La relecture du
+ * 2026-09-10 l'a rendue visible — BET et étude de structure, géomètre, suivi de
+ * travaux et démarches administratives figurent parmi les lignes que les deux
+ * juges ont déclarées sans aucune correspondance possible.
+ *
+ * ⚠️ LA LISTE DE MAI EST PÉRIMÉE ET NE DOIT PAS ÊTRE RECOPIÉE. Elle bloquait
+ * « diagnostic », « audit » et « expertise » — or le catalogue compte désormais
+ * **24 diagnostics réglementaires avec de vrais prix** (DPE 90-220 €, amiante
+ * 80-180 €, mesurage Carrez 70-150 €, étude thermique RE2020 400-1 200 €…).
+ * Les bloquer détruirait des rapprochements justes. On n'écarte donc QUE
+ * l'immatériel dont le prix dépend du chantier — et « étude » seul n'est pas
+ * bloquant, pour cette raison exacte.
+ */
+const PRESTATION_INTELLECTUELLE_RE = new RegExp(
+  [
+    "ma[îi]trise\\s+d?['’]?\\s*(œuvre|oeuvre)", "\\bmoe\\b", "architecte", "architectural",
+    "bureau\\s+d['’]?\\s*[ée]tudes?", "\\bbet\\b",
+    "[ée]tude\\s+(de\\s+)?(sol|structure|structurelle|faisabilit[ée]|b[ée]ton|d['’]ex[ée]cution|g[ée]otechnique)",
+    "avant[-\\s]projet", "\\baps\\b", "\\bapd\\b", "plans?\\s+ex[ée]",
+    "\\bamo\\b", "\\bopc\\b", "coordination\\s+sps", "\\bsps\\b",
+    "ing[ée]nierie", "honoraires",
+    "permis\\s+de\\s+construire", "d[ée]claration\\s+pr[ée]alable", "d[ée]marches?\\s+administratives?",
+    // ⚠️ « suivi DES travaux » est la forme la plus courante sur les devis :
+    // n'accepter que « de » ratait le cas réel qui a motivé la garde.
+    "suivi\\s+(de\\s+|du\\s+|des\\s+|de\\s+la\\s+)?(chantier|travaux|r[ée]alisation)",
+    "conduite\\s+de\\s+travaux",
+    "g[ée]om[èe]tre", "relev[ée]\\s+topographique", "polygonale",
+  ].join("|"),
+  "i",
+);
+
+export function estPrestationIntellectuelle(description: string): boolean {
+  return PRESTATION_INTELLECTUELLE_RE.test(description ?? "");
+}
+
 export function hasStrongLexicalMatch(devisDesc: string, catalogLabel: string): boolean {
   const labelSansQualif = catalogLabel.replace(/\(.*?\)/g, " ");
   // Singulier / pluriel : le catalogue dit « murs et plafonds », le devis dit
@@ -648,6 +696,19 @@ export async function matchSingleLineVectorial(
    *  rejeter la ligne « Local technique » d'un vrai devis de piscine. */
   contextHint?: string | null,
 ): Promise<LineMatchResult> {
+  // ── Garde 0 — prestation intellectuelle : rien à comparer ────────────────
+  // Placée AVANT l'embedding : inutile de payer un appel Gemini pour une ligne
+  // qu'aucune entrée ne peut chiffrer.
+  if (estPrestationIntellectuelle(workItem.description ?? "")) {
+    console.log(
+      `[VectorialMatch] prestation intellectuelle écartée : "${(workItem.description ?? "").slice(0, 60)}"`,
+    );
+    return {
+      workItemIndex,
+      result: buildNoMatchResult(workItem, workItemIndex, "prestation_intellectuelle"),
+    };
+  }
+
   const text = buildQueryEmbeddingText(workItem);
 
   // 1. Embed la ligne devis

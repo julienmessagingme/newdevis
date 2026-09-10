@@ -23,21 +23,27 @@ import {
   lookupMarketPricesVectorial,
   type VectorialJobTypePriceResult,
   hasStrongLexicalMatch,
+  estPrestationIntellectuelle,
   isExclusiveMetierMismatch,
 } from "./market-matcher-vectorial.ts";
 import type { WorkItemFull } from "./market-prices.ts";
 
 let passed = 0, failed = 0;
 function test(name: string, fn: () => void | Promise<void>) {
-  const result = fn();
-  if (result instanceof Promise) {
-    return result.then(
-      () => { console.log(`  ✓ ${name}`); passed++; },
-      (e) => { console.error(`  ✗ ${name}\n    ${(e as Error).message}`); failed++; },
-    );
-  }
-  try { console.log(`  ✓ ${name}`); passed++; }
-  catch (e) { console.error(`  ✗ ${name}\n    ${(e as Error).message}`); failed++; }
+  // ⚠️ fn() est appelée DANS le try. Jusqu'au 2026-09-10 elle l'était au-dessus :
+  // un échec SYNCHRONE tuait tout le fichier au lieu d'être compté, et il ne
+  // restait qu'une pile d'appels à l'écran. La suite ne « passait » que tant
+  // qu'elle passait — un test rouge ne se voyait pas, il faisait planter.
+  try {
+    const result = fn();
+    if (result instanceof Promise) {
+      return result.then(
+        () => { console.log(`  ✓ ${name}`); passed++; },
+        (e) => { console.error(`  ✗ ${name}\n    ${(e as Error).message}`); failed++; },
+      );
+    }
+    console.log(`  ✓ ${name}`); passed++;
+  } catch (e) { console.error(`  ✗ ${name}\n    ${(e as Error).message}`); failed++; }
 }
 function assertEq<T>(actual: T, expected: T, msg = "") {
   if (JSON.stringify(actual) !== JSON.stringify(expected))
@@ -67,6 +73,48 @@ await test("hasStrongLexicalMatch — fourniture de colle vs pose carrelage → 
 });
 await test("hasStrongLexicalMatch — plomberie suivant plan vs petite intervention → REFUSE (couverture < 80%)", () => {
   assertEq(hasStrongLexicalMatch("Plomberie, Sanitaire (suivant plan)", "Plomberie : petite intervention"), false);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("[estPrestationIntellectuelle — 2026-09-10]");
+
+// Cas réels du stock, écartés à raison : leur prix dépend du chantier.
+for (const [libelle] of [
+  ["BET Scan 3 d et étude structure plans exe"],
+  ["DV817 - ETUDE STRUCTURE OUVERTURE MUR PORTEUR"],
+  ["Démarches administratives: Déclaration préalable auprès de la mairie"],
+  ["Constitution du permis de construire"],
+  ["Implantation géomètre"],
+  ["- Calcul de la polygonale et des points de détail"],
+  ["Honoraires de maîtrise d'œuvre"],
+  ["Temps estimé pour le suivi des travaux"],
+] as const) {
+  await test(`écartée : ${libelle.slice(0, 46)}`, () => {
+    assertEq(estPrestationIntellectuelle(libelle), true);
+  });
+}
+
+// ⚠️ LE CONTRÔLE QUI COMPTE : le catalogue contient 24 diagnostics
+// réglementaires AVEC de vrais prix. La liste de mai les bloquait tous ; les
+// recopier détruirait des rapprochements justes.
+for (const [libelle] of [
+  ["Diagnostic amiante avant travaux"],
+  ["Étude thermique RE2020"],
+  ["Audit énergétique RGE"],
+  ["Expertise bâtiment / façade"],
+  ["Mesurage loi Carrez"],
+  ["Diagnostic de performance énergétique (DPE)"],
+] as const) {
+  await test(`CONSERVÉE (chiffrable au catalogue) : ${libelle.slice(0, 40)}`, () => {
+    assertEq(estPrestationIntellectuelle(libelle), false);
+  });
+}
+
+// Et les vrais travaux ne doivent évidemment jamais être touchés.
+await test("travaux ordinaires — jamais écartés", () => {
+  assertEq(estPrestationIntellectuelle("Fourniture et pose de gouttière aluminium 12 ml"), false);
+  assertEq(estPrestationIntellectuelle("Ouverture mur porteur avec pose IPN"), false);
+  assertEq(estPrestationIntellectuelle("Béton armé pour semelle filante"), false);
 });
 
 // ── 2026-09-10 — qualificatifs de tarif ignorés ─────────────────────────────
