@@ -226,6 +226,45 @@ function significantTokens(text: string): Set<string> {
  * Les qualificatifs entre parenthèses du libellé sont ignorés : « (fourni+posé) »
  * ou « (préparation peinture) » précisent le tarif, ils ne nomment pas l'ouvrage.
  */
+/**
+ * 2026-09-10 — Mots qui qualifient le TARIF, pas l'ouvrage.
+ *
+ * « Tableau électrique **neuf** » et « Tableau électrique 4 rangées norme NFC
+ * 15-100 » désignent la même chose ; le mot « neuf » précise à quel tarif on
+ * se réfère, il ne nomme pas ce qui est posé. Aucun artisan ne l'écrit sur sa
+ * ligne, et son absence faisait échouer la couverture à 2/3 au lieu de 2/2.
+ *
+ * ⚠️ Liste VOLONTAIREMENT courte, et à garder telle. Chaque mot retiré rend la
+ * promotion plus permissive : ne peuvent y figurer que des mots dont l'absence
+ * ne change pas la NATURE de l'ouvrage. « rénovation », « extérieur »,
+ * « métallique » ou « bois » n'y ont pas leur place — ils distinguent des
+ * tarifs réellement différents.
+ */
+const QUALIFICATIFS_TARIF = new Set([
+  "neuf", "neuve", "complet", "complete", "standard", "simple", "basique",
+  "classique", "unitaire", "unite", "installation", "creation", "ajout",
+  "existant", "seul", "petite", "grande", "gamme", "entree", "haut",
+  "logement", "habitation",
+]);
+
+/**
+ * 2026-09-10 — Une ligne qui annonce un LOT ENTIER ne se compare pas au tarif
+ * d'un de ses composants.
+ *
+ * Mesuré : « Réfection totale du système électrique : installation… » (5 378 €)
+ * se promouvait sur « Tableau électrique neuf ». Les mots concordent — le
+ * tableau fait bien partie de la réfection — mais le périmètre n'a rien à voir,
+ * et la comparaison aurait produit un faux écart sur le poste le plus lourd du
+ * lot de nouvelles promotions.
+ *
+ * ⚠️ « l'ensemble de… » a été RETIRÉ de cette liste après mesure : la tournure
+ * dit le plus souvent l'étendue d'une prestation unique (« réalisation de
+ * l'ensemble de la peinture plafond »), pas un lot multi-métiers. Elle faisait
+ * perdre trois promotions justes pour en bloquer une douteuse.
+ */
+const PORTEE_TOTALE_RE =
+  /r[ée]fection\s+(totale?|compl[eè]te)|installation\s+compl[eè]te|totalit[ée]\s+d|tout\s+le\s+(logement|b[âa]timent)/i;
+
 export function hasStrongLexicalMatch(devisDesc: string, catalogLabel: string): boolean {
   const labelSansQualif = catalogLabel.replace(/\(.*?\)/g, " ");
   // Singulier / pluriel : le catalogue dit « murs et plafonds », le devis dit
@@ -242,8 +281,27 @@ export function hasStrongLexicalMatch(devisDesc: string, catalogLabel: string): 
   if (descTokens.size === 0) return false;
   // Le concept principal (premier mot significatif) doit être présent.
   if (!descTokens.has(labelTokens[0])) return false;
-  const couverts = labelTokens.filter((t) => descTokens.has(t)).length;
-  if (couverts / labelTokens.length < 0.8) return false;
+
+  const couvre = (liste: string[]) =>
+    liste.length > 0 && liste.filter((t) => descTokens.has(t)).length / liste.length >= 0.8;
+
+  // 2026-09-10 — DEUX CHEMINS, ET LE SECOND EST STRICTEMENT ADDITIF.
+  //
+  // Le premier est la règle d'origine (80 % de TOUS les mots du libellé). Le
+  // second ignore les qualificatifs de tarif, mais exige au moins deux mots
+  // discriminants : sans ce plancher, un libellé réduit à son seul nom de tête
+  // promouvrait tout ce qui contient ce mot.
+  //
+  // ⚠️ Le OU est délibéré. Une première version REMPLAÇAIT la règle d'origine
+  // par la seconde : mesuré sur le stock, elle gagnait 9 promotions et en
+  // perdait 26 — le plancher de deux mots tuait les libellés courts qui
+  // marchaient déjà. Un correctif ne doit pas défaire ce qu'il ne visait pas.
+  const discriminants = labelTokens.filter((t) => !QUALIFICATIFS_TARIF.has(t));
+  if (!couvre(labelTokens) && !(discriminants.length >= 2 && couvre(discriminants))) return false;
+
+  // Périmètre : le tarif d'un composant ne vaut pas pour le lot qui le contient.
+  if (PORTEE_TOTALE_RE.test(devisDesc) && !PORTEE_TOTALE_RE.test(catalogLabel)) return false;
+
   return !isSupplyVsLaborMismatch(devisDesc, catalogLabel);
 }
 

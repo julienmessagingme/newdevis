@@ -69,6 +69,36 @@ await test("hasStrongLexicalMatch — plomberie suivant plan vs petite intervent
   assertEq(hasStrongLexicalMatch("Plomberie, Sanitaire (suivant plan)", "Plomberie : petite intervention"), false);
 });
 
+// ── 2026-09-10 — qualificatifs de tarif ignorés ─────────────────────────────
+// Aucun artisan n'écrit « neuf » sur sa ligne : le mot dit à quel tarif on se
+// réfère, pas ce qui est posé. Il faisait échouer la couverture à 2/3.
+await test("hasStrongLexicalMatch — « neuf » ne compte pas contre la ligne → promu", () => {
+  assertEq(hasStrongLexicalMatch("Tableau électrique 4 Rangées Norme NFC 15-100", "Tableau électrique neuf (fourni+posé)"), true);
+});
+await test("hasStrongLexicalMatch — « standard » ne compte pas non plus → promu", () => {
+  assertEq(
+    hasStrongLexicalMatch("VARIANTE : Porte de garage sectionnelle LPU 42 - Acier", "Porte de garage sectionnelle standard (fourni+posé)"),
+    true,
+  );
+});
+// Le plancher de deux mots discriminants : sans lui, un libellé réduit à son
+// seul nom de tête promouvrait tout ce qui contient ce mot.
+await test("hasStrongLexicalMatch — libellé sans deux mots discriminants → REFUSE", () => {
+  assertEq(hasStrongLexicalMatch("Peinture des volets en bois", "Peinture complète"), false);
+});
+// Garde de portée : le tarif d'un composant ne vaut pas pour le lot entier.
+await test("hasStrongLexicalMatch — réfection totale vs tarif d'un composant → REFUSE", () => {
+  assertEq(
+    hasStrongLexicalMatch("Réfection total du système électrique : installation d'un tableau électrique neuf", "Tableau électrique neuf (fourni+posé)"),
+    false,
+  );
+});
+// ⚠️ Le correctif doit être ADDITIF : ce cas passait avant, il doit passer
+// encore. Une première version le perdait (plancher de deux mots appliqué seul).
+await test("hasStrongLexicalMatch — « l'ensemble de la peinture plafond » reste promu", () => {
+  assertEq(hasStrongLexicalMatch("Realisation de l'ensemble de la peinture plafond", "Peinture plafond"), true);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("[classifyConfidence]");
 
