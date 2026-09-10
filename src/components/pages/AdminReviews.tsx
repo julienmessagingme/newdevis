@@ -703,6 +703,7 @@ export default function AdminReviews() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [testEnvoiEnCours, setTestEnvoiEnCours] = useState(false);
+  const [rattrapageEnCours, setRattrapageEnCours] = useState(false);
 
   /**
    * 2026-09-10 (demande Johan) — VÉRIFIER AVANT, PAS APRÈS.
@@ -742,6 +743,71 @@ export default function AdminReviews() {
       });
     } finally {
       setTestEnvoiEnCours(false);
+    }
+  }, []);
+
+  /**
+   * 2026-09-10 — Rattrapage des notifications jamais parties entre le 29/06 et
+   * le 09/09. Deux temps volontaires : on montre d'abord QUI serait écrit, on
+   * n'envoie qu'après confirmation. Vingt messages à de vrais clients ne se
+   * déclenchent pas sur un clic distrait.
+   *
+   * L'envoi se fait par lots côté serveur (budget d'une fonction serverless) :
+   * on rappelle la route tant qu'il reste des destinataires.
+   */
+  const rattrapage = useCallback(async () => {
+    setRattrapageEnCours(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const appel = async (dry: boolean) => {
+        const res = await fetch("/api/admin/rattrapage-notifications", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ dry }),
+        });
+        const json = await res.json().catch(() => null);
+        return json?.data ?? json;
+      };
+
+      const apercu = await appel(true);
+      const restants = Number(apercu?.restants ?? 0);
+      if (!restants) {
+        setNotifDerniereAction({ ok: true, raison: "aucun rattrapage en attente", contexte: "test" });
+        return;
+      }
+      const liste = (apercu?.destinataires ?? [])
+        .slice(0, 25)
+        .map((d: { email: string }) => `• ${d.email}`)
+        .join("\n");
+      if (!window.confirm(
+        `Écrire à ${restants} personne(s) dont l'analyse a été corrigée sans qu'elles soient prévenues ?\n\n${liste}`,
+      )) return;
+
+      let envoyes = 0, echecs = 0, reste = restants;
+      // Boucle bornée : sans ce garde, une erreur qui laisserait `restants`
+      // constant tournerait indéfiniment.
+      for (let tour = 0; tour < 20 && reste > 0; tour++) {
+        const r = await appel(false);
+        envoyes += Number(r?.envoyes ?? 0);
+        echecs += Number(r?.echecs ?? 0);
+        const nouveauReste = Number(r?.restants ?? 0);
+        if (nouveauReste === reste) break; // rien n'avance : on s'arrête plutôt que boucler
+        reste = nouveauReste;
+      }
+      setNotifDerniereAction({
+        ok: echecs === 0,
+        raison: `${envoyes} message(s) envoyé(s)${echecs ? `, ${echecs} échec(s)` : ""}${reste ? `, ${reste} restant(s)` : ""}`,
+        contexte: "test",
+      });
+    } catch (e) {
+      setNotifDerniereAction({
+        ok: false,
+        raison: e instanceof Error ? e.message : "échec réseau",
+        contexte: "test",
+      });
+    } finally {
+      setRattrapageEnCours(false);
     }
   }, []);
 
@@ -864,6 +930,15 @@ export default function AdminReviews() {
           >
             <Mail className={`h-3 w-3 ${testEnvoiEnCours ? "animate-pulse" : ""}`} aria-hidden="true" />
             {testEnvoiEnCours ? "Envoi…" : "Tester l'envoi"}
+          </button>
+          <button
+            onClick={rattrapage}
+            disabled={rattrapageEnCours}
+            title="Écrit aux utilisateurs dont l'analyse a été corrigée entre le 29/06 et le 09/09 sans qu'ils soient prévenus. Affiche la liste avant d'envoyer."
+            className="px-3 py-1.5 border rounded text-sm inline-flex items-center gap-2 hover:bg-muted/50 disabled:opacity-50"
+          >
+            <Mail className={`h-3 w-3 ${rattrapageEnCours ? "animate-pulse" : ""}`} aria-hidden="true" />
+            {rattrapageEnCours ? "Rattrapage…" : "Rattrapage"}
           </button>
         </div>
 

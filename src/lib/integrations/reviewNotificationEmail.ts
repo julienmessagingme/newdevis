@@ -36,6 +36,19 @@ export interface ReviewEmailInput {
   action: ReviewAction;
   verdictDecisionnel?: string | null; // signer | signer_avec_negociation | ne_pas_signer
   verdictGlobal?: string | null; // dans_la_norme | a_negocier | a_risque | ...
+  /**
+   * 2026-09-10 — Phrase de contexte affichée sous l'intro.
+   *
+   * Créée pour le rattrapage des notifications jamais parties entre le 29/06 et
+   * le 09/09 : 37 analyses relues par un humain, 30 utilisateurs, aucun prévenu.
+   * Leur écrire deux mois plus tard en laissant croire que la relecture date du
+   * jour serait pire que le silence — la date figure sur leur propre page. On
+   * dit donc quand la relecture a eu lieu et pourquoi le message arrive tard.
+   *
+   * Champ générique et non « spécial rattrapage » : tout envoi différé ou
+   * rejoué aura le même besoin.
+   */
+  noteContexte?: string | null;
 }
 
 const SUBJECT_BY_ACTION: Record<ReviewAction, string> = {
@@ -83,7 +96,7 @@ function esc(s: unknown): string {
 }
 
 function buildHtml(input: ReviewEmailInput): string {
-  const { prenom, fileName, analysisId, action, verdictDecisionnel } = input;
+  const { prenom, fileName, analysisId, action, verdictDecisionnel, noteContexte } = input;
   const hero = HERO_BY_ACTION[action];
   const decisionnel = verdictDecisionnel ?? "signer";
   const verdictLabel = VERDICT_DECISIONNEL_LABEL[decisionnel] ?? "Verdict mis à jour";
@@ -138,6 +151,9 @@ function buildHtml(input: ReviewEmailInput): string {
         <h1 style="margin:14px 0 12px;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;color:#0E1730;line-height:1.3;letter-spacing:-0.02em;">${esc(hero.title)}</h1>
         ${fileLine}
         <p style="margin:0 0 8px;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:15px;color:#4B5563;line-height:1.78;">${esc(hero.intro)}</p>
+        ${noteContexte
+          ? `<p style="margin:14px 0 0;padding:12px 14px;background:#F9FAFB;border-left:3px solid #D1D5DB;border-radius:6px;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:14px;color:#6B7280;line-height:1.7;">${esc(noteContexte)}</p>`
+          : ""}
         ${verdictBadge}
         ${cta}
         <p style="margin:24px 0 0;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:13px;color:#6B7280;line-height:1.65;text-align:center;">Vous pouvez répondre directement à cet email si vous avez une question.</p>
