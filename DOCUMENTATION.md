@@ -824,7 +824,7 @@ Le seul jeu de données qui dise « cette ligne de devis correspond à cette ent
 | `reponse_humaine` / `reponse_ia` | text | `'1'..'5'`, `'0'` (aucune ne convient), `'?'` (ligne injugeable), ou plusieurs rangs séparés par `\|` quand le devis ne permet pas de trancher |
 | `consensus` | bool | Les deux juges disent la même chose — **c'est ce sous-ensemble qui fait référence** |
 
-**Scripts** : `import-etalon-rapprochement.mjs` (alimente), `score-rapprochement.mjs` (note un changement, mode photo ou catalogue actuel), `feuille-relecture-rapprochement.mjs` (produit une nouvelle feuille de relecture).
+**Scripts** : `import-etalon-rapprochement.mjs` (alimente depuis les fichiers de la première relecture), `score-rapprochement.mjs` (note un changement, mode photo ou catalogue actuel), `feuille-relecture-rapprochement.mjs` (produit une nouvelle feuille de relecture), `ajouter-ligne-etalon.mjs` (verse UNE ligne croisée en revue, avec ses candidats et le jugement de l'IA ; `--reponse <id> <n>` enregistre celui du relecteur). ⚠️ L'étalon n'est pas une photo : tout ajout au catalogue le périme sur les lignes qu'il comble, et tout cas intéressant vu en revue mérite d'y être versé plutôt que commenté puis oublié.
 
 **Repères au 2026-09-10** — consensus 77 lignes, dont **42 (55 %) sans aucune entrée valable au catalogue** ; sur les 35 restantes, le top-1 est le bon dans **27 cas (77 %)**. ⚠️ Deux juges compétents ne s'accordent que sur 55 % des cas : un étalon à un seul relecteur a ce plafond-là.
 
