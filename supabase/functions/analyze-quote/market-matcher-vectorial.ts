@@ -313,6 +313,68 @@ export function estPrestationIntellectuelle(description: string): boolean {
   return PRESTATION_INTELLECTUELLE_RE.test(description ?? "");
 }
 
+/**
+ * 2026-09-10 (décision Johan) — TROIS FRAIS DE CHANTIER QU'AUCUN CATALOGUE NE
+ * PEUT COUVRIR, chacun pour une raison différente.
+ *
+ * 1. **Éco-participation / éco-contribution (REP PMCB)** : barème réglementé
+ *    mais fixé PAR PRODUIT — à la tonne, au m³ ou à l'unité selon le matériau —
+ *    par l'éco-organisme, et il change au 1er août 2026 puis au 1er janvier
+ *    2027. Il n'existe aucun prix unique à écrire dans une case, et toute valeur
+ *    qu'on y mettrait serait fausse deux fois par an. Sur nos devis : 2 €.
+ *
+ * 2. **Dommages-ouvrage** : c'est une PRIME D'ASSURANCE, 1 à 3 % du montant des
+ *    travaux — un pourcentage, pas un tarif unitaire, qu'une entrée de catalogue
+ *    ne sait pas exprimer. Et elle est déjà traitée là où il faut : le levier
+ *    `assurance_do_montant` réclame l'attestation nominative au lieu de comparer
+ *    un prix (cf. règle du 2026-08-29 : ne jamais conseiller d'acheter ce qui
+ *    est déjà au devis).
+ *
+ * 3. **Livraison, amenée et repli, logistique de chantier** : nos propres
+ *    exemples vont de 120 € à 825 € sous le même intitulé, selon la distance, le
+ *    volume et l'engin. Une fourchette de 100 à 900 € n'apprend rien à personne.
+ *    « Frais de déplacement » couvre déjà le cas simple.
+ *
+ * 🔴 **LE FRAIS DOIT ÊTRE L'OBJET DE LA LIGNE, PAS UNE MENTION AU PASSAGE.** La
+ * règle ne cherche donc les motifs que dans les **40 premiers caractères** de la
+ * description. Sans cette ancre, mesuré au moment de l'écrire : deux lignes de
+ * VOLET ROULANT — de vrais travaux, chiffrables — étaient écartées parce que
+ * leur fiche produit se termine par « Dont éco-contribution REP PMCB : 0,52 €
+ * HT ». Le même piège guette « livraison » (« fourniture et pose, livraison
+ * comprise ») et « transport » (« transport des gravats », inclus dans nos
+ * entrées de dépose).
+ *
+ * C'est le contrôle sur l'étalon qui l'a attrapé, pas la relecture du code :
+ * **toute garde nouvelle se mesure contre les bonnes réponses connues avant
+ * d'être livrée.**
+ */
+const FRAIS_NON_CHIFFRABLE_RE = new RegExp(
+  [
+    "[ée]co[\\s-]?(participation|contribution)",
+    "dommages?[\\s-]ouvrage",
+    "am[ée]n[ée]e\\s*(et|\\/|\\+)\\s*repli",
+    "repli\\s+(du\\s+)?(mat[ée]riel|chantier)",
+    "acheminement\\s+(de\\s+|du\\s+|des\\s+)?(mat[ée]riel|moyen|engin)",
+    "logistique\\s+(de\\s+|du\\s+)?chantier",
+    "gestion\\s+logistique",
+    // ⚠️ « frais de livraison » est sans ambiguïté ; « livraison » seul a été
+    // RETIRÉ après mesure. Même ancré en tête de ligne, il écartait « Livraison,
+    // installation et étanchéité de la baignoire » et « Fourniture et livraison
+    // du mobilier de cuisine » — deux vrais travaux, rapprochés en confiance
+    // HAUTE. Il ne visait qu'une seule ligne du stock : le jeu n'en vaut pas la
+    // chandelle.
+    "frais\\s+de\\s+livraison",
+  ].join("|"),
+  "i",
+);
+
+/** Fenêtre d'ancrage : au-delà, le frais n'est plus l'objet de la ligne. */
+const TETE_DE_LIGNE = 40;
+
+export function estFraisNonChiffrable(description: string): boolean {
+  return FRAIS_NON_CHIFFRABLE_RE.test((description ?? "").trim().slice(0, TETE_DE_LIGNE));
+}
+
 export function hasStrongLexicalMatch(devisDesc: string, catalogLabel: string): boolean {
   const labelSansQualif = catalogLabel.replace(/\(.*?\)/g, " ");
   // Singulier / pluriel : le catalogue dit « murs et plafonds », le devis dit
@@ -699,13 +761,20 @@ export async function matchSingleLineVectorial(
   // ── Garde 0 — prestation intellectuelle : rien à comparer ────────────────
   // Placée AVANT l'embedding : inutile de payer un appel Gemini pour une ligne
   // qu'aucune entrée ne peut chiffrer.
-  if (estPrestationIntellectuelle(workItem.description ?? "")) {
-    console.log(
-      `[VectorialMatch] prestation intellectuelle écartée : "${(workItem.description ?? "").slice(0, 60)}"`,
-    );
+  const description = workItem.description ?? "";
+  // Deux familles, deux motifs distincts dans le journal : sans ça, un jour on
+  // cherchera pourquoi une ligne n'est pas chiffrée sans savoir laquelle des
+  // deux gardes a parlé.
+  const motifEcarte = estPrestationIntellectuelle(description)
+    ? "prestation_intellectuelle"
+    : estFraisNonChiffrable(description)
+    ? "frais_non_chiffrable"
+    : null;
+  if (motifEcarte) {
+    console.log(`[VectorialMatch] ${motifEcarte} — ligne écartée : "${description.slice(0, 60)}"`);
     return {
       workItemIndex,
-      result: buildNoMatchResult(workItem, workItemIndex, "prestation_intellectuelle"),
+      result: buildNoMatchResult(workItem, workItemIndex, motifEcarte),
     };
   }
 

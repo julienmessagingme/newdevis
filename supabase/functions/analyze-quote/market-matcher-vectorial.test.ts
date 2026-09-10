@@ -24,6 +24,7 @@ import {
   type VectorialJobTypePriceResult,
   hasStrongLexicalMatch,
   estPrestationIntellectuelle,
+  estFraisNonChiffrable,
   isExclusiveMetierMismatch,
 } from "./market-matcher-vectorial.ts";
 import type { WorkItemFull } from "./market-prices.ts";
@@ -115,6 +116,46 @@ await test("travaux ordinaires — jamais écartés", () => {
   assertEq(estPrestationIntellectuelle("Fourniture et pose de gouttière aluminium 12 ml"), false);
   assertEq(estPrestationIntellectuelle("Ouverture mur porteur avec pose IPN"), false);
   assertEq(estPrestationIntellectuelle("Béton armé pour semelle filante"), false);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("[estFraisNonChiffrable — 2026-09-10]");
+
+for (const [libelle] of [
+  ["Eco participation unitaire incluse dans le prix total"],
+  ["eco participation"],
+  ["Dommage Ouvrage"],
+  ["Amenée et repli du matériel – Gestion logistique et manutention."],
+  ["Repli du matériel"],
+  ["Frais de livraison sur chantier"],
+] as const) {
+  await test(`écartée : ${libelle.slice(0, 46)}`, () => {
+    assertEq(estFraisNonChiffrable(libelle), true);
+  });
+}
+
+// 🔴 LES DEUX PIÈGES MESURÉS, chacun a fait tomber une version de la garde.
+// Le premier : un VOLET ROULANT dont la fiche produit mentionne
+// l'éco-contribution en fin de description — vrais travaux, chiffrables.
+await test("PIÈGE 1 — volet roulant mentionnant l'éco-contribution → CONSERVÉ", () => {
+  assertEq(
+    estFraisNonChiffrable(
+      "Volet Roulant Réno Pro - Lames ALU Haut 1110 mm x Larg 800 mm Joues Alu. Manoeuvre par tringle. " +
+        "Prix incluant la main d'oeuvre et le déplacement Dont éco-contribution REP PMCB : 0,52€ HT",
+    ),
+    false,
+  );
+});
+// Le second : « livraison » en tête de ligne, mais suivie de vrais travaux.
+// Le mot a été retiré de la garde pour cette raison.
+await test("PIÈGE 2 — « Livraison, installation et étanchéité de la baignoire » → CONSERVÉ", () => {
+  assertEq(estFraisNonChiffrable("Livraison, installation et étanchéité de la baignoire"), false);
+  assertEq(estFraisNonChiffrable("Fourniture et livraison du mobilier de cuisine (hors électroménager)"), false);
+});
+// La pompe à béton, elle, est chiffrable : entrée créée le 2026-09-10.
+await test("pompe à béton — CONSERVÉE (elle a désormais son entrée)", () => {
+  assertEq(estFraisNonChiffrable("Forfait pompe à béton"), false);
+  assertEq(estPrestationIntellectuelle("Forfait pompe à béton"), false);
 });
 
 // ── 2026-09-10 — qualificatifs de tarif ignorés ─────────────────────────────
