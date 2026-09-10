@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminHeader from "@/components/admin/sections/AdminHeader";
 import { AdminLoading, AdminAccessDenied } from "@/components/admin/sections/AdminGuards";
-import { CheckCircle2, AlertTriangle, X, Clock, FileText, ChevronRight, RefreshCw } from "lucide-react";
+import { CheckCircle2, AlertTriangle, X, Clock, FileText, ChevronRight, RefreshCw, Mail } from "lucide-react";
 
 interface ReviewListItem {
   id: string;
@@ -698,10 +698,52 @@ export default function AdminReviews() {
    * de message indistinguable d'une panne — c'est ce qui s'est passé le 09/09.
    */
   const [notifDerniereAction, setNotifDerniereAction] = useState<
-    { ok: boolean; raison: string } | null
+    { ok: boolean; raison: string; contexte?: "decision" | "test" } | null
   >(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [testEnvoiEnCours, setTestEnvoiEnCours] = useState(false);
+
+  /**
+   * 2026-09-10 (demande Johan) — VÉRIFIER AVANT, PAS APRÈS.
+   *
+   * Le bandeau ci-dessus ne dit si l'envoi fonctionne qu'une fois une VRAIE
+   * décision prise, donc sur le dos d'un vrai utilisateur. Le jour où un artisan
+   * est venu tester son propre devis, ça ne suffisait plus.
+   *
+   * Ce test emprunte exactement le même chemin de code que l'envoi réel — même
+   * fonction, même clé, même expéditeur — et n'écrit rien : aucune analyse n'est
+   * touchée. Le mail part à l'adresse de l'admin connecté, jamais à une adresse
+   * fournie par l'écran.
+   */
+  const testerEnvoi = useCallback(async () => {
+    setTestEnvoiEnCours(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/admin/test-email", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => null);
+      const d = json?.data ?? json;
+      setNotifDerniereAction({
+        ok: Boolean(d?.ok),
+        raison: d?.ok
+          ? `mail de test envoyé à ${d?.destinataire ?? "votre adresse"} — l'acheminement fonctionne`
+          : `${d?.raison ?? "échec inconnu"}${d?.cle ? ` (${d.cle})` : ""}`,
+        contexte: "test",
+      });
+    } catch (e) {
+      setNotifDerniereAction({
+        ok: false,
+        raison: e instanceof Error ? e.message : "échec réseau",
+        contexte: "test",
+      });
+    } finally {
+      setTestEnvoiEnCours(false);
+    }
+  }, []);
 
   const fetchReviews = useCallback(async () => {
     setRefreshing(true);
@@ -814,6 +856,15 @@ export default function AdminReviews() {
           >
             <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} /> Rafraîchir
           </button>
+          <button
+            onClick={testerEnvoi}
+            disabled={testEnvoiEnCours}
+            title="Envoie la notification de revue à votre propre adresse, par le même chemin que l'envoi réel. N'écrit rien, ne touche aucune analyse."
+            className="px-3 py-1.5 border rounded text-sm inline-flex items-center gap-2 hover:bg-muted/50 disabled:opacity-50"
+          >
+            <Mail className={`h-3 w-3 ${testEnvoiEnCours ? "animate-pulse" : ""}`} aria-hidden="true" />
+            {testEnvoiEnCours ? "Envoi…" : "Tester l'envoi"}
+          </button>
         </div>
 
         {/* Sort de la notification de la dernière décision — visible dans les
@@ -828,7 +879,16 @@ export default function AdminReviews() {
             }`}
           >
             <span>
-              {notifDerniereAction.ok ? (
+              {notifDerniereAction.contexte === "test" ? (
+                <>
+                  <strong>
+                    {notifDerniereAction.ok
+                      ? "Test d'envoi réussi"
+                      : "Test d'envoi ÉCHOUÉ — aucun utilisateur ne serait prévenu"}
+                  </strong>{" "}
+                  — {notifDerniereAction.raison}
+                </>
+              ) : notifDerniereAction.ok ? (
                 <>
                   <strong>Décision enregistrée et utilisateur prévenu</strong> —{" "}
                   {notifDerniereAction.raison}
