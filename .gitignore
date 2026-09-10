@@ -53,3 +53,7 @@ fm.cjs
 supabase/.temp/
 scratch/
 .cache-rejeu/
+relecture-rapprochement.csv
+relecture-rapprochement.cle.json
+relecture-rapprochement.md
+relecture-reponses.json
