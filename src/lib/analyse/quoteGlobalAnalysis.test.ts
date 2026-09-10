@@ -18,7 +18,7 @@ function makeRow(overrides: Partial<JobTypeDisplayRow> = {}): JobTypeDisplayRow 
     mainUnit: 'm²',
     mainQuantity: 50,
     devisLines: [
-      { description: 'Peinture murs séjour', quantity: 50, amountHT: 1500, unit: 'm²' },
+      { index: 0, description: 'Peinture murs séjour', quantity: 50, amountHT: 1500, unit: 'm²' },
     ],
     devisTotalHT: 1500,
     theoreticalMinHT: 1000,
@@ -145,6 +145,40 @@ describe('classifyRowEnriched — garde confidence vectorielle', () => {
   it('confidence high + normal → normal', () => {
     const row = makeRow({ devisTotalHT: 1500 });
     expect(classifyRowEnriched(row)).toBe('normal');
+  });
+
+  // ── 2026-09-10 (cas AQUIVOLTAIQUE) — LE DOUTE VAUT DANS LES DEUX SENS ────
+  //
+  // La garde ne se déclenchait que sur `anomalie` et `survalue` : on refusait
+  // d'accuser sur un rapprochement incertain, mais on continuait d'absoudre
+  // dessus. Le poste ressortait « normal », donc compté « Prix correct » en
+  // vert, sur la page même où le verdict annonçait n'avoir aucune référence.
+  it('confidence medium + prix DANS la fourchette → non vérifiable, PAS « normal »', () => {
+    const row = makeRow({
+      devisTotalHT: 1500, // pile la moyenne : « normal » sous l'ancienne règle
+      vectorial: { top_similarity: 0.767, confidence: 'medium', all_candidates: [] },
+    });
+    expect(classifyRowEnriched(row)).toBe('low_confidence_match');
+  });
+
+  it('confidence low + prix légèrement élevé → non vérifiable', () => {
+    const row = makeRow({
+      devisTotalHT: 2400, // ratio 1.2 → « legerement_eleve » sous l'ancienne règle
+      vectorial: { top_similarity: 0.678, confidence: 'low', all_candidates: [] },
+    });
+    expect(classifyRowEnriched(row)).toBe('low_confidence_match');
+  });
+
+  it('la garde passe AVANT la garde surface — sans référence sûre, réclamer une surface ne sert à rien', () => {
+    const row = makeRow({
+      mainUnit: 'forfait',
+      mainQuantity: 1,
+      devisLines: [{ index: 0, description: 'Peinture complète du séjour', quantity: 1, amountHT: 4000, unit: 'U' }],
+      devisTotalHT: 4000,
+      isForfait: false,
+      vectorial: { top_similarity: 0.72, confidence: 'medium', all_candidates: [] },
+    });
+    expect(classifyRowEnriched(row)).toBe('low_confidence_match');
   });
 });
 

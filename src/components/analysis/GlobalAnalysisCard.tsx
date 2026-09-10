@@ -47,6 +47,8 @@ export function GlobalAnalysisCard({ analysis }: GlobalAnalysisCardProps) {
   } = analysis;
   // V3.4.15 — fallback à 0 si l'analyse provient d'un cache pré-V3.4.15 sans ce champ
   const nbSurfaceMismatch = (analysis as { nbSurfaceMismatch?: number }).nbSurfaceMismatch ?? 0;
+  // 2026-09-10 — idem : les analyses en cache d'avant cette date n'ont pas ce champ.
+  const nbNonVerifie = (analysis as { nbNonVerifie?: number }).nbNonVerifie ?? 0;
 
   // N'affiche rien s'il n'y a aucun poste comparable ET aucun forfait
   if (totalItemsAnalyzed === 0 && nbForfait === 0) return null;
@@ -73,12 +75,34 @@ export function GlobalAnalysisCard({ analysis }: GlobalAnalysisCardProps) {
           </span>
         )}
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <StatChip value={nbNormal}          label="Prix correct"      color="green"  />
-        <StatChip value={nbLegerementEleve}  label="Légèrement élevé" color="amber"  />
-        <StatChip value={nbSurvalue}         label="Surévalué"        color="orange" />
-        <StatChip value={nbAnomalie}         label="Prix anormal"     color="red"    />
-      </div>
+      {/* Quatre zéros alignés ne disent rien : quand AUCUN poste n'a pu être
+          situé, la grille est muette et seule la ligne explicative reste. */}
+      {(nbNormal + nbLegerementEleve + nbSurvalue + nbAnomalie) > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatChip value={nbNormal}          label="Prix correct"      color="green"  />
+          <StatChip value={nbLegerementEleve}  label="Légèrement élevé" color="amber"  />
+          <StatChip value={nbSurvalue}         label="Surévalué"        color="orange" />
+          <StatChip value={nbAnomalie}         label="Prix anormal"     color="red"    />
+        </div>
+      )}
+      {/* 2026-09-10 (cas AQUIVOLTAIQUE) — les postes sans référence opposable
+          étaient comptés dans « Prix correct ». Sur un devis dont aucun poste
+          n'est rapproché avec certitude, la répartition affichait donc une
+          majorité de vert pendant que le verdict, juste au-dessus, disait
+          n'avoir rien pu comparer. Ils ont maintenant leur ligne à eux. */}
+      {nbNonVerifie > 0 && (
+        <div className="mt-2 flex items-start gap-2 text-[11px] text-muted-foreground">
+          <span aria-hidden="true">⚪</span>
+          <span>
+            <strong className="text-foreground">
+              {nbNonVerifie} poste{nbNonVerifie > 1 ? "s" : ""} non vérifiable{nbNonVerifie > 1 ? "s" : ""}
+            </strong>
+            {" "}— notre référentiel ne contient pas de prestation assez proche pour opposer une
+            fourchette. Ni bon marché ni cher : nous ne pouvons pas le dire. Un second devis est
+            le seul comparatif réel sur {nbNonVerifie > 1 ? "ces lignes" : "cette ligne"}.
+          </span>
+        </div>
+      )}
       {/* V3.4.15 — note "Surface à vérifier" en complément (postes facturés en u/forfait
           sur prestation surfacique sans surface précisée → non comparables au €/m²) */}
       {nbSurfaceMismatch > 0 && (

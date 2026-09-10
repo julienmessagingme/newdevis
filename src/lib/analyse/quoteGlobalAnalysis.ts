@@ -1,6 +1,7 @@
 import type { JobTypeDisplayRow } from "@/hooks/useMarketPriceAPI";
 import { isLikelyHeterogeneousGroup, type HomogeneityGroupInput } from "@/lib/analyse/groupHomogeneity";
 import { hasSurfaceUnitMismatch, surfaceMismatchConfidence, SURFACE_MISMATCH_THRESHOLD, type SurfaceGroup } from "@/lib/analyse/surfaceUtils";
+import { referenceOpposable } from "@/lib/analyse/referenceOpposable";
 
 /**
  * Adapte un `JobTypeDisplayRow` (format client) vers `HomogeneityGroupInput`
@@ -44,24 +45,23 @@ function rowToHomogeneityInput(row: JobTypeDisplayRow): HomogeneityGroupInput {
 export type ItemClassification = "normal" | "legerement_eleve" | "survalue" | "anomalie" | "surface_mismatch" | "low_confidence_match";
 
 /**
- * V3.5.11 (2026-06-09) — Seuils de confidence pour la garde anti-faux-positif.
- *
- * Au-dessus de HIGH (0.85), un match est considéré fiable — anomalie acceptée.
- * Entre MEDIUM (0.70) et HIGH (0.85), c'est tiède : seules les anomalies
- * franches (ratio > 2× max marché) restent, le reste est downgradé en
- * `low_confidence_match` (UI : badge gris "Comparaison incertaine").
- * Sous MEDIUM, le matcher vectoriel V3.5.0 retourne déjà `no_match` (pas de
- * card prix marché du tout) ou `low` (déjà downgradé par les gardes V3.5.9).
+ * V3.5.11 (2026-06-09) — garde anti-faux-positif sur la qualité du
+ * rapprochement catalogue.
  *
  * Cas d'origine : devis Côte Maison Travaux + Florian Miranda où les fausses
- * anomalies "+3 150€" et "+220€" étaient toutes sur des matches similarity
- * 0.70-0.85 que la garde lexicale V3.5.9 laissait passer mais qui restaient
- * sémantiquement bancals.
+ * anomalies « +3 150 € » et « +220 € » étaient toutes sur des matchs de
+ * similarité 0,70-0,85 que la garde lexicale V3.5.9 laissait passer mais qui
+ * restaient sémantiquement bancals.
+ *
+ * STRONG_ANOMALY_RATIO_OVERRIDE supprimé le 2026-08-27 (cas ZANNOU v2) : les
+ * « anomalies franches » en confiance moyenne étaient majoritairement de faux
+ * matchs forfait/prestation, et le verdict ne les comptait pas (contradiction).
+ *
+ * 2026-09-10 (cas AQUIVOLTAIQUE) — le seuil lui-même vit désormais dans
+ * [`referenceOpposable`](./referenceOpposable.ts), partagé avec l'affichage des
+ * cartes et aligné sur la règle du serveur. Il n'est plus redéfini ici : deux
+ * définitions du même seuil, c'est deux discours sur la même page.
  */
-const CONFIDENCE_THRESHOLD_HIGH = 0.85;
-// STRONG_ANOMALY_RATIO_OVERRIDE supprimé le 2026-08-27 (cas ZANNOU v2) : les
-// « anomalies franches » en confidence medium étaient majoritairement des faux
-// matchs forfait/prestation, et le verdict ne les comptait pas (contradiction).
 
 /** Verdict global sur l'ensemble du devis */
 export type GlobalStatus = "correct" | "a_negocier" | "risque_eleve";
@@ -92,6 +92,11 @@ export interface GlobalAnalysis {
   nbAnomalie: number;
   /** V3.4.15 — Postes avec surface mismatch confirmé (badge jaune "Surface à vérifier"). */
   nbSurfaceMismatch: number;
+  /**
+   * 2026-09-10 — Postes dont le rapprochement catalogue n'est pas assez sûr
+   * pour opposer une fourchette. Comptés à part : ni « correct », ni « cher ».
+   */
+  nbNonVerifie: number;
   /** Postes facturés au forfait global — exclus de l'analyse comparative */
   nbForfait: number;
   /** Surcoût brut (Σ price - marketMax pour les postes au-dessus) */
@@ -167,6 +172,7 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
   let nbSurvalue = 0;
   let nbAnomalie = 0;
   let nbSurfaceMismatch = 0;
+  let nbNonVerifie = 0;
   let surcoutEstime = 0;
 
   const anomalieItems: ClassifiedItem[] = [];
@@ -188,7 +194,13 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     //   3. upgrade ligne (V3.3.2) — ligne individuelle > 1.5× → "anomalie"
     const classification: ItemClassification = classifyRowEnriched(row) ?? "normal";
 
-    surcoutEstime += surcout;
+    // 2026-09-10 — un écart mesuré contre une fourchette à laquelle nous ne
+    // croyons pas n'est pas un écart. Ces postes ne nourrissent donc plus le
+    // surcoût estimé, comme ils ne nourrissent déjà plus le calcul serveur
+    // (`computeServerSurcout` ne voit que les groupes en confiance haute).
+    if (classification !== "low_confidence_match") {
+      surcoutEstime += surcout;
+    }
 
     const item: ClassifiedItem = {
       label: row.jobTypeLabel,
@@ -220,11 +232,13 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
         nbSurfaceMismatch++;
         break;
       case "low_confidence_match":
-        // V3.5.11 — anomalie/survalue downgradée car match vectoriel <0.85
-        // (zone medium). Ni "normal" (pour ne pas masquer la réserve), ni
-        // "anomalie" (pour ne pas hurler sur un match incertain). Compté
-        // dans nbNormal pour ne pas polluer le verdict global.
-        nbNormal++;
+        // 2026-09-10 (cas AQUIVOLTAIQUE) — ces postes étaient comptés dans
+        // `nbNormal`, donc affichés en vert « Prix correct ». Sur un devis dont
+        // AUCUN poste n'est rapproché en confiance haute, la répartition
+        // annonçait ainsi une majorité de prix corrects pendant que le verdict
+        // disait n'avoir pu comparer quoi que ce soit. Ils ont désormais leur
+        // propre compteur, rendu en clair sous la répartition.
+        nbNonVerifie++;
         break;
     }
   }
@@ -250,6 +264,7 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     nbSurvalue,
     nbAnomalie,
     nbSurfaceMismatch,
+    nbNonVerifie,
     nbForfait: forfaitRows.length,
     surcoutEstime: Math.round(surcoutEstime),
     surcoutMin: Math.round(surcoutEstime * 0.7),
@@ -293,6 +308,25 @@ export function classifyRowEnriched(
     return null;
   }
 
+  // ── Garde 0 — Référence opposable (2026-09-10, cas AQUIVOLTAIQUE) ─────────
+  //
+  // Placée AVANT tout le reste, parce qu'elle porte sur la validité de la
+  // fourchette elle-même : si le rapprochement catalogue n'est pas fiable, ni
+  // le ratio de prix, ni la garde surface, ni l'upgrade ligne ne veulent dire
+  // quoi que ce soit — ils raisonnent tous sur un chiffre auquel nous ne
+  // croyons pas.
+  //
+  // ⚠️ Ce garde existait depuis le 2026-06-09 (V3.5.11) mais il ne se
+  // déclenchait QUE sur `anomalie` et `survalue`. L'asymétrie était grave et
+  // elle jouait toujours dans le même sens : on refusait d'ACCUSER sur un
+  // rapprochement incertain, mais on continuait d'ABSOUDRE dessus — le poste
+  // ressortait « normal », donc compté « Prix correct » en vert, sur la même
+  // page où le verdict disait n'avoir aucune référence. Un doute doit produire
+  // un doute, pas un satisfecit.
+  if (!referenceOpposable(row.vectorial)) {
+    return "low_confidence_match";
+  }
+
   const price = row.devisTotalHT;
   const marketMax = row.theoreticalMaxHT;
   let classification: ItemClassification = classifyItem(price, marketMax);
@@ -324,49 +358,6 @@ export function classifyRowEnriched(
     classification = "legerement_eleve";
   }
   const wasDowngradedHeterogeneous = isHeterogeneous;
-
-  // ── Garde 4 — Confidence vectorielle (V3.5.11 — 2026-06-09) ──────────────
-  //
-  // Le matcher vectoriel V3.5.0 garde aveuglément le top-1 cosine dès que
-  // similarity ≥ 0.50 (puis filtré par les gardes lexicales V3.5.9). Mais sur
-  // la zone tiède 0.70-0.85 (confidence="medium"), même après les gardes V3.5.9
-  // certains matchs restent sémantiquement bancals.
-  //
-  // Politique anti-hallucination conservatrice : on n'affiche une anomalie
-  // ROUGE que si le match est `high` (similarity ≥ 0.85) OU si le ratio prix
-  // est franchement aberrant (devis > 2× max marché — signal fort qui résiste
-  // à un match imparfait).
-  //
-  // Pour les matches `medium` ou `low` avec un ratio modéré, on bascule en
-  // `low_confidence_match` → badge UI gris "Comparaison incertaine" au lieu
-  // de "🔴 Anomalie marché". Le user voit qu'il y a une réserve, on n'invente
-  // pas d'alerte franche sur un match qu'on n'est pas sûr.
-  //
-  // Cas d'origine : devis Côte Maison Travaux + Florian Miranda où des cards
-  // rouges fausses étaient affichées sur des matchs cosine ~0.74-0.82.
-  const vectorialConfidence = row.vectorial?.confidence;
-  const topSimilarity = row.vectorial?.top_similarity ?? null;
-  const isHighConfidence =
-    vectorialConfidence === "high" ||
-    (topSimilarity !== null && topSimilarity >= CONFIDENCE_THRESHOLD_HIGH) ||
-    // Pas de méta vectorielle → pipeline legacy V3.6, on n'applique pas la garde
-    vectorialConfidence === undefined;
-
-  if (!isHighConfidence && (classification === "anomalie" || classification === "survalue")) {
-    // 2026-08-27 (cas ZANNOU v2, retour Johan) — SUPPRESSION de l'override
-    // « anomalie franche » (ratio ≥ 2× gardait la carte ROUGE même en
-    // confidence medium). Sa prémisse (« un ratio 8× ne peut pas être un
-    // mauvais matching ») est démentie par les familles forfait/prestation :
-    // « Transports et élimination amiante liée » 1 000 € matché à
-    // « Diagnostic amiante » 80-180 € = ratio 5,6× ET matching faux. Surtout,
-    // le verdict (V3.5.13) EXCLUT tous les groupes non-high → garder la carte
-    // rouge affichait « Anomalie marché » dans le détail sous un verdict VERT
-    // qui ne la comptait pas (statuts contradictoires, interdits Maillon 3).
-    // Règle simple désormais : confidence < high = JAMAIS de carte rouge,
-    // toujours « Comparaison incertaine » — cohérent avec le verdict par
-    // construction.
-    return "low_confidence_match";
-  }
 
   // ── Garde 5 — Upgrade ligne (V3.3.2) ──────────────────────────────────────
   // Si une ligne individuelle du groupe dépasse > 1.5× le prix unitaire max

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { cleanJobTypeLabel, detectRoomMismatch, type HomogeneityGroupInput } from "@/lib/analyse/groupHomogeneity";
+import { referenceOpposable } from "@/lib/analyse/referenceOpposable";
 
 // ========================================
 // TYPES — New hierarchical job type format
@@ -467,6 +468,21 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
             : [],
         }
       : undefined;
+
+    // 2026-09-10 (retour Johan, devis AQUIVOLTAIQUE) — PAS DE VERDICT DE PRIX
+    // SANS RÉFÉRENCE OPPOSABLE.
+    //
+    // « Bien placé », « Dans la norme », « Plutôt cher » sont des AFFIRMATIONS
+    // sur le prix. Elles étaient produites dès qu'une entrée catalogue avait
+    // été trouvée, sans regarder la qualité du rapprochement — alors que le
+    // serveur, lui, ne compte comme comparables que les groupes en confiance
+    // haute. D'où la contradiction signalée : un devis dont l'en-tête annonce
+    // « aucun tarif de référence » et dont chaque carte porte une fourchette
+    // et un verdict. Même règle des deux côtés, désormais.
+    if (!referenceOpposable(vectorialMeta)) {
+      verdict = null;
+      vsAvgPct = null;
+    }
 
     rows.push({
       jobTypeLabel: cleanedLabel,

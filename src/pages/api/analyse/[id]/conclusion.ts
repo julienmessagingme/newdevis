@@ -1318,10 +1318,21 @@ export const POST: APIRoute = async ({ params, request }) => {
       // aligné sur le filtre ci-dessous).
       if (!vect || typeof vect !== "object" || vect.confidence === "high") comparableHT += t;
       else {
-        const label = typeof g?.job_type_label === "string" ? g.job_type_label.trim() : "";
+        // 2026-09-10 (cas AQUIVOLTAIQUE) — NOMMER LA LIGNE DU DEVIS, PAS NOTRE
+        // ÉTIQUETTE. La phrase « certains postes n'ont pas d'équivalent dans nos
+        // références de prix — "Remplacement onduleur photovoltaïque" » citait,
+        // comme exemple de poste sans référence, le NOM D'UNE ENTRÉE DE NOTRE
+        // CATALOGUE. L'utilisateur ne reconnaissait pas sa ligne (« Huawei
+        // onduleur hybride SUN2000L »), et la phrase se contredisait elle-même.
+        const lignes = Array.isArray(g?.devis_lines) ? (g.devis_lines as Array<Record<string, unknown>>) : [];
+        const descriptionUnique = lignes.length === 1 && typeof lignes[0]?.description === "string"
+          ? (lignes[0].description as string).trim()
+          : "";
+        const etiquette = typeof g?.job_type_label === "string" ? g.job_type_label.trim() : "";
         // « Non comparable » est notre propre étiquette de repli : la citer
         // n'apprendrait rien au lecteur.
-        if (label && !/^non comparable$/i.test(label)) sansReference.push({ label, ht: t });
+        const label = descriptionUnique || (!/^non comparable$/i.test(etiquette) ? etiquette : "");
+        if (label) sansReference.push({ label, ht: t });
       }
     }
     priceData = priceData.filter((g) => {

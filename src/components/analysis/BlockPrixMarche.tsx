@@ -8,6 +8,7 @@ import MarketPositionAnalysis from "./MarketPositionAnalysis";
 import PremiumGate from "@/components/funnel/PremiumGate";
 import { GlobalAnalysisCard } from "./GlobalAnalysisCard";
 import { analyzeQuoteGlobal, classifyRow } from "@/lib/analyse/quoteGlobalAnalysis";
+import { referenceOpposable } from "@/lib/analyse/referenceOpposable";
 // V3.5.14 (2026-06-13) — VectorialPriceList retiré du rendu : wording
 // "Match plausible / incertain" remplacé par les verdicts prix classiques
 // gérés par AnalysisCard ("Dans la norme / Au-delà / En-deçà du marché").
@@ -49,6 +50,14 @@ const fmt = (n: number | null | undefined) => {
   if (n === null || n === undefined) return "—";
   return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €";
 };
+
+/**
+ * 2026-09-10 (cas AQUIVOLTAIQUE) — l'explication du badge gris, écrite une
+ * fois. Elle dit ce que nous ne savons pas, sans le retourner contre l'artisan
+ * ni contre nous : l'absence de référence n'est un défaut de personne.
+ */
+const PRIX_NON_VERIFIABLE_TIP =
+  "Nous n'avons pas dans notre référentiel de prestation assez proche de cette ligne pour opposer une fourchette de prix. Ce n'est pas un signe que le prix est mauvais — c'est que nous ne sommes pas en mesure de l'affirmer. Un second devis est le seul comparatif réel sur ce poste.";
 
 const verdictColor = (verdict: string | null): string => {
   if (!verdict) return "text-muted-foreground";
@@ -223,6 +232,21 @@ interface AnalysisCardProps {
 const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
   const [expanded, setExpanded] = useState(false);
   const hasPrices = row.prices.length > 0;
+  // 2026-09-10 (cas AQUIVOLTAIQUE) — une fourchette ne s'affiche que si nous
+  // sommes prêts à l'opposer à l'artisan. Même règle que le verdict en tête de
+  // page et que le calcul serveur : cf. `referenceOpposable`.
+  const opposable = referenceOpposable(row.vectorial);
+  const afficheMarche = hasPrices && opposable;
+  // La référence la plus proche, quand elle existe sans être opposable : elle
+  // n'a pas valeur de comparaison mais elle explique CE QUE nous avons cherché,
+  // et sur quoi demander un second devis. Reléguée au dépli, jamais en tête.
+  const referenceApprochante = hasPrices && !opposable ? row.jobTypeLabel : null;
+  // Quand le rapprochement n'est pas sûr, le titre de la carte ne doit pas être
+  // NOTRE libellé catalogue : ce serait présenter notre hypothèse comme le nom
+  // du poste. On reprend la ligne du devis, telle que l'artisan l'a écrite.
+  const titre = !opposable && row.devisLines.length === 1 && row.devisLines[0].description
+    ? row.devisLines[0].description
+    : row.jobTypeLabel;
 
   return (
     <div className="border border-border/60 rounded-xl bg-card overflow-hidden">
@@ -234,15 +258,23 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
-            <h3 className="font-semibold text-foreground text-sm truncate">{row.jobTypeLabel}</h3>
+            <h3 className="font-semibold text-foreground text-sm truncate">{titre}</h3>
             {/* Le badge anomalie/survalue (globalBadge) est prioritaire sur le verdict de position marché */}
             {!globalBadge && row.verdict ? (
               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${verdictColor(row.verdict)} ${verdictBg(row.verdict)}`}>
                 {row.verdict}
               </span>
-            ) : !globalBadge && !hasPrices ? (
-              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap text-muted-foreground bg-muted/50">
-                Pas de référence marché
+            ) : !globalBadge && (!hasPrices || !opposable) ? (
+              /* 2026-09-10 — un seul libellé pour un seul fait : nous n'avons
+                 pas de prix à opposer sur cette ligne. Avant, deux situations
+                 indistinguables pour l'utilisateur portaient deux discours
+                 différents (« Pas de référence marché » d'un côté, une
+                 fourchette + « Plutôt cher » de l'autre). */
+              <span
+                className="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap text-muted-foreground bg-muted/50"
+                title={PRIX_NON_VERIFIABLE_TIP}
+              >
+                Prix non vérifiable
               </span>
             ) : null}
             {/* Badge synthèse globale — seul signal affiché quand anomalie ou surévalué */}
@@ -265,16 +297,16 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
                 🟡 Surface à vérifier
               </span>
             )}
-            {/* V3.5.11 — low confidence match : badge gris neutre. Le matching
-                catalogue n'est pas suffisamment certain (similarity 0.70-0.85)
-                pour qualifier l'écart prix d'anomalie franche. On affiche la
-                réserve plutôt que de fabriquer une fausse alerte rouge. */}
+            {/* 2026-09-10 — MÊME libellé que le badge ci-dessus : c'est le même
+                fait. « Comparaison incertaine » laissait entendre qu'une
+                comparaison avait quand même eu lieu, et le lecteur se rabattait
+                alors sur la fourchette affichée juste en dessous. */}
             {globalBadge === "low_confidence_match" && (
               <span
-                className="inline-block px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap text-slate-600 bg-slate-100 border border-slate-200 dark:text-slate-300 dark:bg-slate-800/40 dark:border-slate-700"
-                title="Le matching avec notre catalogue marché n'est pas suffisamment précis pour qualifier l'écart d'anomalie. Comparaison à interpréter avec réserve."
+                className="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap text-muted-foreground bg-muted/50"
+                title={PRIX_NON_VERIFIABLE_TIP}
               >
-                ⚪ Comparaison incertaine
+                Prix non vérifiable
               </span>
             )}
           </div>
@@ -288,7 +320,7 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs">
           {hasPrices && <span className="text-muted-foreground">{row.mainQuantity} {row.mainUnit}</span>}
           <span className="text-foreground font-medium">{"Devis : "}{fmt(row.devisTotalHT)}</span>
-          {hasPrices && (
+          {afficheMarche && (
             <span className="text-muted-foreground">{"Marché : "}{fmt(row.theoreticalMinHT)}{" – "}{fmt(row.theoreticalMaxHT)}</span>
           )}
         </div>
@@ -298,7 +330,7 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
       {expanded && (
         <div className="border-t border-border/50 p-4 space-y-4">
           {/* Forfait warning banner */}
-          {row.isForfait && hasPrices && (
+          {row.isForfait && afficheMarche && (
             <div className="flex items-start gap-2 p-3 bg-amber-500/8 border border-amber-500/25 rounded-lg">
               <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-700 dark:text-amber-400 leading-snug">
@@ -309,7 +341,7 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
           )}
 
           {/* Quantity mismatch warning — shown when the devis is >5× the theoretical max for the detected quantity */}
-          {hasPrices &&
+          {afficheMarche &&
             row.devisTotalHT !== null &&
             row.theoreticalMaxHT > 0 &&
             row.devisTotalHT / row.theoreticalMaxHT > 5 && (
@@ -341,7 +373,7 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
               ))}
             </div>
           )}
-          {hasPrices ? (
+          {afficheMarche ? (
             <div className={row.isForfait ? "opacity-70" : undefined}>
               <MarketPositionAnalysis
                 quote_total_ht={row.devisTotalHT}
@@ -351,9 +383,28 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
               />
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground italic">
-              Aucune donnée de référence marché pour ce type de travaux.
-            </p>
+            /* 2026-09-10 — on ne se contente pas de se taire : on dit ce que
+               nous avons cherché et ce qui manque. Quand une entrée approchante
+               existe, elle est nommée avec sa fourchette — mais présentée pour
+               ce qu'elle est (le plus proche que nous ayons trouvé), et jamais
+               comme une mesure de ce devis. */
+            <div className="text-xs text-muted-foreground space-y-2 leading-relaxed">
+              <p>
+                <strong className="text-foreground">Nous ne pouvons pas nous prononcer sur ce prix.</strong>{" "}
+                Aucune prestation de notre référentiel n&apos;est assez proche de cette ligne pour
+                opposer une fourchette. Ce n&apos;est pas un signe que le prix est mauvais : c&apos;est
+                que nous ne pouvons pas l&apos;affirmer — et un second devis est le seul comparatif
+                réel sur ce poste.
+              </p>
+              {referenceApprochante && (
+                <p>
+                  La référence la plus proche que nous ayons trouvée est{" "}
+                  <span className="font-medium text-foreground">« {referenceApprochante} »</span>{" "}
+                  ({fmt(row.theoreticalMinHT)} – {fmt(row.theoreticalMaxHT)}). La correspondance
+                  n&apos;est pas assez sûre pour en tirer une conclusion sur votre ligne.
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}

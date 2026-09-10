@@ -483,8 +483,9 @@ function collectCandidates(s: LevierSignals): Candidate[] {
       objectif: "securiser",
       type: "second_avis",
       titre: "Demandez un second devis : nous n'avons pas pu vérifier ces prix",
-      detail:
-        "Aucune ligne de ce devis ne correspond à un tarif de référence que nous puissions opposer — prestation sur-mesure, vendue au jour ou à l'heure, ou trop spécifique pour qu'un référentiel existe. Ce n'est pas un signe que le prix est mauvais : c'est que personne, ni nous ni un comparateur, ne peut l'affirmer. Un devis concurrent sur le même périmètre est le seul point de comparaison réel.",
+      detail: aucuneReferenceDuTout(s)
+        ? "Aucune ligne de ce devis ne correspond à un tarif de référence que nous puissions opposer — prestation sur-mesure, vendue au jour ou à l'heure, ou trop spécifique pour qu'un référentiel existe. Ce n'est pas un signe que le prix est mauvais : c'est que personne, ni nous ni un comparateur, ne peut l'affirmer. Un devis concurrent sur le même périmètre est le seul point de comparaison réel."
+        : "À une ligne près, ce devis porte sur des prestations qu'aucun tarif de référence ne couvre — sur-mesure, vendues au jour ou à l'heure, ou trop spécifiques pour qu'un référentiel existe. Ce n'est pas un signe que les prix sont mauvais : c'est que personne, ni nous ni un comparateur, ne peut l'affirmer sur cette base. Un devis concurrent sur le même périmètre est le seul point de comparaison réel.",
     });
   } else if (coverage !== null && coverage !== undefined && coverage < 60 && nonCompare >= 1000) {
     out.push({
@@ -562,6 +563,21 @@ export function rienNestComparable(s: Pick<LevierSignals, "comparable_coverage_p
 }
 
 /**
+ * 2026-09-10 (cas AQUIVOLTAIQUE) — DIRE « AUCUNE » SEULEMENT QUAND C'EST ZÉRO.
+ *
+ * Le seuil de 5 % laisse passer des devis où UNE ligne est bel et bien
+ * rapprochée en confiance haute, et affiche donc légitimement sa fourchette
+ * dans le détail. Écrire « aucune des prestations » au-dessus est alors faux,
+ * et c'est une contradiction que le lecteur voit immédiatement.
+ *
+ * Mesuré sur le stock au 2026-09-10 : 36 analyses à 0 % strict, 4 entre 1 et
+ * 4 %. Un cas rare, mais chacun de ces quatre est une page qui se contredit.
+ */
+export function aucuneReferenceDuTout(s: Pick<LevierSignals, "comparable_coverage_pct">): boolean {
+  return s.comparable_coverage_pct === 0;
+}
+
+/**
  * Verdict tranché 1 ligne — nomme TOUJOURS son motif.
  * Le motif = le signal le plus fort ; jamais « risque élevé » sans dire lequel.
  */
@@ -600,8 +616,9 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
     // conformité qu'aucune fourchette ne soutient. Placé APRÈS les signaux de
     // fait (entreprise, clauses, espèces, acompte, quantités) : ceux-là restent
     // vrais même sans référentiel de prix, et dominent donc toujours.
-    motif =
-      "aucune des prestations de ce devis ne correspond à un tarif de référence que nous puissions opposer — nous ne sommes pas en mesure de dire si le prix est juste, et un second devis est le seul comparatif possible";
+    motif = aucuneReferenceDuTout(s)
+      ? "aucune des prestations de ce devis ne correspond à un tarif de référence que nous puissions opposer — nous ne sommes pas en mesure de dire si le prix est juste, et un second devis est le seul comparatif possible"
+      : "la quasi-totalité de ce devis porte sur des prestations qu'aucun tarif de référence ne couvre — la part que nous avons pu comparer est trop faible pour en tirer une conclusion, et un second devis est le seul comparatif possible";
   } else if (s.verdict_decisionnel === "signer") {
     // 2026-08-27 (cas ZANNOU v2) — couverture partielle : ne pas affirmer une
     // conformité globale quand une grosse part du devis n'a pas de référence.
