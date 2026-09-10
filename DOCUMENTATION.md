@@ -807,6 +807,27 @@ Module complet avec ~20 composants dans `src/components/chantier/` :
 | `type_zone` | text | petite_ville, ville_moyenne, grande_ville |
 | `coefficient` | numeric | Multiplicateur (0.90 à 1.20) |
 
+#### Table `match_gold_standard` (étalon du rapprochement — 2026-09-10)
+
+Le seul jeu de données qui dise « cette ligne de devis correspond à cette entrée du catalogue ». 150 lignes tirées au sort, jugées par un expert (Johan) **puis** par gemini-2.5-pro, avec le contexte exact montré aux deux et **sans les prix du catalogue** (sinon le relecteur choisit l'entrée dont la fourchette tombe juste, et l'étalon devient circulaire).
+
+⚠️ **`service_role` uniquement** : RLS activé sans aucune policy. La table contient des extraits de devis de clients réels, et le dépôt GitHub est public — c'est précisément pourquoi elle existe, plutôt qu'un fichier sur un poste.
+
+| Colonne | Type | Description |
+|---|---|---|
+| `id` | text | `L001`… — identifiant stable de la question |
+| `ligne_devis` | text | Description telle qu'extraite du devis |
+| `texte_requete` | text | Texte réellement embarqué en production (`buildQueryEmbeddingText`) — le conserver permet de rejouer la mesure sans le reconstituer |
+| `contexte` | jsonb | `{ qte, unite, montant_ht, categorie }` |
+| `candidats` | jsonb | Les 5 entrées catalogue **dans l'ordre du vectoriel** au moment de la relecture : `{ rang, job_type, label, similarity }` |
+| `temoin` | bool | Ligne déjà rapprochée en confiance haute → sert à détecter les régressions |
+| `reponse_humaine` / `reponse_ia` | text | `'1'..'5'`, `'0'` (aucune ne convient), `'?'` (ligne injugeable), ou plusieurs rangs séparés par `\|` quand le devis ne permet pas de trancher |
+| `consensus` | bool | Les deux juges disent la même chose — **c'est ce sous-ensemble qui fait référence** |
+
+**Scripts** : `import-etalon-rapprochement.mjs` (alimente), `score-rapprochement.mjs` (note un changement, mode photo ou catalogue actuel), `feuille-relecture-rapprochement.mjs` (produit une nouvelle feuille de relecture).
+
+**Repères au 2026-09-10** — consensus 77 lignes, dont **42 (55 %) sans aucune entrée valable au catalogue** ; sur les 35 restantes, le top-1 est le bon dans **27 cas (77 %)**. ⚠️ Deux juges compétents ne s'accordent que sur 55 % des cas : un étalon à un seul relecteur a ce plafond-là.
+
 #### Table `analysis_work_items` (lignes de travaux)
 
 | Colonne | Type | Description |
