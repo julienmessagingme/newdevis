@@ -185,7 +185,7 @@ const FRENCH_STOPWORDS = new Set([
 ]);
 
 /** Tokenise + filtre stopwords + garde tokens ≥ 4 lettres. */
-function significantTokens(text: string): Set<string> {
+export function significantTokens(text: string): Set<string> {
   return new Set(
     text
       .toLowerCase()
@@ -414,6 +414,16 @@ export function hasStrongLexicalMatch(devisDesc: string, catalogLabel: string): 
 
   return !isSupplyVsLaborMismatch(devisDesc, catalogLabel);
 }
+
+// 2026-09-11 — RE-CLASSEMENT DU TOP-5 : MESURÉ, PUIS REFUSÉ.
+//
+// L'idée était de remplacer « prendre le top-1 du cosinus » par un score
+// combinant le cosinus et les signaux qu'on calcule déjà. Aucun scoreur n'est
+// livré ici, et c'est délibéré : les quatre signaux disponibles ont été mesurés
+// contre l'étalon humain et aucun ne départage. Le banc et les chiffres vivent
+// dans `scripts/banc-reclassement.ts` ; le raisonnement est dans CLAUDE.md.
+// ⚠️ Ne pas réintroduire un scoreur sans repasser par ce banc : la règle du
+// fichier (« plus de garde n°X qui s'empile ») vaut aussi pour le classement.
 
 export function hasLexicalOverlap(devisDesc: string, catalogLabel: string): boolean {
   const descTokens = significantTokens(devisDesc);
