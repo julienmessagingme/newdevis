@@ -51,28 +51,44 @@ export interface ReviewEmailInput {
   noteContexte?: string | null;
 }
 
+export const subjectForAction = (action: ReviewAction): string => SUBJECT_BY_ACTION[action];
+
 const SUBJECT_BY_ACTION: Record<ReviewAction, string> = {
   validated: "✓ Votre analyse a été confirmée par notre expert",
   corrected: "✓ Votre analyse a été ajustée par notre expert",
   rejected: "✓ Votre analyse a été confirmée par notre expert",
 };
 
+/**
+ * 2026-09-11 (retour Johan) — `validated` et `rejected` disent à l'utilisateur
+ * EXACTEMENT la même chose : un expert a relu, le verdict tient. La distinction
+ * est INTERNE — elle dit si le déclencheur de revue était justifié, pas si
+ * l'analyse est bonne — et elle n'a aucun sens pour le lecteur.
+ *
+ * 🔴 ON NE SE JUSTIFIE PAS. Le message de `rejected` annonçait « le signal qui
+ * avait déclenché une revue manuelle s'est avéré un faux positif ». C'est notre
+ * vocabulaire d'ingénierie : il nomme un mécanisme que le lecteur ignore, et il
+ * l'invite à douter d'un verdict qu'on est précisément en train de lui
+ * confirmer. Une bonne nouvelle n'a pas besoin d'exposer la plomberie qui l'a
+ * produite.
+ *
+ * Le texte est donc PARTAGÉ, pas recopié : deux formulations jumelles
+ * finiraient par diverger, et l'une des deux redeviendrait bavarde.
+ */
+const HERO_CONFIRME = {
+  title: "Votre analyse est confirmée",
+  intro:
+    "Notre expert vient de relire votre analyse. Le verdict que vous avez consulté est confirmé — vous pouvez vous y fier pour la suite.",
+};
+
 const HERO_BY_ACTION: Record<ReviewAction, { title: string; intro: string }> = {
-  validated: {
-    title: "Votre analyse est confirmée",
-    intro:
-      "Notre expert vient de valider l'analyse IA de votre devis. Le verdict que vous avez consulté est juste — vous pouvez vous y fier pour la suite.",
-  },
+  validated: HERO_CONFIRME,
   corrected: {
     title: "Votre analyse a été ajustée",
     intro:
       "Notre expert vient de relire votre analyse et a ajusté le verdict pour mieux refléter la réalité de votre devis. Consultez la nouvelle version.",
   },
-  rejected: {
-    title: "Votre analyse est confirmée",
-    intro:
-      "Notre expert vient de relire votre analyse. Le signal qui avait déclenché une revue manuelle s'est avéré un faux positif — le verdict initial est correct.",
-  },
+  rejected: HERO_CONFIRME,
 };
 
 const VERDICT_DECISIONNEL_LABEL: Record<string, string> = {
@@ -95,7 +111,15 @@ function esc(s: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-function buildHtml(input: ReviewEmailInput): string {
+/**
+ * 2026-09-11 — EXPORTÉ pour que la prévisualisation montre le VRAI gabarit.
+ * `scripts/preview-review-email.ts` en tenait une copie locale « faute
+ * d'export » : le jour où le texte de `rejected` a changé ici, l'aperçu
+ * affichait encore l'ancien. Un outil censé valider le wording avant envoi ne
+ * peut pas avoir son propre wording.
+ * ⚠️ `subjectForAction` est exporté pour la même raison.
+ */
+export function buildHtml(input: ReviewEmailInput): string {
   const { prenom, fileName, analysisId, action, verdictDecisionnel, noteContexte } = input;
   const hero = HERO_BY_ACTION[action];
   const decisionnel = verdictDecisionnel ?? "signer";
