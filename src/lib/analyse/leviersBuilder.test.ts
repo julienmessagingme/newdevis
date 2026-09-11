@@ -405,6 +405,86 @@ describe("buildVerdictLigne — le motif est TOUJOURS nommé", () => {
     expect(v.marge).toContain("révision tarifaire");
   });
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2026-09-11 (retour Johan, revue NB-Al-Ajhoury « devis étanchéité »)
+  // ══════════════════════════════════════════════════════════════════════════
+  // Le client lisait : « 1 930 € HT — l'acompte demandé (50 %) est au-dessus de
+  // l'usage de 30 %. Marge de négociation estimée : 3 à 5 % en négociation
+  // courtoise. » Ramener un acompte de 50 % à 30 % change QUAND on paie, pas
+  // COMBIEN. Et sur ce devis aucune ligne n'avait de référence opposable : on
+  // chiffrait une remise sur des prix qu'on venait de déclarer invérifiables.
+  //
+  // La règle est désormais : un POURCENTAGE de marge n'est annoncé que par le
+  // levier de révision tarifaire, seul à porter son propre ordre de grandeur.
+  // Un MONTANT reste annoncé dès qu'un poste nommé le porte (test plus haut).
+  describe("aucun pourcentage de marge sans levier de PRIX", () => {
+    it("acompte seul (cas NB-Al-Ajhoury) → levier de négociation, mais AUCUNE marge", () => {
+      const s: LevierSignals = {
+        ...base,
+        verdict_decisionnel: "signer_avec_negociation",
+        total_ht: 1_930,
+        acompte_cumule_pct: 50,
+      };
+      const leviers = buildLeviers(s);
+      const v = buildVerdictLigne(s, leviers);
+      // Le levier EXISTE et reste un levier de négociation : c'est le
+      // pourcentage qui disparaît, pas le conseil.
+      expect(leviers.some((l) => l.type === "acompte" && l.objectif === "negocier")).toBe(true);
+      expect(v.motif).toContain("50 %");
+      expect(v.marge).toBeNull();
+    });
+
+    it("clause orange seule → aucune marge (discuter une clause ne baisse pas le prix)", () => {
+      const s: LevierSignals = {
+        ...base,
+        verdict_decisionnel: "signer_avec_negociation",
+        clauses_litigieuses: [{ type: "penalite_annulation_excessive", gravite: "orange", citation: "30 % de pénalité en cas d'annulation" }],
+      };
+      const leviers = buildLeviers(s);
+      expect(leviers.some((l) => l.type === "clause_orange")).toBe(true);
+      expect(buildVerdictLigne(s, leviers).marge).toBeNull();
+    });
+
+    it("espèces seules → aucune marge (un mode de paiement n'est pas un prix)", () => {
+      const s: LevierSignals = { ...base, verdict_decisionnel: "signer_avec_negociation", paiement_especes_seul: true };
+      const leviers = buildLeviers(s);
+      expect(leviers.some((l) => l.type === "especes")).toBe(true);
+      expect(buildVerdictLigne(s, leviers).marge).toBeNull();
+    });
+
+    // ⚠️ Délibéré : le levier « quantités » existe PARCE QU'ON NE PEUT PAS
+    // vérifier les prix. En tirer une marge serait le conseil intempestif
+    // proscrit le 2026-09-04.
+    it("quantités manquantes → aucune marge, malgré un levier PUISSANT", () => {
+      const s: LevierSignals = { ...base, verdict_decisionnel: "signer_avec_negociation", quantites_manquantes: true };
+      const leviers = buildLeviers(s);
+      expect(leviers.some((l) => l.type === "quantites" && l.niveau === "puissant")).toBe(true);
+      expect(buildVerdictLigne(s, leviers).marge).toBeNull();
+    });
+
+    // Anti-régression : la marge en EUROS, elle, ne dépend pas de cette règle.
+    it("acompte + surcoût nommé → la marge en euros survit", () => {
+      const s: LevierSignals = {
+        ...base,
+        verdict_decisionnel: "signer_avec_negociation",
+        acompte_cumule_pct: 50,
+        surcout: { min: 800, max: 1_200 },
+        anomalies_postes: ["Cloison plâtre BA13"],
+      };
+      expect(buildVerdictLigne(s, buildLeviers(s)).marge).toMatch(/800/);
+    });
+
+    // La branche survivante ne doit plus dépendre d'un libellé français : une
+    // reformulation du titre supprimerait la marge en silence.
+    it("révision tarifaire → marge conservée, et reconnue par son TYPE", () => {
+      const s: LevierSignals = { ...base, date_devis: "2024-06-15" };
+      const leviers = buildLeviers(s);
+      expect(leviers.some((l) => l.type === "revision_tarifaire")).toBe(true);
+      const renommes = leviers.map((l) => ({ ...l, titre: "Libellé réécrit un jour futur" }));
+      expect(buildVerdictLigne(s, renommes).marge).toContain("révision tarifaire");
+    });
+  });
+
   it("le fallback références est étiqueté sécurisation, pas négociation", () => {
     const leviers = buildLeviers(base);
     const refs = leviers.find((l) => l.titre.includes("références"));

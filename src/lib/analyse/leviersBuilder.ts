@@ -643,7 +643,6 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
   // un levier de négociation la porte. Une marge « 3-5% » sans levier est une
   // promesse creuse qui décrédibilise le verdict.
   let marge: string | null = null;
-  const hasNegoLevier = leviers.some((l) => l.objectif === "negocier");
   // 2026-09-05 (retour Johan, cas EC'eau) — ON N'ANNONCE PAS UN MONTANT QU'ON
   // NE PEUT PAS MONTRER. Une marge chiffrée exige au moins un poste nommé :
   // sinon le client lit « 800 à 1 200 € à négocier » et n'a aucune ligne où
@@ -654,11 +653,42 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
   const montantAttribuable = s.anomalies_postes.length > 0;
   if (s.surcout.max >= 300 && montantAttribuable) {
     marge = `environ ${fmtEuros(s.surcout.min)} à ${fmtEuros(s.surcout.max)} €`;
-  } else if (leviers.some((l) => l.titre.startsWith("Demandez une révision tarifaire"))) {
+  } else if (leviers.some((l) => l.type === "revision_tarifaire")) {
+    // Seul levier générique qui justifie un POURCENTAGE : un devis de plus de
+    // douze mois se réactualise, et l'ordre de grandeur (5 à 8 %/an) est écrit
+    // dans le levier lui-même. ⚠️ Le test portait sur le LIBELLÉ français
+    // (« Demandez une révision tarifaire… ») — une reformulation du titre
+    // aurait supprimé la marge en silence. `type` existe depuis la tranche 2,
+    // c'est lui qui fait foi.
     marge = "3 à 5 % (révision tarifaire)";
-  } else if (hasNegoLevier) {
-    marge = "3 à 5 % en négociation courtoise";
   }
+  // 🔴 2026-09-11 (retour Johan, revue NB-Al-Ajhoury) — LA BRANCHE
+  // « 3 à 5 % en négociation courtoise » EST SUPPRIMÉE. Elle se déclenchait dès
+  // qu'un levier portait `objectif: "negocier"` — sans regarder si ce levier
+  // parlait de PRIX. Sur le devis d'étanchéité signalé, le seul levier était
+  // l'acompte (50 % demandés) : le client lisait « l'acompte est au-dessus de
+  // l'usage. Marge de négociation estimée : 3 à 5 %. » Or ramener un acompte de
+  // 50 % à 30 % change QUAND on paie, pas COMBIEN — l'économie annoncée
+  // n'existe pas. Et sur ce même devis, aucune ligne n'avait de référence
+  // opposable : nous chiffrions une remise sur des prix que nous venions de
+  // déclarer invérifiables.
+  //
+  // Mesuré avant correctif sur les analyses portant un `verdict_ligne` :
+  // 6 sur 50 (12 %) annonçaient « 3 à 5 % » sans aucun levier de prix derrière
+  // — trois sur un acompte seul, une sur une clause orange, et une dont le
+  // motif était « prix dans les fourchettes du marché et conditions
+  // habituelles », soit « les prix sont justes, négociez 3 à 5 % ».
+  //
+  // ⚠️ Les autres leviers de négociation restent des leviers — l'acompte, les
+  // espèces, les quantités manquantes et les clauses oranges SE négocient, et
+  // le titre « Ce devis nous paraît négociable » (AvisSurLeDevis) continue de
+  // s'appuyer dessus. Ce qui disparaît n'est pas le levier, c'est le
+  // POURCENTAGE qu'aucun d'eux ne soutient. Même famille que les quatre fuites
+  // fermées le 05/09 : aucun chiffre sans quelque chose derrière.
+  //
+  // ⚠️ `quantites` n'est délibérément PAS compté comme levier de prix : ce
+  // levier existe précisément parce qu'on ne PEUT PAS vérifier les prix.
+  // En tirer une marge serait le conseil intempestif proscrit le 04/09.
 
   const montant = s.total_ht !== null && s.total_ht > 0 ? `${fmtEuros(s.total_ht)} € HT` : null;
   const contexte = (s.work_type ?? "").trim();
