@@ -17,6 +17,11 @@ import BlogTeaser from '@/components/landing/BlogTeaser';
 // Sans directive client : le composant n'a ni état ni gestionnaire, donc HTML
 // rendu au build et zéro JS envoyé.
 import DuDevisAuVerdict from '@/components/landing/DuDevisAuVerdict';
+// 2026-09-10 — la taille du catalogue est une PROMESSE CHIFFRÉE affichée au
+// public : elle était écrite en dur ici (919) et se périmait à chaque migration
+// du catalogue. Elle vient désormais de la source unique, régénérée depuis
+// `market_prices` (cf. CLAUDE.md § « Une seule valorisation dans tout le site »).
+import { CATALOGUE_TAILLE } from '@/lib/prix/reference';
 import SimulateurAidesCard from '@/components/homepage/SimulateurAidesCard';
 import SocialProofTicker from '@/components/homepage/SocialProofTicker';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
@@ -57,7 +62,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Votre devis est-il trop cher… ou risqué ? | VerifierMonDevis.fr"
-  description="Analysez votre devis travaux : surcoût poste par poste sur 919 références de prix, entreprise vérifiée (radiation, santé financière), clauses abusives détectées. Sans commission d'artisan."
+  description={`Analysez votre devis travaux : surcoût poste par poste sur ${CATALOGUE_TAILLE} références de prix, entreprise vérifiée (radiation, santé financière), clauses abusives détectées. Sans commission d'artisan.`}
   canonical="https://www.verifiermondevis.fr/"
   jsonLd={jsonLd}
 >
@@ -157,7 +162,7 @@ const jsonLd = {
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>Surcoût estimé en euros, poste par poste — <strong>919 références de prix</strong></span>
+                  <span>Surcoût estimé en euros, poste par poste — <strong>{CATALOGUE_TAILLE} références de prix</strong></span>
                 </div>
                 <div class="flex items-center gap-2">
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -1,9 +1,9 @@
 {
-  "genereLe": "2026-09-08T06:20:31.982Z",
+  "genereLe": "2026-09-10T20:31:41.013Z",
   "source": "market_prices",
   "tva": "HT",
-  "catalogueTaille": 919,
-  "analysesTotal": 424,
+  "catalogueTaille": 918,
+  "analysesTotal": 438,
   "postes": {
     "peinture_murs_plafonds": {
       "libelle": "Peinture murs et plafonds",
@@ -29,9 +29,9 @@
       "libelle": "Pose de carrelage sol (hors fourniture)",
       "note": "Main-d'œuvre seule",
       "unite": "m²",
-      "min": 40,
-      "moy": 65,
-      "max": 100,
+      "min": 25,
+      "moy": 45,
+      "max": 65,
       "job_type": "carrelage_sol_pose",
       "label_catalogue": "Pose carrelage sol (hors fourniture)"
     },

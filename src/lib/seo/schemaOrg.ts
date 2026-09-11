@@ -8,6 +8,8 @@
  * Doc : https://schema.org / https://developers.google.com/search/docs/appearance/structured-data
  */
 
+import { CATALOGUE_TAILLE } from "@/lib/prix/reference";
+
 export interface ArticleSchemaInput {
   title: string;
   description: string;
@@ -107,8 +109,11 @@ export function softwareApplicationSchema() {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "VerifierMonDevis.fr",
+    // 2026-09-10 — le nombre de références était écrit en dur (919) et se
+    // périmait à chaque migration du catalogue. Source unique, régénérée depuis
+    // `market_prices` (cf. CLAUDE.md § « Une seule valorisation dans tout le site »).
     description:
-      "Outil d'analyse de devis travaux. Compare chaque poste à 919 références de prix, vérifie l'entreprise dans les registres officiels et détecte les clauses abusives.",
+      `Outil d'analyse de devis travaux. Compare chaque poste à ${CATALOGUE_TAILLE} références de prix, vérifie l'entreprise dans les registres officiels et détecte les clauses abusives.`,
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     offers: {
