@@ -189,7 +189,10 @@ export default function LeviersNegociation({ conclusion, analysisId, totalHt, pr
           question={`Pour financer ces travaux (${Math.round(totalHt).toLocaleString("fr-FR")} € HT), qu'envisagez-vous ?`}
           reponses={[
             { valeur: "interesse", libelle: "Je cherche une solution" },
-            { valeur: "deja_equipe", libelle: "J'ai déjà mon financement" },
+            // 2026-09-13 (retour Johan) — « C'est déjà financé » et non « J'ai
+            // déjà mon financement » : sous une question qui demande une
+            // INTENTION, les trois réponses doivent être du même registre.
+            { valeur: "deja_equipe", libelle: "C'est déjà financé" },
             { valeur: "non", libelle: "Je paie sans emprunter" },
           ]}
           provenance="Nos fondateurs ont exercé 20 ans en banque et en assurance, dont le crédit immobilier."
