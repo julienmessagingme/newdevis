@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import SEOHead from "@/components/SEOHead";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import BrandLogo from "@/components/auth/BrandLogo";
 import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/auth/brand";
+import { ANALYSES_TOTAL } from "@/lib/prix/reference";
 import { trackEvent } from "@/lib/integrations/amplitude";
 import { trackPixel } from "@/lib/integrations/metaPixel";
 import { trackTikTok } from "@/lib/integrations/tiktokPixel";
@@ -51,6 +52,45 @@ const Register = ({ brand }: Props) => {
 
   const selectedCountry = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
 
+  /**
+   * 2026-09-13 — LE DÉNOMINATEUR QUI MANQUAIT AU FORMULAIRE.
+   * Mesuré sur 10 jours : 51 visiteurs-jour atteignent `/inscription`, 22
+   * créent un compte. On ne savait pas séparer « reparti devant le mur » de
+   * « a commencé à remplir puis renoncé » — donc pas si les CHAMPS comptent.
+   * Un événement au premier caractère saisi tranche la question.
+   * ⚠️ Une seule fois par montage : c'est un « a commencé », pas un compteur
+   * de frappes.
+   */
+  const debutSignale = useRef(false);
+  const signalerDebut = () => {
+    if (debutSignale.current) return;
+    debutSignale.current = true;
+    // Best-effort absolu : une mesure ne doit jamais gêner une saisie.
+    fetch("/api/track/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "inscription_formulaire_commence",
+        site: config.brand === "gmc" ? "gmc" : "vmd",
+      }),
+      keepalive: true,
+    }).catch(() => { /* ignoré */ });
+  };
+
+  /**
+   * 2026-09-13 — LE TÉLÉPHONE N'EST OBLIGATOIRE QUE SUR GMC.
+   * Sur VMD il était requis, **jamais utilisé** (rien dans le parcours
+   * d'analyse ne s'en sert — seuls le canal WhatsApp de GMC et la liste admin
+   * le lisent) et justifié par une promesse que nous ne tenons pas : « pour
+   * vous prévenir si une vérification urgente est nécessaire », alors
+   * qu'aucun envoi de SMS n'existe dans le code et que les notifications de
+   * revue partent par e-mail.
+   * ⚠️ Et il n'était même pas collecté de façon cohérente : 83 % des
+   * inscriptions récentes passent par Google, qui n'en demande aucun.
+   * Sur GMC il sert vraiment (canal WhatsApp du chantier) : il y reste requis.
+   */
+  const telephoneRequis = config.brand === "gmc";
+
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, "");
     const limited = cleaned.slice(0, selectedCountry.maxDigits + 1); // +1 for leading 0
@@ -58,6 +98,7 @@ const Register = ({ brand }: Props) => {
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    signalerDebut();
     const formatted = formatPhoneNumber(e.target.value);
     setPhone(formatted);
   };
@@ -74,9 +115,13 @@ const Register = ({ brand }: Props) => {
     const phoneDigits = phone.replace(/\D/g, "");
     // Strip leading 0 for international format
     const phoneLocal = phoneDigits.startsWith("0") ? phoneDigits.slice(1) : phoneDigits;
-    if (phoneLocal.length < 6 || phoneLocal.length > selectedCountry.maxDigits) {
-      toast.error(`Veuillez entrer un numéro de téléphone valide (${selectedCountry.label})`);
-      return;
+    // ⚠️ Facultatif sur VMD : un champ vide passe. Rempli, il reste VALIDÉ —
+    // un numéro à moitié saisi serait pire que pas de numéro du tout.
+    if (telephoneRequis || phoneLocal.length > 0) {
+      if (phoneLocal.length < 6 || phoneLocal.length > selectedCountry.maxDigits) {
+        toast.error(`Veuillez entrer un numéro de téléphone valide (${selectedCountry.label})`);
+        return;
+      }
     }
 
     // `redirecting` garde le spinner actif pendant le délai de 400 ms avant la redirection :
@@ -93,7 +138,8 @@ const Register = ({ brand }: Props) => {
           data: {
             first_name: firstName,
             last_name: lastName,
-            phone: countryCode + phoneLocal,
+            // Champ facultatif sur VMD : on n'écrit pas « +33 » tout seul.
+            phone: phoneLocal ? countryCode + phoneLocal : null,
             accept_commercial_offers: acceptCommercial,
             // Persisté dans les metadata user : lu par le trigger DB pour créer
             // l'essai GMC et router les emails (welcome / notif admin) côté serveur.
@@ -200,7 +246,13 @@ const Register = ({ brand }: Props) => {
                 </ul>
                 <div className="mt-3 pt-3 border-t border-primary/10 flex items-center gap-3 text-xs text-muted-foreground">
                   <span className="text-amber-500" aria-hidden="true">★★★★★</span>
-                  <span><strong className="text-foreground">4,7/5</strong> · +250 devis analysés</span>
+                  {/* 2026-09-13 — « +250 devis analysés » était écrit EN DUR et
+                      périmé : la base en comptait 424. Une promesse chiffrée
+                      périmée est un mensonge, et la règle du 08/09 impose la
+                      source unique `ANALYSES_TOTAL` (régénérée chaque lundi).
+                      ⚠️ Le 4,7/5 reste en dur ici comme dans cinq autres
+                      fichiers — à centraliser (`TODO.md`). */}
+                  <span><strong className="text-foreground">4,7/5</strong> · {ANALYSES_TOTAL.toLocaleString("fr-FR")} devis analysés</span>
                 </div>
               </div>
             );
@@ -235,7 +287,7 @@ const Register = ({ brand }: Props) => {
                     autoCapitalize="words"
                     placeholder="Jean"
                     value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
+                    onChange={(e) => { signalerDebut(); setFirstName(e.target.value); }}
                     className="pl-10"
                     required
                     disabled={loading}
@@ -251,7 +303,7 @@ const Register = ({ brand }: Props) => {
                   autoCapitalize="words"
                   placeholder="Dupont"
                   value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
+                  onChange={(e) => { signalerDebut(); setLastName(e.target.value); }}
                   required
                   disabled={loading}
                 />
@@ -271,7 +323,7 @@ const Register = ({ brand }: Props) => {
                   spellCheck={false}
                   placeholder="vous@exemple.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { signalerDebut(); setEmail(e.target.value); }}
                   className="pl-10"
                   required
                   disabled={loading}
@@ -280,9 +332,17 @@ const Register = ({ brand }: Props) => {
             </div>
 
             <div className="space-y-2">
+              {/* ⚠️ NE PAS REMETTRE « pour vous prévenir si une vérification
+                  urgente est nécessaire » : aucun envoi de SMS n'existe dans le
+                  code, et les notifications de revue partent par e-mail. La
+                  justification promettait un service que nous ne rendons pas. */}
               <Label htmlFor="phone" className="flex items-center gap-1.5">
                 Téléphone portable
-                <span className="text-xs font-normal text-muted-foreground">— pour vous prévenir si une vérification urgente est nécessaire</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  {telephoneRequis
+                    ? "— pour le canal WhatsApp de votre chantier"
+                    : "— facultatif"}
+                </span>
               </Label>
               <div className="flex gap-2">
                 <select
@@ -308,7 +368,7 @@ const Register = ({ brand }: Props) => {
                     value={phone}
                     onChange={handlePhoneChange}
                     className="pl-10"
-                    required
+                    required={telephoneRequis}
                     disabled={loading}
                   />
                 </div>
@@ -325,7 +385,7 @@ const Register = ({ brand }: Props) => {
                   autoComplete="new-password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { signalerDebut(); setPassword(e.target.value); }}
                   className="pl-10"
                   required
                   minLength={8}

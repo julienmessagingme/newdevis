@@ -44,6 +44,12 @@ const EVENEMENTS_AUTORISES = new Set([
   // décision de 15 % était donc incalculable.
   "sondage_do_vu",
   "sondage_credit_vu",
+  // 2026-09-13 — « a commencé à remplir le formulaire d'inscription ». Sans
+  // lui, on sait qui ARRIVE sur /inscription et qui TERMINE, jamais qui
+  // essaie : impossible de separer « reparti devant le mur » de « a renoncé
+  // devant les champs », donc impossible de savoir s'il faut toucher aux
+  // champs. Mesuré le 13/09 : 51 arrivées, 22 comptes créés.
+  "inscription_formulaire_commence",
 ]);
 
 async function empreinteDuJour(ip: string, ua: string): Promise<string> {
