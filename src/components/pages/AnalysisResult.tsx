@@ -233,6 +233,10 @@ export interface CompanyDisplayData {
   entreprise_radiee: boolean | null;
   procedure_collective: boolean | null;
   lookup_status: string | null;
+  /** 2026-09-13 — sort du numéro IMPRIMÉ sur le devis, distinct de
+   *  `lookup_status` que le repli par nom réécrit. Sert à ne pas présenter
+   *  comme établi un numéro qui ne désigne aucune entreprise. */
+  siret_devis_statut: "ok" | "invalide" | "introuvable" | null;
   // Données financières brutes issues de verified.finances (data.economie.gouv.fr)
   finances: import("@/lib/analyse/entrepriseUtils").FinancialRatios[];
   finances_status: string;
@@ -267,6 +271,7 @@ const extractCompanyData = (analysis: Analysis): CompanyDisplayData | null => {
       entreprise_radiee: verified?.entreprise_radiee ?? null,
       procedure_collective: verified?.procedure_collective ?? null,
       lookup_status: verified?.lookup_status || null,
+      siret_devis_statut: verified?.siret_devis_statut ?? null,
       finances: Array.isArray(verified?.finances) ? verified.finances : [],
       finances_status: verified?.finances_status || "skipped",
       rge_pertinent: verified?.rge_pertinent ?? false,

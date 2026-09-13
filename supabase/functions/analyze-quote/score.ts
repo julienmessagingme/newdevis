@@ -284,11 +284,35 @@ export function calculateScore(
     informatifs.push("ℹ️ Vérification entreprise non effectuée");
   }
 
-  // V3.4.19 — lookup_status="ambiguous" : on a plusieurs homonymes sans pouvoir
-  // départager (cf. helper pickBestNameMatch dans verify.ts). Pas de ROUGE, pas
-  // de VERT — on signale honnêtement que le SIRET n'a pas été extrait et qu'on
-  // ne peut pas valider l'identité sans une vérification manuelle. ORANGE.
-  if (verified.lookup_status === "ambiguous") {
+  // 🔴 2026-09-13 (devis « Entreprise Fk », retour Johan) — DIRE LE FAIT, PAS
+  // UNE APPROXIMATION SUR NOTRE PROPRE MÉCANIQUE.
+  // L'ancien message affirmait « SIRET non extrait du devis » DÈS QUE le repli
+  // par nom était ambigu. Sur le devis signalé, le numéro était imprimé en
+  // en-tête, extrait correctement, cherché — et introuvable. Nous annoncions
+  // donc le contraire de ce qui s'était passé, et nous listions en prime trois
+  // « candidats trouvés » par homonymie : un taxi parisien cessé, une SCI en
+  // Isère, une activité de courrier à Asnières. Aucun dans le bâtiment, aucun
+  // dans le département du devis. **Proposer ces candidats est pire que se
+  // taire** : ils donnent au lecteur l'illusion d'une piste.
+  //
+  // Trois situations, trois phrases — et le numéro imprimé prime toujours sur
+  // l'homonymie, parce que c'est le seul élément que l'artisan a écrit lui-même.
+  if (verified.siret_devis_statut === "invalide") {
+    // Mesuré le 13/09 : 11 numéros sur 311 sont dans ce cas, et presque tous
+    // appartiennent à des entreprises parfaitement réelles dont les chiffres
+    // ont été mal lus sur une photo. On dit donc la lecture, pas l'entreprise.
+    oranges.push(
+      "Numéro SIRET illisible ou incorrect — celui qui figure sur le devis ne correspond à aucune entreprise enregistrée et ne satisfait pas sa propre clé de contrôle. " +
+      "Cela vient souvent d'un chiffre mal imprimé ou mal photographié. Demandez son SIRET à l'artisan et vérifiez-le sur annuaire-entreprises.data.gouv.fr avant de verser un acompte.",
+    );
+  } else if (verified.siret_devis_statut === "introuvable") {
+    oranges.push(
+      "Le SIRET indiqué sur ce devis ne correspond à aucune entreprise enregistrée. " +
+      "Le numéro est bien formé, mais il n'apparaît dans aucun registre officiel. Demandez confirmation à l'artisan avant de verser un acompte.",
+    );
+  } else if (verified.lookup_status === "ambiguous") {
+    // Cas d'origine de la V3.4.19, désormais restreint à ce qu'il visait
+    // vraiment : AUCUN numéro sur le devis, et plusieurs homonymes.
     const candidatesPreview = (verified.ambiguous_candidates ?? []).slice(0, 3).join(" · ");
     const suffix = candidatesPreview ? ` (candidats trouvés : ${candidatesPreview})` : "";
     oranges.push(`Identification entreprise incertaine — SIRET non extrait du devis, plusieurs entreprises homonymes existent en France. Demandez le SIRET à l'artisan et vérifiez sur societe.com${suffix}`);

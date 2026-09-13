@@ -310,6 +310,22 @@ export interface VerificationResult {
    *  établissement connu. Signal ORANGE : un NIC obsolète ou une coquille de
    *  saisie sont plus fréquents qu'une fraude. */
   etablissement_introuvable?: boolean;
+  /** 2026-09-13 (devis « Entreprise Fk ») — LE NUMÉRO IMPRIMÉ SUR LE DEVIS NE
+   *  DÉSIGNE AUCUNE ENTREPRISE, et ce fait doit SURVIVRE au repli par nom.
+   *  Sans lui, `lookup_status` passait de `not_found` à `ambiguous` (verify.ts)
+   *  et le message rendu à l'utilisateur devenait « SIRET non extrait du
+   *  devis » — faux, et le vrai problème disparaissait.
+   *  - `invalide`   : la clé de Luhn ne tombe pas juste → chiffres mal lus ou
+   *                   numéro fabriqué. Ne permet AUCUNE conclusion sur
+   *                   l'entreprise (11 cas sur 311 dans le stock, presque tous
+   *                   des photos ou des PDF scannés d'entreprises bien réelles).
+   *  - `introuvable`: numéro bien formé, mais ni le SIRET ni le SIREN ne
+   *                   renvoient quoi que ce soit.
+   *  ⚠️ Ni l'un ni l'autre n'est un critère ROUGE : mesuré le 13/09, un numéro
+   *  qui ne se retrouve pas est presque toujours un défaut de LECTURE, pas une
+   *  entreprise fantôme. En faire une accusation serait le conseil intempestif
+   *  que ce projet s'interdit. */
+  siret_devis_statut?: "ok" | "invalide" | "introuvable" | null;
   /** true quand le résultat vient du repli SIREN et non du SIRET exact. */
   lookup_par_siren?: boolean;
   procedure_collective: boolean | null;

@@ -158,6 +158,11 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
 
   // Build structured company info — prefer companyData (from raw_text JSON) over parsed strings
   const siret = companyData?.siret || info.siren_siret || null;
+  // Le fait vient de `verified`, pas d'une relecture du libellé : il survit au
+  // repli par nom, qui réécrit `lookup_status` (cf. verify.ts).
+  const siretNonVerifie =
+    companyData?.siret_devis_statut === "invalide" ||
+    companyData?.siret_devis_statut === "introuvable";
   const nomEntrepriseRaw = companyData?.nom_officiel || companyData?.nom_devis || null;
   const adresseRaw = companyData?.adresse_officielle || null;
   const ville = companyData?.ville_officielle || null;
@@ -237,9 +242,24 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                   </span>
                 )}
               </div>
+              {/* 🔴 2026-09-13 (devis « Entreprise Fk », retour Johan) — UN NUMÉRO
+                  QUI NE DÉSIGNE PERSONNE NE S'AFFICHE PAS COMME UN SIRET ÉTABLI.
+                  La page montrait « SIRET : 806 713 759 00019 » en clair, dans le
+                  bloc « Entreprise & Fiabilité », alors que ce numéro ne renvoie
+                  rien — ni par SIRET, ni par SIREN, ni par nom + code postal — et
+                  ne satisfait même pas sa clé de contrôle. On le montre toujours
+                  (c'est ce que l'artisan a écrit, le lecteur doit pouvoir le lui
+                  opposer) mais on dit ce qu'il vaut. */}
               {siret && (
-                <p className="text-xs sm:text-sm text-muted-foreground font-mono">
+                <p
+                  className={`text-xs sm:text-sm font-mono ${
+                    siretNonVerifie ? "text-amber-600" : "text-muted-foreground"
+                  }`}
+                >
                   SIRET&nbsp;: {formatSiret(siret)}
+                  {siretNonVerifie && (
+                    <span className="font-sans not-italic"> — non vérifiable</span>
+                  )}
                 </p>
               )}
               {!siret && (

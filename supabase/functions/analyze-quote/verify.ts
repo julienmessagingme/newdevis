@@ -1,5 +1,6 @@
 import type { ExtractedData, VerificationResult, CompanyPayload, ScoringColor, FinancialRatios } from "./types.ts";
 import { resolveCompanyStatus } from "./company-status.ts";
+import { estNumeroSirenValide } from "./siren-luhn.ts";
 import {
   extractSiren,
   getCountryName,
@@ -169,6 +170,15 @@ export async function verifyData(
     ?? (cleanRaw && /^\d{13}$/.test(cleanRaw) ? cleanRaw.substring(0, 9) : null);
   // Use SIRET if available, fall back to SIREN as lookup/cache key
   const lookupKey = siret ?? siren;
+
+  // 2026-09-13 — sort du numéro IMPRIMÉ sur le devis (cf. `siret_devis_statut`).
+  // ⚠️ Ces deux drapeaux se lisent sur `cleanRaw`, PAS sur `siret` : un numéro
+  // de 10, 11 ou 12 chiffres ne passe même pas le parsing ci-dessus, donc
+  // aucune recherche n'est tentée — et jusqu'ici RIEN n'était dit à
+  // l'utilisateur. C'est pourtant le cas le plus fréquent : 11 des 13 numéros
+  // non retrouvés du stock (mesure du 13/09) sont dans cet état.
+  let identifieeParSonNumero = false;
+  let rechercheNumeroConcluante = false;
 
   if (lookupKey && siren) {
     result.debug!.provider_calls.entreprise.enabled = true;
@@ -372,6 +382,21 @@ export async function verifyData(
       }
     }
 
+    // 🔴 2026-09-13 (devis « Entreprise Fk ») — ON FIGE ICI LE SORT DU NUMÉRO
+    // IMPRIMÉ, AVANT que le repli par nom ne réécrive `lookup_status`.
+    // Le repli passait `not_found` à `ambiguous`, et le message rendu à
+    // l'utilisateur devenait « SIRET non extrait du devis » alors qu'il était
+    // imprimé en en-tête. Le fait le plus utile — « ce numéro ne désigne aucune
+    // entreprise » — disparaissait en route, remplacé par trois « candidats »
+    // trouvés par homonymie : un taxi parisien cessé, une SCI en Isère et une
+    // activité de courrier à Asnières. Aucun dans le bâtiment, aucun dans le
+    // département du devis.
+    // ⚠️ On ne conclut RIEN quand la recherche a échoué techniquement
+    // (`error`) : un « 0 résultat » d'un fournisseur externe est un défaut de
+    // notre requête jusqu'à preuve du contraire (règle du 2026-09-04).
+    if (result.lookup_status === "ok") identifieeParSonNumero = true;
+    else if (result.lookup_status === "not_found") rechercheNumeroConcluante = true;
+
     // 1b. NAME FALLBACK — si le SIRET/SIREN n'a pas permis de retrouver l'entreprise,
     // on tente une recherche textuelle par nom (recherche-entreprises supporte le texte libre).
     // V3.4.19 : on récupère désormais 5 candidats au lieu de 3 et on les passe à
@@ -538,6 +563,31 @@ export async function verifyData(
       } catch (nameErr) {
         console.log("[Verify] Direct name lookup error:", nameErr instanceof Error ? nameErr.message : "Unknown");
       }
+    }
+  }
+
+  // ── Sort du numéro imprimé sur le devis (2026-09-13) ──────────────────────
+  // Calculé APRÈS tous les replis, sur `cleanRaw` — ce que l'artisan a écrit —
+  // et jamais sur `lookup_status`, que le repli par nom réécrit.
+  // ⚠️ Trois silences volontaires :
+  //   · aucun numéro imprimé → `null`, et le message historique « SIRET non
+  //     extrait du devis » redevient exact ;
+  //   · entreprise identifiée PAR SON NUMÉRO → « ok », y compris quand le
+  //     rattrapage des 13 chiffres a fonctionné : on a ce qu'on cherchait ;
+  //   · recherche techniquement en échec → `null`, on ne conclut rien.
+  if (cleanRaw && cleanRaw.length >= 9) {
+    if (identifieeParSonNumero) {
+      result.siret_devis_statut = "ok";
+    } else if (!estNumeroSirenValide(cleanRaw)) {
+      // Pas besoin d'avoir interrogé le registre : la clé de contrôle suffit à
+      // dire qu'on n'a pas su lire ce numéro. C'est le cas des 10, 11 et 12
+      // chiffres, pour lesquels aucune recherche n'était même tentée.
+      result.siret_devis_statut = "invalide";
+    } else if (rechercheNumeroConcluante) {
+      result.siret_devis_statut = "introuvable";
+    }
+    if (result.siret_devis_statut && result.siret_devis_statut !== "ok") {
+      console.log(`[Verify] Numéro du devis ${result.siret_devis_statut} : ${cleanRaw}`);
     }
   }
 
