@@ -27,9 +27,9 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 ### À surveiller
 
 - ✅ **Agent relecteur sur gros devis — résolu 2026-08-29** : le devis 25030 n'était pas « trop lourd », et **deux** causes se cachaient derrière le même symptôme (`timeout_edge` après 3 tentatives). (1) `speed:"fast"` ajouté la veille → le mode rapide n'est pas ouvert sur notre organisation, 429 immédiat, le relecteur était éteint pour TOUTES les analyses. (2) Une fois le mode rapide retiré, le run restait bloqué en `running` sans aucune erreur : le `download()` + base64 du PDF (573 Ko) dans le worker dépassait le budget CPU et la edge tuait le run **en silence**. Corrigé par une URL signée (Anthropic va chercher le fichier lui-même). Résultat en prod : **61 s, PDF lu**, avis riche et argumenté. `last_error` consigne désormais la cause API pour ne plus confondre quota et timeout. Les 3 « optimisations de budget » empilées avant ce diagnostic (effort abaissé, PDF supprimé au-delà de 55 lignes, mode rapide) ne touchaient aucune des deux causes — règles écrites dans CLAUDE.md.
-- 🟡 **Tests d'intérêt** : relire les taux de clic à mi-parcours (mi-octobre) avant les verdicts de fin novembre.
-- 🟡 **Couverture catalogue** : re-mesurer à J+15 (médiane de départ : 29 %).
-- 🟡 **Fourchettes des 19 nouvelles entrées catalogue** : à relire par Julien (filtre SQL ci-dessus).
+- 🟡 **Tests d'intérêt — REFONDUS le 2026-09-13, le compte à rebours repart.** Bilan de la première version : **dommages-ouvrage 2 affichages / 0 clic · financement 16 / 0**. Deux défauts de conception (bouton à sens unique, affichages non comptés) corrigés — c'est un sondage à trois réponses, avec son dénominateur dans `site_events`. ⚠️ **Le verdict du 29/11 ne pourra être rendu que sur le financement** (~48 % des devis) : la DO n'accumulera qu'une trentaine d'affichages d'ici là, on ne mesure pas un seuil de 15 % là-dessus. Détail dans `CLAUDE.md`.
+- ✅ **Couverture catalogue — mesurée le 2026-09-10** : rejouée sur le catalogue du jour, la part vérifiable du montant passe de 37 % (telle que stockée) à **56 %**, et la couverture médiane par devis de 29 % à **63 %**. ⚠️ Tout chiffre de couverture tiré du stock est un chiffre d'archive : le rejouer avant de le citer.
+- 🟡 **Fourchettes à relire par Julien — 32 entrées** : les 25 du mining du 27/08 (`source LIKE 'mining stock 2026-08-27%'`) **plus les 7 ajoutées les 10-11/09**, toutes avec `last_reviewed_at` à NULL. Trois sont signalées comme les moins sûres dans leur migration : `sortie_cable`, `tuile_chatiere_douille`, `enduit_dressage_chaux`.
 
 ---
 
@@ -290,7 +290,7 @@ Re-évaluer V3.5.1 après ~10-20 analyses naturelles post-flip.
 - `.github/workflows/deploy-edge-functions.yml` : déploie auto toute edge function modifiée à chaque push sur main qui touche `supabase/functions/**`.
 - **Secrets GitHub à ajouter** (1 fois) : `SUPABASE_ACCESS_TOKEN` (depuis https://supabase.com/dashboard/account/tokens) + `SUPABASE_PROJECT_REF=vhrhgsqxwvouswjaiczn`.
 - Tant que les secrets ne sont pas ajoutés, le workflow se lance et échoue silencieusement (pas de casse). Une fois ajoutés, plus jamais de "fix dormant" comme V3.4.21.
-- 🟡 À faire : Johan ajoute les 2 secrets dans GitHub Settings → Actions.
+- ✅ **Secrets ajoutés — vérifié le 2026-09-13** : le workflow s'exécute et réussit à chaque push touchant `supabase/functions/**` (trois exécutions vertes dans la journée, ~25 s chacune). Plus de « fix dormant » possible sur les edge functions.
 
 ### 🟢 Cron `system-health-alerts` restauré (2026-05-21, commit `ef6cd0f` + migration `20260521_001`)
 - Restauration explicite via migration `20260521_001_restore_system_health_alerts_cron.sql` (cf. CLAUDE.md section "Monitoring & alertes prod").
@@ -298,16 +298,16 @@ Re-évaluer V3.5.1 après ~10-20 analyses naturelles post-flip.
 - Destinataires alignés : `julien@messagingme.fr` + `bridey.johan@gmail.com` sur les 2 systèmes (`system-alerts` + `analysis-maintenance`).
 - ⚠️ Angle mort connu : un **mauvais verdict** (cas V3.4.20) n'est PAS une erreur technique, n'est détecté par AUCUN des 2 crons. Seul signal aujourd'hui = feedbacks utilisateur `verdict_incoherent` / `faux_radiee` (visibles dans `/admin` section "Anomalies bloquantes"). Phase ultérieure : cron `feedback-spike-alerts` (~30 min de code).
 
-### 🔴 Carrousel marketing — quota Backblaze B2 dépassé (2026-05-21)
+### 🔴 Carrousel marketing — quota Backblaze B2 dépassé (2026-05-21) — ⚠️ NON REVÉRIFIÉ DEPUIS
+⚠️ **Cette entrée a presque quatre mois et personne n'a confirmé qu'elle est encore vraie.** Soit le cap a été relevé et elle doit être fermée, soit elle ne l'a pas été et les carrousels sont cassés depuis mai sans que personne s'en serve. Un test de téléchargement tranche en une minute — le faire avant d'y consacrer quoi que ce soit.
 - Tous les téléchargements de carrousels marketing retournent `502 "Image indisponible"` parce que le bucket B2 a explosé son cap mensuel.
 - **Fix court terme** : Julien augmente le cap dans la console Backblaze à 10 GB/jour (~$1.50/mois max). Effet immédiat.
 - **Fix long terme à envisager** si récidive : migration B2 → Cloudflare R2 (free tier 10 GB storage + bande passante illimitée).
 - Détail complet : section "Bug B2 quota dépassé" dans `CLAUDE.md`.
 
-### 🟠 Réponse Julien GMC trial+paywall — en attente
-- Plan figé Phase 2 (décisions Johan validées le 2026-05-20, cf. `TODO.md` section "GMC — Monétisation").
-- Message à Julien préparé (4 points à valider : read-only post-trial, quota IA 30/mois, limite chantier Essentiel hors scope, grace period 7j past_due).
-- 🟡 À faire : Johan envoie le message à Julien, attend OK, puis Phase 3 (~1 journée code 6 phases A→F).
+### ✅ Réponse Julien GMC trial+paywall — SANS OBJET depuis le 2026-06-14
+- Le plan figé de mai attendait l'accord de Julien avant d'attaquer. **La monétisation GMC est en prod depuis le 14/06** (Stripe Live, checkout/portail/webhook, lecture seule J30, comptes offerts) — le sujet a été tranché et livré par un autre chemin.
+- ⚠️ **Seul reste du plan de mai : le quota IA** (30 appels/mois pendant l'essai), jamais câblé et volontairement hors scope V1. Il vit dans `TODO.md`, pas ici.
 
 ---
 
