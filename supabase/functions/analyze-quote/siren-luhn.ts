@@ -65,3 +65,32 @@ export function estNumeroSirenValide(numero: string | null | undefined): boolean
   if (!luhn(siren)) return false;
   return n.length === 9 ? true : luhn(n);
 }
+
+/**
+ * Récupère un SIREN dans un numéro de longueur INATTENDUE — 10, 11, 12, 13
+ * chiffres, ou plus de 14 — en retenant les 9 premiers.
+ *
+ * 🔴 LA CLÉ DE LUHN EST LA CONDITION, PAS UN ORNEMENT. Tronquer un numéro au
+ * hasard jusqu'à tomber sur une entreprise est le meilleur moyen d'en désigner
+ * une au hasard. La clé rend la troncature vérifiable : sur 9 chiffres elle ne
+ * laisse passer qu'un numéro sur dix.
+ *
+ * ⚠️ ELLE NE S'APPLIQUE QU'À LA TRONCATURE, jamais à un numéro pris tel quel.
+ * Un SIREN de 9 chiffres imprimé sur le devis continue d'être cherché sans
+ * contrôle de clé : l'utiliser n'est pas une inférence, le tronquer si.
+ * Passer les 9 chiffres au crible reviendrait à changer, sans l'avoir mesuré,
+ * le sort des 18 devis du stock qui en portent un.
+ *
+ * Mesuré le 2026-09-13 sur 365 documents (`scripts/mesure-siren-longueurs.mjs`) :
+ * 4 numéros de longueur inattendue, dont **1 récupéré** — `851828566014` (12
+ * chiffres) → SIREN 851 828 566 = ABDELKARIM BOUCHEIKH (HDH BATIMENT), active.
+ * Les 2 numéros à clé fausse sont écartés, et le dernier est bien formé mais
+ * absent du registre. Les 5 numéros de 13 chiffres, jusqu'ici tronqués SANS
+ * contrôle, passent tous la clé : le durcissement ne retire rien.
+ */
+export function sirenParTroncature(numero: string | null | undefined): string | null {
+  const n = String(numero ?? "").replace(/\D/g, "");
+  if (n.length < 10) return null;
+  const s9 = n.slice(0, 9);
+  return estNumeroSirenValide(s9) ? s9 : null;
+}

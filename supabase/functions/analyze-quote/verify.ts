@@ -1,6 +1,6 @@
 import type { ExtractedData, VerificationResult, CompanyPayload, ScoringColor, FinancialRatios } from "./types.ts";
 import { resolveCompanyStatus } from "./company-status.ts";
-import { estNumeroSirenValide } from "./siren-luhn.ts";
+import { estNumeroSirenValide, sirenParTroncature } from "./siren-luhn.ts";
 import { candidatsPersonne, resultatPersonneAcceptable } from "./repli-personne.ts";
 import {
   extractSiren,
@@ -164,14 +164,24 @@ export async function verifyData(
   // 1. RECHERCHE ENTREPRISES API GOUV — Company verification
   const rawSiret = extracted.entreprise.siret;
   const cleanRaw = rawSiret?.replace(/\s/g, '') ?? null;
-  // Accept 14-digit SIRET or 9-digit SIREN (AI sometimes extracts only the SIREN part)
-  // Also handle 13-digit OCR artifacts: PDF imprimé avec un 0 manquant dans le NIC
-  // → les 9 premiers chiffres sont toujours le SIREN valide
+  // Accept 14-digit SIRET or 9-digit SIREN (AI sometimes extracts only the SIREN part).
+  //
+  // 2026-09-13 — TOUTE AUTRE LONGUEUR NE DÉCLENCHAIT AUCUNE RECHERCHE. Un
+  // numéro de 10, 11 ou 12 chiffres sortait d'ici avec `siren = null`, donc
+  // `lookupKey = null`, donc pas un seul appel au registre — et un message
+  // affirmant « SIRET non détecté sur le devis » alors qu'il y en avait un.
+  // Le cas historique des 13 chiffres (zéro manquant dans le NIC) était traité
+  // à part ; il rentre désormais dans la règle générale, avec en plus le
+  // contrôle de clé qui lui manquait.
+  // ⚠️ La troncature est une INFÉRENCE : `sirenParTroncature` ne la permet que
+  // si les 9 chiffres retenus passent la clé de Luhn. Un SIREN de 9 chiffres
+  // imprimé tel quel reste accepté sans ce contrôle — l'utiliser n'est pas une
+  // inférence, le tronquer si.
   const siret = cleanRaw && /^\d{14}$/.test(cleanRaw) ? cleanRaw : null;
   const siren = siret
     ? extractSiren(siret)
     : (cleanRaw && /^\d{9}$/.test(cleanRaw) ? cleanRaw : null)
-    ?? (cleanRaw && /^\d{13}$/.test(cleanRaw) ? cleanRaw.substring(0, 9) : null);
+    ?? sirenParTroncature(cleanRaw);
   // Use SIRET if available, fall back to SIREN as lookup/cache key
   const lookupKey = siret ?? siren;
 
