@@ -123,8 +123,20 @@ export function detectIncompleteQuoteShared(
   // corps de métier. Un devis d'équipement (références produit, prix par ligne)
   // n'est PAS un résumé par lot même si tout est en qty=1 sans unité physique.
   // Appliquée uniquement si des libellés sont disponibles (rétrocompat).
+  //
+  // 🔴 2026-09-13 (devis « Entreprise Fk », retour Johan) — ELLE NE S'APPLIQUE
+  // PAS QUAND LE DEVIS NE PORTE AUCUN PRIX. Cette garde distingue un résumé par
+  // lot d'un devis d'ÉQUIPEMENT — et ce qui définit le second, c'est justement
+  // qu'il porte « une référence produit ET UN PRIX » par ligne. Sur un devis où
+  // pas une seule ligne n'est chiffrée, il n'y a rien à distinguer : la garde
+  // n'a plus d'objet, et la laisser tourner revient à protéger un document
+  // qu'aucun libellé ne rend analysable.
+  // Cas réel : cinq lignes (« piquetage de l'ancien ciment », « taille de
+  // pierre »…), aucun montant, total du devis affiché à 0,00 €. Aucun libellé ne
+  // ressemble à un intitulé de corps de métier → la garde bloquait le bypass →
+  // le moteur a conclu « Ce devis nous paraît cohérent ».
   const withLabels = lines.filter((l) => typeof l?.libelle === "string" && l.libelle.trim().length > 0);
-  if (withLabels.length > 0) {
+  if (montantTotal > 0 && withLabels.length > 0) {
     const trivial = withLabels.filter((l) => {
       const unit = String(l?.unite ?? "").trim().toLowerCase();
       return !physicalUnits.has(unit);

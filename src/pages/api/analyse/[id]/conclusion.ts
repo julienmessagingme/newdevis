@@ -2019,7 +2019,17 @@ export const POST: APIRoute = async ({ params, request }) => {
   // 2026-09-04 (cas DEV-202608-1) — « nous n'avons rien pu comparer ». Calculé
   // ici parce qu'il sert à DEUX endroits : la sanitization des textes du LLM
   // (plus bas, avant l'assemblage du verdict) et la garde de verdict elle-même.
-  const rienDeComparable = coveragePct !== null && coveragePct < COUVERTURE_MIN_POUR_AFFIRMER_PCT;
+  // 🔴 2026-09-13 (devis « Entreprise Fk », retour Johan) — UNE COUVERTURE
+  // INCONNUE N'EST PAS UNE COUVERTURE SATISFAISANTE. `coveragePct` vaut `null`
+  // quand le dénominateur est nul, c'est-à-dire quand le devis ne porte AUCUN
+  // montant : ni total HT, ni le moindre prix de ligne. C'est le cas le plus
+  // extrême de « nous n'avons rien pu comparer » — et la condition
+  // `coveragePct !== null` le faisait sortir de la garde par le haut. Résultat
+  // sur le devis signalé : zéro euro comparé, et pourtant « Ce devis nous
+  // paraît cohérent · Prix dans les fourchettes du marché ».
+  // ⚠️ Ne pas « simplifier » en revenant à `!== null` : le null est ici le
+  // signal le plus fort, pas une absence de signal.
+  const rienDeComparable = coveragePct === null || coveragePct < COUVERTURE_MIN_POUR_AFFIRMER_PCT;
   const tauxTVA    = typeof totaux.taux_tva === "number" ? totaux.taux_tva : null;
   const workType   = (analysis.work_type as string) || "";
   const resume     = (analysis.resume   as string) || "";

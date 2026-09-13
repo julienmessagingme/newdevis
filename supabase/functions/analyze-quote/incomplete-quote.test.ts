@@ -134,5 +134,45 @@ const forfaitDominant: IncompleteQuoteLine[] = [
 ];
 check("80% lignes forfait + 93% montant forfait → incomplet", run(forfaitDominant), true);
 
+// ══════════════════════════════════════════════════════════════════════════
+// 2026-09-13 (devis « Entreprise Fk », retour Johan) — AUCUN PRIX NULLE PART
+// ══════════════════════════════════════════════════════════════════════════
+// Cinq lignes de travaux, pas un seul montant, et le devis lui-même affiche
+// « TOTAL (EUR) : 0,00 € » (le vrai prix, 2 830 € TTC, n'existe qu'en texte
+// libre plus bas). La garde « libellés de lot » du 2026-08-17 bloquait le
+// bypass parce qu'aucun libellé ne ressemble à un intitulé de corps de métier
+// — or elle existe pour épargner les devis d'ÉQUIPEMENT, qui se reconnaissent
+// à ce qu'ils portent un prix par ligne. Sans aucun prix, elle n'a plus d'objet.
+const sansAucunPrix: IncompleteQuoteLine[] = [
+  { unite: "", quantite: 1, montant: null, libelle: "piquetage de l'ancien ciment" },
+  { unite: "", quantite: null, montant: null, libelle: "taille de pierre pour reprendre les trous apparent" },
+  { unite: "", quantite: null, montant: null, libelle: "scellement à la chaux des pierres" },
+  { unite: "", quantite: null, montant: null, libelle: "pause de planches de rive sur la longueur droite et gauche" },
+  { unite: "", quantite: null, montant: null, libelle: "doublage des Litto défectueux" },
+];
+check("Aucun prix sur aucune ligne → incomplet, malgré des libellés non génériques", run(sansAucunPrix), true);
+
+// ⚠️ ANTI-RÉGRESSION DU CAS QUI A MOTIVÉ LA GARDE (FCE climatisation, 17/08).
+// Dès qu'il y a des PRIX par ligne, la garde doit continuer de protéger : un
+// devis d'équipement n'est pas un résumé par lot.
+const equipementChiffre: IncompleteQuoteLine[] = [
+  { unite: "", quantite: 1, montant: 2481, libelle: "PAC gainable PEAD-M60JA" },
+  { unite: "", quantite: 1, montant: 1290, libelle: "Groupe extérieur SUZ-M60VA" },
+  { unite: "", quantite: 1, montant: 340, libelle: "Télécommande filaire PAR-40MAA" },
+  { unite: "", quantite: 1, montant: 890, libelle: "Gaines et plénums isolés" },
+  { unite: "", quantite: 1, montant: 1500, libelle: "Mise en service et mise en gaz" },
+];
+check("Devis d'équipement AVEC prix par ligne → toujours PAS incomplet", run(equipementChiffre), false);
+
+// Et le vrai résumé par lot reste détecté, avec ou sans montants.
+const resumeParLot: IncompleteQuoteLine[] = [
+  { unite: "", quantite: 1, montant: null, libelle: "Plomberie" },
+  { unite: "", quantite: 1, montant: null, libelle: "Électricité" },
+  { unite: "", quantite: 1, montant: null, libelle: "Maçonnerie" },
+  { unite: "", quantite: 1, montant: null, libelle: "Peinture" },
+  { unite: "", quantite: 1, montant: null, libelle: "Carrelage" },
+];
+check("Résumé par corps de métier sans montants → incomplet", run(resumeParLot), true);
+
 console.log(`\n${passed} passés, ${failed} échoués`);
 if (failed > 0) process.exit(1);
