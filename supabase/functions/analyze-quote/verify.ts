@@ -25,7 +25,10 @@ import {
 // → affichage probable d'une radiée → verdict ROUGE faux + client furieux.
 // Cette helper extrait le CP de l'adresse contractor et filtre les résultats.
 // Si on ne peut pas trancher (0 ou >1 candidats après filtre), on retourne ambiguous.
-function pickBestNameMatch(
+/** ⚠️ Exporté UNIQUEMENT pour que le banc de mesure
+ *  (`scripts/banc-repli-nom.mjs`) départage avec la fonction RÉELLE et non une
+ *  copie — une copie mesurerait une autre règle que celle qui tourne. */
+export function pickBestNameMatch(
   results: any[],
   contractorAddress: string | null,
 ): {
