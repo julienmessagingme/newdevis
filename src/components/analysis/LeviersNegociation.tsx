@@ -13,8 +13,33 @@
  * comme seul bloc actionnable.
  */
 
-import InterestPrompt from "./InterestPrompt";
+import SondageInteret from "./SondageInteret";
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
+
+/**
+ * 2026-09-13 — le sondage dommages-ouvrage est identique où qu'il soit posé
+ * (sous le conseil DO, ou seul quand le devis touche au gros œuvre sans que le
+ * conseil se déclenche). Une seule définition pour éviter que les deux
+ * emplacements divergent.
+ * ⚠️ La question ne parle PAS de « proposition » : c'est un sondage, pas une
+ * offre. Et elle ne s'adresse qu'aux devis de gros œuvre — la poser sur un
+ * devis de peinture produirait du bruit et nous décrédibiliserait.
+ */
+const sondageDo = (analysisId: string) =>
+  ({
+    analysisId,
+    sujet: "dommages_ouvrage" as const,
+    tone: "sky" as const,
+    question:
+      "Ces travaux touchent à la structure du bâtiment. Une assurance dommages-ouvrage, où en êtes-vous ?",
+    reponses: [
+      { valeur: "interesse" as const, libelle: "Je ne l'ai pas et ça m'intéresse" },
+      { valeur: "deja_equipe" as const, libelle: "Je l'ai déjà" },
+      { valeur: "non" as const, libelle: "Je ne compte pas en prendre" },
+    ],
+    provenance:
+      "Nous vérifions ce point parce que nos fondateurs viennent de l'assurance et de la banque.",
+  });
 
 const NIVEAU_STYLE: Record<
   string,
@@ -69,6 +94,17 @@ export default function LeviersNegociation({ conclusion, analysisId, totalHt, pr
   );
   if (leviers.length === 0) return null;
 
+  // 2026-09-13 — où poser le sondage dommages-ouvrage.
+  // Sous le conseil DO quand il existe (il y est à sa place) ; sinon, seul,
+  // dès que le devis touche au gros œuvre. ⚠️ Jamais les deux à la fois.
+  // ⚠️ Le levier `dommages_ouvrage_verification` (« une DO est déjà facturée
+  // sur ce devis ») EXCLUT la question : demander à quelqu'un s'il envisage
+  // une assurance qu'il paie déjà est la meilleure façon de se décrédibiliser.
+  const conseilDoPresent = leviers.some((l) => l.type === "dommages_ouvrage");
+  const doDejaAuDevis = leviers.some((l) => l.type === "dommages_ouvrage_verification");
+  const sondageDoHorsListe =
+    !conseilDoPresent && !doDejaAuDevis && conclusion.travaux_gros_oeuvre === true;
+
   const hasNegocier = leviers.some((l) => l.objectif !== "securiser");
   const title = hasNegocier ? "Vos leviers de négociation" : "Avant de signer";
   // 2026-08-27 (retour Johan) — compteur DYNAMIQUE : « deux vérifications »
@@ -117,31 +153,37 @@ export default function LeviersNegociation({ conclusion, analysisId, totalHt, pr
               <p className="mt-1 text-[13.5px] text-foreground/70 leading-relaxed">
                 {levier.detail}
               </p>
-              {levier.type === "dommages_ouvrage" && analysisId && (
-                <InterestPrompt
-                  analysisId={analysisId}
-                  topic="dommages_ouvrage"
-                  tone="sky"
-                  question="Souhaitez-vous recevoir une proposition de dommages-ouvrage, sans engagement ?"
-                  cta="Oui, ça m'intéresse"
-                  provenance="Nous vérifions ce point parce que nos fondateurs viennent de l'assurance et de la banque."
-                />
+              {levier.type === "dommages_ouvrage" && analysisId && !sondageDoHorsListe && (
+                <SondageInteret {...sondageDo(analysisId)} />
               )}
             </li>
           );
         })}
       </ol>
 
+      {/* 2026-09-13 — le sondage dommages-ouvrage est posé à TOUTE la population
+          concernée (devis touchant au gros œuvre), et plus seulement là où le
+          CONSEIL DO se déclenche : 2 affichages en quinze jours ne permettaient
+          aucune conclusion. Quand le conseil est là, la question reste sous lui
+          (elle y est à sa place) ; sinon elle vient ici.
+          ⚠️ `travaux_gros_oeuvre` est absent des conclusions antérieures →
+          l'ancien comportement est conservé pour elles. */}
+      {analysisId && sondageDoHorsListe && <SondageInteret {...sondageDo(analysisId)} />}
+
       {/* 2026-08-29 — test « financement des travaux » (3 mois). Proposé sur
           les devis ≥ 5 000 € HT, indépendamment du verdict : le besoin de
           financement n'a rien à voir avec la qualité du devis. */}
       {analysisId && typeof totalHt === "number" && totalHt >= 5000 && (
-        <InterestPrompt
+        <SondageInteret
           analysisId={analysisId}
-          topic="credit"
+          sujet="credit"
           tone="indigo"
-          question={`Souhaitez-vous une proposition de financement pour ces travaux (${Math.round(totalHt).toLocaleString("fr-FR")} € HT), sans engagement ?`}
-          cta="Oui, étudier un financement"
+          question={`Pour financer ces travaux (${Math.round(totalHt).toLocaleString("fr-FR")} € HT), où en êtes-vous ?`}
+          reponses={[
+            { valeur: "interesse", libelle: "Je cherche une solution" },
+            { valeur: "deja_equipe", libelle: "J'ai déjà mon financement" },
+            { valeur: "non", libelle: "Je paie sans emprunter" },
+          ]}
           provenance="Nos fondateurs ont exercé 20 ans en banque et en assurance, dont le crédit immobilier."
         />
       )}

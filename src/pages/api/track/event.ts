@@ -36,6 +36,14 @@ const EVENEMENTS_AUTORISES = new Set([
   "calculette_travaux_calcul",
   "simulateur_valorisation_calcul",
   "simulateur_aides_calcul",
+  // 2026-09-13 — AFFICHAGES des sondages d'intérêt. Ce sont les seules
+  // entrées de cette liste qui ne correspondent pas à un geste de
+  // l'utilisateur, et c'est délibéré : sans elles, le taux de réponse n'a
+  // pas de DÉNOMINATEUR. Le test ouvert le 29/08 comptait ses clics sans
+  // savoir combien de personnes avaient vu la question — le seuil de
+  // décision de 15 % était donc incalculable.
+  "sondage_do_vu",
+  "sondage_credit_vu",
 ]);
 
 async function empreinteDuJour(ip: string, ua: string): Promise<string> {

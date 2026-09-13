@@ -45,7 +45,7 @@ export const GET: APIRoute = async ({ request }) => {
   const oldestStart = TESTS.dommages_ouvrage.start;
 
   const [clicksRes, analysesRes] = await Promise.all([
-    supabase.from("lead_interest").select("topic, analysis_id, user_id, montant_ht, created_at").order("created_at", { ascending: false }),
+    supabase.from("lead_interest").select("topic, analysis_id, user_id, montant_ht, reponse, created_at").order("created_at", { ascending: false }),
     supabase
       .from("analyses")
       .select("id, created_at, user_id, conclusion_ia, raw_text")
@@ -67,7 +67,18 @@ export const GET: APIRoute = async ({ request }) => {
     } catch { /* conclusion illisible → non éligible */ }
     if (leviers.length === 0) continue;
 
-    if (leviers.some((l) => l?.type === "dommages_ouvrage")) {
+    // 2026-09-13 — la question DO est désormais posée à toute la population
+    // concernée (devis touchant au gros œuvre), et plus seulement là où le
+    // CONSEIL se déclenche. ⚠️ Sauf quand une DO est DÉJÀ facturée au devis :
+    // on ne demande pas à quelqu'un s'il envisage ce qu'il paie déjà.
+    let grosOeuvre = false;
+    try {
+      const ci = typeof a.conclusion_ia === "string" ? JSON.parse(a.conclusion_ia) : a.conclusion_ia;
+      grosOeuvre = ci?.travaux_gros_oeuvre === true;
+    } catch { /* conclusion illisible */ }
+    const conseilDo = leviers.some((l) => l?.type === "dommages_ouvrage");
+    const dejaAuDevis = leviers.some((l) => l?.type === "dommages_ouvrage_verification");
+    if ((conseilDo || grosOeuvre) && !dejaAuDevis) {
       eligibles.dommages_ouvrage++;
       if (a.user_id) exposes.dommages_ouvrage.add(a.user_id);
     }
@@ -84,8 +95,35 @@ export const GET: APIRoute = async ({ request }) => {
     }
   }
 
+  // 2026-09-13 — LE DÉNOMINATEUR RÉEL, enfin mesuré au lieu d'être reconstitué.
+  // `eligibles` ci-dessus rejoue les conditions d'affichage : il dit combien de
+  // pages AURAIENT dû montrer la question, pas combien l'ont montrée. Les deux
+  // divergent dès qu'un utilisateur n'ouvre jamais son analyse ou ne descend
+  // pas jusqu'au bloc. Les affichages réels sont désormais journalisés.
+  const EVENEMENT: Record<Topic, string> = {
+    dommages_ouvrage: "sondage_do_vu",
+    credit: "sondage_credit_vu",
+  };
+  const affichages: Record<Topic, number> = { dommages_ouvrage: 0, credit: 0 };
+  const vuesRes = await supabase
+    .from("site_events")
+    .select("event")
+    .in("event", Object.values(EVENEMENT));
+  for (const v of vuesRes.data ?? []) {
+    const t = (Object.keys(EVENEMENT) as Topic[]).find((k) => EVENEMENT[k] === v.event);
+    if (t) affichages[t]++;
+  }
+
   const tests = (Object.keys(TESTS) as Topic[]).map((topic) => {
     const mine = clicks.filter((c) => c.topic === topic);
+    // Chaque réponse est une donnée, y compris les négatives — c'est tout
+    // l'objet du passage au sondage. `reponse` est NULL sur les lignes
+    // antérieures au 13/09, où seul le clic positif existait.
+    const reponses = {
+      interesse: mine.filter((c) => (c.reponse ?? "interesse") === "interesse").length,
+      deja_equipe: mine.filter((c) => c.reponse === "deja_equipe").length,
+      non: mine.filter((c) => c.reponse === "non").length,
+    };
     const start = TESTS[topic].start;
     const joursEcoules = Math.floor((Date.now() - new Date(start).getTime()) / 86_400_000);
     return {
@@ -95,9 +133,20 @@ export const GET: APIRoute = async ({ request }) => {
       jours_ecoules: joursEcoules,
       jours_restants: Math.max(0, TEST_DAYS - joursEcoules),
       clics: mine.length,
+      reponses,
       eligibles: eligibles[topic],
+      affichages: affichages[topic],
       utilisateurs_exposes: exposes[topic].size,
       taux_clic: eligibles[topic] > 0 ? Math.round((mine.length / eligibles[topic]) * 1000) / 10 : null,
+      // Le seul taux qui ait un sens : réponses rapportées aux affichages
+      // RÉELLEMENT comptés. `null` tant qu'aucun affichage n'a été journalisé
+      // — un taux sans dénominateur n'est pas un taux.
+      taux_reponse: affichages[topic] > 0
+        ? Math.round((mine.length / affichages[topic]) * 1000) / 10
+        : null,
+      part_interesses: mine.length > 0
+        ? Math.round((reponses.interesse / mine.length) * 1000) / 10
+        : null,
       montant_chantiers_cumule: Math.round(mine.reduce((s, c) => s + (Number(c.montant_ht) || 0), 0)),
       derniers_clics: mine.slice(0, 5).map((c) => ({
         analysis_id: c.analysis_id,

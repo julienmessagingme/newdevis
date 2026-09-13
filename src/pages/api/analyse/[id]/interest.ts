@@ -14,6 +14,16 @@ export const prerender = false;
 
 const TOPICS = new Set(['dommages_ouvrage', 'credit']);
 
+/**
+ * 2026-09-13 — le test devient un SONDAGE : chaque réponse est une donnée,
+ * y compris les négatives. Avant, seule la réponse positive existait et on ne
+ * distinguait pas « pas intéressé » de « n'a pas vu la question ».
+ * ⚠️ `reponse` reste FACULTATIF : les conclusions affichées avant ce
+ * changement postent encore sans elle, et une mesure ne doit jamais répondre
+ * en erreur à un client plus ancien.
+ */
+const REPONSES = new Set(['interesse', 'deja_equipe', 'non']);
+
 export const POST: APIRoute = async ({ params, request }) => {
   const ctx = await requireAuth(request);
   if (ctx instanceof Response) return ctx;
@@ -22,6 +32,11 @@ export const POST: APIRoute = async ({ params, request }) => {
   try { body = await request.json(); } catch { /* topic par défaut refusé plus bas */ }
   const topic = String(body.topic ?? '');
   if (!TOPICS.has(topic)) return jsonError('topic invalide', 400);
+  const brut = body.reponse == null ? null : String(body.reponse);
+  if (brut !== null && !REPONSES.has(brut)) return jsonError('reponse invalide', 400);
+  // Sans réponse explicite, on est sur l'ancien bouton « Oui, ça m'intéresse » :
+  // sa seule lecture possible était un intérêt.
+  const reponse = brut ?? 'interesse';
 
   const supabase = createServiceClient();
   const { data: analysis } = await supabase
@@ -41,12 +56,12 @@ export const POST: APIRoute = async ({ params, request }) => {
   } catch { /* montant optionnel */ }
 
   const { error } = await supabase.from('lead_interest').upsert(
-    { topic, analysis_id: params.id!, user_id: ctx.user.id, montant_ht: montantHt },
+    { topic, analysis_id: params.id!, user_id: ctx.user.id, montant_ht: montantHt, reponse },
     { onConflict: 'analysis_id,topic' },
   );
   if (error) return jsonError(error.message, 500);
 
-  console.log(`[interest] ${topic} — analyse ${String(params.id).slice(0, 8)} (${montantHt ?? '?'} € HT)`);
+  console.log(`[interest] ${topic} = ${reponse} — analyse ${String(params.id).slice(0, 8)} (${montantHt ?? '?'} € HT)`);
   return jsonOk({ ok: true });
 };
 

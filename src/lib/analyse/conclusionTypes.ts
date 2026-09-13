@@ -144,6 +144,17 @@ export interface ConclusionData {
   };
 
   /**
+   * 2026-09-13 — le devis touche-t-il au GROS ŒUVRE (`estGrosOeuvre`) ?
+   * Déjà calculé pour les leviers, il n'était pas exposé à l'UI. Il sert à
+   * poser la question du sondage dommages-ouvrage sur **toute** la population
+   * concernée, et plus seulement là où le CONSEIL DO se déclenche : le test
+   * n'avait recueilli que 2 affichages en quinze jours.
+   * ⚠️ Absent des conclusions antérieures → l'UI retombe sur l'ancien
+   * comportement (question posée uniquement sous le levier).
+   */
+  travaux_gros_oeuvre?: boolean;
+
+  /**
    * Max 3 leviers de négociation hiérarchisés (🔴 puissant / 🟠 important /
    * 🟡 bonus) — remplacent la liste de 6-8 actions dans le chemin de lecture
    * principal. Absent sur les conclusions pré-Phase 4 (fallback UI = actions).

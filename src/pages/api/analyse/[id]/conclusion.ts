@@ -3418,6 +3418,12 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       const leviers = buildLeviers(p4Signals);
       (conclusionData as ConclusionData).leviers = leviers;
       (conclusionData as ConclusionData).verdict_ligne = buildVerdictLigne(p4Signals, leviers);
+      // 2026-09-13 — exposé à l'UI pour le sondage dommages-ouvrage. Le signal
+      // existait déjà ici ; il ne servait qu'aux leviers, si bien que la
+      // question n'était posée que là où le CONSEIL se déclenche — 2 affichages
+      // en quinze jours. Il ne PILOTE aucun verdict, il désigne seulement la
+      // population à qui la question a un sens.
+      (conclusionData as ConclusionData).travaux_gros_oeuvre = p4Signals.travaux_gros_oeuvre ?? false;
     } catch (p4Err) {
       console.warn("[conclusion] Phase 4 enrichment failed:", p4Err instanceof Error ? p4Err.message : p4Err);
     }
