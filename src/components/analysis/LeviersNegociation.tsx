@@ -30,8 +30,11 @@ const sondageDo = (analysisId: string) =>
     analysisId,
     sujet: "dommages_ouvrage" as const,
     tone: "sky" as const,
+    // Même correction de registre que pour le financement : on s'adresse à
+    // quelqu'un qui analyse un devis, pas à quelqu'un qui a déjà entamé une
+    // démarche d'assurance.
     question:
-      "Ces travaux touchent à la structure du bâtiment. Une assurance dommages-ouvrage, où en êtes-vous ?",
+      "Ces travaux touchent à la structure du bâtiment. Envisagez-vous une assurance dommages-ouvrage ?",
     reponses: [
       { valeur: "interesse" as const, libelle: "Je ne l'ai pas et ça m'intéresse" },
       { valeur: "deja_equipe" as const, libelle: "Je l'ai déjà" },
@@ -178,7 +181,12 @@ export default function LeviersNegociation({ conclusion, analysisId, totalHt, pr
           analysisId={analysisId}
           sujet="credit"
           tone="indigo"
-          question={`Pour financer ces travaux (${Math.round(totalHt).toLocaleString("fr-FR")} € HT), où en êtes-vous ?`}
+          // 2026-09-13 (retour Johan) — « qu'envisagez-vous ? » et non « où en
+          // êtes-vous ? ». La seconde présuppose une démarche déjà engagée ;
+          // or on s'adresse à quelqu'un qui est en train d'ANALYSER un devis,
+          // donc avant son choix. Poser la question au mauvais stade fait
+          // répondre « ça ne me concerne pas » à des gens que ça concerne.
+          question={`Pour financer ces travaux (${Math.round(totalHt).toLocaleString("fr-FR")} € HT), qu'envisagez-vous ?`}
           reponses={[
             { valeur: "interesse", libelle: "Je cherche une solution" },
             { valeur: "deja_equipe", libelle: "J'ai déjà mon financement" },
