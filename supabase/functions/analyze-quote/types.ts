@@ -75,6 +75,14 @@ export interface ExtractedData {
     nom: string | null;
     siret: string | null;
     adresse: string | null;
+    /** 2026-09-13 — l'e-mail de l'ENTREPRISE. V1 le demandait et le renvoyait
+     *  déjà ; V2, devenu primaire, ne le faisait ni l'un ni l'autre — le champ
+     *  était donc absent de tout le stock. Il sert au repli « par personne »
+     *  (verify.ts) : chez un artisan en entreprise individuelle, la raison
+     *  sociale est le nom de la personne, et ce nom est souvent dans l'adresse
+     *  e-mail alors que le devis n'affiche qu'un nom commercial. */
+    email?: string | null;
+    telephone?: string | null;
     iban: string | null;
     assurance_decennale_mentionnee: boolean | null;
     assurance_rc_pro_mentionnee: boolean | null;
@@ -326,6 +334,10 @@ export interface VerificationResult {
    *  entreprise fantôme. En faire une accusation serait le conseil intempestif
    *  que ce projet s'interdit. */
   siret_devis_statut?: "ok" | "invalide" | "introuvable" | null;
+  /** 2026-09-13 — l'entreprise a été identifiée par le NOM DE LA PERSONNE
+   *  (repli de dernier recours, cf. repli-personne.ts), faute de l'avoir
+   *  retrouvée par son numéro ni par son nom commercial. */
+  identifiee_par_personne?: boolean;
   /** true quand le résultat vient du repli SIREN et non du SIRET exact. */
   lookup_par_siren?: boolean;
   procedure_collective: boolean | null;

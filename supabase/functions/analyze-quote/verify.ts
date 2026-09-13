@@ -1,6 +1,7 @@
 import type { ExtractedData, VerificationResult, CompanyPayload, ScoringColor, FinancialRatios } from "./types.ts";
 import { resolveCompanyStatus } from "./company-status.ts";
 import { estNumeroSirenValide } from "./siren-luhn.ts";
+import { candidatsPersonne, resultatPersonneAcceptable } from "./repli-personne.ts";
 import {
   extractSiren,
   getCountryName,
@@ -565,6 +566,63 @@ export async function verifyData(
         }
       } catch (nameErr) {
         console.log("[Verify] Direct name lookup error:", nameErr instanceof Error ? nameErr.message : "Unknown");
+      }
+    }
+  }
+
+  // ── 1d. REPLI PAR PERSONNE — dernier recours (2026-09-13) ─────────────────
+  // Chez un artisan en entreprise individuelle, la raison sociale EST le nom de
+  // la personne — et le devis n'imprime que le nom commercial, qui ne désigne
+  // rien au registre. Le nom de la personne, lui, est souvent dans l'adresse
+  // e-mail de l'en-tête.
+  //
+  // 🔴 L'ORDRE EST LA GARDE PRINCIPALE : ce repli ne s'exécute QUE si rien n'a
+  // identifié l'entreprise. Mesuré sur les 17 cas du stock où le repli par nom
+  // joue : lancé sur tous, il contredit la production une fois (devis
+  // PORCELANOSA — le contact imprimé est une commerciale, et son homonyme au
+  // registre est une auto-entrepreneuse en création artistique, cessée). Lancé
+  // en dernier, il résout 2 des 7 ambiguïtés sans en contredire aucune.
+  if (result.lookup_status !== "ok") {
+    const candidats = candidatsPersonne(
+      extracted.entreprise?.email ?? null,
+      (extracted.entreprise as { contact?: string | null } | undefined)?.contact ?? null,
+    );
+    for (const q of candidats) {
+      try {
+        const r = await fetch(
+          `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(q)}&page=1&per_page=5`,
+          { signal: AbortSignal.timeout(6_000) },
+        );
+        if (!r.ok) continue;
+        const data = await r.json();
+        const picked = pickBestNameMatch(data.results || [], extracted.entreprise?.adresse ?? null);
+        const m = picked.match;
+        // ⚠️ Un homonyme CESSÉ n'est jamais retenu : le retenir produirait un
+        // « entreprise radiée » faux, la pire erreur possible ici. Dans le
+        // doute on reste sans identification — c'est honnête.
+        if (!m || !resultatPersonneAcceptable(m.etat_administratif)) continue;
+
+        const dateCreation = m.date_creation || null;
+        const siege = m.siege || {};
+        result.entreprise_immatriculee = true;
+        result.entreprise_radiee = false;
+        result.procedure_collective = m.est_en_procedure_collective === true;
+        result.date_creation = dateCreation;
+        result.anciennete_annees = dateCreation
+          ? Math.floor((Date.now() - new Date(dateCreation).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+          : null;
+        result.nom_officiel = m.nom_complet || m.nom_raison_sociale || null;
+        result.adresse_officielle = siege.adresse || null;
+        result.ville_officielle = siege.libelle_commune || siege.commune || null;
+        result.lookup_status = "ok";
+        result.identifiee_par_personne = true;
+        // Le repli par nom avait pu poser des candidats : ils n'ont plus lieu
+        // d'être puisqu'on a tranché.
+        result.ambiguous_candidates = [];
+        console.log(`[Verify] Repli PERSONNE OK via « ${q} » :`, result.nom_officiel, "| SIREN", m.siren);
+        break;
+      } catch (e) {
+        console.log("[Verify] Repli personne échoué:", e instanceof Error ? e.message : "inconnu");
       }
     }
   }

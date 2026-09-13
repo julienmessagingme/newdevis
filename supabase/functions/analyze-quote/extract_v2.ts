@@ -279,6 +279,7 @@ AUTRES CHAMPS DU JSON (en plus de cartographie + sections)
     "nom": "Nom commercial exact (pas un fragment de phrase légale)",
     "siret": "RECOPIE EXACTE des chiffres imprimés sur le devis, sans espaces. Si le devis n'imprime qu'un SIREN (9 chiffres), retourne ces 9 chiffres TELS QUELS — il est STRICTEMENT INTERDIT d'inventer ou de compléter les 5 chiffres du NIC pour arriver à 14 (shadow 2026-08-14 : NIC hallucinés '00015'/'00021' sur SIREN 9 chiffres → fausserait la vérification INSEE)",
     "adresse": "Adresse complète si présente",
+    "email": "Adresse e-mail de L'ENTREPRISE (en-tête, pied de page, mentions légales) — jamais celle du client. Recopie-la telle quelle, sans rien compléter. null si absente",
     "iban": "Format 2 LETTRES + 12-30 alphanum SANS ESPACES NI TIRETS (ex: FR7630066108770002097520110)",
     "tva_intracom": "Format 2 lettres pays + chiffres (ex: FR12345678901)",
     "assurance_decennale_mentionnee": true | false | null,
@@ -957,6 +958,13 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
           : null,
       adresse:
         typeof parsed.entreprise?.adresse === "string" ? parsed.entreprise.adresse.trim() : null,
+      // 2026-09-13 — conservé pour le repli « par personne » de verify.ts.
+      // ⚠️ V1 renvoyait déjà ce champ ; V2, devenu primaire, le perdait en
+      // route : il ne figure donc dans AUCUNE analyse du stock (vérifié).
+      email:
+        typeof parsed.entreprise?.email === "string"
+          ? parsed.entreprise.email.trim().toLowerCase() || null
+          : null,
       iban:
         typeof parsed.entreprise?.iban === "string"
           ? parsed.entreprise.iban.replace(/[\s\-–—._]/g, "").toUpperCase()
