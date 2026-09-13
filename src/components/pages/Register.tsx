@@ -43,7 +43,6 @@ const Register = ({ brand }: Props) => {
   const [countryCode, setCountryCode] = useState("+33");
   const [password, setPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [acceptCommercial, setAcceptCommercial] = useState(false);
   const [loading, setLoading] = useState(false);
   const config = useMemo(
     () => (brand ? getConfigForBrand(brand) : getBrandConfig()),
@@ -140,7 +139,11 @@ const Register = ({ brand }: Props) => {
             last_name: lastName,
             // Champ facultatif sur VMD : on n'écrit pas « +33 » tout seul.
             phone: phoneLocal ? countryCode + phoneLocal : null,
-            accept_commercial_offers: acceptCommercial,
+            // 2026-09-13 — la case a été retirée : plus aucun consentement
+            // commercial n'est demandé à l'inscription. On écrit `false`
+            // explicitement pour que le champ reste présent et lisible par
+            // l'écran admin (`UserDetailPage`), qui l'affiche encore.
+            accept_commercial_offers: false,
             // Persisté dans les metadata user : lu par le trigger DB pour créer
             // l'essai GMC et router les emails (welcome / notif admin) côté serveur.
             signup_source: signupSource,
@@ -165,7 +168,6 @@ const Register = ({ brand }: Props) => {
         const returnTo = params.get("returnTo");
         trackEvent('account_created', {
           signup_source: signupSource,
-          accept_commercial: acceptCommercial,
           return_to: returnTo || '/tableau-de-bord',
         });
 
@@ -420,19 +422,24 @@ const Register = ({ brand }: Props) => {
                 </label>
               </div>
 
-              <div className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  id="commercial"
-                  checked={acceptCommercial}
-                  onChange={(e) => setAcceptCommercial(e.target.checked)}
-                  className="mt-1 h-4 w-4 accent-primary"
-                  disabled={loading}
-                />
-                <label htmlFor="commercial" className="text-sm text-muted-foreground font-normal cursor-pointer">
-                  J'accepte de recevoir des offres commerciales de nos partenaires sélectionnés (optionnel)
-                </label>
-              </div>
+              {/* 🔴 2026-09-13 (décision Johan) — CASE « OFFRES COMMERCIALES DE
+                  NOS PARTENAIRES SÉLECTIONNÉS » RETIRÉE.
+                  Aucun partenaire n'existe et AUCUN lead n'est transmis à un
+                  tiers — règle posée le 27/08 et réaffirmée le 13/09 en
+                  bannissant tout mot d'offre des sondages d'intérêt. La case
+                  décrivait donc une intention future, pas la réalité, et elle
+                  disait exactement ce que le lecteur redoute au moment où il
+                  hésite à s'inscrire — sur la page qui demande le plus de
+                  confiance de tout le parcours.
+                  ⚠️ Ne pas la remettre « au cas où » : le jour où un
+                  partenariat existera, il faudra un consentement recueilli
+                  POUR CE partenaire, pas une case cochée des mois plus tôt
+                  pour des partenaires imaginaires.
+                  ⚠️ `accept_commercial_offers` reste écrit à `false` dans les
+                  metadata : le champ est lu par l'écran admin
+                  (`UserDetailPage`) et par les comptes convertis depuis
+                  `PremiumGate`. Le retirer casserait leur affichage sans rien
+                  gagner. */}
             </div>
 
             <Button type="submit" className="w-full" size="lg" disabled={!acceptTerms || loading}>

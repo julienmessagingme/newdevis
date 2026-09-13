@@ -14,7 +14,6 @@ type ConvertParams = {
   firstName: string;
   lastName: string;
   phone: string;
-  acceptCommercial?: boolean;
 };
 
 // Detect if a user is anonymous: prioritize is_anonymous flag
@@ -93,7 +92,10 @@ export function useAnonymousAuth() {
         first_name: params.firstName,
         last_name: params.lastName,
         phone: phoneDigits,
-        accept_commercial_offers: params.acceptCommercial ?? false,
+        // 2026-09-13 — plus aucun consentement commercial n'est demandé (la
+        // case a été retirée de `Register` et de `PremiumGate`). On écrit
+        // `false` pour que le champ reste lisible par l'écran admin.
+        accept_commercial_offers: false,
       },
     });
 

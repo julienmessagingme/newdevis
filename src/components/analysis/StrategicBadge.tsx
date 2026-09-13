@@ -25,7 +25,6 @@ interface StrategicBadgeProps {
     firstName: string;
     lastName: string;
     phone: string;
-    acceptCommercial?: boolean;
   }) => Promise<any>;
   currentUserId?: string;
 }

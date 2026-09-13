@@ -30,7 +30,7 @@ interface BlockPrixMarcheProps {
   resume?: string | null;
   showGate?: boolean;
   onAuthSuccess?: () => void;
-  convertToPermanent?: (params: { email: string; password: string; firstName: string; lastName: string; phone: string; acceptCommercial?: boolean }) => Promise<unknown>;
+  convertToPermanent?: (params: { email: string; password: string; firstName: string; lastName: string; phone: string }) => Promise<unknown>;
   currentUserId?: string;
   /**
    * V3.4.22 (2026-05-21) — Callback pour remonter le count d'anomalies

@@ -25,7 +25,6 @@ interface PremiumGateProps {
     firstName: string;
     lastName: string;
     phone: string;
-    acceptCommercial?: boolean;
   }) => Promise<any>;
   title?: string;
   currentUserId?: string;
@@ -44,7 +43,6 @@ const PremiumGate = ({
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [acceptCommercial, setAcceptCommercial] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const formatPhoneNumber = (value: string) => {
@@ -80,7 +78,6 @@ const PremiumGate = ({
         firstName,
         lastName,
         phone,
-        acceptCommercial,
       });
       toast.success("Compte créé ! Chargement de l'analyse complète...");
       onAuthSuccess();
@@ -242,19 +239,13 @@ const PremiumGate = ({
                 </label>
               </div>
 
-              <div className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  id="gate-commercial"
-                  checked={acceptCommercial}
-                  onChange={(e) => setAcceptCommercial(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-primary"
-                  disabled={loading}
-                />
-                <label htmlFor="gate-commercial" className="text-xs text-muted-foreground cursor-pointer">
-                  J'accepte de recevoir des offres commerciales (optionnel)
-                </label>
-              </div>
+              {/* 🔴 2026-09-13 (décision Johan) — CASE « J'ACCEPTE DE RECEVOIR
+                  DES OFFRES COMMERCIALES » RETIRÉE, comme dans `Register`.
+                  Aucun partenaire n'existe et AUCUN lead n'est transmis à un
+                  tiers : la case décrivait une intention, pas la réalité.
+                  ⚠️ Ne pas la remettre « au cas où » — le jour où un
+                  partenariat existera, il faudra un consentement recueilli
+                  POUR CE partenaire. */}
             </div>
 
             <Button type="submit" className="w-full text-sm sm:text-base" size="lg" disabled={!acceptTerms || loading}>
