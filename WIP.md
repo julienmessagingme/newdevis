@@ -28,13 +28,24 @@ Hero de `src/pages/index.astro` refondu : zones de grille `top` / `stage` / `bot
 - ✅ **Carrousel** : 5,4 s, arrêt au survol / au focus / onglet caché, coupé sous `prefers-reduced-motion`, navigation aux flèches. Vérifié en direct (rotation, clic d'onglet, gel au survol).
 - ✅ **Les trois promesses non négociables sont conservées** : « Création de compte en 30 secondes », « sans revente de lead », la relecture experte (passée d'un encadré de quatre lignes à une ligne de même niveau).
 
-### 🔴 Ce qui reste à faire — « Voir un exemple d'analyse RÉELLE »
+### Page démo `/exemple-analyse` — livrée le 2026-09-14
 
-Johan a demandé ce libellé exact. **Il n'est pas en prod, et c'est délibéré** : l'analyse réelle publique **n'existe pas**.
-- `/analyse/[id]` **exige une session** ([AnalysisResult.tsx:443](src/components/pages/AnalysisResult.tsx:443)) et la RLS est cadrée par `user_id` — un visiteur qui cliquerait ne verrait rien.
-- **Aucune de nos analyses de test n'est publiable** : ce sont des devis de vrais artisans, tiers qui n'ont jamais consenti (précédent du 10/09 : un employé de l'entreprise émettrice a retrouvé l'analyse de son devis, avis négatif 3 minutes après).
+Le bouton pointait d'abord sur une ancre de l'accueil ; Johan voulait **une vraie page**. [`src/pages/exemple-analyse.astro`](src/pages/exemple-analyse.astro), prérendue (`prerender = true`), sans île React — donc indexable et zéro JS.
 
-Le bouton dit donc **« Voir un exemple d'analyse »** et pointe sur `#exemple`, qui se présente comme illustratif. **Le mot « réelle » revient le jour où** le devis fabriqué par nous sera passé dans le vrai pipeline et publié à une URL publique — cf. `TODO.md`.
+Elle suit l'ordre réel d'une analyse (`AvisEtPreparation`) : notre lecture → leviers → entreprise → clauses → détail poste par poste → message copiable → CTA.
+
+- **Le devis est FICTIF et la bannière le dit en tête**, avant tout le reste. Les fourchettes et les règles, elles, sont les vraies.
+- **Les fourchettes viennent de `poste()`** (`cloison_placo`, `carrelage_fourni_pose`, `peinture_murs_plafonds`, `isolation_interieure`) — si le catalogue bouge, la page ne devient pas fausse.
+- **Tout se recalcule** : écart = (prix unitaire − plafond marché) × quantité. 22 × (128−95) = 726 · 14 × (118−94) = 336 · **total 1 062 €**. Total HT 10 746 €, couverture 69 %, non vérifiable 3 340 € sur 3 postes. Un lecteur peut refaire l'addition.
+- **Elle démontre nos règles**, pas seulement notre UI : aucun pourcentage de marge (règle du 11/09), aucun montant sans poste nommé (05/09), aucune note client sous 10 avis (06/09), et un bloc « ces postes ne sont pas vérifiables » qui assume qu'on ne sait pas.
+
+### 🔴 Ce qui reste — le mot « RÉELLE »
+
+Johan avait demandé « Voir un exemple d'analyse **réelle** ». Le libellé en prod est **« Voir un exemple d'analyse »**, sans « réelle », parce que le devis est écrit par nous.
+- `/analyse/[id]` **exige une session** ([AnalysisResult.tsx:443](src/components/pages/AnalysisResult.tsx:443)), RLS cadrée par `user_id`.
+- **Aucune analyse de client n'est publiable** : ce sont des devis de vrais artisans, tiers non consentants (précédent du 10/09).
+
+Pour mériter « réelle », il faudrait faire passer ce devis fictif dans le **vrai pipeline** — et trancher d'abord s'il doit compter dans `ANALYSES_TOTAL` et dans l'observatoire (cf. `TODO.md`).
 
 ### Pourquoi cette refonte
 

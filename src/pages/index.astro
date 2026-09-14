@@ -74,7 +74,6 @@ const jsonLd = {
     <AstroHeader />
     <main class="flex-1">
 
-      <!-- ══ HERO ══ -->
       {/* ══ HERO ══ — refonte 2026-09-14 (décision Johan)
 
           POURQUOI. Mesuré le 14/09 sur 11 jours : 806 visiteurs voient
@@ -127,18 +126,16 @@ const jsonLd = {
                 Savoir si je peux signer
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </a>
-              {/* 2026-09-14 — LE LIBELLÉ NE DIT PAS « RÉELLE », ET C'EST DÉLIBÉRÉ.
-                  Johan a demandé « voir un exemple d'analyse réelle ». Cette
-                  analyse-là n'existe PAS encore : `/analyse/[id]` exige une
-                  session (AnalysisResult.tsx:443) et la RLS est cadrée par
-                  `user_id` — un visiteur qui cliquerait ne verrait rien. Et
-                  aucune de nos analyses de test n'est publiable : ce sont des
-                  devis de vrais artisans, tiers qui n'ont jamais consenti.
-                  Le bouton pointe donc vers l'exemple de la page, qui se
-                  présente comme illustratif. Le mot « réelle » reviendra le
-                  jour où le devis fabriqué par nous sera passé dans le vrai
-                  pipeline et publié à une URL publique. */}
-              <a href="#exemple" class="vh-btn vh-btn-ghost">Voir un exemple d'analyse</a>
+              {/* 2026-09-14 — pointe vers /exemple-analyse, une VRAIE page
+                  (première version : une ancre vers le bas de l'accueil,
+                  jugée insuffisante par Johan — il voulait une page démo).
+                  ⚠️ LE LIBELLÉ NE DIT PAS « RÉELLE », ET C'EST DÉLIBÉRÉ.
+                  Le devis de la page démo est FICTIF — nous l'avons écrit.
+                  Publier l'analyse d'un vrai client est exclu : un devis
+                  appartient aussi à l'artisan qui l'a émis, tiers qui n'a
+                  jamais consenti (précédent du 10/09). Les fourchettes et les
+                  règles, elles, sont les vraies. */}
+              <a href="/exemple-analyse" class="vh-btn vh-btn-ghost">Voir un exemple d'analyse</a>
             </div>
 
             <p class="vh-micro">Création de compte en 30 secondes, puis analyse immédiate — gratuit.</p>
@@ -338,15 +335,13 @@ const jsonLd = {
      Styles scopés par Astro. Les couleurs viennent des tokens de
      `src/index.css` (--score-green / --score-orange / --score-red) ou du
      blanc translucide sur le dégradé de marque — aucune teinte inventée. */
+  /* ⚠️ 2026-09-14 — PAS DE TRAME DE FOND ICI.
+     Une première version posait des réglures horizontales en
+     `repeating-linear-gradient` (rgba(255,255,255,.05) tous les 34 px) pour
+     évoquer le papier d'un devis. À l'écran elles se lisent comme des
+     lignes blanches parasites sur le dégradé, pas comme une texture —
+     retiré sur retour Johan. Le fond reste le dégradé de marque, net. */
   .vmd-hero { position: relative; overflow: hidden; }
-
-  /* Trame discrète : les réglures d'un devis. Purement décorative. */
-  .vmd-hero::before {
-    content: "";
-    position: absolute; inset: 0;
-    background-image: repeating-linear-gradient(to bottom, rgba(255,255,255,.05) 0 1px, transparent 1px 34px);
-    pointer-events: none;
-  }
 
   /* Zones de grille : sur mobile la scène passe AVANT les preuves —
      l'ancienne colonne visuelle était `hidden lg:block`, le mobile

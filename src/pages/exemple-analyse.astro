@@ -1,0 +1,384 @@
+---
+/**
+ * /exemple-analyse — la page démo demandée par Johan (2026-09-14).
+ *
+ * POURQUOI ELLE EXISTE. Le hero propose « Voir un exemple d'analyse ». Le
+ * bouton pointait d'abord sur une ancre de la page d'accueil — Johan voulait
+ * une vraie page. Et une vraie page était de toute façon la seule option
+ * honnête : `/analyse/[id]` EXIGE une session (AnalysisResult.tsx:443) et la
+ * RLS est cadrée par `user_id`, donc aucun visiteur ne peut voir une analyse
+ * existante.
+ *
+ * 🔴 POURQUOI PAS UNE VRAIE ANALYSE DE CLIENT. Toutes les analyses en base
+ * portent sur des devis de VRAIS ARTISANS — tiers qui n'ont jamais consenti à
+ * ce qu'on publie leur devis commenté. Masquer la raison sociale ne suffit
+ * pas : les lignes, les montants et la localisation identifient une
+ * entreprise. Précédent du 10/09 : un employé de l'entreprise émettrice a
+ * retrouvé l'analyse de son propre devis et laissé un avis négatif trois
+ * minutes après le dépôt.
+ *
+ * CE QUE CETTE PAGE EST DONC : un devis FICTIF que nous avons écrit, présenté
+ * avec les règles réelles du moteur et les fourchettes réelles du
+ * référentiel. La bannière le dit en tête, sans détour.
+ *
+ * ⚠️ LES FOURCHETTES VIENNENT DE `poste()`, JAMAIS ÉCRITES À LA MAIN — si le
+ * catalogue bouge, la page ne devient pas fausse. Même règle que le hero et
+ * que DuDevisAuVerdict.
+ *
+ * ⚠️ ET L'ARITHMÉTIQUE SE RECALCULE. Chaque écart affiché est
+ * (prix unitaire − plafond marché) × quantité, et le total en est la somme.
+ * Une page qui parle de rigueur doit pouvoir être vérifiée par son lecteur.
+ *
+ * Rendue en HTML au build (`prerender = true`) : pas d'île React, donc le
+ * texte est indexable et zéro JS est envoyé.
+ */
+export const prerender = true;
+
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+import { poste, CATALOGUE_TAILLE, ANALYSES_TOTAL } from '@/lib/prix/reference';
+
+/** Un poste du devis fictif. `refCle` absent = aucune référence opposable. */
+interface Ligne {
+  libelle: string;
+  detail: string;
+  qte: number;
+  unite: string;
+  pu: number;
+  refCle?: 'cloison_placo' | 'carrelage_fourni_pose' | 'peinture_murs_plafonds' | 'isolation_interieure';
+  /** Pourquoi ce poste n'est pas chiffrable — obligatoire quand `refCle` manque. */
+  pourquoiPasDeRef?: string;
+}
+
+const LIGNES: Ligne[] = [
+  { libelle: 'Cloison de séparation BA13 sur ossature', detail: 'Douche / WC, hauteur 2,50 m', qte: 22, unite: 'm²', pu: 128, refCle: 'cloison_placo' },
+  { libelle: 'Carrelage sol grès cérame, fourni et posé', detail: 'Format 60 × 60, pose droite', qte: 14, unite: 'm²', pu: 118, refCle: 'carrelage_fourni_pose' },
+  { libelle: 'Peinture murs et plafond, 2 couches', detail: 'Acrylique satin pièces humides', qte: 38, unite: 'm²', pu: 42, refCle: 'peinture_murs_plafonds' },
+  { libelle: 'Isolation des murs par l\'intérieur', detail: 'Laine minérale 100 mm + pare-vapeur', qte: 22, unite: 'm²', pu: 61, refCle: 'isolation_interieure' },
+  { libelle: 'Meuble vasque sur mesure, chêne massif', detail: 'Largeur 1 200 mm, plan résine', qte: 1, unite: 'u', pu: 2450,
+    pourquoiPasDeRef: 'Ouvrage sur mesure : aucun tarif de référence ne décrit ce meuble.' },
+  { libelle: 'Reprise d\'étanchéité sous receveur', detail: 'Dépose ancien complexe, SPEC + bande', qte: 1, unite: 'forfait', pu: 680,
+    pourquoiPasDeRef: 'Forfait dont le périmètre dépend de l\'état découvert au chantier.' },
+  { libelle: 'Évacuation en déchetterie agréée', detail: 'Gravats et ancien mobilier', qte: 1, unite: 'forfait', pu: 210,
+    pourquoiPasDeRef: 'Varie avec la distance et le volume : aucune fourchette n\'aurait de sens.' },
+];
+
+/** Écart = (prix unitaire − plafond du marché) × quantité, borné à zéro. */
+function ecart(l: Ligne): number {
+  if (!l.refCle) return 0;
+  const max = poste(l.refCle).max;
+  return l.pu > max ? Math.round((l.pu - max) * l.qte) : 0;
+}
+const montant = (l: Ligne) => Math.round(l.qte * l.pu);
+const eur = (n: number) => n.toLocaleString('fr-FR') + ' €';
+
+const totalHT = LIGNES.reduce((s, l) => s + montant(l), 0);
+const lignesChiffrables = LIGNES.filter((l) => l.refCle);
+const lignesNonVerifiables = LIGNES.filter((l) => !l.refCle);
+const montantComparable = lignesChiffrables.reduce((s, l) => s + montant(l), 0);
+const montantNonVerifiable = totalHT - montantComparable;
+const couverturePct = Math.round((montantComparable / totalHT) * 100);
+const lignesEnEcart = LIGNES.filter((l) => ecart(l) > 0);
+const ecartTotal = lignesEnEcart.reduce((s, l) => s + ecart(l), 0);
+
+const tva = Math.round(totalHT * 0.1); // rénovation de plus de 2 ans : 10 %
+const totalTTC = totalHT + tva;
+const acomptePct = 50;
+
+const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
+---
+
+<BaseLayout
+  title={`${titre} | VerifierMonDevis.fr`}
+  description={`Voyez à quoi ressemble une analyse complète : verdict, écart chiffré poste par poste sur ${CATALOGUE_TAILLE} références de prix, entreprise vérifiée, clauses abusives détectées. Exemple sur un devis fictif.`}
+>
+  <div class="min-h-screen flex flex-col bg-slate-50">
+    <AstroHeader />
+    <main class="flex-1">
+
+      {/* ── Bannière : on annonce la nature de la page AVANT tout le reste.
+           Un exemple pris pour une vraie analyse serait pire qu'une absence
+           d'exemple. ────────────────────────────────────────────────────── */}
+      <div class="bg-slate-900 text-white">
+        <div class="container px-4 py-3.5 flex items-start gap-3 max-w-4xl">
+          <svg class="h-5 w-5 flex-shrink-0 mt-0.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 8v5M12 17h.01" /></svg>
+          <p class="text-sm leading-relaxed">
+            <strong>Ceci est un exemple.</strong> Le devis ci-dessous est fictif — nous l'avons écrit.
+            Les fourchettes de prix, elles, sont nos <strong>vraies</strong> références,
+            et les règles appliquées sont celles du moteur.
+            <span class="text-white/70">Nous ne publions aucune analyse de client : un devis appartient aussi à l'artisan qui l'a émis.</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="container px-4 py-8 sm:py-12 max-w-4xl">
+
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mb-1.5">
+          Devis de rénovation de salle de bains
+        </h1>
+        <p class="text-sm text-slate-500 mb-8">
+          SARL BATI CONFORT · {LIGNES.length} postes · {eur(totalHT)} HT ·
+          {eur(totalTTC)} TTC (TVA 10 %)
+        </p>
+
+        {/* ── 1. Notre lecture ──────────────────────────────────────────── */}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-lecture">
+          <div class="flex items-center gap-2.5 mb-4">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">À négocier</span>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Notre lecture</span>
+          </div>
+
+          <h2 id="t-lecture" class="text-xl sm:text-2xl font-semibold text-slate-900 leading-snug mb-3">
+            Deux postes dépassent les fourchettes du marché, pour {eur(ecartTotal)} d'écart chiffré.
+          </h2>
+          <p class="text-slate-600 leading-relaxed mb-5">
+            Le reste des postes comparables est dans la norme. L'entreprise est en règle.
+            Une clause du devis est en revanche illégale en l'état, et l'acompte demandé est
+            au-dessus de l'usage.
+          </p>
+
+          {/* ⚠️ On ne chiffre QUE ce qu'on peut nommer (règle du 30/08, invariant
+               du 05/09). Les deux postes sont donc cités juste en dessous. */}
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Écart chiffré</p>
+              <p class="text-xl font-bold text-slate-900 tabular-nums">{eur(ecartTotal)}</p>
+              <p class="text-xs text-slate-500 mt-1">sur 2 postes nommés</p>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Comparé au marché</p>
+              <p class="text-xl font-bold text-slate-900 tabular-nums">{couverturePct} %</p>
+              <p class="text-xs text-slate-500 mt-1">du montant du devis</p>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Non vérifiable</p>
+              <p class="text-xl font-bold text-slate-900 tabular-nums">{eur(montantNonVerifiable)}</p>
+              <p class="text-xs text-slate-500 mt-1">{lignesNonVerifiables.length} postes sans référence</p>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 2. Vos leviers de négociation ─────────────────────────────── */}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-leviers">
+          <h2 id="t-leviers" class="text-lg font-semibold text-slate-900 mb-1">Vos leviers de négociation</h2>
+          <p class="text-sm text-slate-500 mb-5">Par ordre de puissance — commencez par le premier.</p>
+
+          <ol class="space-y-4 list-none p-0 m-0">
+            <li class="rounded-xl border border-rose-200 bg-rose-50/40 p-4">
+              <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                <span class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/5 text-[13px] font-semibold text-slate-600">1</span>
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide bg-rose-100 text-rose-800">Le plus puissant</span>
+              </div>
+              <p class="font-medium text-slate-900">Faites retirer la clause de facturation du devis</p>
+              <p class="mt-1 text-sm text-slate-600 leading-relaxed">
+                Elle est illégale sans accord préalable écrit de votre part. Demandez sa
+                suppression par écrit avant toute signature — c'est le point le moins
+                discutable de tout le devis.
+              </p>
+            </li>
+
+            <li class="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+              <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                <span class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/5 text-[13px] font-semibold text-slate-600">2</span>
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide bg-amber-100 text-amber-800">Important</span>
+              </div>
+              <p class="font-medium text-slate-900">Négociez les deux postes au-dessus du marché</p>
+              <p class="mt-1 text-sm text-slate-600 leading-relaxed">
+                {LIGNES[0].libelle} à {LIGNES[0].pu} €/m² quand le marché va jusqu'à
+                {' '}{poste('cloison_placo').max} €/m², et le carrelage à {LIGNES[1].pu} €/m²
+                pour un marché à {poste('carrelage_fourni_pose').max} €/m² au plus haut.
+                Écart chiffré : <strong>{eur(ecartTotal)}</strong>.
+              </p>
+            </li>
+
+            <li class="rounded-xl border border-sky-200 bg-sky-50/40 p-4">
+              <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                <span class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/5 text-[13px] font-semibold text-slate-600">3</span>
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide bg-sky-100 text-sky-800">Sécurisation</span>
+              </div>
+              <p class="font-medium text-slate-900">Réclamez l'attestation d'assurance décennale</p>
+              <p class="mt-1 text-sm text-slate-600 leading-relaxed">
+                Elle n'est pas mentionnée sur le devis. Demandez l'attestation nominative de
+                l'assureur, avec une date d'effet antérieure à l'ouverture du chantier.
+              </p>
+            </li>
+          </ol>
+
+          {/* ⚠️ Aucun POURCENTAGE de marge ici : depuis le 11/09, seul un levier
+               qui parle de PRIX peut en porter un. L'acompte et les clauses
+               changent QUAND on paie et CE QU'on signe, pas le montant. */}
+          <p class="mt-4 text-xs text-slate-500 leading-relaxed">
+            Nous n'annonçons pas de pourcentage de remise : aucun de ces leviers ne fait
+            baisser un prix par lui-même. Le seul montant que nous chiffrons est l'écart
+            constaté sur les deux postes nommés.
+          </p>
+        </section>
+
+        {/* ── 3. Entreprise ─────────────────────────────────────────────── */}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-entreprise">
+          <h2 id="t-entreprise" class="text-lg font-semibold text-slate-900 mb-1">Entreprise &amp; fiabilité</h2>
+          <p class="text-sm text-slate-500 mb-5">SARL BATI CONFORT · SIREN 812 456 903</p>
+
+          <dl class="grid gap-0 m-0">
+            {[
+              ['État administratif', 'Aucune procédure collective en cours', 'Active', 'green'],
+              ['Immatriculation', '9 ans d\'ancienneté', 'Solide', 'green'],
+              ['Certification RGE', 'QualiBat 7131 — valide jusqu\'au 31/12/2026', 'Vérifiée', 'green'],
+              ['Assurance décennale', 'Non mentionnée sur le devis', 'À réclamer', 'amber'],
+              ['Comptes annuels', 'Non accessibles publiquement — procédure légale fréquente', 'Sans avis', 'slate'],
+            ].map(([k, sous, badge, ton]) => (
+              <div class="flex items-center justify-between gap-4 py-3 border-t border-slate-100 first:border-t-0">
+                <div class="min-w-0">
+                  <dt class="text-sm font-medium text-slate-900">{k}</dt>
+                  <dd class="text-xs text-slate-500 mt-0.5 m-0">{sous}</dd>
+                </div>
+                <span class={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${
+                  ton === 'green' ? 'bg-emerald-100 text-emerald-800'
+                  : ton === 'amber' ? 'bg-amber-100 text-amber-800'
+                  : 'bg-slate-100 text-slate-600'}`}>{badge}</span>
+              </div>
+            ))}
+          </dl>
+
+          {/* Règle du 06/09 : une note n'est pas une réputation sous 10 avis. */}
+          <p class="mt-4 text-xs text-slate-500 leading-relaxed">
+            Nous n'affichons aucune note client : cette entreprise en compte trop peu pour
+            qu'une moyenne veuille dire quelque chose. Nous préférons ne rien en conclure.
+          </p>
+        </section>
+
+        {/* ── 4. Clauses ───────────────────────────────────────────────── */}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-clauses">
+          <h2 id="t-clauses" class="text-lg font-semibold text-slate-900 mb-1">Clauses du devis</h2>
+          <p class="text-sm text-slate-500 mb-5">Citées mot pour mot — jamais reformulées.</p>
+
+          <blockquote class="border-l-4 border-rose-500 bg-slate-50 rounded-r-lg px-4 py-3 italic text-sm text-slate-700 m-0">
+            « Tout devis non signé dans les 15 jours sera facturé 90 € au titre de l'étude technique. »
+          </blockquote>
+          <p class="mt-2 mb-6 text-sm text-slate-600 leading-relaxed">
+            <strong class="text-slate-900">Illégale sans accord préalable écrit</strong> — article
+            L.111-1 du Code de la consommation. Un devis est gratuit, sauf si son coût vous a été
+            annoncé et accepté avant sa réalisation.
+          </p>
+
+          <blockquote class="border-l-4 border-amber-500 bg-slate-50 rounded-r-lg px-4 py-3 italic text-sm text-slate-700 m-0">
+            « Acompte de {acomptePct} % à la commande, solde à la livraison du matériel. »
+          </blockquote>
+          <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+            <strong class="text-slate-900">Au-dessus de l'usage</strong> — 30 % est la pratique
+            courante. Ça ne change pas le prix, seulement le moment où vous payez :
+            demandez un échelonnement adossé à l'avancement du chantier.
+          </p>
+        </section>
+
+        {/* ── 5. Détail poste par poste ─────────────────────────────────── */}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-postes">
+          <h2 id="t-postes" class="text-lg font-semibold text-slate-900 mb-1">Le devis, poste par poste</h2>
+          <p class="text-sm text-slate-500 mb-5">
+            Chaque ligne comparée à notre référentiel de {CATALOGUE_TAILLE.toLocaleString('fr-FR')} prix.
+          </p>
+
+          <div class="overflow-x-auto overscroll-x-contain -mx-1 px-1">
+            <table class="w-full text-sm min-w-[560px]">
+              <thead>
+                <tr class="text-left text-xs uppercase tracking-wider text-slate-400 border-b border-slate-200">
+                  <th class="py-2 pr-3 font-semibold">Poste</th>
+                  <th class="py-2 px-3 font-semibold text-right">Devis</th>
+                  <th class="py-2 px-3 font-semibold text-right">Marché</th>
+                  <th class="py-2 pl-3 font-semibold text-right">Écart</th>
+                </tr>
+              </thead>
+              <tbody>
+                {LIGNES.map((l) => {
+                  const e = ecart(l);
+                  const ref = l.refCle ? poste(l.refCle) : null;
+                  return (
+                    <tr class="border-b border-slate-100 align-top">
+                      <td class="py-3 pr-3">
+                        <div class="font-medium text-slate-900">{l.libelle}</div>
+                        <div class="text-xs text-slate-500 mt-0.5">{l.detail}</div>
+                        <div class="text-xs text-slate-400 mt-0.5 tabular-nums">{l.qte} {l.unite} × {eur(l.pu)}</div>
+                        {l.pourquoiPasDeRef && (
+                          <div class="text-xs text-slate-500 mt-1.5 italic">{l.pourquoiPasDeRef}</div>
+                        )}
+                      </td>
+                      <td class="py-3 px-3 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap">{eur(montant(l))}</td>
+                      <td class="py-3 px-3 text-right tabular-nums text-slate-500 whitespace-nowrap">
+                        {ref ? `${ref.min} à ${ref.max} €/${l.unite}` : <span class="text-slate-400">—</span>}
+                      </td>
+                      <td class="py-3 pl-3 text-right whitespace-nowrap">
+                        {e > 0
+                          ? <span class="font-bold text-rose-600 tabular-nums">+{eur(e)}</span>
+                          : ref
+                            ? <span class="text-xs font-semibold text-emerald-700">dans la norme</span>
+                            : <span class="text-xs font-semibold text-slate-500">non vérifiable</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr class="border-t-2 border-slate-900">
+                  <td class="py-3 pr-3 font-semibold text-slate-900">Total HT</td>
+                  <td class="py-3 px-3 text-right tabular-nums font-bold text-slate-900">{eur(totalHT)}</td>
+                  <td class="py-3 px-3"></td>
+                  <td class="py-3 pl-3 text-right tabular-nums font-bold text-rose-600">+{eur(ecartTotal)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {/* 🔴 La carte qui nous distingue : on dit ce qu'on NE SAIT PAS. */}
+          <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-sm font-semibold text-slate-900 mb-1.5">
+              {lignesNonVerifiables.length} postes ne sont pas vérifiables — {eur(montantNonVerifiable)}
+            </p>
+            <p class="text-sm text-slate-600 leading-relaxed">
+              Ni bon marché, ni chers : nous n'avons aucune référence que vous puissiez opposer
+              à l'artisan sur ces lignes. <strong class="text-slate-900">Un second devis est le
+              seul comparatif réel sur ces postes.</strong> Nous préférons le dire plutôt que
+              d'inventer une fourchette que vous iriez défendre en rendez-vous.
+            </p>
+          </div>
+        </section>
+
+        {/* ── 6. Message copiable ──────────────────────────────────────── */}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-8" aria-labelledby="t-message">
+          <h2 id="t-message" class="text-lg font-semibold text-slate-900 mb-1">Le message à envoyer</h2>
+          <p class="text-sm text-slate-500 mb-4">Généré à partir des leviers ci-dessus — prêt à copier.</p>
+          <div class="rounded-xl bg-slate-900 text-slate-100 p-4 text-sm leading-relaxed whitespace-pre-line font-mono">{`Bonjour,
+
+Merci pour votre devis. Avant de le signer, trois points :
+
+1. La mention « tout devis non signé sous 15 jours sera facturé 90 € » ne peut pas s'appliquer sans mon accord écrit préalable. Pouvez-vous la retirer ?
+
+2. La cloison BA13 est à ${LIGNES[0].pu} €/m² et le carrelage à ${LIGNES[1].pu} €/m². Les tarifs que j'ai pu comparer vont jusqu'à ${poste('cloison_placo').max} €/m² et ${poste('carrelage_fourni_pose').max} €/m². Pouvez-vous revoir ces deux lignes ?
+
+3. Pouvez-vous m'adresser votre attestation d'assurance décennale, et me proposer un échelonnement adossé à l'avancement plutôt qu'un acompte de ${acomptePct} % ?
+
+Bien cordialement,`}</div>
+        </section>
+
+        {/* ── CTA ───────────────────────────────────────────────────────── */}
+        <div class="rounded-2xl bg-slate-900 text-white p-6 sm:p-8 text-center">
+          <h2 class="text-xl sm:text-2xl font-bold mb-2">Et sur votre devis, qu'est-ce que ça donne ?</h2>
+          <p class="text-white/75 mb-6 max-w-xl mx-auto leading-relaxed">
+            Déposez le vôtre : mêmes vérifications, mêmes {CATALOGUE_TAILLE.toLocaleString('fr-FR')} références de prix,
+            et la même règle — nous ne chiffrons que ce que nous pouvons nommer.
+          </p>
+          <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-white text-slate-900 font-bold px-7 py-3.5 rounded-xl hover:bg-slate-100 transition-colors">
+            Analyser mon devis
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </a>
+          <p class="text-xs text-white/60 mt-4">
+            Création de compte en 30 secondes, puis analyse immédiate — gratuit.
+            {' '}{ANALYSES_TOTAL.toLocaleString('fr-FR')} devis déjà analysés.
+          </p>
+        </div>
+
+      </div>
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>

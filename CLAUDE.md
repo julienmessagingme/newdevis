@@ -1159,7 +1159,19 @@ Refonte livrée le jour de la mesure du funnel. **806 visiteurs voient l'accueil
 - ⚠️ **La légende dit « Exemple illustratif », pas « sortie réelle de l'outil »** — tant que le devis d'exemple n'est pas passé dans le pipeline, l'écrire serait faux.
 - 🔴 **LE BOUTON NE DIT PAS « RÉELLE », ET C'EST VOLONTAIRE.** Johan a demandé « Voir un exemple d'analyse **réelle** ». Cette analyse publique n'existe pas : `/analyse/[id]` exige une session ([AnalysisResult.tsx:443](src/components/pages/AnalysisResult.tsx:443)), la RLS est cadrée par `user_id`, et aucune de nos analyses de test n'est publiable — ce sont des devis de **vrais artisans**, tiers qui n'ont jamais consenti. Le libellé est donc « Voir un exemple d'analyse » vers `#exemple`, qui se présente comme illustratif. **Promettre « réelle » en pointant sur une maquette serait exactement le défaut retiré de huit pages le matin même.**
 - ⚠️ **Réserve de méthode** : la collecte de provenance a démarré le 14/09 et le hero a changé le même jour. Il n'y a **pas de semaine de référence** — un mouvement du taux de clic ne sera pas attribuable avec certitude à la refonte.
+- ⚠️ **PAS DE TRAME DE FOND SUR LE HERO.** Une première version posait des réglures horizontales (`repeating-linear-gradient`, `rgba(255,255,255,.05)` tous les 34 px) pour évoquer le papier d'un devis. À l'écran elles se lisent comme des **lignes blanches parasites** sur le dégradé, pas comme une texture — retirées sur retour Johan le jour même. Ne pas les remettre.
 - ⚠️ `HeroSection.tsx` reste **orphelin** (utilisé par `Index.tsx`, lui-même orphelin) et référence encore l'ancienne photo. C'est **`src/pages/index.astro`** qu'on édite pour le hero en prod.
+- ⚠️ **Le hero commence par un commentaire JSX `{/* */}`, jamais `<!-- -->`.** Dans un `.astro`, un commentaire HTML est **servi au public** — le fichier le dit déjà, et un `<!-- ══ HERO ══ -->` hérité de l'ancienne version a survécu au remplacement avant d'être retiré.
+
+### `/exemple-analyse` — la page démo (2026-09-14, demande Johan)
+
+[`src/pages/exemple-analyse.astro`](src/pages/exemple-analyse.astro), prérendue et sans île React : le texte est indexable et la page n'envoie aucun JS. Elle suit l'ordre réel d'une analyse (`AvisEtPreparation`) : notre lecture → leviers → entreprise → clauses → détail poste par poste → message copiable.
+
+- 🔴 **ON NE PUBLIE AUCUNE ANALYSE DE CLIENT, ET CE N'EST PAS NÉGOCIABLE.** Un devis appartient aussi à **l'artisan qui l'a émis** — tiers qui n'a jamais consenti. Masquer la raison sociale ne suffit pas : les lignes, les montants et la localisation identifient une entreprise. Précédent du 10/09 : un employé de l'entreprise émettrice a retrouvé l'analyse de son propre devis et laissé un avis négatif **trois minutes** après le dépôt. Le devis de la page est donc **écrit par nous**, et la bannière le dit **avant** tout le reste.
+- **Les fourchettes viennent de `poste()`**, jamais écrites à la main : si le catalogue bouge, la page ne devient pas fausse.
+- 🔴 **L'ARITHMÉTIQUE DOIT SE RECALCULER.** Écart = (prix unitaire − plafond marché) × quantité, et le total en est la somme : 22 × (128−95) = 726, 14 × (118−94) = 336, **1 062 €**. Total HT 10 746 €, couverture 69 %, non vérifiable 3 340 €. Une page qui vend de la rigueur doit pouvoir être vérifiée par son lecteur — si on y touche, refaire l'addition.
+- **Elle démontre nos RÈGLES, pas seulement notre interface** : aucun pourcentage de marge (11/09), aucun montant sans poste nommé (05/09), aucune note client sous 10 avis (06/09), et un bloc entier qui assume ce qu'on ne sait pas chiffrer. C'est ce dernier qui la rend incopiable.
+- ⚠️ **Le tableau poste par poste est la seule largeur fixe** (`min-w-[560px]`) : il vit dans `overflow-x-auto overscroll-x-contain`, convention du projet. Tout autre bloc large doit faire pareil, sinon la page entière glisse sur mobile.
 
 ### Milieu de la home — un bloc au lieu de huit boîtes (2026-09-08)
 
