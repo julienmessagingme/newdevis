@@ -360,20 +360,32 @@ Merci pour votre devis. Avant de le signer, trois points :
 Bien cordialement,`}</div>
         </section>
 
-        {/* ── CTA ───────────────────────────────────────────────────────── */}
-        <div class="rounded-2xl bg-slate-900 text-white p-6 sm:p-8 text-center">
+        {/* ── CTA ───────────────────────────────────────────────────────────
+             2026-09-14 (retour Johan) — AUX COULEURS DE LA MARQUE.
+             Ce bloc était en `bg-slate-900`, un quasi-noir générique qui
+             n'appartient à personne : sur la page qui doit donner envie de
+             déposer un devis, c'est la marque qu'il faut voir. Il reprend
+             donc `hero-gradient` (le dégradé du hero, `--hero-gradient` de
+             `src/index.css`), le bouton blanc à texte `--primary` comme celui
+             du hero, et le vert `--score-green` du soulignement du titre.
+             ⚠️ Utiliser la classe `.hero-gradient` et les tokens, JAMAIS des
+             valeurs recopiées : le jour où la marque bouge, ce bloc suit. */}
+        <div class="hero-gradient rounded-2xl text-white p-6 sm:p-8 text-center relative overflow-hidden">
           <h2 class="text-xl sm:text-2xl font-bold mb-2">Et sur votre devis, qu'est-ce que ça donne ?</h2>
-          <p class="text-white/75 mb-6 max-w-xl mx-auto leading-relaxed">
+          <p class="text-primary-foreground/80 mb-6 max-w-xl mx-auto leading-relaxed">
             Déposez le vôtre : mêmes vérifications, mêmes {CATALOGUE_TAILLE.toLocaleString('fr-FR')} références de prix,
             et la même règle — nous ne chiffrons que ce que nous pouvons nommer.
           </p>
-          <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-white text-slate-900 font-bold px-7 py-3.5 rounded-xl hover:bg-slate-100 transition-colors">
+          <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-white text-primary font-bold px-7 py-3.5 rounded-xl hover:bg-white/90 transition-colors">
             Analyser mon devis
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           </a>
-          <p class="text-xs text-white/60 mt-4">
-            Création de compte en 30 secondes, puis analyse immédiate — gratuit.
-            {' '}{ANALYSES_TOTAL.toLocaleString('fr-FR')} devis déjà analysés.
+          <p class="text-xs text-primary-foreground/65 mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+            <span>Création de compte en 30 secondes, puis analyse immédiate — gratuit.</span>
+            <span class="inline-flex items-center gap-1.5">
+              <svg class="h-3.5 w-3.5 text-score-green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              {ANALYSES_TOTAL.toLocaleString('fr-FR')} devis déjà analysés
+            </span>
           </p>
         </div>
 
