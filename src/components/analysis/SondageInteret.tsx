@@ -48,7 +48,40 @@ interface Props {
   tone?: "sky" | "indigo";
   /** Provenance des fondateurs — biographique, au passé. */
   provenance?: string;
+  /**
+   * 2026-09-14 (retour Johan) — CE QU'ON CHERCHE À SAVOIR, propre au sujet.
+   * Formulé comme un complément de « Nous cherchons à savoir… » : la suite de
+   * la phrase est commune aux deux sondages (cf. `SUITE_DU_POURQUOI`).
+   */
+  besoin: string;
 }
+
+/**
+ * 2026-09-14 (retour Johan) — LA MOITIÉ COMMUNE DE L'EXPLICATION, EN UN SEUL
+ * ENDROIT.
+ *
+ * Johan : « il faudrait davantage expliquer pourquoi nous faisons ce sondage :
+ * estimer s'il y a un besoin de financement et essayer de trouver la meilleure
+ * solution en recherchant des partenaires. »
+ *
+ * ⚠️ CE N'EST PAS UN RETOUR DE L'OFFRE, et la nuance porte tout : on énonce
+ * une INTENTION vérifiable (« nous irions chercher »), jamais un service qui
+ * existerait déjà. La règle du 13/09 interdit les mots d'offre — « sans
+ * engagement », « proposition » — parce qu'ils annonçaient ce qu'on ne fait
+ * pas. Dire pourquoi on pose la question est l'inverse : c'est une raison que
+ * le lecteur peut opposer.
+ *
+ * ⚠️ ET LA PHRASE SUIVANTE RESTE OBLIGATOIRE. « Partenaire » ne doit jamais
+ * pouvoir se lire comme « on va vendre votre dossier » — c'est exactement ce
+ * que la page d'accueil promet de ne pas faire (« sans revente de lead »).
+ * D'où l'ordre : d'abord l'intention, puis la garantie que rien ne part.
+ *
+ * Une seule constante partagée plutôt que deux formulations jumelles : elles
+ * finiraient par diverger, et l'une des deux redeviendrait une promesse
+ * (même raisonnement que `HERO_CONFIRME`, 2026-09-11).
+ */
+const SUITE_DU_POURQUOI =
+  "Si le besoin se confirme, nous irions chercher des partenaires pour construire la meilleure solution. Ce service n'existe pas encore : votre réponse sert à décider s'il doit exister.";
 
 const TONES = {
   sky: { box: "border-sky-200 bg-sky-50/60", text: "text-sky-950", btn: "border-sky-300 text-sky-900 hover:bg-sky-100" },
@@ -62,7 +95,7 @@ const EVENEMENT_VU: Record<SujetSondage, string> = {
 };
 
 export default function SondageInteret({
-  analysisId, sujet, question, reponses, tone = "sky", provenance,
+  analysisId, sujet, question, reponses, tone = "sky", provenance, besoin,
 }: Props) {
   const storageKey = `vmd_sondage_${sujet}_${analysisId}`;
   const [etat, setEtat] = useState<"idle" | "envoi" | "fait">(() => {
@@ -109,7 +142,7 @@ export default function SondageInteret({
   if (etat === "fait") {
     return (
       <p className="mt-3 rounded-lg bg-emerald-50 border border-emerald-200 px-3.5 py-2.5 text-[13px] text-emerald-900">
-        Merci — ça nous aide à décider si nous développons ce service.
+        Merci — ça nous aide à décider si nous développons ce service, et avec quels partenaires.
       </p>
     );
   }
@@ -131,14 +164,20 @@ export default function SondageInteret({
           </button>
         ))}
       </div>
-      {/* ⚠️ Dire ce que la réponse sert, à l'endroit où on la demande. C'est ce
-          qui remplace « sans engagement » : une raison vérifiable plutôt qu'une
-          promesse que le lecteur a appris à ne pas croire.
-          ⚠️ NE PAS ÉCRIRE « anonyme » : la réponse est enregistrée avec le
+      {/* 2026-09-14 — POURQUOI ON POSE LA QUESTION, avant la garantie.
+          L'ordre compte : l'intention d'abord (ce qu'on cherche à savoir et ce
+          qu'on en ferait), la garantie ensuite (rien ne part). Inversé, le mot
+          « partenaires » resterait seul en tête et se lirait comme une revente
+          de dossier. */}
+      <p className={`mt-2.5 text-[12px] leading-relaxed ${t.text} opacity-80`}>
+        <span className="font-semibold">Pourquoi cette question&nbsp;?</span>{" "}
+        Nous cherchons à savoir {besoin}. {SUITE_DU_POURQUOI}
+      </p>
+      {/* ⚠️ NE PAS ÉCRIRE « anonyme » : la réponse est enregistrée avec le
           compte et l'analyse (table `lead_interest`). Ce qui est vrai, et
           suffisant, c'est qu'elle ne déclenche rien et n'est transmise à
           personne. */}
-      <p className="mt-2.5 text-[12px] text-foreground/55 leading-relaxed">
+      <p className="mt-2 text-[12px] text-foreground/55 leading-relaxed">
         Votre réponse ne déclenche aucun appel ni aucun e-mail, et n'est transmise à personne.
         {provenance ? ` ${provenance} ` : " "}
         <a href="/qui-sommes-nous" className="underline hover:text-foreground/80">Qui sommes-nous ?</a>

@@ -42,6 +42,10 @@ const sondageDo = (analysisId: string) =>
     ],
     provenance:
       "Nous vérifions ce point parce que nos fondateurs viennent de l'assurance et de la banque.",
+    // 2026-09-14 — complément de « Nous cherchons à savoir… ». La suite est
+    // commune aux deux sondages (`SUITE_DU_POURQUOI` dans SondageInteret).
+    besoin:
+      "combien de personnes dont les travaux touchent à la structure se retrouvent sans dommages-ouvrage",
   });
 
 const NIVEAU_STYLE: Record<
@@ -196,6 +200,9 @@ export default function LeviersNegociation({ conclusion, analysisId, totalHt, pr
             { valeur: "non", libelle: "Je paie sans emprunter" },
           ]}
           provenance="Nos fondateurs ont exercé 20 ans en banque et en assurance, dont le crédit immobilier."
+          // 2026-09-14 (retour Johan) — dire ce qu'on cherche à mesurer. La
+          // suite de la phrase est commune aux deux sondages.
+          besoin="si le financement est un frein réel sur des chantiers de ce montant"
         />
       )}
     </section>
