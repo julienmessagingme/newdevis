@@ -100,14 +100,20 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
       {/* ── Bannière : on annonce la nature de la page AVANT tout le reste.
            Un exemple pris pour une vraie analyse serait pire qu'une absence
            d'exemple. ────────────────────────────────────────────────────── */}
-      <div class="bg-slate-900 text-white">
+      {/* 2026-09-14 (retour Johan) — aux couleurs de la marque, comme les deux
+           autres blocs sombres de la page. Navy PLEINE (`bg-primary`) et non
+           le dégradé : le dégradé reste réservé au bandeau d'appel à l'action,
+           sinon les deux se confondent.
+           L'icône passe sur `--score-orange`, le token d'alerte du produit,
+           plutôt qu'un `amber-400` Tailwind sans rapport avec la palette. */}
+      <div class="bg-primary text-primary-foreground">
         <div class="container px-4 py-3.5 flex items-start gap-3 max-w-4xl">
-          <svg class="h-5 w-5 flex-shrink-0 mt-0.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 8v5M12 17h.01" /></svg>
+          <svg class="h-5 w-5 flex-shrink-0 mt-0.5 text-score-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 8v5M12 17h.01" /></svg>
           <p class="text-sm leading-relaxed">
             <strong>Ceci est un exemple.</strong> Le devis ci-dessous est fictif — nous l'avons écrit.
             Les fourchettes de prix, elles, sont nos <strong>vraies</strong> références,
             et les règles appliquées sont celles du moteur.
-            <span class="text-white/70">Nous ne publions aucune analyse de client : un devis appartient aussi à l'artisan qui l'a émis.</span>
+            <span class="text-primary-foreground/70">Nous ne publions aucune analyse de client : un devis appartient aussi à l'artisan qui l'a émis.</span>
           </p>
         </div>
       </div>
@@ -347,7 +353,11 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
         <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-8" aria-labelledby="t-message">
           <h2 id="t-message" class="text-lg font-semibold text-slate-900 mb-1">Le message à envoyer</h2>
           <p class="text-sm text-slate-500 mb-4">Généré à partir des leviers ci-dessus — prêt à copier.</p>
-          <div class="rounded-xl bg-slate-900 text-slate-100 p-4 text-sm leading-relaxed whitespace-pre-line font-mono">{`Bonjour,
+          {/* 2026-09-14 (retour Johan) — troisième bloc sombre aligné sur la
+               marque. Il prend la navy DÉRIVÉE du token (cf. `.vmd-message`
+               plus bas) : plus sombre que le bandeau du haut pour rester un
+               bloc « à recopier », mais de la même famille. */}
+          <div class="vmd-message rounded-xl p-4 text-sm leading-relaxed whitespace-pre-line font-mono">{`Bonjour,
 
 Merci pour votre devis. Avant de le signer, trois points :
 
@@ -394,3 +404,18 @@ Bien cordialement,`}</div>
     <AstroFooter />
   </div>
 </BaseLayout>
+
+<style>
+  /* Le bloc « message à envoyer » — 2026-09-14 (retour Johan).
+     ⚠️ LA COULEUR EST DÉRIVÉE DU TOKEN, PAS RECOPIÉE : `color-mix` assombrit
+     `--primary` au lieu de figer un hexadécimal. Le jour où la navy de la
+     marque change, ce bloc suit — c'est toute la raison de ne pas écrire
+     `#132a5c` ici.
+     Repli pour les navigateurs sans `color-mix` : la navy pleine, qui reste
+     lisible avec le même texte clair. */
+  .vmd-message {
+    background: hsl(var(--primary));
+    background: color-mix(in srgb, hsl(var(--primary)) 74%, #000);
+    color: hsl(var(--primary-foreground));
+  }
+</style>

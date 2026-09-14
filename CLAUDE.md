@@ -1172,7 +1172,16 @@ Refonte livrée le jour de la mesure du funnel. **806 visiteurs voient l'accueil
 - 🔴 **L'ARITHMÉTIQUE DOIT SE RECALCULER.** Écart = (prix unitaire − plafond marché) × quantité, et le total en est la somme : 22 × (128−95) = 726, 14 × (118−94) = 336, **1 062 €**. Total HT 10 746 €, couverture 69 %, non vérifiable 3 340 €. Une page qui vend de la rigueur doit pouvoir être vérifiée par son lecteur — si on y touche, refaire l'addition.
 - **Elle démontre nos RÈGLES, pas seulement notre interface** : aucun pourcentage de marge (11/09), aucun montant sans poste nommé (05/09), aucune note client sous 10 avis (06/09), et un bloc entier qui assume ce qu'on ne sait pas chiffrer. C'est ce dernier qui la rend incopiable.
 - ⚠️ **Le tableau poste par poste est la seule largeur fixe** (`min-w-[560px]`) : il vit dans `overflow-x-auto overscroll-x-contain`, convention du projet. Tout autre bloc large doit faire pareil, sinon la page entière glisse sur mobile.
-- **Le bandeau final est aux couleurs de la marque** (retour Johan) : `hero-gradient` + bouton blanc `text-primary` + coche `text-score-green`. Il était en `bg-slate-900`, un quasi-noir qui n'appartient à personne — sur le bloc qui doit donner envie de déposer un devis, c'est la marque qu'il faut voir. ⚠️ **Toujours passer par la classe `.hero-gradient` et les tokens, jamais par des valeurs recopiées** : le jour où la marque bouge, le bloc suit. Vérifié en calculé : `#1B4498 → #1A3366`, bouton `--primary`, coche `--score-green`.
+- **Les TROIS blocs sombres sont aux couleurs de la marque** (retour Johan, en deux temps). Ils étaient tous en `bg-slate-900`, un quasi-noir qui n'appartient à personne. Chacun garde une nuance distincte pour que le rôle reste lisible :
+
+  | Bloc | Traitement | Vérifié en calculé |
+  |---|---|---|
+  | Bandeau « Ceci est un exemple » | `bg-primary` + icône `text-score-orange` | `rgb(27,68,152)` · icône `rgb(249,136,6)` |
+  | Message à envoyer | `.vmd-message` — `color-mix` sur `--primary` | `≈ rgb(20,51,112)` |
+  | Appel à l'action final | `.hero-gradient` + bouton blanc `text-primary` + coche `text-score-green` | `#1B4498 → #1A3366` |
+
+  ⚠️ **Toujours passer par les tokens ou une couleur DÉRIVÉE d'eux, jamais par un hexadécimal recopié.** Le bloc message utilise `color-mix(in srgb, hsl(var(--primary)) 74%, #000)` avec un repli en navy pleine : figer `#143370` aurait rompu le lien avec la marque à sa prochaine évolution.
+  ⚠️ **Le dégradé reste réservé à l'appel à l'action** — l'employer aussi sur le bandeau du haut les ferait se confondre.
 
 ### Milieu de la home — un bloc au lieu de huit boîtes (2026-09-08)
 
