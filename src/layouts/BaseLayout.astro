@@ -230,8 +230,16 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
         // cf. /api/track/visit). Ce beacon est APRÈS le garde `vmd_internal` :
         // les visites de l'équipe ne sont jamais comptées.
         try {
+          // 2026-09-14 — `ref` et `url` servent la PROVENANCE (cf. migration
+          // 20260914100000). Le serveur n'en garde que l'hôte du référent et
+          // le seul `utm_source` : ni l'URL de référence complète, ni la query
+          // string, qui peuvent porter une requête de recherche ou pire.
+          // ⚠️ `document.referrer` est indispensable — l'en-tête HTTP Referer
+          // du beacon porterait notre propre page, pas la page précédente.
           var corps = JSON.stringify({
             path: window.location.pathname,
+            ref: document.referrer || '',
+            url: window.location.search || '',
             site: (window.location.hostname || '').indexOf('gerermonchantier') !== -1 ? 'gmc' : 'vmd'
           });
           // sendBeacon survit à la navigation ; fetch en repli sur les vieux

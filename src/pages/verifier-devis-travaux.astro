@@ -3,6 +3,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
 import CrossLinkGMC from '@/components/analysis/CrossLinkGMC.astro';
+import { ANALYSES_TOTAL, CATALOGUE_TAILLE } from '@/lib/prix/reference';
 
 const faqs = [
   {
@@ -99,7 +100,7 @@ const jsonLd = [
 
 <BaseLayout
   title="Vérifier un devis travaux avant de signer : checklist 2026"
-  description="Les 10 points à contrôler avant de signer : prix vs marché réel (plus de 380 devis analysés), SIRET, assurance décennale, acompte, clauses abusives. Analyse automatique gratuite en 2 minutes."
+  description="Les 10 points à contrôler avant de signer : prix vs marché réel (centaines de devis analysés), SIRET, assurance décennale, acompte, clauses abusives. Analyse automatique gratuite en 2 minutes."
   canonical="https://www.verifiermondevis.fr/verifier-devis-travaux"
   ogType="website"
   jsonLd={jsonLd}
@@ -119,7 +120,7 @@ const jsonLd = [
           <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight mb-4">
             Vérifiez votre devis travaux en 2 minutes
           </h1>
-          <p class="text-sm font-medium text-indigo-200 mb-5">+250 devis analysés · jusqu'à 30 % d'écart détecté</p>
+          <p class="text-sm font-medium text-indigo-200 mb-5">{ANALYSES_TOTAL.toLocaleString('fr-FR')} devis analysés</p>
           <p class="text-base sm:text-lg text-slate-300 leading-relaxed mb-3 max-w-2xl mx-auto">
             Téléchargez votre devis d'artisan. Notre IA détecte les prix abusifs, compare chaque
             ligne aux références du marché et vérifie l'entreprise (SIRET, assurances, santé financière)
@@ -144,7 +145,7 @@ const jsonLd = [
             </div>
             <div class="flex items-center gap-1.5">
               <span aria-hidden="true">📊</span>
-              <span><strong class="text-white">+250</strong> devis analysés</span>
+              <span><strong class="text-white">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</strong> devis analysés</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span aria-hidden="true">🔒</span>
@@ -247,7 +248,7 @@ const jsonLd = [
             </p>
             <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-5 mt-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
               <div>
-                <p class="text-sm font-semibold text-indigo-800 mb-1">⚡ Analyse en 2 minutes — sans inscription préalable</p>
+                <p class="text-sm font-semibold text-indigo-800 mb-1">⚡ Analyse en 2 minutes — compte gratuit en 30 secondes</p>
                 <p class="text-sm text-indigo-700">Uploadez votre PDF, notre IA détecte instantanément les écarts de prix et les risques juridiques.</p>
               </div>
               <a href="/nouvelle-analyse"
@@ -260,12 +261,12 @@ const jsonLd = [
           <!-- Preuves sociales -->
           <div class="grid grid-cols-3 gap-4 mb-12">
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-indigo-600 mb-1">+100</p>
-              <p class="text-xs text-slate-500 leading-snug">devis analysés chaque mois</p>
+              <p class="text-2xl font-bold text-indigo-600 mb-1">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-500 leading-snug">devis analysés à ce jour</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-indigo-600 mb-1">-30%</p>
-              <p class="text-xs text-slate-500 leading-snug">d'écart détecté en moyenne</p>
+              <p class="text-2xl font-bold text-indigo-600 mb-1">{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-500 leading-snug">postes de référence comparés</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
               <p class="text-2xl font-bold text-indigo-600 mb-1">2 min</p>
@@ -360,7 +361,7 @@ const jsonLd = [
                class="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
               🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
             </a>
-            <p class="text-indigo-300 text-xs mt-3">Sans inscription · Résultat immédiat · 100 % gratuit</p>
+            <p class="text-indigo-300 text-xs mt-3">Compte gratuit en 30 secondes · Résultat immédiat · Sans carte bancaire</p>
           </div>
 
           <!-- Checklist -->
@@ -614,7 +615,7 @@ const jsonLd = [
              class="inline-flex items-center justify-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 font-bold px-10 py-4 rounded-xl transition-colors text-base shadow-lg">
             🔍 Voir si mon devis est honnête
           </a>
-          <p class="text-indigo-300 text-xs mt-4">+250 devis analysés · Sans inscription · Confidentiel</p>
+          <p class="text-indigo-300 text-xs mt-4">{ANALYSES_TOTAL.toLocaleString('fr-FR')} devis analysés · Compte gratuit · Confidentiel</p>
         </div>
       </section>
 

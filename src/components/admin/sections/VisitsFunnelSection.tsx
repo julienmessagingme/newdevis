@@ -14,7 +14,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Calculator } from "lucide-react";
+import { Users, Calculator, Compass } from "lucide-react";
 import {
   ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
@@ -35,10 +35,19 @@ interface OutilKpi {
   personnes: number;
 }
 
+interface ProvenanceKpi {
+  provenance: string;
+  visiteurs: number;
+  pages_vues: number;
+  vers_analyse: number;
+  taux_pct: number | null;
+}
+
 interface VisitsKpis {
   days: number;
   serie: JourKpi[];
   outils?: OutilKpi[];
+  provenance?: ProvenanceKpi[];
   totaux: {
     visiteurs: number;
     pages_vues: number;
@@ -167,6 +176,85 @@ export default function VisitsFunnelSection() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* ── Provenance du trafic (2026-09-14, demande Johan) ────────────────
+       *
+       * Mesuré le 14/09 : 87 % du trafic entre par l'accueil et 3,8 % y
+       * cliquent, alors que tout ce qui suit convertit entre 68 et 100 %.
+       * Sans la provenance, ce 3,8 % ne se travaille pas — une mauvaise page
+       * et un mauvais trafic donnent exactement le même chiffre.
+       *
+       * ⚠️ Les trois libellés entre parenthèses veulent dire des choses
+       * différentes et il ne faut pas les confondre : « (aucun) » n'est PAS
+       * de l'accès direct.
+       */}
+      {kpis.provenance && kpis.provenance.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Compass className="h-4 w-4 text-primary" />
+              D'où vient le trafic
+            </CardTitle>
+            <CardDescription>
+              Collecte démarrée le 14/09/2026 — tout ce qui précède est « non mesuré ».
+              L'unité est le visiteur-jour : quelqu'un qui revient un autre jour compte
+              deux fois, donc les taux ci-dessous sont une borne basse.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto overscroll-x-contain">
+              <table className="w-full text-sm min-w-[520px]">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b">
+                    <th className="py-2 pr-3 font-semibold">Provenance</th>
+                    <th className="py-2 px-3 font-semibold text-right">Visiteurs</th>
+                    <th className="py-2 px-3 font-semibold text-right">Pages vues</th>
+                    <th className="py-2 px-3 font-semibold text-right">→ Analyse</th>
+                    <th className="py-2 pl-3 font-semibold text-right">Taux</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kpis.provenance.map((p) => (
+                    <tr key={p.provenance} className="border-b border-border/60">
+                      <td className="py-2.5 pr-3 font-medium">
+                        {p.provenance}
+                        {p.provenance === "(aucun)" && (
+                          <div className="text-xs text-muted-foreground font-normal">
+                            direct, applications et navigateurs qui masquent le référent — mélangés
+                          </div>
+                        )}
+                        {p.provenance === "(non mesuré)" && (
+                          <div className="text-xs text-muted-foreground font-normal">
+                            visites antérieures au 14/09/2026
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">
+                        {p.visiteurs.toLocaleString("fr-FR")}
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">
+                        {p.pages_vues.toLocaleString("fr-FR")}
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">
+                        {p.vers_analyse.toLocaleString("fr-FR")}
+                      </td>
+                      <td className="py-2.5 pl-3 text-right tabular-nums font-semibold">
+                        {p.taux_pct === null ? "—" : `${p.taux_pct.toLocaleString("fr-FR")} %`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Seul l'hôte du site référent est conservé, jamais l'URL complète — elle porte
+              souvent la recherche tapée par la personne. Une campagne apparaît sous son
+              <code className="mx-1">utm_source</code>, seul paramètre lu dans une query string
+              qui n'est par ailleurs jamais enregistrée.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Usage des calculettes (2026-09-07, décision Johan) ──────────────
        *

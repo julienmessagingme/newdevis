@@ -2,6 +2,7 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
+import { ANALYSES_TOTAL, CATALOGUE_TAILLE } from '@/lib/prix/reference';
 
 const faqs = [
   {
@@ -182,12 +183,12 @@ const jsonLd = {
           <!-- Preuves sociales -->
           <div class="grid grid-cols-3 gap-4 mb-12">
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-emerald-600 mb-1">+100</p>
-              <p class="text-xs text-slate-500 leading-snug">devis analysés chaque mois</p>
+              <p class="text-2xl font-bold text-emerald-600 mb-1">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-500 leading-snug">devis analysés à ce jour</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-emerald-600 mb-1">-30%</p>
-              <p class="text-xs text-slate-500 leading-snug">d'écart détecté en moyenne</p>
+              <p class="text-2xl font-bold text-emerald-600 mb-1">{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-500 leading-snug">postes de référence comparés</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
               <p class="text-2xl font-bold text-emerald-600 mb-1">2 min</p>
@@ -468,7 +469,7 @@ const jsonLd = {
                class="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
               🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
             </a>
-            <p class="text-emerald-200 text-xs mt-3">Sans inscription · Résultat immédiat · 100 % gratuit</p>
+            <p class="text-emerald-200 text-xs mt-3">Compte gratuit en 30 secondes · Résultat immédiat · Sans carte bancaire</p>
           </div>
 
           <!-- À lire aussi — maillage interne piliers + blog -->
@@ -541,7 +542,7 @@ const jsonLd = {
              class="inline-flex items-center justify-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-bold px-10 py-4 rounded-xl transition-colors text-base shadow-lg">
             🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
           </a>
-          <p class="text-emerald-300 text-xs mt-4">+100 devis analysés · Sans inscription · Confidentiel</p>
+          <p class="text-emerald-300 text-xs mt-4">{ANALYSES_TOTAL.toLocaleString('fr-FR')} devis analysés · Compte gratuit · Confidentiel</p>
         </div>
       </section>
 

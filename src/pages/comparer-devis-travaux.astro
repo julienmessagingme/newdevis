@@ -3,6 +3,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
 import CrossLinkGMC from '@/components/analysis/CrossLinkGMC.astro';
+import { ANALYSES_TOTAL, CATALOGUE_TAILLE } from '@/lib/prix/reference';
 
 // SEO V2026-06-08 — landing transactionnelle SaaS sur "comparer devis travaux".
 // Pattern aligné sur /verifier-devis-travaux : SoftwareApplication + FAQPage
@@ -126,7 +127,7 @@ const jsonLd = [
       <section class="bg-gradient-to-b from-slate-900 to-slate-800 py-14 sm:py-20 px-4">
         <div class="container max-w-3xl mx-auto text-center">
           <p class="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-300 mb-4">
-            Comparaison IA — gratuite, sans inscription
+            Comparaison IA — gratuite, sans carte bancaire
           </p>
           <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight mb-4">
             Comparer plusieurs devis travaux :<br class="hidden sm:block" />
@@ -141,11 +142,11 @@ const jsonLd = [
             </div>
             <div class="flex items-center gap-1.5">
               <span aria-hidden="true">📊</span>
-              <span><strong class="text-white">+250</strong> devis analysés</span>
+              <span><strong class="text-white">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</strong> devis analysés</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span aria-hidden="true">⚡</span>
-              <span><strong class="text-white">jusqu'à 30 %</strong> d'écart détecté</span>
+              <span><strong class="text-white">{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</strong> références de prix</span>
             </div>
           </div>
 
@@ -394,7 +395,7 @@ const jsonLd = [
               Analysez vos devis un par un, comparez les rapports en regard.
             </p>
             <p class="text-sm text-indigo-800/85 mb-5 max-w-xl mx-auto leading-relaxed">
-              5 analyses gratuites par compte. Aucune carte bancaire, aucune inscription préalable.
+              5 analyses gratuites par compte. Compte gratuit en 30 secondes, aucune carte bancaire.
               Les rapports sont enregistrés dans votre tableau de bord pour comparaison ultérieure.
             </p>
             <a
@@ -511,7 +512,7 @@ const jsonLd = [
             </svg>
           </a>
           <p class="text-xs text-slate-400 mt-5">
-            5 analyses gratuites · sans carte bancaire · 2 min par devis · données hébergées en France
+            5 analyses gratuites · compte en 30 secondes · sans carte bancaire · données hébergées en France
           </p>
         </div>
       </section>

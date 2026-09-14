@@ -6,7 +6,7 @@ import CrossLinkGMC from '@/components/analysis/CrossLinkGMC.astro';
 // 2026-09-08 — l exemple annoncait « marche 65-75 €/m² », une precision qui ne
 // venait d aucune de nos sources. Meme dans une capture d exemple, le mot
 // « marche » engage : il vient desormais du referentiel.
-import { poste } from '@/lib/prix/reference';
+import { poste, ANALYSES_TOTAL, CATALOGUE_TAILLE } from '@/lib/prix/reference';
 
 // SEO V2026-05-26 : repositionnement landing transactionnelle SaaS.
 // Avant : H1 "guide complet" + JSON-LD Article + ogType article
@@ -146,7 +146,7 @@ const checklistRefuse = [
         <div class="container max-w-3xl mx-auto text-center">
 
           <p class="text-xs font-semibold uppercase tracking-[0.25em] text-orange-300 mb-4">
-            Analyse IA — gratuite, sans inscription
+            Analyse IA — gratuite, sans carte bancaire
           </p>
 
           <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight mb-4">
@@ -161,11 +161,11 @@ const checklistRefuse = [
             </div>
             <div class="flex items-center gap-1.5">
               <span aria-hidden="true">📊</span>
-              <span><strong class="text-white">+250</strong> devis analysés</span>
+              <span><strong class="text-white">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</strong> devis analysés</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span aria-hidden="true">⚡</span>
-              <span><strong class="text-white">jusqu'à 30 %</strong> d'écart détecté</span>
+              <span><strong class="text-white">{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</strong> références de prix</span>
             </div>
           </div>
 
@@ -348,7 +348,7 @@ const checklistRefuse = [
               {
                 num: "1",
                 title: "Upload du PDF",
-                desc: "Glissez-déposez votre devis travaux au format PDF (ou photo). Aucune inscription ni carte bancaire requise.",
+                desc: "Glissez-déposez votre devis travaux au format PDF (ou photo). Compte gratuit en 30 secondes, aucune carte bancaire.",
               },
               {
                 num: "2",

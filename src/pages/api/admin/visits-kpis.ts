@@ -168,10 +168,37 @@ export const GET: APIRoute = async ({ request }) => {
   // pas zéro — on ne l'a pas mesuré, il n'est pas nul.
   const outils = await lireUsageOutils(supabase, days);
 
+  // ── Provenance du trafic (2026-09-14, demande Johan) ──────────────────────
+  //
+  // Mesuré le 14/09 : 87 % du trafic entre par l'accueil et 3,8 % y cliquent,
+  // alors que tout ce qui suit convertit entre 68 et 100 %. Sans savoir d'OÙ
+  // vient ce trafic, ce 3,8 % ne se travaille pas : une mauvaise page et un
+  // mauvais trafic donnent le même chiffre.
+  //
+  // ⚠️ La collecte démarre le 2026-09-14 : tout l'historique antérieur ressort
+  // en « (non mesuré) », et l'écran doit l'afficher comme tel plutôt que de le
+  // faire passer pour de l'accès direct.
+  //
+  // Best-effort : si la migration n'est pas encore appliquée, on renvoie un
+  // tableau vide plutôt que de faire échouer tout l'écran des KPI.
+  const { data: provenanceBrute } = await supabase.rpc("admin_visits_provenance", { p_days: days });
+  const provenance = (provenanceBrute ?? []).map((r: Record<string, unknown>) => ({
+    provenance: String(r.provenance),
+    visiteurs: Number(r.visiteurs ?? 0),
+    pages_vues: Number(r.pages_vues ?? 0),
+    vers_analyse: Number(r.vers_analyse ?? 0),
+    // null plutôt que 0 quand la ligne est vide : « non calculable » n'est pas
+    // « conversion nulle ».
+    taux_pct: Number(r.visiteurs ?? 0) > 0
+      ? Math.round((Number(r.vers_analyse ?? 0) / Number(r.visiteurs)) * 1000) / 10
+      : null,
+  }));
+
   return jsonOk({
     days,
     serie,
     outils,
+    provenance,
     totaux: {
       visiteurs: totalVisiteurs,
       pages_vues: serie.reduce((s, j) => s + j.pages_vues, 0),
