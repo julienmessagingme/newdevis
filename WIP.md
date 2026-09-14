@@ -11,6 +11,41 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🔴 Refonte du hero d'accueil — MAQUETTE PRÊTE, LIVRAISON EN ATTENTE (2026-09-14)
+
+**En attente délibérée jusqu'au ~21/09** — décision Johan. La collecte de provenance du trafic a démarré le 14/09 ; on veut une semaine de référence avant de toucher au hero, sinon on ne saura pas distinguer l'effet de la refonte de celui du mix de trafic.
+
+📐 **Maquette publiée** : https://claude.ai/code/artifact/ff922d81-1b00-474d-8b4d-af9e41a5079c
+(source : `scratchpad/hero-vmd.html` de la session — **à recréer depuis l'artefact**, le scratchpad n'est pas dans le dépôt.)
+
+### Pourquoi cette refonte
+
+Mesuré le 14/09 : **806 visiteurs voient l'accueil, 31 cliquent (3,8 %)**, et **90 % de tous les visiteurs ne voient qu'une seule page**. Le hero n'est pas une accroche, c'est *tout le site* pour la quasi-totalité du trafic. Tout ce qui est en aval convertit déjà entre 68 et 100 %.
+
+⚠️ **Le défaut n'est PAS le volume de texte** — les pages qui convertissent le mieux (`/analyser-devis-travaux`, 62 %) en ont davantage. C'est que **tout a le même poids** : quatre arguments et un pavé « expert » de quatre lignes dans la même grise. Problème de hiérarchie, même défaut que les « huit boîtes blanches identiques » corrigées le 08/09 au milieu de la page.
+
+### Les trois décisions prises (Johan, 2026-09-14)
+
+1. **Le carrousel montre NOS ÉCRANS DE SORTIE**, pas des photos d'ambiance — quatre facettes d'une analyse : prix, entreprise, clauses, et *« ce qu'on ne dit pas »*. ⚠️ Pas de numérotation : ce ne sont pas des étapes. La 4ᵉ carte (« prix non vérifiable ») est le différenciateur — c'est ce qu'aucun concurrent n'écrit.
+2. **L'exemple sera un devis QUE NOUS RÉDIGEONS**, passé dans le vrai pipeline, publié à une URL stable. ⚠️ **Aucune analyse de client réel** : les lignes, montants et localisation identifient l'artisan, tiers qui n'a jamais consenti — et on a le précédent du 10/09 (employé de l'entreprise émettrice retrouvant son analyse, avis négatif 3 minutes après le dépôt).
+3. **On attend le 21/09.**
+
+### Ce qui reste à faire quand on lancera
+
+- [ ] Rédiger le devis d'exemple (salle de bains, ~11 postes) et le faire passer en production → URL stable pour « Voir une analyse complète ».
+- [ ] Porter le hero dans `src/pages/index.astro`. ⚠️ **Le contenu reste du HTML rendu au build** — le JS ne sert qu'à la rotation. Un `client:only` ferait disparaître H1 et texte du HTML servi (règle du 07/09).
+- [ ] Brancher les chiffres sur `ANALYSES_TOTAL` / `CATALOGUE_TAILLE` — aucun nombre en dur.
+- [ ] Perf : l'image/carte de la 1ʳᵉ slide devient l'élément LCP → dimensions explicites, slides suivantes différées.
+
+### Refusé de la maquette Claude Design d'origine
+
+- 🔴 **« Uploadez votre PDF… en moins d'une minute »** — réintroduit le mensonge retiré de 8 pages le 14/09 (`/nouvelle-analyse` redirige vers l'inscription). Et « moins d'une minute » est faux au-delà de la médiane : **38 s en médiane, 194 s au 90ᵉ centile**.
+- 🔴 **« 470+ devis analysés »** — on en a 438, et ce chiffre doit venir du code.
+- 🔴 **La disparition de « sans commission d'artisan, sans revente de lead »** — seule promesse structurellement incopiable.
+- 🟡 **Le défilement automatique reste à valider sur le rendu réel** : il vole de l'attention au CTA, exactement ce qui avait fait éloigner le bouton secondaire le 07/09. Dans la maquette : 5,4 s, pause au survol et au focus, coupé sous `prefers-reduced-motion`.
+
+---
+
 ## 🟢 Session 2026-08-27/29 — Relecteur IA, capture des issues, tests d'intérêt, crons réparés
 
 ### Livré en prod
