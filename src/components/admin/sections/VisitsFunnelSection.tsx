@@ -262,6 +262,21 @@ export default function VisitsFunnelSection() {
        * il faut les deux : « visiteurs » dit si on arrive sur l'outil,
        * « calculs » s'il sert. Une page visitée sans aucun calcul et une page
        * jamais atteinte appellent des décisions opposées.
+       *
+       * 🔴 2026-09-14 (retour Johan : « j'avais vu 4 et après ça repasse à 3 »)
+       * — LA PÉRIODE EST ÉCRITE, PARCE QUE CE TABLEAU LA SUIT.
+       * Ces chiffres passent par le MÊME paramètre `days` que le reste de
+       * l'écran : cliquer « 7 jours » en haut fait tomber la calculette de 4
+       * à 3 visiteurs, simplement parce que la visite du 05/09 sort de la
+       * fenêtre. Rien ne le disait — un chiffre de décision qui bouge sans
+       * annoncer sur quoi il porte se lit comme une donnée qui se perd.
+       *
+       * ⚠️ ET L'ÉCHÉANCE ANNONCÉE ÉTAIT FAUSSE. Elle disait le 07/10, soit
+       * 30 jours après la mise en service du CODE. Mais la migration
+       * `site_events` est restée trois jours en attente : la table n'existe
+       * que depuis le 10/09, et tout ce qui a été envoyé avant s'est perdu
+       * contre une table absente (cf. CLAUDE.md). La fenêtre court donc du
+       * 10/09 — l'échéance est le 10/10.
        */}
       {kpis.outils && kpis.outils.length > 0 && (
         <Card className="mt-6">
@@ -269,10 +284,15 @@ export default function VisitsFunnelSection() {
             <CardTitle className="text-base flex items-center gap-2">
               <Calculator className="h-4 w-4 text-primary" />
               Usage des calculettes
+              <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {jours} derniers jours
+              </span>
             </CardTitle>
             <CardDescription>
-              Décision prévue au 07/10/2026. Un calcul = un résultat réellement affiché,
-              pas une ouverture de page. Les essais de l'équipe sont exclus.
+              Les deux colonnes suivent le sélecteur de période ci-dessus — un outil peut
+              donc perdre un visiteur en passant de 30 à 7 jours, sans que rien ne se soit
+              perdu. Un calcul = un résultat réellement affiché, pas une ouverture de page.
+              Les essais de l'équipe sont exclus.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -325,6 +345,15 @@ export default function VisitsFunnelSection() {
               Mesuré du côté serveur, sans cookie ni identifiant persistant : aucune donnée
               saisie dans les calculettes n'est enregistrée, seulement le fait qu'un calcul a eu
               lieu.
+            </p>
+            {/* L'échéance est datée du démarrage RÉEL de la mesure, pas de la
+                mise en service du code — trois jours les séparent, la table
+                n'ayant été créée que le 10/09. */}
+            <p className="text-xs text-muted-foreground mt-2">
+              Comptage des calculs actif depuis le <strong>10/09/2026</strong> — décision
+              prévue au <strong>10/10/2026</strong>. Un outil visité sans aucun calcul et un
+              outil jamais atteint appellent des décisions opposées : il faut lire les deux
+              colonnes ensemble.
             </p>
           </CardContent>
         </Card>
