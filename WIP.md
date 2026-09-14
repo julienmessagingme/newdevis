@@ -11,12 +11,30 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
-## 🔴 Refonte du hero d'accueil — MAQUETTE PRÊTE, LIVRAISON EN ATTENTE (2026-09-14)
+## 🟢 Refonte du hero d'accueil — LIVRÉE le 2026-09-14
 
-**En attente délibérée jusqu'au ~21/09** — décision Johan. La collecte de provenance du trafic a démarré le 14/09 ; on veut une semaine de référence avant de toucher au hero, sinon on ne saura pas distinguer l'effet de la refonte de celui du mix de trafic.
+**Livrée le jour même**, décision Johan (l'attente jusqu'au 21/09 initialement prévue a été levée). ⚠️ **Conséquence sur la mesure** : la collecte de provenance a démarré le 14/09 et le hero change le même jour — il n'y a donc **pas de semaine de référence**. On pourra toujours lire d'où vient le trafic ; en revanche, un mouvement du taux de clic ne sera pas attribuable avec certitude à la refonte. À garder en tête avant d'en tirer une conclusion.
 
-📐 **Maquette publiée** : https://claude.ai/code/artifact/ff922d81-1b00-474d-8b4d-af9e41a5079c
-(source : `scratchpad/hero-vmd.html` de la session — **à recréer depuis l'artefact**, le scratchpad n'est pas dans le dépôt.)
+📐 **Maquette de référence** : https://claude.ai/code/artifact/ff922d81-1b00-474d-8b4d-af9e41a5079c
+
+### Ce qui est en prod
+
+Hero de `src/pages/index.astro` refondu : zones de grille `top` / `stage` / `bottom`, carrousel de **quatre écrans de sortie** (Prix · Entreprise · Clauses · *Ce qu'on ne dit pas*), preuves resserrées, ligne signature en pied.
+
+- ✅ **Mobile réparé — c'était le pire cas.** L'ancienne colonne visuelle était `hidden lg:block` : sur mobile il n'y avait **aucune image**, seulement le mur de texte. Le carrousel tombe désormais juste après le bouton (zones de grille), avant les preuves. Mesuré à 375 px : **zéro débordement horizontal**, onglets à **44 px** (cible tactile), boutons pleine largeur sous 480 px.
+- ✅ **SEO intact, vérifié sur le HTML servi** : H1, les **quatre** cartes, les fourchettes et la micro-copie sont dans le document avant toute exécution de JS. Le script ne fait que changer la carte visible ; sans lui, la première reste affichée.
+- ✅ **Les fourchettes de l'exemple viennent du référentiel** (`poste('cloison_placo')`, `carrelage_fourni_pose`, `peinture_murs_plafonds`) — si le catalogue bouge, l'exemple ne devient pas faux. Même règle que `DuDevisAuVerdict`.
+- ✅ **L'arithmétique de l'exemple est vérifiable** : 22 m² × (128 − 95) = 726 € et 14 m² × (118 − 94) = 336 €, total **1 062 €**. Un exemple qui parle de rigueur doit pouvoir être recalculé par le lecteur.
+- ✅ **Carrousel** : 5,4 s, arrêt au survol / au focus / onglet caché, coupé sous `prefers-reduced-motion`, navigation aux flèches. Vérifié en direct (rotation, clic d'onglet, gel au survol).
+- ✅ **Les trois promesses non négociables sont conservées** : « Création de compte en 30 secondes », « sans revente de lead », la relecture experte (passée d'un encadré de quatre lignes à une ligne de même niveau).
+
+### 🔴 Ce qui reste à faire — « Voir un exemple d'analyse RÉELLE »
+
+Johan a demandé ce libellé exact. **Il n'est pas en prod, et c'est délibéré** : l'analyse réelle publique **n'existe pas**.
+- `/analyse/[id]` **exige une session** ([AnalysisResult.tsx:443](src/components/pages/AnalysisResult.tsx:443)) et la RLS est cadrée par `user_id` — un visiteur qui cliquerait ne verrait rien.
+- **Aucune de nos analyses de test n'est publiable** : ce sont des devis de vrais artisans, tiers qui n'ont jamais consenti (précédent du 10/09 : un employé de l'entreprise émettrice a retrouvé l'analyse de son devis, avis négatif 3 minutes après).
+
+Le bouton dit donc **« Voir un exemple d'analyse »** et pointe sur `#exemple`, qui se présente comme illustratif. **Le mot « réelle » revient le jour où** le devis fabriqué par nous sera passé dans le vrai pipeline et publié à une URL publique — cf. `TODO.md`.
 
 ### Pourquoi cette refonte
 
@@ -28,14 +46,7 @@ Mesuré le 14/09 : **806 visiteurs voient l'accueil, 31 cliquent (3,8 %)**, et *
 
 1. **Le carrousel montre NOS ÉCRANS DE SORTIE**, pas des photos d'ambiance — quatre facettes d'une analyse : prix, entreprise, clauses, et *« ce qu'on ne dit pas »*. ⚠️ Pas de numérotation : ce ne sont pas des étapes. La 4ᵉ carte (« prix non vérifiable ») est le différenciateur — c'est ce qu'aucun concurrent n'écrit.
 2. **L'exemple sera un devis QUE NOUS RÉDIGEONS**, passé dans le vrai pipeline, publié à une URL stable. ⚠️ **Aucune analyse de client réel** : les lignes, montants et localisation identifient l'artisan, tiers qui n'a jamais consenti — et on a le précédent du 10/09 (employé de l'entreprise émettrice retrouvant son analyse, avis négatif 3 minutes après le dépôt).
-3. **On attend le 21/09.**
-
-### Ce qui reste à faire quand on lancera
-
-- [ ] Rédiger le devis d'exemple (salle de bains, ~11 postes) et le faire passer en production → URL stable pour « Voir une analyse complète ».
-- [ ] Porter le hero dans `src/pages/index.astro`. ⚠️ **Le contenu reste du HTML rendu au build** — le JS ne sert qu'à la rotation. Un `client:only` ferait disparaître H1 et texte du HTML servi (règle du 07/09).
-- [ ] Brancher les chiffres sur `ANALYSES_TOTAL` / `CATALOGUE_TAILLE` — aucun nombre en dur.
-- [ ] Perf : l'image/carte de la 1ʳᵉ slide devient l'élément LCP → dimensions explicites, slides suivantes différées.
+3. ~~On attend le 21/09.~~ → **levée le jour même** : livré le 14/09 (cf. la réserve sur la mesure, en tête de section).
 
 ### Refusé de la maquette Claude Design d'origine
 

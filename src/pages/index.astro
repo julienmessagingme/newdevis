@@ -21,7 +21,11 @@ import DuDevisAuVerdict from '@/components/landing/DuDevisAuVerdict';
 // public : elle était écrite en dur ici (919) et se périmait à chaque migration
 // du catalogue. Elle vient désormais de la source unique, régénérée depuis
 // `market_prices` (cf. CLAUDE.md § « Une seule valorisation dans tout le site »).
-import { CATALOGUE_TAILLE } from '@/lib/prix/reference';
+// 2026-09-14 — `ANALYSES_TOTAL` et `poste` rejoignent l'import : le hero
+// affiche le nombre de devis analysés et les fourchettes de son exemple, et
+// les deux doivent venir du fichier généré. Un exemple dont les fourchettes
+// sont écrites à la main devient faux dès que le catalogue bouge.
+import { CATALOGUE_TAILLE, ANALYSES_TOTAL, poste } from '@/lib/prix/reference';
 import SimulateurAidesCard from '@/components/homepage/SimulateurAidesCard';
 import SocialProofTicker from '@/components/homepage/SocialProofTicker';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
@@ -71,284 +75,509 @@ const jsonLd = {
     <main class="flex-1">
 
       <!-- ══ HERO ══ -->
-      <section class="hero-gradient relative overflow-hidden">
+      {/* ══ HERO ══ — refonte 2026-09-14 (décision Johan)
 
-        <!-- Fond décoratif -->
-        <div class="absolute inset-0 opacity-10">
-          <div class="absolute top-20 left-10 w-72 h-72 bg-primary-foreground rounded-full blur-3xl"></div>
-          <div class="absolute bottom-20 right-10 w-96 h-96 bg-primary-foreground rounded-full blur-3xl"></div>
-        </div>
+          POURQUOI. Mesuré le 14/09 sur 11 jours : 806 visiteurs voient
+          l'accueil, 31 cliquent (3,8 %), et 90 % de TOUS les visiteurs ne
+          voient qu'une seule page. Le hero n'est pas une accroche — c'est
+          tout le site pour la quasi-totalité du trafic. Tout ce qui est en
+          aval convertit déjà entre 68 et 100 %.
 
-        <div class="container relative py-12 px-4 sm:px-6 lg:py-20">
-          <div class="grid lg:grid-cols-2 gap-12 items-center">
+          ⚠️ LE DÉFAUT N'ÉTAIT PAS LE VOLUME DE TEXTE. Les pages qui
+          convertissent le mieux (`/analyser-devis-travaux`, 62 %) en ont
+          davantage. Le défaut était que TOUT AVAIT LE MÊME POIDS : quatre
+          arguments et un pavé « expert » de quatre lignes dans la même
+          grise. Même défaut que les huit boîtes blanches identiques
+          corrigées le 08/09 au milieu de la page. On resserre la
+          hiérarchie, on ne supprime pas la substance.
 
-            <!-- Colonne texte -->
-            <div class="text-center lg:text-left">
+          ⚠️ ET SUR MOBILE, L'ANCIENNE COLONNE VISUELLE ÉTAIT `hidden
+          lg:block` : il n'y avait AUCUNE image, seulement le mur de texte.
+          Le carrousel est donc placé juste après le bouton sur mobile, via
+          des zones de grille — c'est là que la preuve doit tomber.
 
-              <h1 class="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold text-primary-foreground mb-4 sm:mb-6 leading-tight px-2">
-                Votre devis est-il trop cher…
-                <span class="relative inline-block">
-                  ou risqué ?
-                  <svg class="absolute -bottom-1 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
-                    <path
-                      d="M2 10C50 4 150 4 198 10"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      class="text-score-green animate-underline-draw"
-                      stroke-dasharray="200"
-                      stroke-dashoffset="200"
-                    />
-                  </svg>
-                </span>
-              </h1>
+          ⚠️ CONTENU RENDU EN HTML AU BUILD. Le JavaScript ne sert QU'À
+          faire tourner les cartes : les quatre sont dans le document. Ne
+          jamais déplacer ce bloc dans une île `client:only` — le H1 et le
+          texte disparaîtraient du HTML servi (règle du 07/09). */}
+      <section class="hero-gradient vmd-hero">
+        <div class="container vmd-hero-grid">
 
-              <p class="text-base sm:text-lg md:text-xl text-primary-foreground/80 mb-6 sm:mb-8 max-w-xl mx-auto lg:mx-0 px-2">
-                Uploadez votre PDF. On analyse le prix poste par poste, vérifie l'entreprise
-                et détecte les anomalies du devis. Résultat : signez, négociez ou refusez — avec les arguments exacts.
-              </p>
+          {/* ── Zone haute : la thèse ─────────────────────────────────── */}
+          <div class="vh-top">
+            <p class="vh-eyebrow">
+              <b>{ANALYSES_TOTAL.toLocaleString('fr-FR')}</b> devis analysés
+              <span class="vh-sep" aria-hidden="true"></span>
+              <b>{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</b> références de prix
+            </p>
 
-              <div class="flex flex-col gap-3 sm:gap-4 sm:flex-row justify-center lg:justify-start mb-8 sm:mb-10 px-2">
-                <a href="/nouvelle-analyse" class="w-full sm:w-auto group">
-                  <button class="inline-flex items-center justify-center gap-2 w-full bg-white text-primary hover:bg-white/90 font-semibold px-6 py-3 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-base transition-colors">
-                    {/* 2026-09-08 (retour Johan) — « Voir si je paye trop cher » ne reprenait
-                        QUE la moitié de la promesse du titre (« trop cher… ou risqué ? »).
-                        C'est la dernière ligne lue avant le clic : le visiteur venu avec un
-                        doute sur l'entreprise — radiation, RGE, acompte de 50 % — ne s'y
-                        reconnaissait pas.
-                        « Savoir si je peux signer » nomme la décision réelle, englobe le prix
-                        ET le risque sans les énumérer, et reprend les mots du sous-titre
-                        (« signez, négociez ou refusez »).
-                        ⚠️ Écarté : « Vérifier mon devis », qui est le nom du site — le bouton
-                        se lirait comme un élément de navigation — et qui nomme la tâche là où
-                        il faut nommer le bénéfice.
-                        Non testable en A/B : à ~106 visiteurs/jour et 3,5 % de clic, détecter
-                        un gain de 20 % demanderait environ sept mois. Décidé au jugement.
+            <h1 class="vh-title">
+              Votre devis est-il trop cher…<br />
+              ou <span class="vh-mark">risqué&nbsp;?<svg viewBox="0 0 200 10" fill="none" aria-hidden="true"><path d="M2 7C48 3 108 2 198 5" stroke="currentColor" class="text-score-green" stroke-width="4.5" stroke-linecap="round" /></svg></span>
+            </h1>
 
-                        ⚠️ Ce commentaire est en accolades (style JSX) et non en commentaire
-                        HTML : dans un fichier .astro, un commentaire HTML est SERVI AU PUBLIC.
-                        Vérifié sur ce bloc même. Et ne jamais écrire la séquence de fermeture
-                        à l'intérieur du texte : elle refermerait le commentaire trop tôt et le
-                        reste s'afficherait dans le bouton — vécu ici même. */}
-                    Savoir si je peux signer
-                    {/* ArrowRight — la flèche est ici, pas dans le libellé : le texte portait
-                        un « → » en double de cette icône, seule à s'animer au survol. */}
-                    <svg class="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                  </button>
-                </a>
-                {/* 2026-09-07 — le second bouton a été retiré d'à côté du CTA :
-                    il détournait du clic au moment exact où il faut cliquer.
-                    Il revient plus bas, en lien discret. */}
-              </div>
+            <p class="vh-lede">
+              Chaque ligne comparée au marché, l'entreprise vérifiée dans les registres,
+              les clauses passées au crible. Vous repartez avec un verdict — et les
+              arguments exacts pour négocier.
+            </p>
 
-              {/* Micro-copy CTA
-                  2026-09-07 (décision Johan) — L'INSCRIPTION EST ASSUMÉE EN CLAIR.
-                  L'ancienne formule « Analyse immédiate · Compte gratuit pour le
-                  détail complet » était fausse : `/nouvelle-analyse` redirige vers
-                  `/inscription` tant qu'on n'a pas de compte. Le visiteur cliquait
-                  en attendant de déposer son PDF et tombait sur un formulaire.
-                  Mesuré le 06/09 : 151 visiteurs sur la home, 6 clics, 5 arrivées
-                  sur /inscription, 1 analyse. Annoncer le compte AVANT le clic
-                  coûte moins cher que de le découvrir après. */}
-              <p class="text-sm text-primary-foreground/75 text-center lg:text-left px-2 -mt-2 mb-4">
-                Création de compte en 30 secondes, puis analyse immédiate — gratuit.
-              </p>
-
-              <!-- Proof bullets -->
-              <div class="flex flex-col gap-2 items-center lg:items-start text-primary-foreground/80 text-xs sm:text-sm px-2">
-                <div class="flex items-center gap-2">
-                  <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
-                  </svg>
-                  <span>Surcoût estimé en euros, poste par poste — <strong>{CATALOGUE_TAILLE} références de prix</strong></span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
-                  </svg>
-                  <span>Entreprise vérifiée — <strong>radiation, procédure collective</strong>, santé financière, certifications RGE contrôlées dans les registres</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
-                  </svg>
-                  <span><strong>Clauses abusives</strong>, acompte excessif, IBAN suspect — détectés et expliqués</span>
-                </div>
-                <!-- 2026-09-07 — la ligne signature. C'est la seule promesse que
-                     les comparateurs et les plateformes de mise en relation ne
-                     peuvent pas copier : ils vivent de la commission ou de la
-                     revente de lead. Elle est vraie aujourd'hui — aucun lead
-                     n'est transmis à un tiers (cf. CLAUDE.md, tests d'intérêt). -->
-                <div class="flex items-center gap-2">
-                  <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
-                  </svg>
-                  <span><strong>Sans commission d'artisan, sans revente de lead</strong> — nous ne vendons rien à personne d'autre que la vérité sur votre devis</span>
-                </div>
-              </div>
-
-              <!-- 2026-09-07 — le « qu'est-ce qui est analysé ? » revient ici,
-                   en lien discret : disponible pour qui hésite, sans concurrencer
-                   le bouton d'action. -->
-              <!-- 2026-09-07 (retour Johan) — LA RELECTURE HUMAINE, EN BLOC ET
-                   NON EN NOTE DE BAS DE PAGE.
-                   C'est l'argument qui justifie qu'on nous croie, et le seul
-                   qu'un concurrent entièrement automatisé ne peut pas tenir.
-                   Il a donc son propre encadré plutôt qu'une cinquième puce qui
-                   se serait noyée dans la liste.
-                   ⚠️ Formulation exacte : on n'affirme pas que la publication est
-                   bloquée — on dit ce qui est vrai depuis le 2026-08-30, à savoir
-                   qu'AUCUN MONTANT n'est affiché tant que l'expert n'a pas
-                   tranché (prop `provisoire` de AvisSurLeDevis). -->
-              <div class="mt-6 px-2">
-                <div class="inline-flex items-start gap-3 rounded-xl border border-primary-foreground/25 bg-primary-foreground/10 px-4 py-3 text-left max-w-xl">
-                  <svg class="h-5 w-5 text-score-green flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 2l7 4v6c0 4.4-3 8.3-7 10-4-1.7-7-5.6-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/>
-                  </svg>
-                  <p class="text-sm text-primary-foreground/90 leading-relaxed">
-                    <strong class="text-primary-foreground">Relu par un expert, pas seulement par une machine.</strong><br />
-                    Quand une analyse touche un point sensible — entreprise à risque, écart de prix
-                    important, clause litigieuse — un expert la reprend. Et tant qu'il n'a pas tranché,
-                    <strong class="text-primary-foreground">nous n'affichons aucun montant</strong> : mieux vaut
-                    ne rien dire que vous envoyer négocier sur un chiffre que nous ne pouvons pas défendre.
-                  </p>
-                </div>
-              </div>
-
-              <p class="mt-4 text-xs text-primary-foreground/70 text-center lg:text-left px-2">
-                <a href="/comprendre-score" class="underline underline-offset-2 hover:text-primary-foreground">
-                  Voir en détail ce qui est analysé
-                </a>
-              </p>
-
+            <div class="vh-actions">
+              <a href="/nouvelle-analyse" class="vh-btn vh-btn-primary">
+                Savoir si je peux signer
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </a>
+              {/* 2026-09-14 — LE LIBELLÉ NE DIT PAS « RÉELLE », ET C'EST DÉLIBÉRÉ.
+                  Johan a demandé « voir un exemple d'analyse réelle ». Cette
+                  analyse-là n'existe PAS encore : `/analyse/[id]` exige une
+                  session (AnalysisResult.tsx:443) et la RLS est cadrée par
+                  `user_id` — un visiteur qui cliquerait ne verrait rien. Et
+                  aucune de nos analyses de test n'est publiable : ce sont des
+                  devis de vrais artisans, tiers qui n'ont jamais consenti.
+                  Le bouton pointe donc vers l'exemple de la page, qui se
+                  présente comme illustratif. Le mot « réelle » reviendra le
+                  jour où le devis fabriqué par nous sera passé dans le vrai
+                  pipeline et publié à une URL publique. */}
+              <a href="#exemple" class="vh-btn vh-btn-ghost">Voir un exemple d'analyse</a>
             </div>
 
-            <!--
-              Colonne visuelle (desktop uniquement) — photo investigation devis
-              (2026-05-20). Photo réelle 1289×1600 WebP 181 Ko + 3 overlays SaaS.
-              Remplace l'ancienne carte score mockée. Keyframe animate-fade-in-overlay
-              définie dans src/index.css (avec respect prefers-reduced-motion).
-              ⚠️ Le composant React HeroSection.tsx existe encore mais est ORPHELIN
-              (utilisé uniquement par Index.tsx lui-même orphelin) — c'est ICI
-              qu'on édite le hero visible sur la homepage VMD prod.
-            -->
-            <div class="hidden lg:block relative">
-              <div class="relative max-w-md mx-auto">
-
-                <!-- Photo centrale + animation float existante -->
-                <div class="relative animate-float">
-                  <img
-                    src="/images/hero-devis-investigation.webp"
-                    alt="Analyse d'un devis travaux : loupe sur un acompte de 50% pointé comme drapeau rouge"
-                    width="1289"
-                    height="1600"
-                    loading="eager"
-                    decoding="async"
-                    fetchpriority="high"
-                    class="w-full h-auto rounded-2xl shadow-2xl object-cover ring-1 ring-black/5"
-                  />
-                </div>
-
-                <!-- Overlay 1 — Badge ROUGE : acompte 50% (top-right) -->
-                <div
-                  class="absolute -top-3 -right-3 sm:-top-4 sm:-right-4 max-w-[200px]
-                         bg-white/95 backdrop-blur-md
-                         border border-red-200 border-l-4 border-l-red-500
-                         rounded-xl shadow-xl shadow-red-500/10
-                         px-3.5 py-2.5
-                         animate-fade-in-overlay"
-                  style="animation-delay: 0.2s; animation-fill-mode: both;"
-                >
-                  <div class="flex items-center gap-2">
-                    <!-- AlertTriangle Lucide -->
-                    <svg class="h-4 w-4 text-red-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-                      <path d="M12 9v4"/>
-                      <path d="M12 17h.01"/>
-                    </svg>
-                    <div class="min-w-0">
-                      <p class="text-[10px] uppercase tracking-wider text-red-600 font-semibold leading-none">
-                        Drapeau rouge
-                      </p>
-                      <p class="text-sm font-bold text-foreground leading-tight mt-0.5">
-                        Acompte&nbsp;50%
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Overlay 2 — Badge ORANGE : prix marché +18% (middle-left)
-                     Wrapper externe = positionnement vertical centré.
-                     Badge interne anime sans casser le transform du wrapper. -->
-                <div class="absolute top-1/2 -left-3 sm:-left-6 -translate-y-1/2 max-w-[200px]">
-                  <div
-                    class="bg-white/95 backdrop-blur-md
-                           border border-amber-200 border-l-4 border-l-amber-500
-                           rounded-xl shadow-xl shadow-amber-500/10
-                           px-3.5 py-2.5
-                           animate-fade-in-overlay"
-                    style="animation-delay: 0.4s; animation-fill-mode: both;"
-                  >
-                    <div class="flex items-center gap-2">
-                      <!-- TrendingUp Lucide -->
-                      <svg class="h-4 w-4 text-amber-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-                        <polyline points="16 7 22 7 22 13"/>
-                      </svg>
-                      <div class="min-w-0">
-                        <p class="text-[10px] uppercase tracking-wider text-amber-700 font-semibold leading-none">
-                          Prix marché
-                        </p>
-                        <p class="text-sm font-bold text-foreground leading-tight mt-0.5">
-                          +18% vs moyenne
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Overlay 3 — Badge VERT : entreprise vérifiée (bottom-right) -->
-                <div
-                  class="absolute -bottom-3 -right-2 sm:-bottom-4 sm:-right-4 max-w-[220px]
-                         bg-white/95 backdrop-blur-md
-                         border border-emerald-200 border-l-4 border-l-emerald-500
-                         rounded-xl shadow-xl shadow-emerald-500/10
-                         px-3.5 py-2.5
-                         animate-fade-in-overlay"
-                  style="animation-delay: 0.6s; animation-fill-mode: both;"
-                >
-                  <div class="flex items-center gap-2">
-                    <!-- ShieldCheck Lucide -->
-                    <svg class="h-4 w-4 text-emerald-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
-                      <path d="m9 12 2 2 4-4"/>
-                    </svg>
-                    <div class="min-w-0">
-                      <p class="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold leading-none">
-                        Vérifié SIRENE
-                      </p>
-                      <p class="text-sm font-bold text-foreground leading-tight mt-0.5">
-                        Entreprise active
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
+            <p class="vh-micro">Création de compte en 30 secondes, puis analyse immédiate — gratuit.</p>
           </div>
+
+          {/* ── Zone scène : nos écrans de sortie ─────────────────────── */}
+          <div class="vh-stage" id="apercu">
+            <div class="vh-tabs" role="tablist" aria-label="Ce que contient une analyse">
+              <button type="button" class="vh-tab" role="tab" aria-selected="true" aria-controls="vh-p0" id="vh-t0" data-go="0">Prix</button>
+              <button type="button" class="vh-tab" role="tab" aria-selected="false" aria-controls="vh-p1" id="vh-t1" data-go="1" tabindex="-1">Entreprise</button>
+              <button type="button" class="vh-tab" role="tab" aria-selected="false" aria-controls="vh-p2" id="vh-t2" data-go="2" tabindex="-1">Clauses</button>
+              <button type="button" class="vh-tab" role="tab" aria-selected="false" aria-controls="vh-p3" id="vh-t3" data-go="3" tabindex="-1">Ce qu'on ne dit pas</button>
+            </div>
+
+            <div class="vh-rail vh-run" id="vh-rail" aria-hidden="true"><i></i></div>
+
+            <div class="vh-deck">
+
+              {/* 1 · PRIX — les fourchettes viennent du RÉFÉRENTIEL, jamais
+                   écrites à la main : si le catalogue bouge, l'exemple ne
+                   devient pas faux (même règle que DuDevisAuVerdict). */}
+              <article class="vh-card" data-active="true" role="tabpanel" id="vh-p0" aria-labelledby="vh-t0">
+                <div class="vh-card-head">
+                  <span class="vh-kicker">Verdict · rénovation salle de bains</span>
+                  <span class="vh-pill vh-orange">À négocier</span>
+                </div>
+                <p class="vh-verdict">Deux postes dépassent les fourchettes du marché.</p>
+                <p class="vh-because">Le reste du devis est cohérent. Nous ne chiffrons que ce que nous pouvons nommer.</p>
+
+                <div class="vh-row">
+                  <div class="vh-row-main">
+                    <div class="vh-row-label">{poste('cloison_placo').libelle}</div>
+                    <div class="vh-row-sub">22 m² · 128 €/m² — marché {poste('cloison_placo').min} à {poste('cloison_placo').max} €/m²</div>
+                  </div>
+                  <div class="vh-row-val vh-up">+&thinsp;726&nbsp;€</div>
+                </div>
+                <div class="vh-row">
+                  <div class="vh-row-main">
+                    <div class="vh-row-label">{poste('carrelage_fourni_pose').libelle}</div>
+                    <div class="vh-row-sub">14 m² · 118 €/m² — marché {poste('carrelage_fourni_pose').min} à {poste('carrelage_fourni_pose').max} €/m²</div>
+                  </div>
+                  <div class="vh-row-val vh-up">+&thinsp;336&nbsp;€</div>
+                </div>
+                <div class="vh-row">
+                  <div class="vh-row-main">
+                    <div class="vh-row-label">{poste('peinture_murs_plafonds').libelle}</div>
+                    <div class="vh-row-sub">38 m² · 42 €/m² — marché {poste('peinture_murs_plafonds').min} à {poste('peinture_murs_plafonds').max} €/m²</div>
+                  </div>
+                  <div class="vh-row-val vh-ok">dans la norme</div>
+                </div>
+
+                <div class="vh-total">
+                  <span>Écart chiffré sur les postes nommés</span>
+                  <b>1&thinsp;062&nbsp;€</b>
+                </div>
+              </article>
+
+              {/* 2 · ENTREPRISE */}
+              <article class="vh-card" role="tabpanel" id="vh-p1" aria-labelledby="vh-t1" hidden>
+                <div class="vh-card-head">
+                  <span class="vh-kicker">Entreprise · SIREN 812 456 903</span>
+                  <span class="vh-pill vh-green">Active</span>
+                </div>
+                <p class="vh-verdict">SARL BATI CONFORT</p>
+                <p class="vh-because">Vérifiée dans les registres publics au moment de l'analyse.</p>
+
+                <div class="vh-kv">
+                  <div class="vh-kv-k">État administratif<i>Aucune procédure collective</i></div>
+                  <span class="vh-pill vh-green">Active</span>
+                </div>
+                <div class="vh-kv">
+                  <div class="vh-kv-k">Immatriculation<i>9 ans d'ancienneté</i></div>
+                  <span class="vh-pill vh-green">Solide</span>
+                </div>
+                <div class="vh-kv">
+                  <div class="vh-kv-k">Certification RGE<i>QualiBat 7131 — valide jusqu'au 31/12/2026</i></div>
+                  <span class="vh-pill vh-green">Vérifiée</span>
+                </div>
+                <div class="vh-kv">
+                  <div class="vh-kv-k">Assurance décennale<i>Non mentionnée sur le devis</i></div>
+                  <span class="vh-pill vh-amber">À réclamer</span>
+                </div>
+                <div class="vh-kv">
+                  <div class="vh-kv-k">Comptes annuels<i>Non accessibles publiquement</i></div>
+                  <span class="vh-pill vh-slate">Sans avis</span>
+                </div>
+              </article>
+
+              {/* 3 · CLAUSES */}
+              <article class="vh-card" role="tabpanel" id="vh-p2" aria-labelledby="vh-t2" hidden>
+                <div class="vh-card-head">
+                  <span class="vh-kicker">Clauses · 2 détectées</span>
+                  <span class="vh-pill vh-red">1 illégale</span>
+                </div>
+                <p class="vh-verdict">Deux clauses à faire retirer avant signature.</p>
+                <p class="vh-because">Citées mot pour mot depuis le devis — jamais reformulées.</p>
+
+                <p class="vh-quote">« Tout devis non signé dans les 15 jours sera facturé 90 € au titre de l'étude technique. »</p>
+                <p class="vh-note vh-note-gap">
+                  <b>Illégale sans accord préalable écrit</b> — article L.111-1 du Code de la
+                  consommation. Un devis est gratuit, sauf si son coût vous a été annoncé avant.
+                </p>
+
+                <p class="vh-quote vh-quote-amber">« Acompte de 50 % à la commande, solde à la livraison du matériel. »</p>
+                <p class="vh-note">
+                  <b>Au-dessus de l'usage</b> — 30 % est la pratique courante. Ça ne change pas
+                  le prix, seulement le moment où vous payez : demandez un échelonnement.
+                </p>
+              </article>
+
+              {/* 4 · CE QU'ON NE DIT PAS — la carte qui nous distingue.
+                   Aucun concurrent n'écrit qu'il ne sait pas. */}
+              <article class="vh-card" role="tabpanel" id="vh-p3" aria-labelledby="vh-t3" hidden>
+                <div class="vh-card-head">
+                  <span class="vh-kicker">Honnêteté · 3 postes sur 11</span>
+                  <span class="vh-pill vh-slate">Prix non vérifiable</span>
+                </div>
+                <p class="vh-verdict">Sur trois postes, nous ne pouvons pas nous prononcer.</p>
+                <p class="vh-because">Ni bon marché, ni cher : nous n'avons aucune référence que nous puissions opposer à l'artisan.</p>
+
+                <div class="vh-row">
+                  <div class="vh-row-main">
+                    <div class="vh-row-label">Meuble vasque sur mesure, chêne massif</div>
+                    <div class="vh-row-sub">1 u · 2 450 € — aucun tarif de référence</div>
+                  </div>
+                  <div class="vh-row-val">—</div>
+                </div>
+                <div class="vh-row">
+                  <div class="vh-row-main">
+                    <div class="vh-row-label">Reprise d'étanchéité sous receveur</div>
+                    <div class="vh-row-sub">forfait · 680 € — périmètre propre au chantier</div>
+                  </div>
+                  <div class="vh-row-val">—</div>
+                </div>
+                <div class="vh-row">
+                  <div class="vh-row-main">
+                    <div class="vh-row-label">Évacuation en déchetterie agréée</div>
+                    <div class="vh-row-sub">forfait · 210 € — varie avec la distance</div>
+                  </div>
+                  <div class="vh-row-val">—</div>
+                </div>
+
+                <p class="vh-note vh-note-top">
+                  <b>Un second devis est le seul comparatif réel sur ces postes.</b>
+                  Nous préférons le dire plutôt que d'inventer une fourchette que vous
+                  iriez défendre devant un artisan.
+                </p>
+              </article>
+
+            </div>
+
+            {/* ⚠️ Cette légende dit ce qui est VRAI : l'exemple est fabriqué.
+                Les fourchettes, elles, viennent du référentiel. Ne pas écrire
+                « sortie réelle de l'outil » tant que le devis d'exemple n'est
+                pas passé dans le pipeline. */}
+            <p class="vh-cap">Exemple illustratif — fourchettes issues de notre référentiel de {CATALOGUE_TAILLE.toLocaleString('fr-FR')} prix.</p>
+          </div>
+
+          {/* ── Zone basse : les preuves ──────────────────────────────── */}
+          <div class="vh-bottom">
+            <ul class="vh-proofs">
+              <li>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-score-green" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <p><b>Surcoût chiffré, poste par poste</b> <span>— contre {CATALOGUE_TAILLE.toLocaleString('fr-FR')} références de prix sourcées</span></p>
+              </li>
+              <li>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-score-green" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <p><b>Entreprise vérifiée</b> <span>— radiation, procédure collective, santé financière, certifications RGE contrôlées dans les registres</span></p>
+              </li>
+              <li>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-score-green" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <p><b>Clauses abusives détectées</b> <span>— acompte excessif, IBAN suspect, rétractation refusée</span></p>
+              </li>
+              {/* La relecture humaine tenait dans un encadré de quatre lignes.
+                  Elle reste — en une ligne, au même niveau que le reste. */}
+              <li>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-score-green" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <p><b>Relu par un expert</b> <span>— et tant qu'il n'a pas tranché, aucun montant n'est affiché</span></p>
+              </li>
+            </ul>
+
+            {/* La ligne signature : seule promesse que les comparateurs et les
+                plateformes de mise en relation ne peuvent pas copier — ils
+                vivent de la commission ou de la revente de lead. */}
+            <p class="vh-pledge">Sans commission d'artisan. <b>Sans revente de lead.</b></p>
+
+            <p class="vh-more">
+              <a href="/comprendre-score">Voir en détail ce qui est analysé</a>
+            </p>
+          </div>
+
         </div>
       </section>
+
+<style>
+  /* ── Hero 2026-09-14 ──────────────────────────────────────────────────
+     Styles scopés par Astro. Les couleurs viennent des tokens de
+     `src/index.css` (--score-green / --score-orange / --score-red) ou du
+     blanc translucide sur le dégradé de marque — aucune teinte inventée. */
+  .vmd-hero { position: relative; overflow: hidden; }
+
+  /* Trame discrète : les réglures d'un devis. Purement décorative. */
+  .vmd-hero::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(to bottom, rgba(255,255,255,.05) 0 1px, transparent 1px 34px);
+    pointer-events: none;
+  }
+
+  /* Zones de grille : sur mobile la scène passe AVANT les preuves —
+     l'ancienne colonne visuelle était `hidden lg:block`, le mobile
+     n'avait aucune image. */
+  .vmd-hero-grid {
+    position: relative;
+    display: grid;
+    grid-template-areas: "top" "stage" "bottom";
+    gap: 28px;
+    padding: 40px 1rem 48px;
+  }
+  .vh-top { grid-area: top; }
+  .vh-stage { grid-area: stage; min-width: 0; }
+  .vh-bottom { grid-area: bottom; }
+
+  @media (min-width: 1024px) {
+    .vmd-hero-grid {
+      grid-template-areas: "top stage" "bottom stage";
+      grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
+      column-gap: 60px; row-gap: 26px;
+      align-content: center;
+      padding: 72px 1.5rem 80px;
+    }
+    .vh-stage { align-self: center; }
+  }
+
+  .vh-eyebrow {
+    display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 11.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+    color: rgba(255,255,255,.72);
+    border: 1px solid rgba(255,255,255,.2); border-radius: 999px;
+    padding: 7px 14px; margin: 0 0 22px;
+  }
+  .vh-eyebrow b { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .vh-sep { width: 1px; height: 12px; background: rgba(255,255,255,.26); }
+
+  .vh-title {
+    font-size: clamp(1.95rem, 5.4vw, 3.4rem);
+    line-height: 1.05; letter-spacing: -.03em; font-weight: 700;
+    color: #fff; margin: 0 0 18px; text-wrap: balance;
+  }
+  .vh-mark { position: relative; white-space: nowrap; }
+  .vh-mark svg { position: absolute; left: 0; bottom: -.13em; width: 100%; height: .18em; overflow: visible; }
+
+  .vh-lede {
+    font-size: clamp(1rem, 1.3vw, 1.125rem); line-height: 1.55;
+    color: rgba(255,255,255,.82); max-width: 33rem; margin: 0 0 26px;
+  }
+
+  .vh-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+  .vh-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    font-weight: 700; font-size: .97rem; min-height: 48px;
+    padding: 14px 24px; border-radius: 13px; border: 1px solid transparent;
+    text-decoration: none; transition: transform .15s ease, background-color .15s ease, border-color .15s ease;
+  }
+  .vh-btn-primary { background: #fff; color: hsl(var(--primary)); }
+  .vh-btn-primary:hover { transform: translateY(-1px); background: #f2f6ff; }
+  .vh-btn-ghost { color: #fff; border-color: rgba(255,255,255,.32); font-weight: 500; }
+  .vh-btn-ghost:hover { border-color: rgba(255,255,255,.66); background: rgba(255,255,255,.07); }
+  .vh-btn:focus-visible { outline: 3px solid hsl(var(--score-orange)); outline-offset: 3px; }
+  /* Sur mobile les deux boutons prennent toute la largeur : une cible de
+     48 px pleine largeur vaut mieux que deux boutons serrés. */
+  @media (max-width: 479px) { .vh-btn { width: 100%; } }
+
+  .vh-micro { font-size: .85rem; color: rgba(255,255,255,.68); margin: 0; }
+
+  /* ── Carrousel ───────────────────────────────────────────────────── */
+  .vh-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+  .vh-tab {
+    font-size: .8rem; font-weight: 500; min-height: 44px; /* cible tactile WCAG */
+    background: transparent; border: 0; cursor: pointer;
+    color: rgba(255,255,255,.6); padding: 8px 12px; border-radius: 8px;
+    transition: color .15s ease, background-color .15s ease;
+  }
+  .vh-tab:hover { color: #fff; background: rgba(255,255,255,.08); }
+  .vh-tab[aria-selected="true"] { color: hsl(var(--primary)); background: #fff; font-weight: 700; }
+  .vh-tab:focus-visible { outline: 2px solid hsl(var(--score-orange)); outline-offset: 2px; }
+
+  .vh-rail { height: 2px; background: rgba(255,255,255,.16); border-radius: 2px; overflow: hidden; margin-bottom: 14px; }
+  .vh-rail i { display: block; height: 100%; width: 0; background: hsl(var(--score-orange)); }
+  .vh-rail.vh-run i { animation: vh-fill 5.4s linear forwards; }
+  @keyframes vh-fill { from { width: 0 } to { width: 100% } }
+
+  /* Les cartes se superposent dans une seule cellule : la hauteur du bloc
+     est celle de la plus haute, donc aucun saut au changement d'onglet. */
+  .vh-deck { display: grid; }
+  .vh-card {
+    grid-area: 1 / 1;
+    background: #f7f8fb; color: #0e1b33;
+    border-radius: 16px; padding: 18px;
+    box-shadow: 0 22px 50px -18px rgba(5,16,40,.6);
+    opacity: 0; transform: translateY(10px); pointer-events: none;
+    transition: opacity .4s ease, transform .4s ease;
+  }
+  .vh-card[data-active="true"] { opacity: 1; transform: none; pointer-events: auto; }
+  @media (min-width: 480px) { .vh-card { padding: 22px; } }
+
+  .vh-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 13px; flex-wrap: wrap; }
+  .vh-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #5a6883; }
+  .vh-verdict { font-size: 1.08rem; font-weight: 700; letter-spacing: -.012em; margin: 0 0 4px; }
+  .vh-because { font-size: .86rem; color: #5a6883; margin: 0 0 15px; line-height: 1.5; }
+
+  .vh-pill { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700; letter-spacing: .02em; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
+  .vh-green { background: #e4f8ec; color: #14803c; }
+  .vh-amber { background: #fef0df; color: #a85803; }
+  .vh-orange { background: #fef0df; color: #a85803; }
+  .vh-red { background: #fbe6e6; color: #a31818; }
+  .vh-slate { background: #e9edf5; color: #44526e; }
+
+  .vh-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 11px 0; border-top: 1px solid #e2e7f0; }
+  .vh-row:first-of-type { border-top: 0; }
+  .vh-row-main { min-width: 0; }
+  .vh-row-label { font-size: .865rem; font-weight: 500; }
+  .vh-row-sub { font-size: 11.5px; color: #5a6883; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .vh-row-val { font-size: .88rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .vh-up { color: hsl(var(--score-red)); }
+  .vh-ok { color: #14803c; font-weight: 600; font-size: .8rem; }
+
+  .vh-total { margin-top: 13px; padding-top: 13px; border-top: 2px solid #0e1b33; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .vh-total span { font-size: .79rem; font-weight: 600; color: #5a6883; }
+  .vh-total b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
+  .vh-quote { font-size: .845rem; line-height: 1.5; font-style: italic; background: #fff; border-left: 3px solid hsl(var(--score-red)); padding: 10px 13px; border-radius: 0 8px 8px 0; margin: 0 0 8px; }
+  .vh-quote-amber { border-left-color: hsl(var(--score-orange)); }
+  .vh-note { font-size: .8rem; color: #5a6883; line-height: 1.5; margin: 0; }
+  .vh-note b { color: #0e1b33; }
+  .vh-note-gap { margin-bottom: 15px; }
+  .vh-note-top { margin-top: 15px; }
+
+  .vh-kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid #e2e7f0; }
+  .vh-kv:first-of-type { border-top: 0; }
+  .vh-kv-k { font-size: .865rem; min-width: 0; }
+  .vh-kv-k i { display: block; font-style: normal; font-size: 11.5px; color: #5a6883; margin-top: 2px; }
+
+  .vh-cap { margin-top: 13px; font-size: .78rem; color: rgba(255,255,255,.58); }
+
+  /* ── Preuves ─────────────────────────────────────────────────────── */
+  .vh-proofs { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 12px; }
+  .vh-proofs li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; align-items: start; }
+  .vh-proofs svg { margin-top: 3px; }
+  .vh-proofs p { margin: 0; font-size: .93rem; line-height: 1.45; }
+  .vh-proofs b { color: #fff; font-weight: 700; }
+  .vh-proofs span { color: rgba(255,255,255,.66); }
+
+  .vh-pledge {
+    border-top: 1px solid rgba(255,255,255,.16); padding-top: 16px; margin: 0;
+    font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: rgba(255,255,255,.62);
+  }
+  .vh-pledge b { color: #fff; font-weight: 700; }
+
+  .vh-more { margin: 14px 0 0; font-size: .78rem; }
+  .vh-more a { color: rgba(255,255,255,.72); text-decoration: underline; text-underline-offset: 2px; }
+  .vh-more a:hover { color: #fff; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vh-rail.vh-run i { animation: none; width: 100%; }
+    .vh-card, .vh-btn { transition: none; }
+  }
+</style>
+
+<script>
+  // Rotation des cartes du hero. Le CONTENU est déjà dans le HTML : ce script
+  // ne fait que changer laquelle est visible. Si le JS ne charge pas, la
+  // première carte reste affichée et le reste du document est intact.
+  (() => {
+    const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.vh-tab'));
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('.vh-card'));
+    const rail = document.getElementById('vh-rail');
+    const stage = document.querySelector<HTMLElement>('.vh-stage');
+    if (tabs.length === 0 || cards.length === 0 || !rail || !stage) return;
+
+    const calme = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let i = 0;
+    let minuteur: number | null = null;
+
+    const montrer = (n: number) => {
+      i = (n + cards.length) % cards.length;
+      cards.forEach((c, k) => {
+        const actif = k === i;
+        c.toggleAttribute('hidden', !actif);
+        c.setAttribute('data-active', actif ? 'true' : 'false');
+      });
+      tabs.forEach((t, k) => {
+        t.setAttribute('aria-selected', k === i ? 'true' : 'false');
+        t.tabIndex = k === i ? 0 : -1;
+      });
+      // Retirer puis remettre la classe force le navigateur à rejouer
+      // l'animation de la barre de progression.
+      rail.classList.remove('vh-run');
+      void rail.offsetWidth;
+      if (!calme) rail.classList.add('vh-run');
+    };
+
+    const stop = () => { if (minuteur !== null) { clearInterval(minuteur); minuteur = null; } };
+    const jouer = () => { if (calme) return; stop(); minuteur = window.setInterval(() => montrer(i + 1), 5400); };
+
+    tabs.forEach((t) => t.addEventListener('click', () => { montrer(Number(t.dataset.go)); jouer(); }));
+
+    // Le carrousel ne doit jamais bouger sous les yeux de quelqu'un qui lit.
+    stage.addEventListener('mouseenter', stop);
+    stage.addEventListener('mouseleave', jouer);
+    stage.addEventListener('focusin', stop);
+    stage.addEventListener('focusout', jouer);
+    document.addEventListener('visibilitychange', () => (document.hidden ? stop() : jouer()));
+
+    document.querySelector('.vh-tabs')?.addEventListener('keydown', (e) => {
+      const ev = e as KeyboardEvent;
+      if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
+      ev.preventDefault();
+      montrer(i + (ev.key === 'ArrowRight' ? 1 : -1));
+      tabs[i].focus();
+      jouer();
+    });
+
+    montrer(0);
+    jouer();
+  })();
+</script>
 
       <!-- Social proof — widget temps réel sous le Hero pour booster
            le taux de conversion home → /nouvelle-analyse (mesure GA4 16% en juin,
            cible 25% après ajout). Données via /api/social-proof (anonymisé, cache 60s). -->
       <SocialProofTicker client:visible />
 
+      {/* Deux ancres, deux usages — et elles restent sur des div VIDES, jamais
+          sur la section : le header collant recouvrirait le titre. Piège déjà
+          rencontré le 08/09 avec un `id` posé en double.
+          `#exemple` est la cible du bouton secondaire du hero. */}
       <div id="comment-ca-marche"></div>
+      <div id="exemple"></div>
       <DuDevisAuVerdict />
 
       <!-- ══ Vous préparez des travaux ? ══ -->
