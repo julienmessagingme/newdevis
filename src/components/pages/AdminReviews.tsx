@@ -1029,14 +1029,40 @@ export default function AdminReviews() {
                 <p className="text-xs mt-1">La Piste C alerte ici dès qu'une analyse est flag.</p>
               </div>
             ) : (
-              reviews.map((r) => (
-                <ReviewCard
-                  key={r.id}
-                  item={r}
-                  selected={selectedId === r.id}
-                  onClick={() => setSelectedId(r.id)}
-                />
-              ))
+              <>
+                {/* 🔴 2026-09-15 (demande Johan) — ON TRAITE D'ABORD LÀ OÙ UN
+                    CHIFFRE EST SOUS LES YEUX D'UN UTILISATEUR.
+                    La file est passée à 73 après le rejeu du stock, et la
+                    majorité de ces analyses n'affichent AUCUN montant : elles
+                    sont en revue pour un ratio de rapprochement, pas pour un
+                    chiffre faux. Les trier par date mélangeait les deux et
+                    faisait commencer par les moins urgentes. */}
+                {(() => {
+                  const avecMontant = reviews.filter((r) => (r.surcout_max ?? 0) > 0);
+                  const sansMontant = reviews.filter((r) => (r.surcout_max ?? 0) <= 0);
+                  return (
+                    <>
+                      <div className="text-[11px] text-muted-foreground px-1 pb-1 leading-relaxed">
+                        <strong className="text-foreground">{avecMontant.length}</strong> avec un montant affiché
+                        {" · "}
+                        <strong className="text-foreground">{sansMontant.length}</strong> sans
+                        <br />
+                        Les premières d'abord : ce sont les seules où un utilisateur a un chiffre sous les yeux.
+                      </div>
+                      {[...avecMontant].sort((a, b) => (b.surcout_max ?? 0) - (a.surcout_max ?? 0))
+                        .concat(sansMontant)
+                        .map((r) => (
+                          <ReviewCard
+                            key={r.id}
+                            item={r}
+                            selected={selectedId === r.id}
+                            onClick={() => setSelectedId(r.id)}
+                          />
+                        ))}
+                    </>
+                  );
+                })()}
+              </>
             )}
           </div>
 

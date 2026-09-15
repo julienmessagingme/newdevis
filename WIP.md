@@ -64,7 +64,17 @@ Ventilation mesurée (les raisons ne sont pas stockées, elles sont recalculées
 - Le correctif documenté le 11/09 (« ignorer les groupes en confiance non haute ») ne libérerait que **12** analyses — **ce n'est pas le levier**.
 - **57 des 60 ont leur groupe aberrant DÉJÀ neutralisé** par les gardes : il ne pèse plus un euro dans le montant affiché.
 
-⚠️ **ET POURTANT LE DÉCLENCHEUR A ENCORE UN RÔLE — vérifié à l'écran avant de conclure.** Sur `c1ece16a`, le hero annonce 870 € et le détail affiche deux cartes 🔴 « Anomalie marché », dont une à 4 809 € contre 1 072-2 228 €. **Le groupe est sorti du montant mais pas de la carte.** Tant que cette contradiction existe, le ratio aberrant reste le seul filet qui la signale — **ne pas le resserrer avant de l'avoir corrigée** (`TODO.md`).
+⚠️ **ET POURTANT LE DÉCLENCHEUR A ENCORE UN RÔLE — vérifié à l'écran avant de conclure.** Sur `c1ece16a`, le hero annonçait 870 € et le détail affichait deux cartes 🔴 « Anomalie marché », dont une à 4 809 € contre 1 072-2 228 €. Le groupe était sorti du montant mais pas de la carte.
+
+✅ **CETTE CONTRADICTION EST CORRIGÉE** (même jour, feu vert Johan) : la règle d'exclusion vit désormais une seule fois (`motifNonChiffrable`), appelée par le serveur ET par les cartes. 50 cartes sur 1 033 perdent leur accusation, toutes relues, zéro accusation légitime perdue. Sur `c1ece16a` : **2 cartes rouges → 1**, et c'est celle qui porte réellement les 870 €.
+
+🟠 **Le ratio aberrant peut donc être réexaminé** — mais **pas avant d'avoir remesuré** : la contradiction qu'il signalait n'existe plus sous la même forme, et 57 des 60 analyses qu'il déclenche ont leur groupe déjà neutralisé. À reprendre à tête reposée, avec une mesure fraîche.
+
+### ✅ Absorber la file par ce qui est VISIBLE (2026-09-15, demande Johan)
+
+`/admin/reviews` trie désormais par **montant affiché décroissant**, les analyses sans montant à la fin, avec le compteur en tête : **37 avec un montant affiché · 36 sans**.
+
+⚠️ **Le tri par date mélangeait deux populations et faisait commencer par les moins urgentes.** Une analyse sans montant est en revue pour un ratio de rapprochement — rien de faux n'est sous les yeux de l'utilisateur. Une analyse avec montant, si.
 
 ### 🟠 Ce qui reste
 
