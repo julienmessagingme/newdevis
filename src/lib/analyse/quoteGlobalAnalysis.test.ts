@@ -207,3 +207,76 @@ describe('classifyRowEnriched — cas globaux', () => {
     expect(classifyRowEnriched(row)).toBe('anomalie');
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// Garde 0 bis — le serveur refuse de chiffrer, la carte n'accuse pas (15/09)
+// ══════════════════════════════════════════════════════════════════════════
+describe('classifyRowEnriched — une carte ne peut pas accuser sur un poste non chiffrable', () => {
+  it('🔴 tarif de main-d\'œuvre opposé à une ligne fournie → plus d\'accusation', () => {
+    // Cas réel vu à l'écran (analyse c1ece16a) : le hero annonçait 870 € et
+    // cette carte affichait « Anomalie marché » à 4 809 € contre 1 072-2 228 €.
+    // Le poste était sorti du MONTANT côté serveur, pas de la CARTE.
+    const row = makeRow({
+      jobTypeLabel: 'Carrelage sol 30m² (MO)',
+      mainUnit: 'm²',
+      mainQuantity: 96,
+      devisTotalHT: 4809,
+      theoreticalMaxHT: 2228,
+      devisLines: [
+        { index: 0, description: 'Fourniture et pose carrelage sol', quantity: 96, amountHT: 4809, unit: 'm²' },
+      ],
+      prices: [
+        { job_type: 'carrelage_mo', label: 'Carrelage sol 30m² (MO)', unit: 'm²',
+          price_min_unit_ht: 11, price_avg_unit_ht: 17, price_max_unit_ht: 23,
+          fixed_min_ht: 0, fixed_avg_ht: 0, fixed_max_ht: 0, zip_scope: 'national', notes: '' },
+      ],
+    });
+    expect(classifyRowEnriched(row)).toBe('low_confidence_match');
+  });
+
+  it('🔴 rapprochement invraisemblable (×14,7) → plus d\'accusation', () => {
+    // Le forfait WC à 8 950 € du devis ALES, faux positif documenté le 30/08.
+    const row = makeRow({
+      jobTypeLabel: 'WC (fourni+posé)',
+      mainUnit: 'U',
+      mainQuantity: 1,
+      devisTotalHT: 8950,
+      theoreticalMaxHT: 608,
+      devisLines: [
+        { index: 0, description: 'Fourniture et pose de nouveaux wc', quantity: 1, amountHT: 8950, unit: 'U' },
+      ],
+      prices: [
+        { job_type: 'wc_fp', label: 'WC (fourni+posé)', unit: 'unite',
+          price_min_unit_ht: 250, price_avg_unit_ht: 400, price_max_unit_ht: 608,
+          fixed_min_ht: 0, fixed_avg_ht: 0, fixed_max_ht: 0, zip_scope: 'national', notes: '' },
+      ],
+    });
+    expect(classifyRowEnriched(row)).toBe('low_confidence_match');
+  });
+
+  it('⚠️ une vraie surfacturation garde son accusation', () => {
+    // 3 000 € contre un plafond de 2 000 € en m² avec quantité : la comparaison
+    // est valide, la carte doit continuer de le dire. La garde ne doit PAS
+    // devenir un moyen commode de ne jamais accuser.
+    const row = makeRow({ devisTotalHT: 4500, theoreticalMaxHT: 2000 });
+    expect(classifyRowEnriched(row)).toBe('anomalie');
+  });
+
+  it('⚠️ un groupe hétérogène garde sa rétrogradation historique, pas le doute total', () => {
+    // Décision délibérée : `groupe_heterogene` n'est PAS dans
+    // MOTIFS_SANS_VERDICT_DE_PRIX — le basculer changerait le badge de dizaines
+    // de postes, ce qui est une mesure à part.
+    const row = makeRow({
+      jobTypeLabel: 'Carrelage (fourni+posé)',
+      devisTotalHT: 4422,
+      theoreticalMaxHT: 1270,
+      devisLines: [
+        { index: 0, description: 'Chape ciment', quantity: 13, amountHT: 1200, unit: 'm²' },
+        { index: 1, description: 'Primaire accrochage', quantity: 13, amountHT: 400, unit: 'm²' },
+        { index: 2, description: 'Dalle céramique', quantity: 13, amountHT: 1800, unit: 'm²' },
+        { index: 3, description: 'IPE acier', quantity: 1, amountHT: 1022, unit: 'U' },
+      ],
+    });
+    expect(classifyRowEnriched(row)).not.toBe('low_confidence_match');
+  });
+});

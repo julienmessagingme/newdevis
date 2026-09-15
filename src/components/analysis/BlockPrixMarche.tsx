@@ -270,7 +270,14 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
   // sommes prêts à l'opposer à l'artisan. Même règle que le verdict en tête de
   // page et que le calcul serveur : cf. `referenceOpposable`.
   const opposable = referenceOpposable(row.vectorial);
-  const afficheMarche = hasPrices && opposable;
+  // 🔴 2026-09-15 — LE BADGE ET LA FOURCHETTE DISENT LA MÊME CHOSE, OU RIEN.
+  // Une carte peut désormais devenir « Prix non vérifiable » pour une autre
+  // raison que la confiance vectorielle : le serveur refuse de la chiffrer
+  // (tarif de main-d'œuvre face à une ligne fournie, unité incomparable,
+  // rapprochement invraisemblable). Sans cette condition, on affichait
+  // « Prix non vérifiable · Marché : 1 072 € – 2 228 € » — et le lecteur se
+  // rabat alors sur la fourchette, exactement le défaut corrigé le 10/09.
+  const afficheMarche = hasPrices && opposable && globalBadge !== "low_confidence_match";
   // La référence la plus proche, quand elle existe sans être opposable : elle
   // n'a pas valeur de comparaison mais elle explique CE QUE nous avons cherché,
   // et sur quoi demander un second devis. Reléguée au dépli, jamais en tête.

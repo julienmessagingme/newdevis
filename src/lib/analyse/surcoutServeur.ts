@@ -228,6 +228,82 @@ export function tarifMainDoeuvreFaceAFourniture(group: Record<string, any>): boo
  */
 export const RATIO_RAPPROCHEMENT_INVRAISEMBLABLE = 8;
 
+/**
+ * 🔴 POURQUOI UN POSTE N'EST PAS CHIFFRABLE — LA RÈGLE, EN UN SEUL ENDROIT.
+ *
+ * Extrait le 2026-09-15 après un constat à l'écran : le hero annonçait 870 €
+ * et le détail affichait encore une carte 🔴 « Anomalie marché » à 4 809 €
+ * contre 1 072-2 228 €. Le groupe était sorti du MONTANT, pas de la CARTE —
+ * parce que le serveur appliquait ses gardes et que `classifyRowEnriched`,
+ * côté client, n'en connaissait aucune. Deux réponses à la même question sur
+ * la même page, c'est précisément ce que la règle « source de vérité unique »
+ * interdit.
+ *
+ * ⚠️ NE PAS RECOPIER CES CONDITIONS AILLEURS. Tout consommateur — chiffrage
+ * serveur, badge de carte, pastille de répartition — passe par ici.
+ */
+export type MotifNonChiffrable =
+  | "forfait"
+  | "unite_incomparable"
+  | "surface_non_precisee"
+  | "groupe_heterogene"
+  | "tarif_main_doeuvre"
+  | "rapprochement_invraisemblable"
+  | "poste_superieur_au_devis";
+
+/**
+ * Rend le motif pour lequel ce poste ne peut pas porter un écart chiffré, ou
+ * `null` s'il est comparable.
+ *
+ * `totalDevisHT` est optionnel : sans lui, la garde « un poste ne pèse pas plus
+ * que le devis entier » ne peut simplement pas s'appliquer.
+ */
+export function motifNonChiffrable(
+  group: Record<string, any>,
+  totalDevisHT?: number | null,
+): MotifNonChiffrable | null {
+  const unit = String(group?.main_unit ?? "").toLowerCase().trim();
+  if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) return "forfait";
+  if (hasSurfaceUnitMismatch(group)) return "surface_non_precisee";
+  if (hasIncomparableUnit(group)) return "unite_incomparable";
+  if (isLikelyHeterogeneousGroup(group)) return "groupe_heterogene";
+
+  const devisTotal = Number(group?.devis_total_ht) || 0;
+  const qty = typeof group?.main_quantity === "number" && group.main_quantity > 0 ? group.main_quantity : 1;
+  let plafond = 0;
+  for (const p of Array.isArray(group?.prices) ? group.prices : []) {
+    plafond += (Number(p?.price_max_unit_ht) || 0) * qty + (Number(p?.fixed_max_ht) || 0);
+  }
+  if (plafond <= 0 || devisTotal <= 0) return null; // rien à opposer : ce n'est pas un refus
+
+  if (devisTotal / plafond > RATIO_RAPPROCHEMENT_INVRAISEMBLABLE) return "rapprochement_invraisemblable";
+  if (tarifMainDoeuvreFaceAFourniture(group)) return "tarif_main_doeuvre";
+
+  const totalHT = typeof totalDevisHT === "number" && totalDevisHT > 0 ? totalDevisHT : null;
+  if (totalHT !== null && devisTotal > totalHT * 1.02) return "poste_superieur_au_devis";
+
+  return null;
+}
+
+/**
+ * Les motifs qui interdisent AUSSI d'afficher un verdict de prix sur la carte.
+ *
+ * ⚠️ `groupe_heterogene` en est volontairement ABSENT : côté carte, un groupe
+ * mélangé est rétrogradé en « légèrement élevé » plutôt que mis en doute total
+ * (garde V3.4, comportement en place et mesuré). Le basculer ici changerait le
+ * badge de dizaines de postes — c'est une décision à mesurer à part, pas un
+ * effet de bord de ce correctif.
+ * ⚠️ `forfait` et `surface_non_precisee` non plus : la carte les traite déjà,
+ * avec leurs propres libellés (« Surface à vérifier »), plus précis que
+ * « non vérifiable ».
+ */
+export const MOTIFS_SANS_VERDICT_DE_PRIX: ReadonlySet<MotifNonChiffrable> = new Set([
+  "unite_incomparable",
+  "tarif_main_doeuvre",
+  "rapprochement_invraisemblable",
+  "poste_superieur_au_devis",
+]);
+
 export interface PosteEcart {
   label: string;
   ecart: number;
@@ -303,15 +379,6 @@ export function computeServerSurcout(
     const prices: any[] = Array.isArray(group.prices) ? group.prices : [];
     if (prices.length === 0) continue;
 
-    // Exclure les forfaits et les mismatches surface/unité (comparaison non fiable)
-    const unit = ((group.main_unit as string) || "").toLowerCase().trim();
-    if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) continue;
-    if (hasSurfaceUnitMismatch(group)) continue;
-    if (hasIncomparableUnit(group)) continue;
-    // V3.4.1 — groupes hétérogènes : leur prix unitaire calculé n'a pas de sens
-    // face au max marché du domaine principal détecté.
-    if (isLikelyHeterogeneousGroup(group)) continue;
-
     const qty: number =
       typeof group.main_quantity === "number" && group.main_quantity > 0 ? group.main_quantity : 1;
 
@@ -322,7 +389,6 @@ export function computeServerSurcout(
         (typeof p.fixed_max_ht === "number" ? p.fixed_max_ht : 0);
     }
     if (theoreticalMaxHT <= 0) continue;
-
     if (devisTotal <= theoreticalMaxHT) continue;
 
     const ecart = devisTotal - theoreticalMaxHT;
@@ -337,34 +403,20 @@ export function computeServerSurcout(
       continue;
     }
 
-    // 🔴 2026-09-15 — ratio invraisemblable (cf. la constante et sa mesure).
-    if (ratio > RATIO_RAPPROCHEMENT_INVRAISEMBLABLE) {
+    // 🔴 TOUTES LES EXCLUSIONS PASSENT PAR `motifNonChiffrable` — une seule
+    // définition, partagée avec l'affichage des cartes. Recopier une condition
+    // ici, c'est reconstruire la contradiction du 15/09 : le poste sorti du
+    // montant mais gardant sa carte rouge « Anomalie marché ».
+    const motif = motifNonChiffrable(group, totalHT);
+    if (motif) {
       ecartes.push({
         label,
-        motif: "rapprochement invraisemblable",
-        detail: `×${ratio.toFixed(1)} le plafond marché`,
+        motif,
+        ...(motif === "rapprochement_invraisemblable"
+          ? { detail: `×${ratio.toFixed(1)} le plafond marché` }
+          : {}),
         ecart: Math.round(ecart),
       });
-      continue;
-    }
-
-    // 🔴 2026-09-15 — tarif de main-d'œuvre opposé à une ligne fournie+posée.
-    if (tarifMainDoeuvreFaceAFourniture(group)) {
-      ecartes.push({ label, motif: "tarif de main-d'œuvre face à une ligne fournie", ecart: Math.round(ecart) });
-      continue;
-    }
-
-    // 🔴 2026-09-15 — UN POSTE NE PEUT PAS PESER PLUS QUE LE DEVIS ENTIER.
-    // Un groupe dont le montant dépasse le total HT du devis est un défaut de
-    // regroupement — plusieurs lots agrégés sous un libellé — et le comparer
-    // au tarif d'un seul de ses composants ne prouve rien. Cas relevé :
-    // « Terrassement et évacuation » 1 800 €, soit la totalité du devis,
-    // opposé à « Terrassement (léger) » plafonné à 100 €.
-    // ⚠️ La tolérance de 2 % est délibérée : un devis d'UNE seule prestation a
-    // légitimement un groupe égal à son total, et les arrondis d'extraction
-    // suffisent à le faire dépasser de quelques euros.
-    if (totalHT !== null && devisTotal > totalHT * 1.02) {
-      ecartes.push({ label, motif: "montant du poste supérieur au total du devis", ecart: Math.round(ecart) });
       continue;
     }
 

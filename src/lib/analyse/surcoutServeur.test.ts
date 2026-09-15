@@ -81,7 +81,7 @@ describe("garde du ratio invraisemblable", () => {
       13269,
     );
     expect(r.max).toBe(0);
-    expect(r.ecartes[0].motif).toBe("rapprochement invraisemblable");
+    expect(r.ecartes[0].motif).toBe("rapprochement_invraisemblable");
     expect(r.ecartes[0].ecart).toBeGreaterThan(10000);
   });
 
@@ -98,7 +98,7 @@ describe("garde « un poste ne pèse pas plus que le devis »", () => {
   it("retire un groupe dont le montant dépasse le total HT", () => {
     const r = computeServerSurcout([groupe({ devis_total_ht: 4000 })], 2000);
     expect(r.max).toBe(0);
-    expect(r.ecartes[0].motif).toBe("montant du poste supérieur au total du devis");
+    expect(r.ecartes[0].motif).toBe("poste_superieur_au_devis");
   });
 
   it("⚠️ tolère le devis d'UNE seule prestation (groupe = total)", () => {
@@ -169,7 +169,7 @@ describe("tarifMainDoeuvreFaceAFourniture", () => {
       prices: [{ label: "Menuisier (taux horaire)", unit: "m2", price_max_unit_ht: 800, fixed_max_ht: 0 }],
     })], 20000);
     expect(r.max).toBe(0);
-    expect(r.ecartes[0].motif).toBe("tarif de main-d'œuvre face à une ligne fournie");
+    expect(r.ecartes[0].motif).toBe("tarif_main_doeuvre");
   });
 });
 

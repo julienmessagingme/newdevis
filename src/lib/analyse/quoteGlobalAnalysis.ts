@@ -2,6 +2,31 @@ import type { JobTypeDisplayRow } from "@/hooks/useMarketPriceAPI";
 import { isLikelyHeterogeneousGroup, type HomogeneityGroupInput } from "@/lib/analyse/groupHomogeneity";
 import { hasSurfaceUnitMismatch, surfaceMismatchConfidence, SURFACE_MISMATCH_THRESHOLD, type SurfaceGroup } from "@/lib/analyse/surfaceUtils";
 import { referenceOpposable } from "@/lib/analyse/referenceOpposable";
+import { motifNonChiffrable, MOTIFS_SANS_VERDICT_DE_PRIX } from "@/lib/analyse/surcoutServeur";
+
+/**
+ * Traduit une ligne d'AFFICHAGE en groupe tel que le SERVEUR le voit, pour que
+ * les deux posent exactement la même question à `motifNonChiffrable`.
+ *
+ * ⚠️ Les noms de champs changent de casse entre les deux mondes (`devisTotalHT`
+ * côté UI, `devis_total_ht` côté données brutes). C'est la seule raison d'être
+ * de cet adaptateur — il ne doit contenir AUCUNE règle.
+ */
+function rowToServerGroup(row: JobTypeDisplayRow): Record<string, unknown> {
+  return {
+    job_type_label: row.jobTypeLabel,
+    main_unit: row.mainUnit,
+    main_quantity: row.mainQuantity,
+    devis_total_ht: row.devisTotalHT ?? 0,
+    devis_lines: row.devisLines.map((l) => ({
+      description: l.description,
+      unit: l.unit,
+      quantity: l.quantity,
+      amount_ht: l.amountHT,
+    })),
+    prices: row.prices,
+  };
+}
 
 /**
  * Adapte un `JobTypeDisplayRow` (format client) vers `HomogeneityGroupInput`
@@ -332,6 +357,33 @@ export function classifyRowEnriched(
   // page où le verdict disait n'avoir aucune référence. Un doute doit produire
   // un doute, pas un satisfecit.
   if (!referenceOpposable(row.vectorial)) {
+    return "low_confidence_match";
+  }
+
+  // ── Garde 0 bis — LE SERVEUR REFUSE DE CHIFFRER CE POSTE (2026-09-15) ──────
+  //
+  // 🔴 Constaté à l'écran, pas dans le code : le hero annonçait 870 € d'écart
+  // et le détail affichait encore une carte 🔴 « Anomalie marché » à 4 809 €
+  // contre 1 072-2 228 €. Le groupe était sorti du MONTANT (garde serveur
+  // « tarif de main-d'œuvre face à une ligne fournie ») mais gardait sa CARTE,
+  // parce que cette fonction ne connaissait aucune des gardes du serveur.
+  // Le lecteur avait deux chiffres sous les yeux et aucun moyen de les
+  // réconcilier — exactement ce que la règle « source de vérité unique »
+  // interdit, et la même famille de défaut que le doublon du bloc matériel.
+  //
+  // La règle vit désormais UNE seule fois (`motifNonChiffrable`). Ne pas
+  // recopier de condition ici : ce serait reconstruire la divergence.
+  //
+  // ⚠️ Seuls les motifs de `MOTIFS_SANS_VERDICT_DE_PRIX` coupent le verdict.
+  // Le forfait et la surface non précisée ont déjà leurs propres libellés,
+  // plus précis ; le groupe hétérogène garde sa rétrogradation historique
+  // (garde 2 plus bas) — le basculer serait une décision à mesurer à part.
+  //
+  // ⚠️ `totalHT` n'est pas connu au niveau d'une carte : la garde « un poste ne
+  // pèse pas plus que le devis entier » ne peut donc pas s'y appliquer. C'est
+  // une limite assumée, pas un oubli — côté serveur elle reste active.
+  const motif = motifNonChiffrable(rowToServerGroup(row), null);
+  if (motif && MOTIFS_SANS_VERDICT_DE_PRIX.has(motif)) {
     return "low_confidence_match";
   }
 

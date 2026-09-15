@@ -10,11 +10,7 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ### P0 — Crédibilité produit critique
 
-- [ ] 🔴 **LES GARDES DE CHIFFRAGE NE TOUCHENT PAS LES CARTES DE POSTE — contradiction visible à l'écran (constaté 2026-09-15)** : sur l'analyse `c1ece16a`, le hero annonce **870 €** d'écart et le détail affiche **deux cartes 🔴 « Anomalie marché »**, dont une à *Carrelage sol 30 m² (MO)* — **4 809 € contre un marché à 1 072-2 228 €**, soit ~2 580 € d'écart qui ne sont PAS dans le total annoncé. Le lecteur a deux chiffres sous les yeux et aucun moyen de les réconcilier.
-  - **Mécanisme** : le montant vient de `computeServerSurcout` (serveur, toutes gardes appliquées) ; la carte vient de `classifyRowEnriched` (client, `quoteGlobalAnalysis.ts`) qui **ne connaît aucune de ces gardes**. Un groupe écarté du chiffrage garde donc sa carte rouge.
-  - ⚠️ **Le défaut PRÉEXISTE** (`hasIncomparableUnit`, `hasSurfaceUnitMismatch`, `isLikelyHeterogeneousGroup` créaient déjà l'écart) mais **les trois gardes du 15/09 l'élargissent** : elles retirent davantage de postes du montant sans rien changer aux cartes.
-  - **C'est exactement la famille de défaut signalée par Johan le matin même** (« le bloc matériel fait doublon avec l'analyse des postes et en contradiction ») et la règle « source de vérité unique » de `CLAUDE.md`.
-  - **Piste** : faire descendre le motif d'exclusion du serveur vers la carte — un poste écarté du chiffrage ne peut pas être « Anomalie marché », il doit dire pourquoi il n'est pas chiffrable. ⚠️ Toucher `classifyRowEnriched` affecte TOUTES les analyses : mesurer avant/après sur le stock, comme pour toute garde.
+- [x] ~~**LES GARDES DE CHIFFRAGE NE TOUCHENT PAS LES CARTES DE POSTE (2026-09-15)**~~ — ✅ corrigé le jour même. La règle vit désormais une seule fois (motifNonChiffrable), appelée par le serveur ET par les cartes. Mesuré : 50 cartes sur 1 033 perdent leur accusation (4,8 %), toutes relues, zéro accusation légitime perdue. Détail et le piège de la fourchette résiduelle dans CLAUDE.md. ⚠️ Reste ouvert : `groupe_heterogene` garde sa rétrogradation en « légèrement élevé » plutôt que le doute total — à mesurer à part.
 
 - [ ] 🟡 **DEUX DOUBLONS VIVANTS DU CATALOGUE, RÉVÉLÉS PAR L'ARBITRE IA (2026-09-15)** — même ouvrage, même unité, fourchettes divergentes :
   - `mur_parpaing_20` « Mur parpaing 20 cm (fourni+posé) » **55-115 €/m²** contre `mur_parpaing_20_construction` « Construction mur parpaing 20 cm (fourni+posé) » **55-128**
