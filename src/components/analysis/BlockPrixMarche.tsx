@@ -666,6 +666,13 @@ const AssignmentPhase = ({ rows, moveLineToJobType, updateQuantity, isDirty, sav
 // =======================
 
 const BlockPrixMarche = ({
+  // ⚠️ 2026-09-15 — `montantTotalHT` était déclaré dans l'interface mais JAMAIS
+  // déstructuré ici : la page plantait en production sur
+  // « montantTotalHT is not defined », alors que le build passait. C'est le
+  // piège déjà documenté (« props manquantes dans sous-composants internes ») —
+  // Vite transpile sans vérifier les types. Relancer `tsc --noEmit` sur les
+  // composants d'analyse avant tout push, le build seul ne suffit PAS.
+  montantTotalHT,
   codePostal,
   cachedN8NData,
   analysisId,

@@ -56,8 +56,13 @@ describe("separerPetitsPostes", () => {
   });
 
   it("un poste sans montant garde sa carte : on ne peut rien en dire", () => {
-    const avecNul = [...ACCESSOIRES, { l: "Poste sans montant", m: null }];
-    const r = separerPetitsPostes(avecNul as Array<{ l: string; m: number | null }>, montant, 16485);
+    const avecNul: Array<{ l: string; m: number | null }> = [
+      ...ACCESSOIRES,
+      { l: "Poste sans montant", m: null },
+    ];
+    // Lambda inline : sinon T est inféré depuis `montant` (dont le paramètre
+    // ne porte pas `l`) au lieu du tableau, et `p.l` n'existe plus au typage.
+    const r = separerPetitsPostes(avecNul, (p) => p.m, 16485);
     expect(r.affiches.some((p) => p.l === "Poste sans montant")).toBe(true);
     expect(r.regroupes).toHaveLength(5);
   });
