@@ -700,6 +700,9 @@ const BlockPrixMarche = ({
   provisoire = false,
 }: BlockPrixMarcheProps) => {
   const [isBlockOpen, setIsBlockOpen] = useState(defaultOpen);
+  // Pour l'accroche du bloc replié (le rendu du détail vit dans `renderContent`,
+  // hors de portée d'ici).
+  const materielListeHeader = materiel ?? [];
   const { error, rows, isNewFormat } = useMarketPriceAPI({ cachedN8NData });
 
   const editor = useMarketPriceEditor({
@@ -958,6 +961,27 @@ const BlockPrixMarche = ({
             </TooltipProvider>
             <ChevronDown className={`h-5 w-5 ml-auto text-muted-foreground transition-transform flex-shrink-0 ${isBlockOpen ? "rotate-180" : ""}`} />
           </button>
+
+          {/* 2026-09-15 (retour Johan) — DIRE CE QU'IL Y A DERRIÈRE LE PLI.
+              « L'utilisateur ne sait pas forcément qu'il faut aller cliquer sur
+              analyse des postes pour avoir les prix ligne par ligne. » Le bloc
+              est replié par défaut depuis la Phase 4 (le verdict et les leviers
+              passent devant) — mais un titre seul ne dit pas qu'on trouve ici
+              le prix de CHAQUE ligne. On l'annonce, et on annonce ce qu'on a
+              trouvé : le nombre d'équipements chiffrés est l'argument le plus
+              concret pour ouvrir. */}
+          {!isBlockOpen && (
+            <button
+              type="button"
+              onClick={() => setIsBlockOpen(true)}
+              className="mt-1 text-left text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {materielListeHeader.length > 0
+                ? `Le prix de chaque ligne comparé au marché, dont ${materielListeHeader.length} ${materielListeHeader.length === 1 ? "équipement identifié" : "équipements identifiés"} par sa référence — `
+                : "Le prix de chaque ligne de votre devis comparé au marché — "}
+              <span className="text-primary font-medium underline">voir le détail</span>
+            </button>
+          )}
 
           {isBlockOpen && !showGate && (<>
           {/* Résumé du devis */}

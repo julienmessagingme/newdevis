@@ -460,6 +460,31 @@ describe("preparationBuilder — buildPreparationSections", () => {
     expect(aNePasOublier).toHaveLength(2);
   });
 
+  it("🔴 une action « Négociez … » reste une phrase, jamais un fragment", () => {
+    // 2026-09-15 (retour Johan) — le contexte affiché perdait son verbe :
+    // « Le prix de la fourniture du digicode anti-vandale pour l'aligner sur la
+    // fourchette haute du marché (environ 180 € HT) » — « ce n'est pas clair
+    // comme conseil ». Pire, certains commençaient par un adverbe.
+    const conclusion = {
+      ...baseConclusion,
+      actions_avant_signature: [
+        "Négociez le prix de la fourniture du digicode anti-vandale pour l'aligner sur la fourchette haute du marché (environ 180 € HT).",
+        "Négociez légèrement le prix du démoussage pour l'aligner sur la moyenne du marché.",
+      ],
+    };
+    const { aDemander } = buildPreparationSections(conclusion, [], []);
+    const contextes = aDemander.map((i) => i.context);
+    expect(contextes.length).toBeGreaterThanOrEqual(2);
+    for (const c of contextes) {
+      // Un verbe ouvre la phrase — jamais un article ni un adverbe nu.
+      expect(c).toMatch(/^Négocier /);
+      expect(c).not.toMatch(/^(Le|La|Les|L'|Légèrement|Impérativement)\b/);
+    }
+    // Le contenu de l'action est intégralement conservé
+    expect(contextes.some((c) => c.includes("digicode anti-vandale"))).toBe(true);
+    expect(contextes.some((c) => c.includes("180 € HT"))).toBe(true);
+  });
+
   it("ne mélange jamais standards et questions", () => {
     const conclusion = {
       ...baseConclusion,

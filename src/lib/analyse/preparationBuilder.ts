@@ -413,14 +413,28 @@ function reformulateAsQuestion(action: string): { context: string; question: str
   const cleaned = stripDevisFluff(truncateAtSelfGuidance(stripAdminScoriae(action)));
 
   // Cas : « Négociez X »
+  //
+  // 🔴 2026-09-15 (retour Johan) — ON GARDE UN VERBE. Retirer l'impératif
+  // laissait un FRAGMENT NOMINAL qui ne se lit plus dès que l'action porte une
+  // clause de but : « Le prix de la fourniture du digicode anti-vandale pour
+  // l'aligner sur la fourchette haute du marché (environ 180 € HT) » — « ce
+  // n'est pas clair comme conseil ». Et certains commençaient par un adverbe :
+  // « Légèrement le prix du démoussage pour l'aligner… », « Impérativement les
+  // conditions de paiement… ».
+  //
+  // Mesuré sur le stock : 51 actions « Négociez … », dont 14 portent un but et
+  // devenaient illisibles. L'infinitif répare les 51 d'un coup et ne change
+  // rien au sens.
+  //
+  // ⚠️ Les autres branches (« Vérifiez X », « Assurez-vous que Y ») n'ont PAS
+  // ce défaut : ce qui suit y est un groupe nominal ou une proposition
+  // autonome, qui se tient sans son verbe. Ne pas « harmoniser » sans mesurer.
   if (/^négoc|^negoc/i.test(cleaned)) {
     const rest = trimTrailingPunctuation(
-      cleaned
-        .replace(/^négoc(?:iez|ier)\s*/i, "")
-        .replace(/^negoc(?:iez|ier)\s*/i, ""),
+      cleaned.replace(/^n[ée]goc(?:iez|ier)\s*/i, ""),
     );
     return {
-      context: rest ? ucFirst(rest) : "Poste à ouvrir à la discussion.",
+      context: rest ? `Négocier ${lcFirst(rest)}` : "Poste à ouvrir à la discussion.",
       question: `« Est-ce que ce poste peut être ajusté ? »`,
     };
   }
