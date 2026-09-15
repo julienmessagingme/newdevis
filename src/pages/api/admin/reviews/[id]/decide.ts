@@ -34,8 +34,13 @@ function resyncVerdictLigne(vl: any, conclusion: any): void {
   // Une marge n'est annoncée que si l'expert a laissé un montant. À zéro, on ne
   // promet pas une économie qu'il vient de retirer ; sinon on reprend SES
   // chiffres, jamais ceux d'avant la correction.
+  // 2026-09-15 — depuis le retrait du coefficient ×1,3, l'écart est un nombre
+  // unique ; et l'expert saisit souvent le même montant dans les deux champs.
+  // « environ 800 à 800 € » se lirait comme une fourchette inexistante.
   vl.marge = surcoutMax > 0
-    ? `environ ${surcoutMin.toLocaleString("fr-FR")} à ${surcoutMax.toLocaleString("fr-FR")} €`
+    ? (surcoutMin === surcoutMax
+        ? `environ ${surcoutMax.toLocaleString("fr-FR")} €`
+        : `environ ${surcoutMin.toLocaleString("fr-FR")} à ${surcoutMax.toLocaleString("fr-FR")} €`)
     : null;
 
   // Conserve le montant en tête du résumé (« 3 489 € HT — … »), qui reste vrai,

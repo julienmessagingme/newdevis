@@ -267,8 +267,16 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     nbNonVerifie,
     nbForfait: forfaitRows.length,
     surcoutEstime: Math.round(surcoutEstime),
-    surcoutMin: Math.round(surcoutEstime * 0.7),
-    surcoutMax: Math.round(surcoutEstime * 1.3),
+    // 🔴 2026-09-15 — LES COEFFICIENTS ×0,7 / ×1,3 SONT NÉS ICI (2026-04-01) ET
+    // Y MEURENT. Ils n'ont jamais eu de justification écrite : la somme brute
+    // compare déjà le devis au PLAFOND du marché, c'est donc un plancher qu'on
+    // majorait de 30 %. Détail complet du raisonnement et de la mesure dans
+    // `surcoutServeur.ts`, où vit désormais la règle serveur.
+    // ⚠️ Ces deux champs ne sont consommés par AUCUN composant (vérifié le
+    // 2026-09-15) — mais les laisser faux, c'est laisser le défaut prêt à
+    // resservir le jour où quelqu'un les rebranchera.
+    surcoutMin: Math.round(surcoutEstime),
+    surcoutMax: Math.round(surcoutEstime),
     anomalieItems,
     survalueItems,
     totalItemsAnalyzed: analyzable.length,

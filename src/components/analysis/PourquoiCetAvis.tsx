@@ -12,7 +12,19 @@ import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 
 interface Props {
   conclusion: ConclusionData;
+  /**
+   * 🔴 2026-09-15 — EN ATTENTE DE VALIDATION EXPERTE, AUCUN MONTANT. La règle
+   * du 2026-08-30 n'avait été appliquée qu'au hero et aux leviers : ce bloc
+   * continuait d'annoncer « écart représentant 18 % du devis — estimé ~4,2 k€ »
+   * six lignes sous une phrase disant « nous préférons ne pas avancer de
+   * montant tant qu'il n'est pas confirmé ». Trouvé en regardant la page, pas
+   * le code.
+   */
+  provisoire?: boolean;
 }
+
+/** Une phrase qui chiffre un écart : montant en euros, en k€, ou pourcentage. */
+const CHIFFRE_UN_ECART = /(\d[\d\s  ]*[,.]?\d*\s*(k?€|euros?))|(\d+\s*%)/i;
 
 const TECH_LEXICON = [
   /verdict\s+(décisionnel|décisionnelle)/gi,
@@ -44,7 +56,7 @@ function humanize(sentence: string): string {
   return s;
 }
 
-export default function PourquoiCetAvis({ conclusion }: Props) {
+export default function PourquoiCetAvis({ conclusion, provisoire = false }: Props) {
   // On lit d'abord les raisons structurées (verdict_reasons.reasons),
   // sinon on retombe sur justifications découpé en phrases.
   const raw: string[] = (() => {
@@ -63,6 +75,10 @@ export default function PourquoiCetAvis({ conclusion }: Props) {
   const phrases = raw
     .map(humanize)
     .filter((s) => s.length > 0)
+    // ⚠️ On retire la PHRASE, on ne masque pas le bloc : les raisons qui ne
+    // chiffrent rien (« 3 postes présentent des prix anormalement élevés »)
+    // restent vraies et utiles pendant l'attente.
+    .filter((s) => !provisoire || !CHIFFRE_UN_ECART.test(s))
     .slice(0, 4);
 
   if (phrases.length === 0) return null;

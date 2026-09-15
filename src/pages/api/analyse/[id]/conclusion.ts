@@ -49,7 +49,17 @@ import { buildLeviers, buildVerdictLigne, COUVERTURE_MIN_POUR_AFFIRMER_PCT } fro
 //   2. les 22 analyses `corrected` NE sont PAS régénérées — filet ajouté au
 //      cache le même jour, sans quoi ce bump aurait effacé chaque correction
 //      d'expert, message client compris.
-const ENGINE_VERSION = "1.2.0-refonte";
+// 1.3.0-refonte (2026-09-15) — retrait du coefficient ×1,3 sur le surcoût +
+// trois gardes de plausibilité par poste + relecture du verdict avant
+// affichage. Le bump est ASSUMÉ malgré la règle « plus de bumps pour un cas
+// signalé » : il ne s'agit pas d'un cas mais d'un montant FAUX affiché sur 58
+// devis du stock, majoré de 30 % par un coefficient sans justification. Sans
+// bump, le correctif ne toucherait que les analyses à venir.
+// Deux effets connus, tous deux voulus :
+//   1. les analyses à signaux risqués repassent en `pending_review` à leur
+//      première revisite (Piste C by design) → file de revue à absorber ;
+//   2. les conclusions `corrected` ne sont PAS régénérées (filet du 04/09).
+const ENGINE_VERSION = "1.3.0-refonte";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // V3.5.16 (2026-06-15) — Piste C : revue humaine assistée
@@ -437,117 +447,19 @@ import {
   extractFlagsFromCriteria, extractCompanyRisk, generateVerdictReasons,
   extractCompanyStatusFromCriteria, computeWeightedAnomalies,
 } from "@/lib/analyse/verdictEngine";
+import {
+  computeServerSurcout, hasIncomparableUnit, hasSurfaceUnitMismatch,
+  extractKnownSurface, FORFAIT_UNIT_KEYWORDS, SURFACE_WORK_KEYWORDS, UNIT_LIKE,
+} from "@/lib/analyse/surcoutServeur";
+import { relireVerdict } from "@/lib/analyse/relectureVerdict";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// "f" et "fft" = abréviations françaises de "forfait" courantes dans les devis BTP
-const FORFAIT_UNIT_KEYWORDS = ["forfait", "global", "prestation", "ensemble", "installation complète", "f", "fft", "ff", "ens"];
-
-// Postes dont la comparaison marché se fait en m² mais que l'artisan peut facturer en U/forfait
-const SURFACE_WORK_KEYWORDS = [
-  "cloison", "doublage", "contre-cloison", "peinture", "enduit", "lasure",
-  "carrelage", "faïence", "parquet", "plancher", "ragréage", "chape",
-  "isolation", "isol", "plafond", "toile de verre", "papier peint",
-  "revêtement sol", "revêtement mur", "sol stratifié", "moquette",
-];
-// Équipements/appareils vendus naturellement à l'unité → jamais en m²
-const EQUIPMENT_KEYWORDS = [
-  "chauffe-eau", "chauffe eau", "cumulus", "ballon",
-  "climatisation", "climatiseur", "clim", "split",
-  "pompe à chaleur", "pompe a chaleur", "pac",
-  "radiateur", "convecteur", "sèche-serviette", "seche serviette",
-  "chaudière", "chaudiere", "poêle", "poele",
-  "ventilation", "vmc", "extracteur",
-  "robinet", "mitigeur", "sanitaire", "wc", "toilette",
-  "porte", "fenêtre", "fenetre", "baie", "volet",
-  "tableau électrique", "tableau electrique", "disjoncteur",
-];
-const M2_UNITS = ["m²", "m2", "m ²", "mètre carré", "metre carre", "m2 ht", "m² ht"];
-const UNIT_LIKE = ["u", "unité", "unité", "unite", "forfait", "ens", "ensemble",
-                   "prestation", "pce", "pièce", "piece", "lot", "global", "art", "article"];
-
-/**
- * Extrait la surface totale en m² connue depuis les lignes du groupe.
- * Cherche les lignes ayant une unité m² avec une quantité positive.
- * Retourne null si aucune surface explicite trouvée.
- */
-function extractKnownSurface(lines: any[]): number | null {
-  let total = 0;
-  for (const l of lines) {
-    const u = (l.unit || l.unite || "").toLowerCase().trim();
-    const qty = typeof l.quantity === "number" ? l.quantity
-      : typeof l.quantite === "number" ? l.quantite : 0;
-    if (qty > 0 && M2_UNITS.some(m => u.includes(m))) {
-      total += qty;
-    }
-  }
-  return total > 0 ? total : null;
-}
-
-/**
- * 2026-08-30 (retour Johan, devis ALES sdb) — GARDE D'UNITÉ.
- *
- * Cas vécu : une ligne « Dépose totale des cloisons intérieures » facturée
- * 8 950 € en forfait (unité « U », quantité 1) comparée à un tarif catalogue
- * de 15–40 €/m². Le calcul fait `40 × 1 = 40 €` de référence, donc 8 910 € de
- * « surcoût » — un chiffre né d'une multiplication par une quantité qui
- * n'existe pas. Six groupes du même devis étaient dans ce cas, produisant un
- * écart annoncé de 7 405 à 13 751 € sur un devis de 22 150 €.
- *
- * Règle : si le prix catalogue est exprimé dans une unité MÉTRIQUE (m², ml,
- * m³) alors que la ligne de devis n'a pas de quantité dans cette unité, la
- * comparaison n'a pas de sens. On ne la compte pas — on préfère ne rien dire
- * plutôt que d'annoncer un montant indéfendable face à l'artisan.
- */
-const METRIC_UNIT_RE = /^(m2|m²|m3|m³|ml|mètre|metre)/i;
-
-function hasIncomparableUnit(group: Record<string, any>): boolean {
-  const prices: any[] = Array.isArray(group.prices) ? group.prices : [];
-  if (prices.length === 0) return false;
-  // Le tarif catalogue est-il unitaire ET métrique ?
-  const metrique = prices.some(
-    (p) =>
-      typeof p?.price_max_unit_ht === "number" &&
-      p.price_max_unit_ht > 0 &&
-      METRIC_UNIT_RE.test(String(p?.unit ?? "").trim()),
-  );
-  if (!metrique) return false;
-  // Côté devis, dispose-t-on d'une quantité exprimée dans cette même unité ?
-  const unitDevis = String(group.main_unit ?? "").trim();
-  const qty = Number(group.main_quantity ?? 0);
-  const quantiteExploitable = METRIC_UNIT_RE.test(unitDevis) && qty > 0;
-  return !quantiteExploitable;
-}
-
-function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
-  const label = (group.job_type_label || "").toLowerCase();
-  const unit  = (group.main_unit || "").toLowerCase().trim();
-  const lines: any[] = group.devis_lines || [];
-
-  // Exclure les équipements vendus à l'unité par nature
-  if (EQUIPMENT_KEYWORDS.some(kw => label.includes(kw))) return false;
-  // Vérifier aussi dans les lignes du groupe (au cas où le label Gemini est générique)
-  const allDescriptions = lines.map((l: any) => (l.description || "").toLowerCase()).join(" ");
-  if (EQUIPMENT_KEYWORDS.some(kw => allDescriptions.includes(kw))) return false;
-
-  // Le poste doit être de nature surfacique (label OU lignes)
-  const isSurfaceWork = SURFACE_WORK_KEYWORDS.some(kw => label.includes(kw)) ||
-    lines.some((l: any) => SURFACE_WORK_KEYWORDS.some(kw =>
-      (l.description || "").toLowerCase().includes(kw)
-    ));
-  if (!isSurfaceWork) return false;
-
-  // L'unité ne doit PAS être m²
-  const isM2 = M2_UNITS.some(u => unit.includes(u));
-  const isUnitLike = UNIT_LIKE.some(u => unit === u || unit.startsWith(u + " "));
-  if (!(!isM2 && isUnitLike)) return false;
-
-  // Si la surface est explicitement connue via une ligne m² dans le groupe, pas de mismatch
-  const knownSurface = extractKnownSurface(lines);
-  if (knownSurface !== null) return false;
-
-  return true;
-}
+// 🔴 2026-09-15 — LE CALCUL DU SURCOÛT ET SES GARDES D'UNITÉ VIVENT DÉSORMAIS
+// DANS `@/lib/analyse/surcoutServeur` (importé en tête de fichier). Ils étaient
+// ici, non testés et non importables : le banc qui a mis au jour le coefficient
+// ×1,3 n'avait aucun moyen de les rejouer sans les recopier. Ne PAS en
+// réintroduire une copie locale.
 
 /**
  * V3.2.3 — Score de confiance pour le mismatch surface/unité, retourné dans [0, 1].
@@ -622,82 +534,6 @@ function surfaceMismatchConfidence(group: Record<string, any>): number {
 // on s'abstient pour ne pas demander au user de fournir une info qu'il a déjà donnée.
 const SURFACE_MISMATCH_ACTION_THRESHOLD = 0.70;
 
-/**
- * Calcule le surcoût total côté serveur depuis les données brutes priceData,
- * en utilisant la même formule que quoteGlobalAnalysis.ts (côté client).
- * Garantit la cohérence entre GlobalAnalysisCard et ConclusionIA.
- *
- * Surcoût = Σ (devis_total_ht − theoreticalMaxHT) pour les postes où devis > max
- * theoreticalMaxHT = Σ (price_max_unit_ht × qty + fixed_max_ht)
- */
-function computeServerSurcout(
-  priceData: unknown[],
-): { min: number; max: number; postes: Array<{ label: string; ecart: number }> } {
-  if (!Array.isArray(priceData)) return { min: 0, max: 0, postes: [] };
-
-  let surcoutEstime = 0;
-  // 2026-09-05 — on retient QUELS postes composent l'écart. Sans cette liste,
-  // le montant existait sans que rien à l'écran ne puisse le rattacher à une
-  // ligne : « j'annonce 1 000 € de négociation mais on ne sait pas où les
-  // trouver » (retour Johan). Mesuré : 22 analyses sur 69 annonçaient un
-  // montant qu'aucune anomalie bornée n'étayait.
-  const postes: Array<{ label: string; ecart: number }> = [];
-
-  for (const g of priceData) {
-    if (!g || typeof g !== "object") continue;
-    const group = g as Record<string, any>;
-
-    if (group.job_type_label === "Autre") continue;
-
-    const devisTotal: number = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
-    if (devisTotal <= 0) continue;
-
-    const prices: any[] = Array.isArray(group.prices) ? group.prices : [];
-    if (prices.length === 0) continue;
-
-    // Exclure les forfaits et les mismatches surface/unité (comparaison non fiable)
-    const unit = ((group.main_unit as string) || "").toLowerCase().trim();
-    if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) continue;
-    if (hasSurfaceUnitMismatch(group)) continue;
-    // Prix catalogue au m²/ml/m³ face à une ligne sans quantité : la
-    // multiplication par une quantité de 1 fabrique un surcoût fictif.
-    if (hasIncomparableUnit(group)) continue;
-    // V3.4.1 — exclure aussi les groupes hétérogènes : leur prix unitaire calculé
-    // n'a pas de sens face au max marché du domaine principal détecté.
-    // Sans ce filtre, on additionnait des "surcouts" qui venaient de groupes
-    // contenant chape + primaire + dalle + acier comptés comme du carrelage seul.
-    if (isLikelyHeterogeneousGroup(group)) continue;
-
-    const qty: number = typeof group.main_quantity === "number" && group.main_quantity > 0
-      ? group.main_quantity : 1;
-
-    // Calcule theoreticalMaxHT (identique à useMarketPriceAPI.ts)
-    let theoreticalMaxHT = 0;
-    for (const p of prices) {
-      theoreticalMaxHT +=
-        (typeof p.price_max_unit_ht === "number" ? p.price_max_unit_ht : 0) * qty +
-        (typeof p.fixed_max_ht      === "number" ? p.fixed_max_ht      : 0);
-    }
-    if (theoreticalMaxHT <= 0) continue;
-
-    if (devisTotal > theoreticalMaxHT) {
-      const ecart = devisTotal - theoreticalMaxHT;
-      surcoutEstime += ecart;
-      const label = typeof group.job_type_label === "string" && group.job_type_label.trim()
-        ? group.job_type_label.trim()
-        : (typeof group.job_type === "string" ? group.job_type : "");
-      if (label) postes.push({ label, ecart: Math.round(ecart) });
-    }
-  }
-
-  postes.sort((a, b) => b.ecart - a.ecart);
-
-  return {
-    min: Math.round(surcoutEstime * 0.7),
-    max: Math.round(surcoutEstime * 1.3),
-    postes,
-  };
-}
 // ── Sanitisation texte LLM ───────────────────────────────────────────────────
 
 /**
@@ -2833,7 +2669,17 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       ? (priceData as Array<{ devis_lines?: Array<{ description?: unknown }> | null }>)
           .filter((g) => !groupeEntierementCouvert(g, clesMateriel))
       : priceData;
-    const serverSurcoutCatalogue = computeServerSurcout(priceDataPourSurcout);
+    // ⚠️ Le total HT est passé au calcul : sans lui, la garde « un poste ne peut
+    // pas peser plus que le devis entier » ne peut pas s'appliquer.
+    const serverSurcoutCatalogue = computeServerSurcout(priceDataPourSurcout, totalHT);
+    if (serverSurcoutCatalogue.ecartes.length > 0) {
+      for (const e of serverSurcoutCatalogue.ecartes) {
+        console.log(
+          `[conclusion] chiffrage refusé — « ${e.label} » : ${e.motif}` +
+          `${e.detail ? ` (${e.detail})` : ""} → ${e.ecart} € non annoncés`,
+        );
+      }
+    }
 
     // ── 2026-09-15 (demande Johan) — LE MATÉRIEL ENTRE DANS LE SCORE ─────────
     // « Intègre dans le score : un équipement à plus de 50 % est signalé. »
@@ -2934,17 +2780,58 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     //      perdu leur `surcout_estime` plus haut).
     // Si aucune des deux ne donne rien, le montant est nul — et le levier
     // comme la marge disparaissent (leviersBuilder exige un poste nommé).
+    //
+    // 🔴 2026-09-15 — PLUS AUCUN COEFFICIENT. Le repli par anomalies portait le
+    // même ×0,7 / ×1,3 que le calcul serveur, et pour la même absence de
+    // raison : `surcout_estime` est déjà l'écart que Gemini attribue à une
+    // ligne bornée. Le majorer de 30 % annonçait un montant que la somme des
+    // anomalies affichées juste en dessous ne retrouvait jamais.
     const surcoutAnomalies = sanitizedAnomalies.reduce((s, a) => s + (a.surcout_estime ?? 0), 0);
-    const surcoutMin = surcoutInterdit
-      ? 0
-      : serverSurcout.max > 0
-        ? serverSurcout.min
-        : Math.round(surcoutAnomalies * 0.7);
-    const surcoutMax = surcoutInterdit
+    const surcoutBrut = surcoutInterdit
       ? 0
       : serverSurcout.max > 0
         ? serverSurcout.max
-        : Math.round(surcoutAnomalies * 1.3);
+        : Math.round(surcoutAnomalies);
+
+    // ── RELECTURE DU VERDICT AVANT AFFICHAGE (2026-09-15, demande Johan) ─────
+    // Dernier contrôle sur le chiffre qui part à l'écran : il doit être égal à
+    // la somme de son propre détail, porté par au moins un poste nommé, et
+    // rester inférieur au devis. Cf. `relectureVerdict.ts` pour le pourquoi de
+    // chaque règle et pour celle qui a été mesurée puis ÉCARTÉE (le seuil de
+    // pourcentage).
+    // ⚠️ La relecture ne reçoit PAS `comparisonIndicative` : cette variable est
+    // déclarée ~400 lignes plus bas, et la lire ici serait le piège de zone
+    // morte temporelle documenté dans CLAUDE.md (en production, Vite renomme la
+    // variable et l'erreur devient illisible). Elle rend donc une EXIGENCE, que
+    // le `const comparisonIndicative` reprend au moment de sa déclaration.
+    // Somme des écarts réellement attribués à un poste nommé — c'est ce montant
+    // que `verdict_ligne` cite dans sa phrase. Les anomalies de Gemini d'abord ;
+    // à défaut, les postes du calcul serveur, qui sont nommés eux aussi.
+    const surcoutNommeBrut = (() => {
+      const total = sanitizedAnomalies.reduce((acc, a) => {
+        const v = Number(a?.surcout_estime ?? 0);
+        return Number.isFinite(v) && v > 0 ? acc + v : acc;
+      }, 0);
+      if (total > 0) return Math.round(total);
+      const serveur = serverSurcout.postes.slice(0, 3).reduce((acc, p) => acc + p.ecart, 0);
+      return serveur > 0 ? Math.round(serveur) : null;
+    })();
+
+    const relecture = relireVerdict({
+      surcoutMin: surcoutBrut,
+      surcoutMax: surcoutBrut,
+      surcoutNomme: surcoutNommeBrut,
+      postes: serverSurcout.max > 0 ? serverSurcout.postes : [],
+      postesNommes: sanitizedAnomalies.map((a) => a.poste).filter((p): p is string => Boolean(p)),
+      totalHT,
+    });
+    for (const entree of relecture.journal) {
+      console.warn(
+        `[conclusion] RELECTURE ${entree.regle} — ${entree.constat} → ${entree.action}`,
+      );
+    }
+    const surcoutMin = relecture.surcoutMin;
+    const surcoutMax = relecture.surcoutMax;
 
     // Actions : garde exactement 3, complète avec des valeurs par défaut si nécessaire
     // V3.4.26 (2026-05-21) — Filtre des actions absurdes type "Vérifier l'existence
@@ -3355,7 +3242,11 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       && (wa?.anomalies_count ?? 0) === 0
     // 2026-09-04 — couverture quasi nulle : la comparaison EST indicative par
     // définition, et l'UI doit masquer le hero chiffré (règle 2 de cohérence).
-    ) || hasUnitsMissing || hasInvalidGroupings || vectorialUncertaintyTriggered || rienDeComparable;
+    // 2026-09-15 — la relecture du verdict peut l'exiger à son tour (écart
+    // supérieur au devis entier : ce n'est plus une surfacturation, c'est un
+    // rapprochement faux).
+    ) || hasUnitsMissing || hasInvalidGroupings || vectorialUncertaintyTriggered || rienDeComparable
+      || relecture.exigeComparaisonIndicative;
 
     conclusionData = {
       verdict_global:          verdictGlobal,
@@ -3544,21 +3435,11 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           return Number.isFinite(pct) && pct > 0 ? pct : null;
         })(),
         // Somme des écarts réellement attribués à un poste nommé.
-        surcout_nomme: (() => {
-          const anomalies = (conclusionData as ConclusionData).anomalies ?? [];
-          const total = anomalies.reduce((acc: number, a) => {
-            const v = Number(a?.surcout_estime ?? 0);
-            return Number.isFinite(v) && v > 0 ? acc + v : acc;
-          }, 0);
-          if (total > 0) return Math.round(total);
-          // 2026-09-05 — repli sur les postes du calcul serveur : ils sont
-          // nommés (cf. anomalies_postes ci-dessus), donc le montant est
-          // attribuable. C'est la condition pour avoir le droit de le dire.
-          const serveur = serverSurcout.postes
-            .slice(0, 3)
-            .reduce((acc, p) => acc + p.ecart, 0);
-          return serveur > 0 ? Math.round(serveur) : null;
-        })(),
+        // 🔴 2026-09-15 — CALCULÉE PLUS HAUT ET PASSÉE PAR LA RELECTURE. Elle
+        // était construite ici, indépendamment de `surcout_global`, et pouvait
+        // donc citer dans la phrase du verdict un montant que le chiffre affiché
+        // juste à côté contredisait (cas ALES : « 8 682 € » contre « 340 € »).
+        surcout_nomme: relecture.surcoutNomme,
         // 2026-08-29 (retour Johan, devis 25030) — le devis facture-t-il DÉJÀ
         // une dommages-ouvrage ? Si oui, conseiller d'en souscrire une (et
         // proposer un devis par-dessus) décrédibilise l'analyse : le client a

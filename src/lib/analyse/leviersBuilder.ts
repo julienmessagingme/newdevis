@@ -688,7 +688,16 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
   // S'il est vide, c'est qu'aucune ligne ne porte l'écart : on se tait.
   const montantAttribuable = s.anomalies_postes.length > 0;
   if (s.surcout.max >= 300 && montantAttribuable) {
-    marge = `environ ${fmtEuros(s.surcout.min)} à ${fmtEuros(s.surcout.max)} €`;
+    // 🔴 2026-09-15 — UN SEUL MONTANT QUAND LES DEUX BORNES SONT ÉGALES.
+    // Depuis le retrait du coefficient ×1,3 (cf. `surcoutServeur.ts`), l'écart
+    // est un nombre unique : la somme des postes nommés. Écrire « environ
+    // 1 062 à 1 062 € » donnerait l'air d'une fourchette là où il n'y en a
+    // plus, et ferait chercher au lecteur une nuance qui n'existe pas.
+    // ⚠️ La branche fourchette reste nécessaire : les conclusions du stock
+    // antérieures à ce jour portent encore deux bornes distinctes.
+    marge = s.surcout.min === s.surcout.max
+      ? `environ ${fmtEuros(s.surcout.max)} €`
+      : `environ ${fmtEuros(s.surcout.min)} à ${fmtEuros(s.surcout.max)} €`;
   } else if (leviers.some((l) => l.type === "revision_tarifaire")) {
     // Seul levier générique qui justifie un POURCENTAGE : un devis de plus de
     // douze mois se réactualise, et l'ordre de grandeur (5 à 8 %/an) est écrit

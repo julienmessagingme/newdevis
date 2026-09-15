@@ -275,7 +275,11 @@ function ConclusionDisplay({
       if (isVerdictSigner) {
         lines.push(`Écart estimatif vs marché : ~${fmtPrice(mid)} (indicatif, aucune anomalie majeure identifiée)`);
       } else {
-        lines.push(`Montant à renégocier estimé : ~${fmtPrice(mid)} (entre ${fmtPrice(conclusion.surcout_global.min)} et ${fmtPrice(conclusion.surcout_global.max)})`);
+        lines.push(
+          conclusion.surcout_global.min === conclusion.surcout_global.max
+            ? `Montant à renégocier estimé : ~${fmtPrice(mid)}`
+            : `Montant à renégocier estimé : ~${fmtPrice(mid)} (entre ${fmtPrice(conclusion.surcout_global.min)} et ${fmtPrice(conclusion.surcout_global.max)})`,
+        );
       }
     }
     if (actions.length > 0) {
@@ -402,9 +406,14 @@ function ConclusionDisplay({
                 ? "écart estimatif vs fourchettes marché"
                 : "environ à renégocier sur les postes"}
           </p>
-          <p className="text-xs text-muted-foreground/70 mt-0.5">
-            (entre {fmtPrice(conclusion.surcout_global.min)} et {fmtPrice(conclusion.surcout_global.max)})
-          </p>
+          {/* 2026-09-15 — depuis le retrait du coefficient ×1,3, l'écart est un
+              nombre unique (la somme des postes nommés). On ne feint plus une
+              fourchette quand les deux bornes sont identiques. */}
+          {conclusion.surcout_global.min !== conclusion.surcout_global.max && (
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
+              (entre {fmtPrice(conclusion.surcout_global.min)} et {fmtPrice(conclusion.surcout_global.max)})
+            </p>
+          )}
         </div>
       )}
 
@@ -423,9 +432,14 @@ function ConclusionDisplay({
             Comparaison limitée sur ce devis
           </p>
           <p className="text-xs text-amber-800/85 mt-1 leading-relaxed">
-            Notre référentiel prix n'a pas trouvé d'équivalent précis pour ce type de prestation
-            (le marché que nous avons indique {fmtPrice(conclusion.surcout_global.min)} – {fmtPrice(conclusion.surcout_global.max)},
-            mais ce n'est pas un comparable fiable ici).
+            {/* 🔴 2026-09-15 — LA PARENTHÈSE PRÉSENTAIT LE SURCOÛT COMME « LE
+                MARCHÉ ». `surcout_global` est l'ÉCART que nous calculons, pas
+                une fourchette de prix : la phrase annonçait donc au lecteur un
+                prix de marché qui était en réalité notre propre accusation. Et
+                depuis le retrait du ×1,3, les deux bornes sont identiques —
+                elle aurait affiché « 1 062 – 1 062 € ». Supprimée. */}
+            Notre référentiel prix n'a pas trouvé d'équivalent précis pour ce type de prestation,
+            nous ne pouvons donc pas nous prononcer sur son prix.
             Aucune anomalie poste par poste n'a été détectée. <strong>Demandez à l'artisan</strong> le détail
             ligne par ligne pour valider chaque prix avant signature.
           </p>

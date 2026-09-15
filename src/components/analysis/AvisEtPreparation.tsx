@@ -137,7 +137,7 @@ export default function AvisEtPreparation({
         entrepriseName={entrepriseName}
         onCopy={onCopy}
       />
-      <PourquoiCetAvis conclusion={conclusion} />
+      <PourquoiCetAvis conclusion={conclusion} provisoire={provisoire} />
       <InvitationPartager />
     </div>
   );

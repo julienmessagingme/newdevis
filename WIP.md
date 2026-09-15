@@ -11,6 +11,33 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## ✅ Le surcoût affiché — coefficient ×1,3 supprimé + relecture du verdict (2026-09-15)
+
+**Origine** : 19 analyses du stock annonçaient un écart supérieur à 40 % du montant du devis, 8 un écart **supérieur au devis entier**, toutes en `auto_approved` — donc lues par leurs utilisateurs sans qu'un humain les ait vues. Demande Johan : *« Je ne comprends pas le coef 1,3, investigues et corrigés. Il faut mettre une relecture du verdict avant de l'afficher. »*
+
+### Ce qui est livré
+
+| | |
+|---|---|
+| [`surcoutServeur.ts`](src/lib/analyse/surcoutServeur.ts) | le calcul du surcoût + ses gardes, extraits de `conclusion.ts` (16 tests) |
+| [`relectureVerdict.ts`](src/lib/analyse/relectureVerdict.ts) | la passe de relecture avant affichage (14 tests) |
+| [`banc-surcout-plausibilite.mjs`](scripts/banc-surcout-plausibilite.mjs) | le banc de mesure, qui IMPORTE la règle |
+| `ENGINE_VERSION` | **1.3.0-refonte** — le stock régénère à la visite |
+
+**Effet mesuré sur le stock (180 documents dédupliqués)** : 58 devis affichaient un écart → **49** ; montant total annoncé **253 149 € → 136 396 € (−46 %)**. Le seuil de mise en revue (2 000 €) passe de 26 à 20 devis.
+
+### 🟠 Ce qui reste
+
+- **Le stock ne se répare qu'à la visite.** Les analyses jamais rouvertes gardent leur montant majoré. Un script de régénération de masse est possible mais n'a pas été lancé — il faut d'abord absorber la file `pending_review` que le bump va créer.
+- **Les `anomalies` de Gemini ne sont PAS filtrées par les gardes.** Quand une garde retire un poste, la carte d'anomalie correspondante peut encore afficher son propre `surcout_estime`. La relecture plafonne le montant CITÉ (R6), pas le montant de chaque carte. À mesurer avant de décider — matcher un libellé Gemini contre un libellé catalogue est fragile.
+- **Warning `validateDOMNesting` dans `BlockPrixMarche`** (bouton imbriqué dans un bouton, vu en console le 15/09) — hérité du dépli cliquable ajouté la veille, sans effet visible mais à nettoyer.
+
+### 🔴 Incident de la session, à connaître
+
+Pour vérifier le rendu, la conclusion du devis ALES (`d3b3f014`) a été régénérée avec `force: true` — **ce drapeau contourne le filet du 2026-09-04 et écrase une conclusion `corrected`**. La décision de l'expert (verdict « dans_la_norme / signer », surcoût 0) a été **restaurée depuis `analysis_corrections`**, qui l'avait conservée intacte. Leçon : ne jamais lancer `force: true` sans vérifier `review_status` au préalable.
+
+---
+
 ## 🟡 Prix du matériel par référence fabricant (vertical clim) — tranche 1 livrée le 2026-09-15
 
 **Origine** : devis VOLTELEC déclaré « cohérent » sur **5,22 % de couverture** — 15 625 € sur 16 485 € sans référence, et la phrase « les prestations standards sont au bon prix » portait sur 860 € d'alimentation électrique et de goulottes. Décision Johan : on doit trouver le prix public nous-mêmes, pas renvoyer le client le chercher.

@@ -1,0 +1,372 @@
+/**
+ * surcoutServeur.ts — CE QUE NOUS AFFIRMONS QU'UN DEVIS COÛTE DE TROP.
+ *
+ * Extrait de `conclusion.ts` le 2026-09-15 pour deux raisons : la règle devait
+ * devenir testable, et un banc de mesure devait pouvoir l'IMPORTER plutôt que
+ * la recopier (leçon du banc de re-classement — une copie mesure une autre
+ * règle que celle qui part en production).
+ *
+ * ──────────────────────────────────────────────────────────────────────────
+ * 🔴 LE COEFFICIENT ×1,3 A ÉTÉ SUPPRIMÉ — ET IL N'AVAIT JAMAIS EU DE RAISON.
+ *
+ * De sa création (2026-04-01, `quoteGlobalAnalysis.ts`) à aujourd'hui, le
+ * montant affiché était `Σ(devis − plafond marché)` puis « min = × 0,7 ·
+ * max = × 1,3 ». Aucun commentaire, aucun commit, aucune mesure n'a jamais
+ * justifié ces deux nombres : la seule trace est « fourchette basse (×0.7) /
+ * fourchette haute (×1.3) », c'est-à-dire leur propre énoncé.
+ *
+ * Trois raisons de les retirer, pas une :
+ *
+ *  1. **La somme brute est DÉJÀ un plancher.** Elle compare le devis au
+ *     PLAFOND de la fourchette marché — pas à sa moyenne. Ce qui dépasse ce
+ *     plafond dépasse le prix le plus cher que nous connaissions. La majorer
+ *     de 30 % invente ; la minorer de 30 % descend sous un plancher.
+ *
+ *  2. **Le haut de fourchette n'était rattachable à aucune ligne.** Les postes
+ *     qui composent l'écart somment à la valeur BRUTE. Le `max` affiché
+ *     dépassait donc toujours de 30 % le total du détail — en contradiction
+ *     directe avec la règle du 2026-08-30 (« on ne chiffre que ce qu'on peut
+ *     nommer ») et celle du 2026-09-05 (« aucun montant sans poste nommé »).
+ *
+ *  3. **Il amplifiait les rapprochements faux.** Sur un devis à 2 000 € HT
+ *     dont l'écart brut sortait déjà à 2 500 € — donc au-dessus du devis
+ *     entier, preuve que la comparaison était fausse — on publiait 3 250 €.
+ *
+ * ⚠️ NE PAS « rétablir une fourchette » pour faire moins sec. Si un jour un
+ * intervalle est souhaité, il devra être CALCULÉ (par exemple l'écart au
+ * plancher du marché face à l'écart au plafond) et chaque borne devra rester
+ * égale à la somme de postes nommés. Un intervalle décoratif est un chiffre
+ * faux.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+
+import { isLikelyHeterogeneousGroup } from "./groupHomogeneity";
+
+// ── Vocabulaire d'unités ─────────────────────────────────────────────────────
+
+// "f" et "fft" = abréviations françaises de "forfait" courantes dans les devis BTP
+export const FORFAIT_UNIT_KEYWORDS = [
+  "forfait", "global", "prestation", "ensemble", "installation complète", "f", "fft", "ff", "ens",
+];
+
+// Postes dont la comparaison marché se fait en m² mais que l'artisan peut facturer en U/forfait
+// (exporté : `surfaceMismatchConfidence`, dans conclusion.ts, s'en sert aussi)
+export const SURFACE_WORK_KEYWORDS = [
+  "cloison", "doublage", "contre-cloison", "peinture", "enduit", "lasure",
+  "carrelage", "faïence", "parquet", "plancher", "ragréage", "chape",
+  "isolation", "isol", "plafond", "toile de verre", "papier peint",
+  "revêtement sol", "revêtement mur", "sol stratifié", "moquette",
+];
+// Équipements/appareils vendus naturellement à l'unité → jamais en m²
+const EQUIPMENT_KEYWORDS = [
+  "chauffe-eau", "chauffe eau", "cumulus", "ballon",
+  "climatisation", "climatiseur", "clim", "split",
+  "pompe à chaleur", "pompe a chaleur", "pac",
+  "radiateur", "convecteur", "sèche-serviette", "seche serviette",
+  "chaudière", "chaudiere", "poêle", "poele",
+  "ventilation", "vmc", "extracteur",
+  "robinet", "mitigeur", "sanitaire", "wc", "toilette",
+  "porte", "fenêtre", "fenetre", "baie", "volet",
+  "tableau électrique", "tableau electrique", "disjoncteur",
+];
+const M2_UNITS = ["m²", "m2", "m ²", "mètre carré", "metre carre", "m2 ht", "m² ht"];
+export const UNIT_LIKE = [
+  "u", "unité", "unite", "forfait", "ens", "ensemble",
+  "prestation", "pce", "pièce", "piece", "lot", "global", "art", "article",
+];
+
+/**
+ * Extrait la surface totale en m² connue depuis les lignes du groupe.
+ * Cherche les lignes ayant une unité m² avec une quantité positive.
+ * Retourne null si aucune surface explicite trouvée.
+ */
+export function extractKnownSurface(lines: any[]): number | null {
+  let total = 0;
+  for (const l of Array.isArray(lines) ? lines : []) {
+    const u = (l?.unit || l?.unite || "").toLowerCase().trim();
+    const qty = typeof l?.quantity === "number" ? l.quantity
+      : typeof l?.quantite === "number" ? l.quantite : 0;
+    if (qty > 0 && M2_UNITS.some((m) => u.includes(m))) total += qty;
+  }
+  return total > 0 ? total : null;
+}
+
+/**
+ * 2026-08-30 (retour Johan, devis ALES sdb) — GARDE D'UNITÉ.
+ *
+ * Cas vécu : une ligne « Dépose totale des cloisons intérieures » facturée
+ * 8 950 € en forfait (unité « U », quantité 1) comparée à un tarif catalogue
+ * de 15–40 €/m². Le calcul fait `40 × 1 = 40 €` de référence, donc 8 910 € de
+ * « surcoût » — un chiffre né d'une multiplication par une quantité qui
+ * n'existe pas. Six groupes du même devis étaient dans ce cas, produisant un
+ * écart annoncé de 7 405 à 13 751 € sur un devis de 22 150 €.
+ *
+ * Règle : si le prix catalogue est exprimé dans une unité MÉTRIQUE (m², ml,
+ * m³) alors que la ligne de devis n'a pas de quantité dans cette unité, la
+ * comparaison n'a pas de sens.
+ */
+const METRIC_UNIT_RE = /^(m2|m²|m3|m³|ml|mètre|metre)/i;
+
+export function hasIncomparableUnit(group: Record<string, any>): boolean {
+  const prices: any[] = Array.isArray(group?.prices) ? group.prices : [];
+  if (prices.length === 0) return false;
+  const metrique = prices.some(
+    (p) =>
+      typeof p?.price_max_unit_ht === "number" &&
+      p.price_max_unit_ht > 0 &&
+      METRIC_UNIT_RE.test(String(p?.unit ?? "").trim()),
+  );
+  if (!metrique) return false;
+  const unitDevis = String(group?.main_unit ?? "").trim();
+  const qty = Number(group?.main_quantity ?? 0);
+  return !(METRIC_UNIT_RE.test(unitDevis) && qty > 0);
+}
+
+export function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
+  const label = (group?.job_type_label || "").toLowerCase();
+  const unit = (group?.main_unit || "").toLowerCase().trim();
+  const lines: any[] = Array.isArray(group?.devis_lines) ? group.devis_lines : [];
+
+  // Exclure les équipements vendus à l'unité par nature
+  if (EQUIPMENT_KEYWORDS.some((kw) => label.includes(kw))) return false;
+  const allDescriptions = lines.map((l: any) => (l?.description || "").toLowerCase()).join(" ");
+  if (EQUIPMENT_KEYWORDS.some((kw) => allDescriptions.includes(kw))) return false;
+
+  const isSurfaceWork =
+    SURFACE_WORK_KEYWORDS.some((kw) => label.includes(kw)) ||
+    lines.some((l: any) =>
+      SURFACE_WORK_KEYWORDS.some((kw) => (l?.description || "").toLowerCase().includes(kw)),
+    );
+  if (!isSurfaceWork) return false;
+
+  const isM2 = M2_UNITS.some((u) => unit.includes(u));
+  const isUnitLike = UNIT_LIKE.some((u) => unit === u || unit.startsWith(u + " "));
+  if (!(!isM2 && isUnitLike)) return false;
+
+  // Si la surface est explicitement connue via une ligne m² dans le groupe, pas de mismatch
+  return extractKnownSurface(lines) === null;
+}
+
+// ── Garde « tarif de main-d'œuvre face à une ligne fournie » ─────────────────
+
+/**
+ * 🔴 2026-09-15 — LA PREMIÈRE CAUSE DES ÉCARTS ABERRANTS, MESURÉE.
+ *
+ * Sur les 66 devis du stock qui affichent un écart, **20 (30 %)** sont
+ * rapprochés d'une entrée catalogue qui ne chiffre QUE la main-d'œuvre, alors
+ * que la ligne du devis comprend la fourniture. Le plafond opposé est alors
+ * celui d'une prestation amputée de son matériel, et tout ce qui reste
+ * ressort en « surfacturation » :
+ *
+ *   « Fenêtre » 2 892 €  contre  « Menuisier (taux horaire) » 3 h × 120 €
+ *   « SCREENS EXTÉRIEURS » 6 300 €  contre  « Pose store banne (MO) » 2 200 €
+ *
+ * ⚠️ `isSupplyVsLaborMismatch` (garde 2 du matcher) ne ferme PAS ce trou :
+ * elle exige des marqueurs dans les DEUX libellés, et « Fenêtre » ne dit pas
+ * qu'elle est fournie. Ici on ne regarde qu'un fait certain — **notre entrée
+ * catalogue annonce elle-même qu'elle exclut la fourniture** — et on refuse
+ * d'en tirer une accusation, sauf si la ligne du devis dit elle aussi qu'elle
+ * ne porte que la pose.
+ *
+ * ⚠️ Cette garde ne retire pas le rapprochement : la carte du poste continue
+ * d'exister et d'afficher sa fourchette. Elle retire seulement le droit d'en
+ * CHIFFRER un écart — même doctrine que `hasIncomparableUnit`.
+ */
+const CATALOGUE_POSE_SEULE_RE =
+  /\((?:mo|m\.o\.|pose|main[- ]d['’]?œuvre|main[- ]d['’]?oeuvre|hors fourniture)\)|taux horaire|hors fourniture|main[- ]d['’]?œuvre seule/i;
+const LIGNE_DIT_POSE_SEULE_RE =
+  /\bhors fourniture\b|\bpose seule\b|\bfourniture non comprise\b|\bmat[ée]riel non compris\b|\bfourni par le client\b|\bfourniture client\b/i;
+
+export function tarifMainDoeuvreFaceAFourniture(group: Record<string, any>): boolean {
+  const prices: any[] = Array.isArray(group?.prices) ? group.prices : [];
+  if (prices.length === 0) return false;
+  const tousPoseSeule = prices.every((p) => CATALOGUE_POSE_SEULE_RE.test(String(p?.label ?? "")));
+  if (!tousPoseSeule) return false;
+
+  const lines: any[] = Array.isArray(group?.devis_lines) ? group.devis_lines : [];
+  const texte = [group?.job_type_label, ...lines.map((l: any) => l?.description)]
+    .filter((t) => typeof t === "string")
+    .join(" ");
+  // La ligne annonce elle-même qu'elle ne porte que la pose → comparaison licite.
+  return !LIGNE_DIT_POSE_SEULE_RE.test(texte);
+}
+
+// ── Calcul du surcoût ────────────────────────────────────────────────────────
+
+/**
+ * 🔴 2026-09-15 — AU-DELÀ DE HUIT FOIS LE PLAFOND MARCHÉ, CE N'EST PLUS UNE
+ * SURFACTURATION, C'EST UN RAPPROCHEMENT FAUX.
+ *
+ * Ce n'est pas une constante nouvelle : `isImplausiblyHighRatio` (garde 3 du
+ * matcher, V3.5.9) rejette déjà un candidat catalogue au-delà de ×8. Elle ne
+ * protège que le RAPPROCHEMENT, au moment où il est calculé — donc pas les
+ * analyses produites avant elle, ni les groupes dont le montant a été agrégé
+ * après coup. Le chiffrage restait sans garde : c'est lui qu'on ferme ici.
+ *
+ * Le seuil ne tombe pas dans une zone dense, et c'est ce qui le rend robuste.
+ * Distribution mesurée sur les 125 postes chiffrés du stock : médiane ×1,56,
+ * 3ᵉ quartile ×2,17, 9ᵉ décile ×5,0 — puis **plus rien entre ×6,0 et ×14,7**.
+ * Les huit postes au-delà sont tous des rapprochements faux, vérifiés un par
+ * un : une micro-station d'épuration (10 759 €) opposée à « Reprise tuyauterie
+ * / soudure » au point (×97,8) ; une mission de maîtrise d'œuvre opposée à
+ * « Diagnostic / devis approfondi » (×18,8) ; le forfait WC à 8 950 € du devis
+ * ALES, déjà documenté comme faux positif le 2026-08-30 (×14,7).
+ *
+ * ⚠️ Déplacer ce seuil vers le bas le ferait entrer dans la zone dense : à ×5
+ * on retire 12 postes, à ×3 on en retire 26 — dont de vraies surfacturations.
+ * Le re-mesurer sur le stock avant d'y toucher.
+ */
+export const RATIO_RAPPROCHEMENT_INVRAISEMBLABLE = 8;
+
+export interface PosteEcart {
+  label: string;
+  ecart: number;
+  /**
+   * devis_total_ht ÷ plafond marché. Sert à la garde de plausibilité et aux
+   * bancs. ⚠️ Optionnel à dessein : un dépassement MATÉRIEL (comparé au prix
+   * distributeur relevé, cf. `materielReference.ts`) rejoint cette liste sans
+   * ratio catalogue — lui en inventer un le rendrait indistinguable.
+   */
+  ratio?: number;
+}
+
+export interface SurcoutServeur {
+  /** Borne basse affichée. Depuis le 2026-09-15, min === max === brut. */
+  min: number;
+  /** Borne haute affichée. Depuis le 2026-09-15, min === max === brut. */
+  max: number;
+  /** Somme brute non arrondie — sert aux bancs de mesure. */
+  brut: number;
+  /** Les postes qui composent l'écart. Leur somme EST le montant affiché. */
+  postes: PosteEcart[];
+  /**
+   * Groupes qui portaient un écart et dont une garde a interdit le chiffrage,
+   * avec le motif ET le montant retiré. Le montant est indispensable : sans
+   * lui, un banc ne peut pas mesurer ce que la garde coûte ou fait gagner.
+   */
+  ecartes: Array<{ label: string; motif: string; detail?: string; ecart: number }>;
+}
+
+/**
+ * Calcule le surcoût total côté serveur depuis les données brutes priceData.
+ *
+ * Surcoût = Σ (devis_total_ht − theoreticalMaxHT) pour les postes où devis > max
+ * theoreticalMaxHT = Σ (price_max_unit_ht × qty + fixed_max_ht)
+ *
+ * `totalDevisHT` est optionnel mais fortement recommandé : sans lui, la garde
+ * de plausibilité par poste ne peut pas s'appliquer.
+ */
+export function computeServerSurcout(
+  priceData: unknown[],
+  totalDevisHT?: number | null,
+): SurcoutServeur {
+  if (!Array.isArray(priceData)) return { min: 0, max: 0, brut: 0, postes: [], ecartes: [] };
+
+  let brut = 0;
+  const postes: PosteEcart[] = [];
+  const ecartes: Array<{ label: string; motif: string; detail?: string; ecart: number }> = [];
+  const totalHT = typeof totalDevisHT === "number" && totalDevisHT > 0 ? totalDevisHT : null;
+
+  // Un montant qu'on ne sait pas nommer n'a pas le droit d'être affiché
+  // (règle du 2026-08-30). On descend donc jusqu'à la description de la
+  // première ligne plutôt que de renoncer au nom — et à défaut de tout, le
+  // poste est écarté du chiffrage plus bas.
+  const nommer = (group: Record<string, any>): string => {
+    const etiquette = typeof group.job_type_label === "string" ? group.job_type_label.trim() : "";
+    if (etiquette) return etiquette;
+    const jt = typeof group.job_type === "string" ? group.job_type.trim() : "";
+    if (jt) return jt;
+    const lignes: any[] = Array.isArray(group.devis_lines) ? group.devis_lines : [];
+    const desc = lignes.find((l) => typeof l?.description === "string" && l.description.trim());
+    return desc ? String(desc.description).trim().split("\n")[0].slice(0, 80) : "";
+  };
+
+  for (const g of priceData) {
+    if (!g || typeof g !== "object") continue;
+    const group = g as Record<string, any>;
+
+    if (group.job_type_label === "Autre") continue;
+
+    const devisTotal: number = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
+    if (devisTotal <= 0) continue;
+
+    const prices: any[] = Array.isArray(group.prices) ? group.prices : [];
+    if (prices.length === 0) continue;
+
+    // Exclure les forfaits et les mismatches surface/unité (comparaison non fiable)
+    const unit = ((group.main_unit as string) || "").toLowerCase().trim();
+    if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) continue;
+    if (hasSurfaceUnitMismatch(group)) continue;
+    if (hasIncomparableUnit(group)) continue;
+    // V3.4.1 — groupes hétérogènes : leur prix unitaire calculé n'a pas de sens
+    // face au max marché du domaine principal détecté.
+    if (isLikelyHeterogeneousGroup(group)) continue;
+
+    const qty: number =
+      typeof group.main_quantity === "number" && group.main_quantity > 0 ? group.main_quantity : 1;
+
+    let theoreticalMaxHT = 0;
+    for (const p of prices) {
+      theoreticalMaxHT +=
+        (typeof p.price_max_unit_ht === "number" ? p.price_max_unit_ht : 0) * qty +
+        (typeof p.fixed_max_ht === "number" ? p.fixed_max_ht : 0);
+    }
+    if (theoreticalMaxHT <= 0) continue;
+
+    if (devisTotal <= theoreticalMaxHT) continue;
+
+    const ecart = devisTotal - theoreticalMaxHT;
+    const ratio = devisTotal / theoreticalMaxHT;
+    const label = nommer(group);
+
+    // 🔴 L'INVARIANT : on n'additionne QUE ce qu'on sait nommer. Sinon le total
+    // affiché dépasse la somme du détail, et le lecteur repart avec un montant
+    // qu'aucune ligne ne porte (règle du 2026-09-05).
+    if (!label) {
+      ecartes.push({ label: "(poste sans libellé)", motif: "aucun nom à donner au poste", ecart: Math.round(ecart) });
+      continue;
+    }
+
+    // 🔴 2026-09-15 — ratio invraisemblable (cf. la constante et sa mesure).
+    if (ratio > RATIO_RAPPROCHEMENT_INVRAISEMBLABLE) {
+      ecartes.push({
+        label,
+        motif: "rapprochement invraisemblable",
+        detail: `×${ratio.toFixed(1)} le plafond marché`,
+        ecart: Math.round(ecart),
+      });
+      continue;
+    }
+
+    // 🔴 2026-09-15 — tarif de main-d'œuvre opposé à une ligne fournie+posée.
+    if (tarifMainDoeuvreFaceAFourniture(group)) {
+      ecartes.push({ label, motif: "tarif de main-d'œuvre face à une ligne fournie", ecart: Math.round(ecart) });
+      continue;
+    }
+
+    // 🔴 2026-09-15 — UN POSTE NE PEUT PAS PESER PLUS QUE LE DEVIS ENTIER.
+    // Un groupe dont le montant dépasse le total HT du devis est un défaut de
+    // regroupement — plusieurs lots agrégés sous un libellé — et le comparer
+    // au tarif d'un seul de ses composants ne prouve rien. Cas relevé :
+    // « Terrassement et évacuation » 1 800 €, soit la totalité du devis,
+    // opposé à « Terrassement (léger) » plafonné à 100 €.
+    // ⚠️ La tolérance de 2 % est délibérée : un devis d'UNE seule prestation a
+    // légitimement un groupe égal à son total, et les arrondis d'extraction
+    // suffisent à le faire dépasser de quelques euros.
+    if (totalHT !== null && devisTotal > totalHT * 1.02) {
+      ecartes.push({ label, motif: "montant du poste supérieur au total du devis", ecart: Math.round(ecart) });
+      continue;
+    }
+
+    brut += ecart;
+    postes.push({ label, ecart: Math.round(ecart), ratio });
+  }
+
+  postes.sort((a, b) => b.ecart - a.ecart);
+
+  // 🔴 Le montant affiché EST la somme des postes nommés — à l'arrondi près,
+  // et l'arrondi se fait sur la somme, jamais poste par poste (sinon le détail
+  // ne retombe pas sur le total).
+  const montant = Math.round(brut);
+  return { min: montant, max: montant, brut, postes, ecartes };
+}
