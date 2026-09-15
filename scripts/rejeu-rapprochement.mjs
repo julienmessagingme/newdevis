@@ -38,9 +38,15 @@
  *
  * Usage :
  *   node scripts/rejeu-rapprochement.mjs                     # état des lieux + vérification
- *   node scripts/rejeu-rapprochement.mjs --reecriture r.json # mesure avant/après
+ *   node scripts/rejeu-rapprochement.mjs --reecriture r.json # réécrire des LIBELLÉS catalogue
+ *   node scripts/rejeu-rapprochement.mjs --requete           # nettoyer le texte de la REQUÊTE
  *
  * Format de `r.json` : [{ "job_type": "prise", "nouveau": "Prise (ajout)" }, …]
+ *
+ * ⚠️ Les deux mesures ne portent PAS sur la même chose. `--reecriture` change
+ * ce qu'on RANGE (nos libellés) — mesuré et abandonné le 10/09, trois fois.
+ * `--requete` change ce qu'on DEMANDE (la ligne de devis embarquée) : une fiche
+ * produit de 400 caractères noie l'ouvrage dans ses spécifications.
  */
 
 import fs from "node:fs";
@@ -117,6 +123,11 @@ async function chargerStock() {
       lignes.push({
         analyse: a.id, date: a.created_at, desc, ht: Number(g.devis_total_ht ?? 0) || 0,
         requete: parties.join(". "), confProd: v.confidence,
+        // `cat` et `unite` sont conservés séparément pour que le mode --requete
+        // puisse reconstruire la requête EXACTEMENT comme la production le fait,
+        // en ne changeant QUE la description. Sans ça on mesurerait aussi le
+        // retrait de la catégorie, dont le 11/09 a montré qu'il dégrade.
+        cat, unite,
         simProd: Number(v.top_similarity ?? 0),
         jobProd: v.all_candidates?.[0]?.job_type ?? null,
       });
@@ -134,17 +145,32 @@ async function embarquer(textes, tache, fichierCache) {
   const manquants = [...new Set(textes)].filter((t) => !cache[t]);
   for (let i = 0; i < manquants.length; i += 80) {
     const lot = manquants.slice(i, i + 80);
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/${MODELE}:batchEmbedContents?key=${CLE_GEMINI}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        requests: lot.map((t) => ({
-          model: MODELE, content: { parts: [{ text: t }] },
-          taskType: tache, outputDimensionality: 768,
-        })),
-      }),
-    });
-    if (!r.ok) throw new Error(`Gemini ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    // ⚠️ Le quota d'embedding se sature sur un rejeu complet du stock. Sans
+    // reprise, le banc meurt au milieu — et le cache disque, écrit lot par lot,
+    // donne l'illusion qu'il suffit de relancer. On attend, on ne renonce pas.
+    let r, attente = 20_000;
+    for (let essai = 1; ; essai++) {
+      r = await fetch(`https://generativelanguage.googleapis.com/v1beta/${MODELE}:batchEmbedContents?key=${CLE_GEMINI}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requests: lot.map((t) => ({
+            model: MODELE, content: { parts: [{ text: t }] },
+            taskType: tache, outputDimensionality: 768,
+          })),
+        }),
+      });
+      if (r.ok) break;
+      if ((r.status !== 429 && r.status < 500) || essai > 6) {
+        throw new Error(`Gemini ${r.status} : ${(await r.text()).slice(0, 200)}`);
+      }
+      process.stdout.write(`
+  quota atteint (${r.status}), reprise dans ${attente / 1000} s…
+`);
+      await new Promise((ok) => setTimeout(ok, attente));
+      attente = Math.min(attente * 2, 160_000);
+    }
     const vecteurs = ((await r.json()).embeddings ?? []).map((e) => e.values);
+
     if (vecteurs.length !== lot.length) throw new Error(`retour incomplet ${vecteurs.length}/${lot.length}`);
     lot.forEach((t, k) => { cache[t] = vecteurs[k]; });
     fs.writeFileSync(chemin, JSON.stringify(cache), "utf8");
@@ -219,6 +245,106 @@ for (const l of lignes) {
 }
 console.log("\nrépartition sur le catalogue ACTUEL :", repartition);
 
+// La confiance FINALE inclut la promotion lexicale : mesurer le seul cosinus ne
+// dit rien du mécanisme, et les deux modes de ce banc doivent la partager.
+const { hasStrongLexicalMatch } = await import("../supabase/functions/analyze-quote/market-matcher-vectorial.ts");
+const finaleConf = (desc, t) => {
+  const c = tier(t.sim);
+  return c === "medium" && hasStrongLexicalMatch(desc, t.label) ? "high" : c;
+};
+
+// ── Mode --requete : NETTOYER LA QUESTION, PAS RELÂCHER LA RÉPONSE ──────────
+//
+// 2026-09-15. Les lignes d'équipement sont des FICHES PRODUIT : « PAC RR Multi
+// UE 3s 70 Pompe à chaleur Air/Air Marque: Atlantic Modèle: Murao Puissance
+// Chaud : 7,2 kW Rendement… ». On embarque 400 caractères de spécifications, et
+// l'ouvrage s'y noie — la BONNE entrée sort en tête, mais à 0,685.
+//
+// ⚠️ CE N'EST PAS UNE BAISSE DE SEUIL. Le seuil ne bouge pas ; c'est le texte
+// de la question qui est nettoyé. `objetDeLigne` existe déjà (15/09) et sert
+// l'affichage — il n'a jamais été appliqué à la RECHERCHE.
+//
+// ⚠️ LA PROMOTION LEXICALE CONTINUE DE VOIR LA DESCRIPTION ENTIÈRE : c'est un
+// mécanisme distinct, et le tronquer en même temps mélangerait deux variables.
+if (process.argv.includes("--requete")) {
+  const { objetDeLigne } = await import("../src/lib/analyse/materielReference.ts");
+
+  const construire = (desc, l) => {
+    const parties = [desc];
+    if (l.cat && l.cat.toLowerCase() !== "autre") parties.push(`Catégorie : ${l.cat}`);
+    if (l.unite) parties.push(`Unité : ${l.unite}`);
+    return parties.join(". ");
+  };
+
+  // ⚠️ `objetDeLigne` fait DEUX choses : elle coupe à la première marque de
+  // spécification, ET elle plafonne à 80 caractères. Le plafond est une règle
+  // d'AFFICHAGE (le bandeau déversait 400 caractères) ; l'appliquer à la
+  // recherche ampute des lignes d'ouvrage parfaitement lisibles. Les deux
+  // effets se mesurent séparément, sinon on ne sait pas lequel on juge.
+  const SPECS_RE =
+    /\s(?:Puissance|Dimensions?|Poids|Compresseur|Label|Très haute|Ultra silencieu|SEER|SCOP|Classe|Niveau sonore|Pression sonore|Filtre|Télécommande|Garantie|Alimentation électrique|Fluide|Débit|Réfrigérant)\b/i;
+  const coupeSpecs = (d) => {
+    const propre = String(d ?? "").replace(/\s+/g, " ").trim().replace(/^[-–—•\s]+/, "");
+    return propre.split(SPECS_RE)[0].trim() || propre;
+  };
+  // Une FICHE PRODUIT est longue : « Cloison de distribution Type: 72/48 » fait
+  // 36 caractères et n'en est pas une. Sans ce plancher, la coupe s'applique à
+  // des lignes d'ouvrage ordinaires qui citent un de ces mots au passage.
+  const LONGUE = 120;
+
+  const VARIANTES = [
+    // 🔴 LE TÉMOIN D'ABORD (règle du 11/09) : une transformation neutre DOIT
+    // rendre exactement 0 gain et 0 perte. Sans ce contrôle, un banc faux fait
+    // passer n'importe quelle règle pour un progrès.
+    { nom: "témoin (description inchangée)", f: (d) => d },
+    { nom: "objetDeLigne — coupe specs ET plafond 80 car.", f: objetDeLigne },
+    { nom: "coupe aux specs SEULE (sans plafond)", f: coupeSpecs },
+    { nom: "coupe aux specs, seulement si ligne longue", f: (d) => (String(d).length >= LONGUE ? coupeSpecs(d) : d) },
+  ];
+
+  for (const variante of VARIANTES) {
+    const requetesApres = await embarquer(
+      lignes.map((l) => construire(variante.f(l.desc) || l.desc, l)),
+      "RETRIEVAL_QUERY", `requetes-${variante.nom.replace(/\W+/g, "-")}.json`,
+    );
+
+    let gagne = 0, gagneHT = 0, perdu = 0, perduHT = 0, touchees = 0;
+    const listeG = [], listeP = [];
+    for (const l of lignes) {
+      const avant = requetes[l.requete];
+      const texteApres = construire(variante.f(l.desc) || l.desc, l);
+      const apres = requetesApres[texteApres];
+      if (!avant || !apres) continue;
+      if (texteApres !== l.requete) touchees++;
+      const a = meilleur(avant, norme(avant), catalogue);
+      const b = meilleur(apres, norme(apres), catalogue);
+      const ca = finaleConf(l.desc, a), cb = finaleConf(l.desc, b);
+      if (ca !== "high" && cb === "high") { gagne++; gagneHT += l.ht; listeG.push({ l, a, b }); }
+      if (ca === "high" && cb !== "high") { perdu++; perduHT += l.ht; listeP.push({ l, a, b }); }
+    }
+
+    console.log(`\n══ ${variante.nom} ══`);
+    console.log(`  lignes dont le texte change : ${touchees} / ${lignes.length}`);
+    console.log(`  passent en confiance HAUTE  : ${gagne} (${eur(gagneHT)})`);
+    console.log(`  PERDENT la confiance haute  : ${perdu} (${eur(perduHT)})`);
+    if (variante.nom.startsWith("témoin") && (gagne || perdu)) {
+      console.log("  🔴 TÉMOIN FAUX — le banc bouge sur une transformation neutre. Rien de ce qui suit ne vaut.");
+      process.exit(1);
+    }
+    for (const nom of ["GAGNÉES", "PERDUES"]) {
+      const liste = nom === "GAGNÉES" ? listeG : listeP;
+      if (!liste.length) continue;
+      console.log(`  ── ${nom} ──`);
+      for (const { l, a, b } of liste.sort((x, y) => y.l.ht - x.l.ht).slice(0, 40)) {
+        console.log(`  ${String(eur(l.ht)).padStart(9)} ${a.sim.toFixed(3)}→${b.sim.toFixed(3)}  ${l.desc.replace(/\s+/g, " ").slice(0, 46).padEnd(47)} ${a.label.slice(0, 28)} → ${b.label.slice(0, 32)}`);
+      }
+    }
+  }
+  console.log("\n⚠️ Le solde ne suffit pas : relire CHAQUE gain. Une référence fausse");
+  console.log("   promue en confiance haute devient opposable à l'artisan.\n");
+  process.exit(0);
+}
+
 if (!REECRITURE) {
   console.log("\n(pas de --reecriture : état des lieux seulement)");
   process.exit(0);
@@ -226,7 +352,6 @@ if (!REECRITURE) {
 
 // ── Avant / après ───────────────────────────────────────────────────────────
 
-const { hasStrongLexicalMatch } = await import("../supabase/functions/analyze-quote/market-matcher-vectorial.ts");
 const parJob = new Map(catalogue.map((r) => [r.job_type, r]));
 const nouveaux = REECRITURE.filter((p) => parJob.has(p.job_type));
 const labels = await embarquer(
@@ -241,20 +366,13 @@ const APRES = catalogue.map((r) => {
   return { ...r, label: nouveau, vec, norme: norme(vec) };
 });
 
-// La confiance FINALE inclut la promotion lexicale : mesurer le seul cosinus
-// ne dit rien du mécanisme qu'une réécriture de libellé vise en premier.
-const finale = (desc, t) => {
-  const c = tier(t.sim);
-  return c === "medium" && hasStrongLexicalMatch(desc, t.label) ? "high" : c;
-};
-
 let gagne = 0, gagneHT = 0, perdu = 0, perduHT = 0;
 const listeG = [], listeP = [];
 for (const l of lignes) {
   const v = requetes[l.requete]; if (!v) continue;
   const nq = norme(v);
   const a = meilleur(v, nq, catalogue), b = meilleur(v, nq, APRES);
-  const ca = finale(l.desc, a), cb = finale(l.desc, b);
+  const ca = finaleConf(l.desc, a), cb = finaleConf(l.desc, b);
   if (ca !== "high" && cb === "high") { gagne++; gagneHT += l.ht; listeG.push({ l, a, b }); }
   if (ca === "high" && cb !== "high") { perdu++; perduHT += l.ht; listeP.push({ l, a, b }); }
 }
