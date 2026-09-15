@@ -42,11 +42,29 @@ Une IA relit *« cette entrée catalogue décrit-elle la même prestation que ce
 
 **À surveiller les premières semaines** : le volume réel de la file. S'il dépasse nettement 2,5/mois, le levier est `ARBITRE_ECART_MIN` (300 €), pas le modèle.
 
-### 🟠 Régénération du stock — à lancer
+### ✅ Régénération du stock — FAITE le 2026-09-15
 
-**58 devis portent encore un montant majoré de 30 %** ; le bump `ENGINE_VERSION` ne les corrige qu'à la visite. La régénération de masse passe par le chemin NORMAL (sans `force`), qui protège les conclusions `corrected`.
+**155 analyses régénérées sur 155, zéro erreur**, 16,5 s en médiane, coût ~0,65 €. **33 conclusions d'expert intactes** (le script n'utilise jamais `force`). Montant total annoncé : **310 367 € → 117 534 € (−62 %)**.
 
-⚠️ Elle fera monter la file `pending_review` d'un coup — c'est le but, et c'est pour ça qu'elle vient APRÈS l'arbitre et pas avant.
+### 🔴 CE QUE LE REJEU A RÉVÉLÉ — la file de revue est à 73
+
+Ventilation mesurée (les raisons ne sont pas stockées, elles sont recalculées) :
+
+| Déclencheur | présent | seul motif |
+|---|---:|---:|
+| **ratio aberrant > 5×** | **60** | **37** |
+| verdict rouge | 20 | 5 |
+| ≥ 2 anomalies | 14 | 0 |
+| surcoût > 2 000 € | 13 | 2 |
+| **arbitre** | **7** | **2** |
+
+🟢 **L'arbitre tient sa promesse** : 7 analyses, seul motif dans 2 — cohérent avec les ~2,5/mois annoncés. **La file n'a pas grossi à cause de lui.**
+
+🔴 **Le ratio aberrant porte 60 des 73.** Deux mesures pour comprendre :
+- Le correctif documenté le 11/09 (« ignorer les groupes en confiance non haute ») ne libérerait que **12** analyses — **ce n'est pas le levier**.
+- **57 des 60 ont leur groupe aberrant DÉJÀ neutralisé** par les gardes : il ne pèse plus un euro dans le montant affiché.
+
+⚠️ **ET POURTANT LE DÉCLENCHEUR A ENCORE UN RÔLE — vérifié à l'écran avant de conclure.** Sur `c1ece16a`, le hero annonce 870 € et le détail affiche deux cartes 🔴 « Anomalie marché », dont une à 4 809 € contre 1 072-2 228 €. **Le groupe est sorti du montant mais pas de la carte.** Tant que cette contradiction existe, le ratio aberrant reste le seul filet qui la signale — **ne pas le resserrer avant de l'avoir corrigée** (`TODO.md`).
 
 ### 🟠 Ce qui reste
 
