@@ -38,7 +38,7 @@ Table `prix_materiel` (migration `20260915100000`, **appliquée et vérifiée**)
 
 Johan, page ouverte : « le bloc matériel est en place mais il fait doublon avec l'analyse des postes et en contradiction ». Vérifié — **ce n'est pas un doublon** (le masquage fonctionne, les lignes chiffrées sont bien retirées du détail), mais la contradiction est réelle et pire que prévu : **quatre murals Daikin Perfera de la même gamme, deux chiffrés en haut, deux « Prix non vérifiable » plus bas**. FTXM20A et FVXM25B étaient au référentiel mais à UNE source, donc écartés par la contrainte SQL.
 
-La règle des deux sources ne bouge pas — c'est le sourcing qu'il fallait finir. Migration  : FTXM20A, FVXM25B et MXZ-3F54VF4 (dont la 2ᵉ source existait mais n'était pas NOMMÉE). **19 entrées en base**, couverture de VOLTELEC **57 % → ~69 %**.
+La règle des deux sources ne bouge pas — c'est le sourcing qu'il fallait finir. Migration `20260915140000` : FTXM20A, FVXM25B et MXZ-3F54VF4 (dont la 2ᵉ source existait mais n'était pas NOMMÉE). **19 entrées en base**, couverture de VOLTELEC **57 % → ~69 %**.
 
 ⚠️ **Leçon** : une règle juste peut produire un mauvais résultat perçu. Le lecteur ne peut pas comprendre qu'on sache chiffrer un FTXM42 et pas un FTXM20 de la même gamme — l'incohérence décrédibilise les DEUX blocs à la fois. Avant d'ouvrir un vertical, vérifier qu'une GAMME entière est couverte, pas seulement les références les plus fréquentes.
 
