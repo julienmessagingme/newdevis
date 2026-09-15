@@ -9,6 +9,7 @@ import PremiumGate from "@/components/funnel/PremiumGate";
 import { GlobalAnalysisCard } from "./GlobalAnalysisCard";
 import { analyzeQuoteGlobal, classifyRow } from "@/lib/analyse/quoteGlobalAnalysis";
 import { referenceOpposable } from "@/lib/analyse/referenceOpposable";
+import { cleLigneDevis, ligneCouverteParMateriel } from "@/lib/analyse/materielReference";
 // V3.5.14 (2026-06-13) — VectorialPriceList retiré du rendu : wording
 // "Match plausible / incertain" remplacé par les verdicts prix classiques
 // gérés par AnalysisCard ("Dans la norme / Au-delà / En-deçà du marché").
@@ -40,6 +41,19 @@ interface BlockPrixMarcheProps {
    * BlockPrixMarche montrait 4 cartes rouges → incohérence visible côté user.
    */
   onGlobalAnalysisReady?: (anomalyCount: number, survalueCount: number) => void;
+  /**
+   * 2026-09-15 — Les lignes déjà chiffrées par leur RÉFÉRENCE FABRICANT
+   * (`conclusion.materiel_verifie`). Elles sont retirées d'ici, verdict global
+   * compris.
+   *
+   * 🔴 SANS CE FILTRE, LA PAGE SE CONTREDIT. Mesuré sur le stock : le
+   * catalogue rapproche ces lignes sur « Climatisation mono-split ·
+   * 900-2 800 € » — une unité intérieure seule comparée à une installation
+   * complète. Une unité facturée 647 € y ressort BON MARCHÉ quand sa
+   * référence exacte la situe à +94 %. C'est exactement le défaut du
+   * 2026-09-10 : « soit on connaît les prix, soit on ne les connaît pas. »
+   */
+  lignesMateriel?: string[];
 }
 
 // =======================
@@ -655,6 +669,7 @@ const BlockPrixMarche = ({
   convertToPermanent,
   currentUserId,
   onGlobalAnalysisReady,
+  lignesMateriel,
 }: BlockPrixMarcheProps) => {
   const [isBlockOpen, setIsBlockOpen] = useState(defaultOpen);
   const { error, rows, isNewFormat } = useMarketPriceAPI({ cachedN8NData });
@@ -665,10 +680,24 @@ const BlockPrixMarche = ({
     savedOverrides: marketPriceOverrides as { quantity_overrides: Record<string, number>; line_reassignments: Record<string, string>; validated_at: string } | null,
   });
 
+  // 2026-09-15 — les lignes chiffrées par leur référence fabricant sortent
+  // d'ici. ⚠️ Le filtre est appliqué AVANT `analyzeQuoteGlobal` : sinon la
+  // répartition compterait ces postes « prix correct » d'après une fourchette
+  // de 900-2 800 € pendant que le bloc matériel annonce +94 %.
+  const rowsAffichees = useMemo(() => {
+    if (!lignesMateriel || lignesMateriel.length === 0) return editor.rows;
+    const cles = new Set(lignesMateriel.map(cleLigneDevis));
+    return editor.rows.filter(
+      (row) => !(row.devisLines ?? []).some((dl) =>
+        ligneCouverteParMateriel(String(dl?.description ?? ""), cles),
+      ),
+    );
+  }, [editor.rows, lignesMateriel]);
+
   // Synthèse globale — calculée au niveau du composant (respect des règles des hooks)
   const globalAnalysis = useMemo(
-    () => analyzeQuoteGlobal(editor.rows),
-    [editor.rows],
+    () => analyzeQuoteGlobal(rowsAffichees),
+    [rowsAffichees],
   );
 
   // V3.4.22 — Remonter le count d'anomalies au parent (AnalysisResult) pour
@@ -697,7 +726,7 @@ const BlockPrixMarche = ({
     // ==========================================
     // NEW FORMAT — 2-phase flow
     // ==========================================
-    if (isNewFormat && editor.rows.length > 0) {
+    if (isNewFormat && rowsAffichees.length > 0) {
 
       // ---- PHASE 1 : Assignment (not validated yet) ----
       if (!editor.isValidated) {
@@ -705,7 +734,7 @@ const BlockPrixMarche = ({
           <>
             <StepIndicator currentStep={1} />
             <AssignmentPhase
-              rows={editor.rows}
+              rows={rowsAffichees}
               moveLineToJobType={editor.moveLineToJobType}
               updateQuantity={editor.updateQuantity}
               isDirty={editor.isDirty}
@@ -719,7 +748,7 @@ const BlockPrixMarche = ({
 
       // ---- PHASE 2 : Price analysis (validated) ----
       // Filter out empty groups and "Autre" (no price reference ever)
-      const analysisRows = editor.rows.filter(
+      const analysisRows = rowsAffichees.filter(
         (row) => row.devisLines.length > 0 && row.jobTypeLabel !== "Autre"
       );
 

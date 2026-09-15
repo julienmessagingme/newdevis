@@ -58,6 +58,9 @@ import {
   MultiDevisBlock,
 } from "@/components/analysis";
 import type { DevisSegment } from "@/components/analysis/MultiDevisBlock";
+// 2026-09-15 — matériel chiffré par sa référence fabricant (vertical clim).
+import MaterielVerifie from "@/components/analysis/MaterielVerifie";
+import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 // V3.4.23 (2026-05-21) — Simplification UI : 2 blocs retirés pour ne garder que
 // le cœur du verdict (ConclusionIA + Entreprise + Postes collapsé). Imports
 // retirés en même temps pour éviter du code mort.
@@ -695,6 +698,25 @@ const AnalysisResult = () => {
       } catch { /* parse fail, skip */ }
     }
     return false;
+  }, [analysis?.conclusion_ia, conclusionIaLive]);
+
+  // 2026-09-15 — Matériel chiffré par sa référence fabricant.
+  // ⚠️ Ces lignes sont AUSSI retirées du détail poste par poste (prop
+  // `lignesMateriel` de BlockPrixMarche) : le catalogue les rapproche sur
+  // « Climatisation mono-split · 900-2 800 € », ce qui fait paraître bon
+  // marché une unité facturée +94 % au-dessus de sa référence exacte. Deux
+  // fourchettes contradictoires sur la même ligne, c'est le défaut du 10/09.
+  const materielVerifie = useMemo(() => {
+    const sources = [conclusionIaLive, analysis?.conclusion_ia];
+    for (const raw of sources) {
+      if (!raw) continue;
+      try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        const m = (parsed as any)?.materiel_verifie;
+        if (Array.isArray(m) && m.length > 0) return m as NonNullable<ConclusionData["materiel_verifie"]>;
+      } catch { /* parse fail, skip */ }
+    }
+    return [];
   }, [analysis?.conclusion_ia, conclusionIaLive]);
 
   // V3.5.1 (2026-05-26) — Détection du flag incomplete_quote depuis conclusion_ia.
@@ -1608,8 +1630,20 @@ const AnalysisResult = () => {
             Le user voit uniquement la bannière "demandez détail" dans
             ConclusionIA.
         ══════════════════════════════════════════════════════ */}
+        {/* ══════════════════════════════════════════════════════
+            MATÉRIEL CHIFFRÉ PAR SA RÉFÉRENCE FABRICANT (2026-09-15)
+            Placé AVANT le détail poste par poste : c'est le chiffrage le plus
+            précis dont nous disposons sur ce devis, et les lignes concernées
+            sont retirées du bloc suivant pour ne pas afficher deux
+            fourchettes contradictoires.
+        ══════════════════════════════════════════════════════ */}
+        {materielVerifie.length > 0 && !isHorsScopeBtp && !isIncompleteQuote && (
+          <MaterielVerifie materiel={materielVerifie} />
+        )}
+
         {visibleBlocks.includes("prix_marche") && !isHorsScopeBtp && !isIncompleteQuote && (
           <BlockPrixMarche
+            lignesMateriel={materielVerifie.map((m) => m.ligne)}
             montantTotalHT={totalHT}
             codePostal={locationInfo.codePostal}
             selectedWorkType={analysis.work_type}

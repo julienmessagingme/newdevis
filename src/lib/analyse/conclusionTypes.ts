@@ -169,6 +169,43 @@ export interface ConclusionData {
     detail: string;
   }>;
 
+  /**
+   * 2026-09-15 — MATÉRIEL VÉRIFIÉ PAR SA RÉFÉRENCE FABRICANT (vertical clim).
+   *
+   * Rapprochement LITTÉRAL contre la table `prix_materiel` — pas de similarité
+   * sémantique : le vectoriel confondrait un MXZ-4F72VF4 et un MXZ-2F53VF4,
+   * deux produits séparés par 900 €.
+   *
+   * 🔴 CES LIGNES PRIMENT SUR LE RAPPROCHEMENT VECTORIEL, et l'UI doit les
+   * retirer du détail poste par poste. Mesuré sur le stock : le catalogue
+   * rapproche ces mêmes lignes sur « Climatisation mono-split · 900-2 800 € »
+   * — une unité intérieure seule comparée à une installation complète. Une
+   * unité facturée 647 € y paraît BON MARCHÉ quand la référence exacte la
+   * situe à +94 %. Afficher les deux fourchettes serait la contradiction
+   * corrigée le 2026-09-10 (« soit on connaît les prix, soit on ne les
+   * connaît pas »).
+   *
+   * ⚠️ Absent des conclusions antérieures → l'UI retombe sur l'affichage
+   * historique.
+   */
+  materiel_verifie?: Array<{
+    /** Le libellé du DEVIS, jamais notre désignation (règle du 2026-09-10). */
+    ligne: string;
+    reference: string;
+    designation: string;
+    quantite: number;
+    /** ⚠️ UNITAIRE, jamais le montant de ligne (piège du 2026-09-15). */
+    prix_unitaire_devis: number;
+    marche_min_ht: number;
+    marche_max_ht: number;
+    ecart_min_pct: number;
+    ecart_max_pct: number;
+    /** normal < +50 % · mention +50-70 % · question > +70 % (seuils mesurés). */
+    zone: "normal" | "mention" | "question";
+    nb_sources: number;
+    releve_le: string;
+  }>;
+
   // ── Métadonnée ─────────────────────────────────────────────────────────────
   generated_at: string;
 }

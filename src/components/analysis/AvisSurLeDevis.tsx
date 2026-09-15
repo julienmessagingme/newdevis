@@ -261,7 +261,11 @@ export default function AvisSurLeDevis({
       if (comparableCount >= totalCount) {
         return "Nous avons pu comparer la quasi-totalité des prestations de votre devis.";
       }
-      return "Nous avons comparé au marché toutes les prestations standards de ce devis. Les prestations spécifiques (sur-mesure, réglementaires) n'ont de prix de référence nulle part — un second devis reste le meilleur comparatif sur cette partie.";
+      // 2026-09-15 (retour Johan) — ON NE PRÉSUME PLUS DE LA NATURE de ce
+      // qu'on n'a pas chiffré. « sur-mesure, réglementaires » était faux sur
+      // le devis VOLTELEC (des climatiseurs de catalogue, un tuyau de condensat
+      // à 100 €) : on habillait notre trou de référentiel en propriété du devis.
+      return "Nous avons comparé au marché tout ce que notre référentiel couvre. Sur le reste, nous n'avons pas de prix à opposer — un second devis reste le meilleur comparatif sur cette partie.";
     }
     if (conclusion.comparison_indicative) {
       // 2026-09-06 (retour Johan) — « certaines prestations » sans jamais dire
@@ -272,9 +276,18 @@ export default function AvisSurLeDevis({
         const liste = postes.length === 1
           ? `« ${postes[0]} »`
           : `${postes.slice(0, -1).map((p) => `« ${p} »`).join(", ")} et « ${postes[postes.length - 1]} »`;
-        return `${postes.length === 1 ? "Un poste n'a" : "Certains postes n'ont"} pas d'équivalent dans nos références de prix — ${liste}. `
-          + `Ce n'est pas un défaut du devis : ces prestations sont sur-mesure ou trop spécifiques pour qu'un référentiel existe. `
-          + `C'est sur elles qu'un second devis apporte le plus.`;
+        // 🔴 2026-09-15 (retour Johan) — CE BANDEAU RÉPÉTAIT LE VERDICT, EN PIRE.
+        // Il redisait l'explication déjà donnée trois lignes plus haut, en y
+        // ajoutant une affirmation fausse sur la nature des postes (« sur-mesure
+        // ou trop spécifiques » pour des climatiseurs de catalogue). « C'est du
+        // bruit pour rien. »
+        //
+        // Ce qu'il apporte VRAIMENT, et que le verdict ne fait pas : NOMMER les
+        // postes. On garde ça, on supprime le reste. Les libellés sont par
+        // ailleurs tronqués à leur objet côté serveur (`objetDeLigne`) — ils
+        // déversaient jusqu'ici 400 caractères de fiche technique chacun.
+        return `${postes.length === 1 ? "Le poste sans équivalent dans nos références" : "Les postes sans équivalent dans nos références"} : ${liste}. `
+          + `C'est sur ${postes.length === 1 ? "lui" : "eux"} qu'un second devis apporte le plus.`;
       }
       return "Certaines prestations de ce devis sont trop spécifiques pour avoir un prix de référence — notre avis reste indicatif sur ces points précis.";
     }

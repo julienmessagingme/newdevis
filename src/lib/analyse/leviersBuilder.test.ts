@@ -259,10 +259,45 @@ describe("buildLeviers — couverture marché partielle", () => {
   it("verdict signer + couverture 45% → motif QUALIFIÉ (jamais « conforme » global)", () => {
     const s: LevierSignals = { ...base, comparable_coverage_pct: 45, montant_non_compare: 7200 };
     const v = buildVerdictLigne(s, buildLeviers(s));
-    expect(v.motif).toMatch(/prestations standards sont au bon prix/);
+    // 2026-09-15 — on dit D'ABORD ce qu'on a chiffré, on conclut ensuite.
+    // L'ancienne formule ouvrait sur « les prestations standards sont au bon
+    // prix » puis retirait le satisfecit trois mots plus loin.
+    expect(v.motif).toMatch(/^nous avons chiffré/);
     expect(v.motif).not.toMatch(/%/);
     expect(v.motif).toContain("second devis");
     expect(v.motif).not.toBe("prix dans les fourchettes du marché et conditions habituelles");
+  });
+
+  it("n'affirme PAS « dans les usages » si le bloc matériel dit l'inverse", () => {
+    // 🔴 Sans cette garde, VOLTELEC affichait « les prix y sont dans les usages
+    // du marché » juste au-dessus d'un bloc signalant deux équipements « un peu
+    // au-dessus ». Le lecteur voit les deux d'un seul coup d'œil.
+    const s: LevierSignals = {
+      ...base, comparable_coverage_pct: 45, montant_non_compare: 7200, materiel_hors_usage: 2,
+    };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).toMatch(/^nous avons chiffré/);
+    expect(v.motif).not.toMatch(/dans les usages du marché/);
+  });
+
+  it("affirme « dans les usages » quand rien ne la contredit", () => {
+    const s: LevierSignals = {
+      ...base, comparable_coverage_pct: 45, montant_non_compare: 7200, materiel_hors_usage: 0,
+    };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).toMatch(/dans les usages du marché/);
+  });
+
+  it("le motif ne PRÉSUME plus de la nature de ce qu'on n'a pas chiffré", () => {
+    // 🔴 « prestations spécifiques (sur-mesure ou réglementaires) » était FAUX
+    // sur le devis VOLTELEC : des climatiseurs Daikin de catalogue et un tuyau
+    // de condensat à 100 €. On habillait notre trou de référentiel en
+    // propriété du devis. On énonce désormais le fait, et rien de plus.
+    const s: LevierSignals = { ...base, comparable_coverage_pct: 45, montant_non_compare: 7200 };
+    const v = buildVerdictLigne(s, buildLeviers(s));
+    expect(v.motif).not.toMatch(/sur-mesure/i);
+    expect(v.motif).not.toMatch(/réglementaire/i);
+    expect(v.motif).toMatch(/nous n'avons pas de référence/);
   });
 
   it("verdict signer + couverture pleine → motif standard inchangé", () => {

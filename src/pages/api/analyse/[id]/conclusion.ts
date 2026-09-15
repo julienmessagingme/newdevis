@@ -420,6 +420,14 @@ import type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusio
 import { detectPrestationIntellectuelleReglementee } from "@/lib/analyse/detectPrestationIntellectuelle";
 import { diagnostiquerQuantites } from "@/lib/analyse/surfaceManquante";
 import { estGrosOeuvre, motifGrosOeuvre, type LigneTravaux } from "@/lib/analyse/grosOeuvre";
+import {
+  rapprocherMateriel,
+  clesLignesMateriel,
+  ligneCouverteParMateriel,
+  objetDeLigne,
+  type MaterielVerifie,
+  type PrixMateriel,
+} from "@/lib/analyse/materielReference";
 export type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
@@ -1893,6 +1901,71 @@ export const POST: APIRoute = async ({ params, request }) => {
   const extractedView: Record<string, unknown> =
     Object.keys(extractedData).length > 0 ? extractedData : extractedLegacy;
 
+  // ── 2026-09-15 — MATÉRIEL IDENTIFIÉ PAR SA RÉFÉRENCE FABRICANT ────────────
+  // Voie DÉTERMINISTE, en amont et à côté du pipeline vectoriel : on ne touche
+  // pas à `analyze-quote`, la correspondance se fait ici sur les lignes déjà
+  // extraites. Best-effort intégral — une panne de cette requête ne doit jamais
+  // empêcher une conclusion de se générer.
+  //
+  // Origine : un devis déclaré « cohérent » sur 5,22 % de couverture, dont
+  // 15 625 € de climatiseurs Daikin sans référence — alors que ce sont des
+  // produits de catalogue au prix public. Mesuré sur les devis concernés du
+  // stock : la couverture passe de 48 % à 75 %.
+  let materielVerifie: MaterielVerifie[] = [];
+  try {
+    const lignesTravaux = Array.isArray(extractedView.travaux)
+      ? (extractedView.travaux as Array<Record<string, unknown>>)
+      : [];
+    if (lignesTravaux.length > 0) {
+      const { data: catalogueMateriel } = await supabase
+        .from("prix_materiel")
+        .select("reference,reference_normalisee,marque,famille,perimetre,designation,prix_min_ht,prix_max_ht,nb_sources,releve_le,perime_le");
+      if (Array.isArray(catalogueMateriel) && catalogueMateriel.length > 0) {
+        materielVerifie = rapprocherMateriel(
+          lignesTravaux.map((t) => ({
+            libelle: String(t.libelle ?? t.description ?? ""),
+            montant: typeof t.montant === "number" ? t.montant : null,
+            quantite: typeof t.quantite === "number" ? t.quantite : null,
+          })),
+          catalogueMateriel as unknown as PrixMateriel[],
+        );
+        if (materielVerifie.length > 0) {
+          console.log(
+            `[conclusion] matériel identifié : ${materielVerifie.length} ligne(s) — ` +
+            materielVerifie.map((m) => `${m.reference} ${m.ecart_max_pct >= 0 ? "+" : ""}${m.ecart_max_pct}% (${m.zone})`).join(", "),
+          );
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[conclusion] rapprochement matériel ignoré :", (e as Error)?.message);
+  }
+
+  // 🔴 UNE LIGNE CHIFFRÉE PAR SA RÉFÉRENCE N'EST PLUS « SANS RÉFÉRENCE ».
+  // Sans ce transfert, la page se contredirait à trois lignes d'intervalle :
+  // un bloc « voici 4 équipements vérifiés, 8 560 € » suivi d'un verdict
+  // annonçant « 15 625 € de prestations spécifiques sans prix de référence ».
+  // C'est exactement le défaut du 2026-09-10 que ce chantier doit supprimer,
+  // et on l'aurait réintroduit en le corrigeant.
+  //
+  // ⚠️ On transfère depuis `sansReference` UNIQUEMENT : les lignes déjà
+  // comptées en confiance haute sont dans `comparableHT`, les ajouter une
+  // seconde fois gonflerait la couverture au-delà de 100 %.
+  if (materielVerifie.length > 0 && sansReference.length > 0) {
+    const clesMateriel = clesLignesMateriel(materielVerifie);
+    let transfere = 0;
+    for (let i = sansReference.length - 1; i >= 0; i--) {
+      if (ligneCouverteParMateriel(sansReference[i].label, clesMateriel)) {
+        comparableHT += sansReference[i].ht;
+        transfere += sansReference[i].ht;
+        sansReference.splice(i, 1);
+      }
+    }
+    if (transfere > 0) {
+      console.log(`[conclusion] matériel : ${Math.round(transfere)} € passent de « sans référence » à « comparé »`);
+    }
+  }
+
   const client   = (extractedView.client  as Record<string, unknown>) || {};
   const totaux   = (extractedView.totaux  as Record<string, unknown>) || {};
   const entreprise = (extractedView.entreprise as Record<string, unknown>) || {};
@@ -3242,12 +3315,27 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       // 2026-09-06 — les postes qu'aucun tarif de référence ne couvre, NOMMÉS.
       // 3 au plus, les plus gros d'abord : au-delà la phrase devient une liste
       // illisible et perd son intérêt.
+      // 2026-09-15 (retour Johan) — L'OBJET DE LA LIGNE, PAS SA FICHE TECHNIQUE.
+      // Ces libellés étaient déversés bruts : trois fiches produit de 400
+      // caractères (« … Puissance froid: 1,50-4.00 – 4,20 Puissance chaud: …
+      // Compresseur SWING Poids : 60 kg Pression sonore … »). La phrase censée
+      // aider le lecteur à reconnaître sa ligne devenait illisible — « du bruit
+      // pour rien ». On garde ce qui identifie le poste, on coupe la fiche.
       ...(sansReference.length > 0
         ? {
             postes_sans_reference: [...sansReference]
               .sort((a, b) => b.ht - a.ht)
               .slice(0, 3)
-              .map((p) => p.label),
+              .map((p) => objetDeLigne(p.label)),
+          }
+        : {}),
+      // 2026-09-15 — matériel chiffré par sa référence fabricant. Les plus gros
+      // écarts d'abord : c'est là que le lecteur doit regarder.
+      ...(materielVerifie.length > 0
+        ? {
+            materiel_verifie: [...materielVerifie].sort(
+              (a, b) => b.ecart_max_pct - a.ecart_max_pct,
+            ),
           }
         : {}),
       generated_at:            new Date().toISOString(),
@@ -3346,6 +3434,10 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         // sans référence (désamiantage, réglementaire…).
         comparable_coverage_pct: coveragePct,
         montant_non_compare: montantNonCompare,
+        // 2026-09-15 — empêche le verdict d'affirmer « les prix y sont dans
+        // les usages » quand le bloc matériel signale l'inverse trois lignes
+        // plus haut.
+        materiel_hors_usage: materielVerifie.filter((m) => m.zone !== "normal").length,
         // 2026-08-27 (conseils Johan) — gros œuvre → dommages-ouvrage
         // obligatoire ; retenue de garantie 5 % si pas déjà prévue.
         // 2026-09-03 (retour Johan, devis SOLTANI) — détection factorisée dans

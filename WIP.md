@@ -24,14 +24,19 @@ Table `prix_materiel` (migration `20260915100000`, **appliquée et vérifiée**)
 - ✅ Correctif attrapé à la relecture de la table : les groupes extérieurs étaient classés `ensemble` alors qu'ils se vendent seuls — ça neutralisait la garde du piège n°2 sur six entrées. Fichier **et** base corrigés.
 - 📄 Sourcing complet (22 entrées dont les 6 non publiables) dans `referentiel-materiel-clim.json`.
 
-### 🟡 Tranche 2 — le chemin de lecture (À FAIRE, rien ne lit encore la table)
+### ✅ Tranche 2 — le chemin de lecture (LIVRÉE le 2026-09-15)
 
-**En l'état, la table ne change rien pour l'utilisateur.** Il manque :
+[`materielReference.ts`](src/lib/analyse/materielReference.ts) (39 tests sur des libellés RÉELS du corpus) + branchement dans `conclusion.ts` + bloc [`MaterielVerifie.tsx`](src/components/analysis/MaterielVerifie.tsx). **L'edge function `analyze-quote` n'est pas touchée** : voie déterministe posée à côté du pipeline vectoriel, comme le lot de devis du 07/09.
 
-1. **L'extraction de la référence** depuis la ligne de devis — motifs de nomenclature par constructeur (`MXZ-nFxxVFn`, `nMXMxxAn`, `FTXM/CTXM/FVXMnn`, `MSZ-AYnnVGK`, `PEAD/SUZ`). ⚠️ Un extracteur générique produit du bruit (`SCOP4`, `POIDS59KG`, `DV817` qui est un numéro de ligne) — n'utiliser que les motifs constructeur.
-2. **La correspondance littérale**, en amont du vectoriel, sur `reference_normalisee`. ⚠️ Jamais sémantique.
-3. **La garde du périmètre** : une entrée `unite_seule` ne se compare qu'à une ligne qui ne porte ni la pose ni le groupe extérieur. Mesuré : **19 devis clim sur 35 séparent déjà** matériel et pose (83 % de ceux où une marque est nommée), 3 combinent en « fourniture et pose » — et ces 3 sont détectables au libellé.
-4. **L'affichage** : citer le nombre de sources et la date (« trois distributeurs français, relevé le 15/09 »), liens au dépli. ⚠️ **Ne jamais en faire une incitation à acheter le matériel soi-même** — un artisan refuse souvent de poser du matériel fourni par le client, ou décline sa garantie dessus.
+- ✅ **Couverture mesurée : 48 % → 75 %** sur les devis concernés ; VOLTELEC **5,2 % → 57 %**.
+- 🔴 **Découverte de la tranche : le vectoriel ABSOLVAIT.** Sur les 11 lignes rapprochées par les deux moteurs, le catalogue les compare toutes à « Climatisation mono-split · 900-2 800 € » — une unité intérieure seule opposée au tarif d'une installation complète. Une unité facturée 647 € y ressort *bon marché* quand sa référence exacte la situe à +94 %.
+- ✅ **Trois endroits changés ensemble**, sans quoi on recréait la contradiction : le détail poste par poste retire ces lignes (filtre **avant** `analyzeQuoteGlobal`), leur montant passe de « sans référence » à « comparé », et le verdict n'affirme plus « dans les usages » quand un équipement sort de la marge (`materiel_hors_usage`).
+- ✅ **Les 4 points du constat initial traités** : conseil au lieu d'excuse · ordre du verdict inversé · vocabulaire qui ne présume plus de la nature · libellés tronqués à leur objet.
+- ⚠️ Piège rencontré : `\b` ne borne pas après un accent — « Fourni et **posé** » échappait à la garde de pose. Même leçon que le 30/08.
+
+### 🟠 Suite naturelle, non faite
+
+Un équipement en zone **question** (> +70 %) devrait devenir un **levier de négociation** à part entière (`LeviersNegociation`), et non rester cantonné au bloc matériel. Aujourd'hui il est signalé, mais il n'entre ni dans le surcoût chiffré ni dans les leviers — le verdict global l'ignore. C'est la brique qui manque pour le « tu peux signer, mais négocie ça » de bout en bout.
 
 ### 🟡 Ce qui reste à sourcer
 

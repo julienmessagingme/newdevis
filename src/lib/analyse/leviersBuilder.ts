@@ -69,6 +69,17 @@ export interface LevierSignals {
   /** Montant HT des postes sans référence marché fiable. */
   montant_non_compare?: number | null;
   /**
+   * 2026-09-15 — Nombre d'équipements chiffrés par leur RÉFÉRENCE FABRICANT
+   * qui sortent de la marge d'usage (> +50 % au-dessus du prix distributeur).
+   *
+   * 🔴 IL EXISTE POUR EMPÊCHER UNE CONTRADICTION, PAS POUR ENRICHIR LE TEXTE.
+   * Sans lui, le verdict affirmait « les prix y sont dans les usages du
+   * marché » au-dessus d'un bloc matériel qui signale deux postes « un peu
+   * au-dessus » — le lecteur voit les deux d'un seul coup d'œil. C'est la
+   * famille de défauts corrigée le 2026-09-10 : une seule voix par fait.
+   */
+  materiel_hors_usage?: number | null;
+  /**
    * 2026-08-27 (conseils Johan) — le devis porte des travaux de GROS ŒUVRE
    * (construction, extension, surélévation, ossature, fondations, mur
    * porteur, charpente/couverture). Déclenche le conseil assurance
@@ -622,16 +633,41 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
   } else if (s.verdict_decisionnel === "signer") {
     // 2026-08-27 (cas ZANNOU v2) — couverture partielle : ne pas affirmer une
     // conformité globale quand une grosse part du devis n'a pas de référence.
-    // 2026-08-29 (retour Johan) — NE PAS afficher le pourcentage de couverture.
-    // « prix dans le marché sur les postes comparables (~41 % du devis) »
-    // se lisait comme un aveu de faiblesse de l'analyse, alors que la part
-    // non comparée n'est PAS un défaut de notre outil : ce sont des
-    // prestations que AUCUN référentiel de prix ne couvre (sur-mesure,
-    // réglementaire, désamiantage…). On nomme donc leur NATURE et le montant
-    // concerné — transparent, utile, et sans se tirer une balle dans le pied.
+    // 2026-08-29 (retour Johan) — NE PAS afficher le pourcentage de couverture :
+    // « ~41 % du devis » se lit comme un aveu de faiblesse de l'analyse.
+    //
+    // 🔴 2026-09-15 (retour Johan, devis VOLTELEC) — DEUX CORRECTIONS DANS LA
+    // MÊME PHRASE, et c'est l'ORDRE qui portait le défaut.
+    //
+    //  1. ON DIT D'ABORD SUR QUOI ON S'EST PRONONCÉ. L'ancienne formule
+    //     annonçait « les prestations standards sont au bon prix » puis la
+    //     retirait aussitôt en révélant que 15 625 € sur 16 485 € n'avaient
+    //     aucune référence. Le lecteur recevait un satisfecit qu'on lui
+    //     reprenait — « ça peut paraître décevant ». Dire ce qu'on a chiffré
+    //     AVANT de conclure transforme la même information en compte rendu
+    //     d'un travail. Rien n'est caché : c'est l'ordre qui change.
+    //
+    //  2. ON NE PRÉTEND PLUS CONNAÎTRE LA NATURE DE CE QU'ON N'A PAS CHIFFRÉ.
+    //     « prestations spécifiques (sur-mesure ou réglementaires) » était
+    //     FAUX sur ce devis : des climatiseurs Daikin de catalogue et un
+    //     « tuyau de condensat diamètre 22 » à 100 €. On habillait notre trou
+    //     de référentiel en propriété du devis — le même défaut que le 13/09,
+    //     où le message décrivait notre mécanique en prétendant décrire le
+    //     devis. On dit désormais le fait, et rien de plus : nous n'avons pas
+    //     de référence.
     const cov = s.comparable_coverage_pct;
-    motif = cov !== null && cov !== undefined && cov < 60 && (s.montant_non_compare ?? 0) >= 1000
-      ? `les prestations standards sont au bon prix ; ${fmtEuros(s.montant_non_compare ?? 0)} € de prestations spécifiques (sur-mesure ou réglementaires) n'ont pas de prix de référence — un second devis est le seul comparatif utile sur cette partie`
+    const nonCompare = s.montant_non_compare ?? 0;
+    const compare = Math.max(0, (s.total_ht ?? 0) - nonCompare);
+    // ⚠️ On n'affirme « les prix y sont dans les usages » QUE si rien ne le
+    // contredit plus bas dans la page. Deux équipements signalés « un peu
+    // au-dessus » par le bloc matériel suffisent à rendre cette phrase fausse
+    // aux yeux du lecteur, qui voit les deux d'un seul coup d'œil.
+    const materielHorsUsage = s.materiel_hors_usage ?? 0;
+    const partieChiffree = materielHorsUsage > 0
+      ? `nous avons chiffré ${fmtEuros(compare)} € de ce devis`
+      : `nous avons chiffré ${fmtEuros(compare)} € de ce devis et les prix y sont dans les usages du marché`;
+    motif = cov !== null && cov !== undefined && cov < 60 && nonCompare >= 1000 && compare > 0
+      ? `${partieChiffree} ; sur les ${fmtEuros(nonCompare)} € restants nous n'avons pas de référence à opposer — un second devis est le seul comparatif utile sur cette partie`
       : "prix dans les fourchettes du marché et conditions habituelles";
   } else {
     // Décision non-signer sans signal dominant identifié : rester honnête sans
