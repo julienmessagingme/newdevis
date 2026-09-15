@@ -347,6 +347,13 @@ async function persistConclusion(
   conclusion: Record<string, unknown>,
   rawPriceData?: unknown[],
   totalTTC?: number | null,
+  /**
+   * 2026-09-15 — régénération de masse : on écrit le statut, on ne réveille
+   * personne. Le statut `pending_review` reste posé, la file reste juste ; ce
+   * qui est supprimé, c'est la notification unitaire. Réservé aux admins,
+   * vérifié à l'entrée de la route.
+   */
+  silencieux = false,
 ): Promise<void> {
   const trigger = detectReviewTriggers(conclusion, rawPriceData, totalTTC);
   let reviewStatus = trigger.shouldReview ? "pending_review" : "auto_approved";
@@ -402,6 +409,10 @@ async function persistConclusion(
   // une analyse déjà tranchée par un expert ne doit re-notifier personne.
   if (reviewStatus === "pending_review") {
     console.log(`[review] analyse ${analysisId.slice(0, 8)} flaggée pending_review — raisons: ${trigger.reasons.join(", ")}`);
+    if (silencieux) {
+      console.log(`[review] mode silencieux — ni e-mail ni Telegram pour ${analysisId.slice(0, 8)}`);
+      return;
+    }
     sendReviewEmail(analysisId, fileName, trigger.reasons, conclusion).catch(() => {
       /* déjà loggué dans sendReviewEmail */
     });
@@ -967,9 +978,25 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // ── Cache hit (sauf si force=true dans le body) ───────────────────────────
   let forceRegen = false;
+  // 2026-09-15 — mode SILENCIEUX pour les régénérations de masse. Sans lui, un
+  // rejeu du stock envoie un e-mail ET une notification Telegram par analyse
+  // qui bascule en `pending_review` — des dizaines d'alertes d'un coup, qui
+  // ressemblent à un incident et qu'on finit par ignorer en bloc.
+  // 🔴 RÉSERVÉ AUX ADMINS. Laissé ouvert, ce drapeau permettrait à n'importe
+  // quel utilisateur authentifié d'étouffer l'alerte expert sur son propre
+  // devis — exactement la garde qu'il ne faut pas pouvoir désactiver soi-même.
+  let silencieux = false;
   try {
     const body = await request.json().catch(() => ({}));
     forceRegen = body?.force === true;
+    if (body?.silencieux === true) {
+      const { data: roleData } = await supabase
+        .from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      silencieux = Boolean(roleData);
+      if (!silencieux) {
+        console.warn(`[conclusion] mode silencieux REFUSÉ — ${user.id.slice(0, 8)} n'est pas admin`);
+      }
+    }
   } catch { /* body vide ou non-JSON */ }
 
   if (!forceRegen && analysis.conclusion_ia) {
@@ -1307,7 +1334,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         engine_version: ENGINE_VERSION,
       };
 
-      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, foreignConclusion as unknown as Record<string, unknown>);
+      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, foreignConclusion as unknown as Record<string, unknown>, undefined, null, silencieux);
 
       return jsonOk({ conclusion: foreignConclusion, cached: false });
     }
@@ -1493,6 +1520,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         incompleteConclusion as unknown as Record<string, unknown>,
         undefined,
         totalTTCForReview,
+        silencieux,
       );
 
       return jsonOk({ conclusion: incompleteConclusion, cached: false });
@@ -1563,7 +1591,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         engine_version: ENGINE_VERSION,
       };
 
-      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, courtierConclusion as unknown as Record<string, unknown>);
+      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, courtierConclusion as unknown as Record<string, unknown>, undefined, null, silencieux);
 
       return jsonOk({ conclusion: courtierConclusion, cached: false });
     }
@@ -1619,7 +1647,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         generated_at: new Date().toISOString(),
         engine_version: ENGINE_VERSION,
       };
-      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, prestationConclusion as unknown as Record<string, unknown>);
+      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, prestationConclusion as unknown as Record<string, unknown>, undefined, null, silencieux);
       return jsonOk({ conclusion: prestationConclusion, cached: false });
     }
   } catch {
@@ -1696,7 +1724,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         engine_version: ENGINE_VERSION,
       };
 
-      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, horsScopeConclusion as unknown as Record<string, unknown>);
+      await persistConclusion(supabase, analysisId, analysis.file_name ?? null, horsScopeConclusion as unknown as Record<string, unknown>, undefined, null, silencieux);
 
       return jsonOk({ conclusion: horsScopeConclusion, cached: false });
     }
@@ -3580,6 +3608,8 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     analysis.file_name ?? null,
     conclusionData as unknown as Record<string, unknown>,
     rawPriceDataSnapshot,
+    null,
+    silencieux,
   );
 
   return jsonOk({ conclusion: conclusionData, cached: false });
