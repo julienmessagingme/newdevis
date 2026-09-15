@@ -303,6 +303,65 @@ export function montantVerifie(v: MaterielVerifie[]): number {
 }
 
 /**
+ * 2026-09-15 (demande Johan : « intègre dans le score ») — CHIFFRER CE QUI
+ * DÉPASSE LA MARGE D'USAGE.
+ *
+ * 🔴 L'ÉCART AU PRIX DISTRIBUTEUR N'EST PAS UN MONTANT NÉGOCIABLE. Un artisan
+ * qui facture +40 % gagne sa vie, il ne surfacture pas : sa marge EST sa
+ * remise d'achat. Compter cet écart comme un surcoût reviendrait à réclamer
+ * qu'il travaille gratuitement — et ce serait le « conseil intempestif »
+ * proscrit par le projet. On ne chiffre donc QUE ce qui dépasse l'usage
+ * mesuré du métier (+50 %).
+ *
+ * ⚠️ ET ON CALCULE SUR LE PRIX DISTRIBUTEUR LE PLUS HAUT, le plus favorable à
+ * l'artisan. Asymétrie délibérée : on SIGNALE au pire cas (l'écart affiché
+ * part du prix le plus bas) et on CHIFFRE au meilleur cas. Un doute produit un
+ * doute ; seul un dépassement incontestable produit un montant.
+ *
+ * Mesuré sur le stock : cette asymétrie annule 4 des 5 dépassements de la zone
+ * « mention » — c'est voulu. Ces devis restent signalés, sans chiffre.
+ */
+export const MARGE_USAGE = 1.5;
+
+/**
+ * En dessous de 300 €, on signale sans chiffrer — même plancher que le reste
+ * du moteur (`surcout.max >= 300`). Sans lui, un devis correct afficherait
+ * « 99 € à négocier », ce qui décrédibilise tout le reste.
+ */
+export const SEUIL_CHIFFRAGE_DEPASSEMENT = 300;
+
+/** Ce qu'un équipement facture au-delà de la marge d'usage. 0 s'il y reste. */
+export function depassementUsage(m: MaterielVerifie): number {
+  const plafond = m.marche_max_ht * MARGE_USAGE;
+  return Math.max(0, m.prix_unitaire_devis - plafond) * m.quantite;
+}
+
+export interface DepassementMateriel {
+  /** Montant HT au-delà de l'usage. 0 quand il n'atteint pas le plancher. */
+  montant: number;
+  /** Les postes qui le portent, du plus cher au moins cher. */
+  postes: Array<{ label: string; ecart: number }>;
+}
+
+/**
+ * Le montant négociable porté par le matériel, et les postes qui le portent.
+ *
+ * ⚠️ Rend `montant: 0` ET `postes: []` sous le plancher : la règle du projet
+ * est qu'un montant ne s'annonce jamais sans poste nommé, et réciproquement
+ * on ne nomme pas des postes pour un montant qu'on ne va pas afficher.
+ */
+export function chiffrerDepassementMateriel(v: MaterielVerifie[]): DepassementMateriel {
+  const postes = v
+    .map((m) => ({ label: objetDeLigne(m.ligne), ecart: Math.round(depassementUsage(m)) }))
+    .filter((p) => p.ecart > 0 && p.label.length > 0)
+    .sort((a, b) => b.ecart - a.ecart);
+
+  const montant = postes.reduce((s, p) => s + p.ecart, 0);
+  if (montant < SEUIL_CHIFFRAGE_DEPASSEMENT) return { montant: 0, postes: [] };
+  return { montant, postes };
+}
+
+/**
  * Clé de rapprochement d'une ligne de devis, pour savoir si elle est DÉJÀ
  * chiffrée par sa référence fabricant.
  *

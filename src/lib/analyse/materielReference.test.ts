@@ -19,6 +19,8 @@ import {
   rapprocherMateriel,
   montantVerifie,
   objetDeLigne,
+  depassementUsage,
+  chiffrerDepassementMateriel,
   SEUIL_MENTION_PCT,
   SEUIL_QUESTION_PCT,
   type PrixMateriel,
@@ -242,6 +244,67 @@ describe("montant vérifié", () => {
     );
     expect(r).toHaveLength(2);
     expect(montantVerifie(r)).toBe(1510 + 3500);
+  });
+});
+
+describe("chiffrer le dépassement — ce qui va dans le score", () => {
+  const mat = (p: Partial<import("./materielReference").MaterielVerifie>) => ({
+    ligne: "Unité X", reference: "REF", designation: "d", quantite: 1,
+    prix_unitaire_devis: 0, marche_min_ht: 100, marche_max_ht: 120,
+    ecart_min_pct: 0, ecart_max_pct: 0, zone: "normal" as const,
+    nb_sources: 2, releve_le: "2026-09-15", ...p,
+  });
+
+  it("🔴 ne chiffre PAS la marge normale de l'artisan", () => {
+    // Facturé 168 € = +40 % sur le prix max : c'est l'usage du métier, pas un
+    // surcoût. Le compter reviendrait à réclamer qu'il travaille gratuitement.
+    expect(depassementUsage(mat({ prix_unitaire_devis: 168, marche_max_ht: 120 }))).toBe(0);
+    // Pile au plafond d'usage (+50 %)
+    expect(depassementUsage(mat({ prix_unitaire_devis: 180, marche_max_ht: 120 }))).toBe(0);
+    // Au-delà : seul l'excédent compte, pas l'écart total
+    expect(depassementUsage(mat({ prix_unitaire_devis: 200, marche_max_ht: 120 }))).toBe(20);
+  });
+
+  it("🔴 chiffre sur le prix distributeur le PLUS HAUT (asymétrie voulue)", () => {
+    // Le cas réel CTXM15A : facturé 450 €, marché 291-308 €. Classé « mention »
+    // (+55 % sur le prix bas) mais 450 < 308 × 1,5 = 462 → AUCUN montant.
+    // On signale au pire cas, on chiffre au meilleur cas.
+    const m = mat({ prix_unitaire_devis: 450, marche_min_ht: 290.83, marche_max_ht: 307.5, zone: "mention" });
+    expect(depassementUsage(m)).toBe(0);
+  });
+
+  it("multiplie par la quantité", () => {
+    expect(depassementUsage(mat({ prix_unitaire_devis: 200, marche_max_ht: 120, quantite: 4 }))).toBe(80);
+  });
+
+  it("se tait sous le plancher de 300 € — montant ET postes", () => {
+    // Le cas réel VOLTELEC : 88 € + 11 € = 99 €. « 99 € à négocier » sur un
+    // devis de 16 485 € décrédibiliserait tout le reste.
+    const r = chiffrerDepassementMateriel([
+      mat({ ligne: "Groupe 2 sorties", prix_unitaire_devis: 2650, marche_max_ht: 1708.25, zone: "mention" }),
+      mat({ ligne: "Mural FTXM20", prix_unitaire_devis: 510, marche_max_ht: 332.5, zone: "question" }),
+    ]);
+    expect(r.montant).toBe(0);
+    expect(r.postes).toEqual([]); // jamais de poste nommé sans montant affiché
+  });
+
+  it("chiffre et NOMME au-dessus du plancher, du plus cher au moins cher", () => {
+    // Le cas réel DE2090 : quatre équipements au-dessus de l'usage.
+    const r = chiffrerDepassementMateriel([
+      mat({ ligne: "Mural MSZ-AY15VGK Très haute performance", prix_unitaire_devis: 750, marche_max_ht: 334, quantite: 4, zone: "question" }),
+      mat({ ligne: "Groupe extérieur MXZ-3F68VF", prix_unitaire_devis: 3650, marche_max_ht: 1980.28, zone: "question" }),
+    ]);
+    expect(r.montant).toBeGreaterThan(1000);
+    expect(r.postes).toHaveLength(2);
+    expect(r.postes[0].ecart).toBeGreaterThanOrEqual(r.postes[1].ecart);
+    // Le libellé est tronqué à son objet, pas à la fiche technique
+    expect(r.postes.some((p) => p.label.includes("MSZ-AY15VGK"))).toBe(true);
+    expect(r.postes.every((p) => !/Très haute performance/.test(p.label))).toBe(true);
+  });
+
+  it("aucun équipement hors usage → rien", () => {
+    const r = chiffrerDepassementMateriel([mat({ prix_unitaire_devis: 150, marche_max_ht: 120 })]);
+    expect(r).toEqual({ montant: 0, postes: [] });
   });
 });
 

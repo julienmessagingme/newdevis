@@ -422,6 +422,7 @@ import { diagnostiquerQuantites } from "@/lib/analyse/surfaceManquante";
 import { estGrosOeuvre, motifGrosOeuvre, type LigneTravaux } from "@/lib/analyse/grosOeuvre";
 import {
   rapprocherMateriel,
+  chiffrerDepassementMateriel,
   clesLignesMateriel,
   ligneCouverteParMateriel,
   objetDeLigne,
@@ -2817,7 +2818,42 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
 
     // Surcoût global — source de vérité : calcul serveur (miroir de quoteGlobalAnalysis.ts)
     // Le calcul serveur est plus fiable que Gemini qui confond prix unitaires et totaux.
-    const serverSurcout = computeServerSurcout(priceData);
+    const serverSurcoutCatalogue = computeServerSurcout(priceData);
+
+    // ── 2026-09-15 (demande Johan) — LE MATÉRIEL ENTRE DANS LE SCORE ─────────
+    // « Intègre dans le score : un équipement à plus de 50 % est signalé. »
+    //
+    // 🔴 ON NE CHIFFRE PAS L'ÉCART AU PRIX DISTRIBUTEUR, SEULEMENT CE QUI
+    // DÉPASSE LA MARGE D'USAGE (+50 %, mesurée sur 19 références). Un artisan
+    // qui facture +40 % gagne sa vie, il ne surfacture pas : sa marge EST sa
+    // remise d'achat. Compter cet écart comme un surcoût reviendrait à lui
+    // demander de travailler gratuitement — le « conseil intempestif » que ce
+    // projet proscrit.
+    //
+    // ⚠️ Aucun double comptage possible : les lignes rapprochées par référence
+    // ont été retirées de `priceData` en amont (elles ne sont pas dans
+    // `serverSurcoutCatalogue`).
+    //
+    // ⚠️ Mesuré avant livraison : sur le stock, AUCUN verdict n'est escaladé
+    // aujourd'hui (les deux devis porteurs sont déjà en « à négocier » ou
+    // « ne pas signer », et le devis d'origine ne dépasse que de 99 € — sous
+    // le plancher). Ce qui change réellement est le levier NOMMÉ et le montant
+    // sur les devis à venir, pas une bascule de pastille sur le stock.
+    const depassementMateriel = chiffrerDepassementMateriel(materielVerifie);
+    const serverSurcout = depassementMateriel.montant > 0
+      ? {
+          min: serverSurcoutCatalogue.min + depassementMateriel.montant,
+          max: serverSurcoutCatalogue.max + depassementMateriel.montant,
+          postes: [...serverSurcoutCatalogue.postes, ...depassementMateriel.postes]
+            .sort((a, b) => b.ecart - a.ecart),
+        }
+      : serverSurcoutCatalogue;
+    if (depassementMateriel.montant > 0) {
+      console.log(
+        `[conclusion] matériel au-dessus de l'usage : ${depassementMateriel.montant} € sur ` +
+        depassementMateriel.postes.map((p) => `${p.label} (${p.ecart} €)`).join(", "),
+      );
+    }
 
     // ──────────────────────────────────────────────────────────────────────
     // 2026-09-05 (cas EC'eau, climatisation 12 666 € HT) — QUAND RIEN N'EST
@@ -3399,11 +3435,26 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           // produit « Prestation de conseil et d'étude technique » à 300 €
           // (cf. la garde `aucuneLigneTravaux` plus haut).
           if (aucuneLigneTravaux) return [];
+          // 🔴 2026-09-15 — LES POSTES MATÉRIEL PASSENT TOUJOURS, ET EN PREMIER.
+          // Leur montant est entré dans `serverSurcout` ; s'ils n'étaient pas
+          // nommés ici, on afficherait un montant qu'aucun poste de la liste ne
+          // porte — la fuite exacte de l'invariant « aucun montant sans poste
+          // nommé » (05/09). Le cas se produit dès que Gemini a nommé au moins
+          // une anomalie : l'ancienne branche retournait alors SES postes et
+          // ignorait les nôtres. Et les nôtres sont les plus sûrs : ils
+          // viennent d'une correspondance littérale sur une référence exacte,
+          // pas d'un jugement de modèle.
+          const nommesMateriel = depassementMateriel.postes.map((p) => p.label);
           const nommesParIA = sanitizedAnomalies
             .map((a) => a.poste)
             .filter((p): p is string => Boolean(p));
-          if (nommesParIA.length > 0) return nommesParIA;
-          return serverSurcout.postes.slice(0, 3).map((p) => p.label);
+          const autres = nommesParIA.length > 0
+            ? nommesParIA
+            : serverSurcout.postes
+                .filter((p) => !nommesMateriel.includes(p.label))
+                .slice(0, 3)
+                .map((p) => p.label);
+          return [...new Set([...nommesMateriel, ...autres])];
         })(),
         quantites_manquantes: Boolean(unitsMissingEffective),
         clauses_litigieuses: clausesRaw,

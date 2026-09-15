@@ -53,6 +53,16 @@ Et les petits postes non vérifiables sont regroupés ([`petitsPostes.ts`](src/l
 - ⚠️ **On ne masque pas, on regroupe** : le nombre et le montant total restent affichés, sinon le lecteur perdrait la trace d'une part réelle de son devis (2 705 € sur ce devis).
 - ⚠️ **Le regroupement ne touche QUE les postes non vérifiables.** Un poste dont on connaît le prix se montre toujours, quel que soit son montant — le regrouper reviendrait à cacher ce qu'on sait faire.
 
+### ✅ Le matériel entre dans le score (2026-09-15)
+
+Demande Johan : « intègre dans le score — un équipement à plus de 50 % est signalé ». Le dépassement rejoint `serverSurcout` et `anomalies_postes`, donc la marge affichée, les leviers et l'escalade de verdict par les mécanismes existants.
+
+- 🔴 **On ne chiffre PAS l'écart au prix distributeur**, seulement ce qui dépasse la **marge d'usage (+50 %)**. Un artisan à +40 % gagne sa vie ; lui opposer cet écart reviendrait à lui demander de travailler gratuitement.
+- ⚠️ **Asymétrie voulue** : on signale au pire cas (écart calculé sur le prix le plus bas), on chiffre au meilleur cas (prix le plus haut). Elle annule **4 des 5 dépassements de la zone « mention »** — ces devis restent signalés, sans chiffre.
+- ⚠️ **Plancher 300 €** : sans lui VOLTELEC afficherait « 99 € à négocier » sur 16 485 €. Sous le plancher, montant **et** postes sont vides — on ne nomme pas des postes pour un montant qu'on n'affichera pas.
+- 🔴 **Les postes matériel sont nommés EN PREMIER**, y compris quand Gemini a nommé les siens : sinon le montant entrait dans le surcoût sans qu'aucun poste de la liste ne le porte (fuite de l'invariant du 05/09).
+- **Mesuré sur les 8 devis concernés** : 2 reçoivent un surcoût nommé (2 195 € et 2 223 €, ~13,5 % du devis), 2 sont signalés sans chiffre, 4 ne le sont pas. **Aucun verdict escaladé sur le stock** — les deux porteurs sont déjà « à négocier » ou « ne pas signer ». L'effet porte sur les analyses à venir.
+
 ### 🟠 Suite naturelle, non faite
 
 Un équipement en zone **question** (> +70 %) devrait devenir un **levier de négociation** à part entière (`LeviersNegociation`), et non rester cantonné au bloc matériel. Aujourd'hui il est signalé, mais il n'entre ni dans le surcoût chiffré ni dans les leviers — le verdict global l'ignore. C'est la brique qui manque pour le « tu peux signer, mais négocie ça » de bout en bout.
