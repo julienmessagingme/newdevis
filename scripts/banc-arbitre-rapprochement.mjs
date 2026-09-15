@@ -50,7 +50,11 @@ const supa = createClient(lire("PUBLIC_SUPABASE_URL"), lire("SUPABASE_SERVICE_RO
   auth: { persistSession: false },
 });
 const KEY = lire("GOOGLE_API_KEY");
-const MODELE = "gemini-2.5-pro";
+// ⚠️ Le modèle fait partie du protocole : changer de modèle PÉRIME le témoin.
+// `--modele=gemini-2.5-flash` sert à comparer, jamais à « optimiser » sans
+// repasser le témoin (flash est 2,5× plus rapide et 8× moins cher — raison de
+// plus pour vérifier qu'il juge aussi bien avant de s'en servir).
+const MODELE = process.argv.find((a) => a.startsWith("--modele="))?.split("=")[1] ?? "gemini-2.5-pro";
 const TEMOIN_SEUL = process.argv.includes("--temoin-seul");
 
 const CACHE = path.join(
@@ -98,9 +102,12 @@ const grainePour = (cle) => {
  * Soumet une ligne et ses candidats à l'arbitre.
  * Retourne le RANG VECTORIEL choisi (1-5), 0 (aucun) ou -1 (injugeable).
  */
-async function arbitrer(cle, ligne, contexte, candidats) {
+async function arbitrer(cleBrute, ligne, contexte, candidats) {
+  // 🔴 Le cache est CLOISONNÉ PAR MODÈLE : sans ça, mesurer flash relirait les
+  // jugements de pro et rendrait un verdict identique par construction.
+  const cle = `${MODELE}|${cleBrute}`;
   if (cache[cle]) return cache[cle];
-  const ordre = melange(candidats.map((c, i) => ({ ...c, rangVectoriel: i + 1 })), grainePour(cle));
+  const ordre = melange(candidats.map((c, i) => ({ ...c, rangVectoriel: i + 1 })), grainePour(cleBrute));
   const prompt = `${CONSIGNE}\n\nLIGNE DE DEVIS : ${ligne}\nContexte : ${contexte || "non précisé"}\n\nPOSTES PROPOSÉS :\n` +
     ordre.map((o, i) => `${i + 1}. ${o.label}`).join("\n");
 

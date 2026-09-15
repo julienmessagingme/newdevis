@@ -58,6 +58,27 @@ export interface ConclusionData {
    */
   comparison_indicative?: boolean;
   /**
+   * 2026-09-15 — avis de l'ARBITRE DU RAPPROCHEMENT (`arbitreRapprochement.ts`).
+   * Une IA relit, poste par poste, si l'entrée catalogue opposée décrit bien la
+   * même prestation que la ligne de devis. Ses contestations MATÉRIELLES (celles
+   * qui changeraient le montant) routent l'analyse en `pending_review`.
+   * ⚠️ Présent même quand il ne conteste rien : « il a regardé et n'a rien
+   * trouvé » et « il n'a pas tourné » ne doivent jamais être confondus.
+   */
+  arbitrage_rapprochement?: {
+    modele: string;
+    postes_juges: number;
+    conteste: Array<{
+      label: string; ligne: string; choix: number; raison: string;
+      propose: string | null; proposeJobType: string | null; ecart: number;
+    }>;
+    /** Somme des écarts contestés — c'est elle qui décide du routage en revue. */
+    ecart_conteste: number;
+    sans_effet: number;
+    echecs: number;
+    duree_ms: number;
+  };
+  /**
    * 2026-09-06 — postes qu'aucun tarif de référence ne couvre, NOMMÉS (3 max,
    * les plus gros d'abord). Avant, la page écrivait « certaines prestations
    * sont trop spécifiques » sans jamais dire lesquelles, alors que le moteur

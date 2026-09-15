@@ -288,6 +288,35 @@ function ReviewDetail({
         </div>
       )}
 
+      {/* 2026-09-15 — Ce que l'ARBITRE DU RAPPROCHEMENT conteste.
+          Il ne juge pas le verdict : il dit si l'entrée catalogue opposée décrit
+          bien la même prestation que la ligne. C'est souvent LE motif de la mise
+          en revue — sans ce bloc, l'expert devrait le deviner. */}
+      {Array.isArray(c.arbitrage_rapprochement?.conteste) && c.arbitrage_rapprochement.conteste.length > 0 && (
+        <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded">
+          <p className="text-xs font-semibold text-amber-900 mb-2">
+            🔍 L'arbitre conteste {c.arbitrage_rapprochement.conteste.length} référence
+            {c.arbitrage_rapprochement.conteste.length > 1 ? "s" : ""} de prix
+          </p>
+          <ul className="space-y-2">
+            {c.arbitrage_rapprochement.conteste.map((a, i) => (
+              <li key={i} className="text-xs text-amber-900">
+                <p className="font-medium">
+                  {Math.round(a.ecart).toLocaleString("fr-FR")} € annoncés sur « {a.label} »
+                </p>
+                <p className="text-amber-800/90">Ligne du devis : {a.ligne}</p>
+                <p className="text-amber-800/90">
+                  → {a.propose ? `plutôt « ${a.propose} »` : "aucune entrée du catalogue ne convient"} — {a.raison}
+                </p>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-amber-800/70 mt-2">
+            Mesuré : il conteste 10 des 11 références fausses, et 5 des 19 justes. C'est vous qui tranchez.
+          </p>
+        </div>
+      )}
+
       {/* Lecture IA */}
       <div className="mb-6 space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -306,7 +335,12 @@ function ReviewDetail({
             <p className="text-xs text-muted-foreground mb-1">Surcout estimé</p>
             <p className="text-sm font-medium">
               {c.surcout_global
-                ? `${Math.round(c.surcout_global.min ?? 0).toLocaleString("fr-FR")} – ${Math.round(c.surcout_global.max ?? 0).toLocaleString("fr-FR")} €`
+                // 2026-09-15 — depuis le retrait du coefficient ×1,3 les deux bornes
+                // sont identiques : « 1 079 – 1 079 € » se lit comme une fourchette
+                // qui n'existe plus. La branche fourchette reste pour le stock ancien.
+                ? (Math.round(c.surcout_global.min ?? 0) === Math.round(c.surcout_global.max ?? 0)
+                    ? `${Math.round(c.surcout_global.max ?? 0).toLocaleString("fr-FR")} €`
+                    : `${Math.round(c.surcout_global.min ?? 0).toLocaleString("fr-FR")} – ${Math.round(c.surcout_global.max ?? 0).toLocaleString("fr-FR")} €`)
                 : "—"}
             </p>
           </div>

@@ -108,6 +108,20 @@ export const GET: APIRoute = async ({ request, params }) => {
         review_triggers.push(`ratio_aberrant=${worstRatio.toFixed(1)}× ("${worstLabel}")`);
       }
     }
+
+    // 2026-09-15 — l'arbitre du rapprochement. Contrairement aux autres
+    // déclencheurs, celui-ci n'est PAS deviné rétroactivement : il est écrit
+    // dans la conclusion au moment de l'analyse, donc c'est le vrai motif.
+    const arb = (conclusion as Record<string, unknown>).arbitrage_rapprochement as
+      { conteste?: unknown[]; ecart_conteste?: number } | undefined;
+    if (Array.isArray(arb?.conteste) && arb.conteste.length > 0) {
+      // ⚠️ Même libellé que `detectReviewTriggers` (montant compris) : deux
+      // formulations pour le même déclencheur finiraient par diverger, et
+      // l'expert ne saurait plus si l'écran lui dit la même chose que le moteur.
+      review_triggers.push(
+        `arbitre_conteste=${arb.conteste.length} référence(s) · ${Math.round(Number(arb.ecart_conteste ?? 0))} €`,
+      );
+    }
   }
 
   // Fetch corrections antérieures (s'il y en a — utile si on re-revoit après update IA)

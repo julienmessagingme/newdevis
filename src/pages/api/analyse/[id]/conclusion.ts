@@ -81,6 +81,10 @@ const ENGINE_VERSION = "1.3.0-refonte";
 const REVIEW_EMAIL_TO = ["bridey.johan@gmail.com", "julien@messagingme.fr"];
 const REVIEW_SURCOUT_THRESHOLD = 2000;
 const REVIEW_MIN_ANOMALIES = 2;
+// 2026-09-15 — montant contesté minimal pour déranger un humain. Aligné sur le
+// plancher d'affichage d'un montant : sous 300 €, la page n'annonce rien, donc
+// il n'y a rien à corriger.
+const ARBITRE_ECART_MIN = 300;
 
 // 🟢 REFONTE 2026-06-23 Phase 0.1 — trigger ratio aberrant
 // Cause : devis ALES (analyse d3b3f014) — un groupe "WC fourni+posé" affiché
@@ -213,6 +217,27 @@ function detectReviewTriggers(
     if (worstRatio > REVIEW_RATIO_THRESHOLD) {
       reasons.push(`ratio_aberrant=${worstRatio.toFixed(1)}× ("${worstLabel}")`);
     }
+  }
+
+  // 🟢 2026-09-15 — L'ARBITRE CONTESTE UNE RÉFÉRENCE QUI PORTE UN MONTANT.
+  // C'est le seul déclencheur qui ne regarde ni le verdict ni un seuil, mais la
+  // PERTINENCE de la comparaison. Mesuré : ~2,5 analyses/mois, et ce qu'il
+  // attrape est vérifié (déposes sans entrée, fourniture seule opposée à du
+  // fourni+posé, tarifs de main-d'œuvre face à une ligne fournie).
+  // ⚠️ Seules les contestations MATÉRIELLES sont ici — celles qui changent le
+  // montant. Les quasi-doublons de catalogue sont comptés dans `sans_effet` et
+  // ne réveillent personne.
+  // ⚠️ C'est le MONTANT contesté qui décide, pas le nombre de contestations.
+  // Vu en vérifiant en conditions réelles : sur un devis où l'arbitre contestait
+  // deux postes, le second ne pesait que 65 € — réveiller un humain pour ça, et
+  // le faire assez souvent, c'est garantir que la file finisse par n'être plus
+  // lue. Le plancher est celui de l'affichage d'un montant (300 €).
+  const arb = conclusion.arbitrage_rapprochement as
+    { conteste?: unknown[]; ecart_conteste?: number } | undefined;
+  const contestees = Array.isArray(arb?.conteste) ? arb.conteste.length : 0;
+  const ecartConteste = Number(arb?.ecart_conteste ?? 0) || 0;
+  if (contestees > 0 && ecartConteste >= ARBITRE_ECART_MIN) {
+    reasons.push(`arbitre_conteste=${contestees} référence(s) · ${Math.round(ecartConteste)} €`);
   }
 
   return { reasons, shouldReview: reasons.length > 0 };
@@ -452,6 +477,9 @@ import {
   extractKnownSurface, FORFAIT_UNIT_KEYWORDS, SURFACE_WORK_KEYWORDS, UNIT_LIKE,
 } from "@/lib/analyse/surcoutServeur";
 import { relireVerdict } from "@/lib/analyse/relectureVerdict";
+import {
+  postesAArbitrer, arbitrerRapprochements, type ResultatArbitrage,
+} from "@/lib/analyse/arbitreRapprochement";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -2723,6 +2751,53 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       );
     }
 
+    // ── ARBITRE DU RAPPROCHEMENT (2026-09-15, décision Johan) ────────────────
+    // Une IA relit UNE question vérifiable — « cette entrée catalogue décrit-elle
+    // la même prestation que cette ligne ? » — et, si elle conteste une référence
+    // qui porte un montant, l'analyse part en relecture humaine. Elle ne
+    // supprime jamais un prix : elle conteste 26 % des références justes, et
+    // c'est l'humain qui tranche. Détail et mesures : `arbitreRapprochement.ts`.
+    //
+    // 🔴 SYNCHRONE À DESSEIN, ET C'EST UN CHANGEMENT PAR RAPPORT AU PLAN.
+    // En asynchrone (cron 10 min), l'utilisateur LIT la fausse accusation avant
+    // qu'elle ne soit retirée — la promesse « aucune accusation fausse ne part
+    // chez l'utilisateur » n'était pas tenue.
+    // ⚠️ COÛT MESURÉ EN CONDITIONS RÉELLES : **8 à 12 s** ajoutées, et non les
+    // ~5 s qu'un appel isolé laissait espérer (4,7 s) — des appels parallèles
+    // vers le même point d'entrée ne se superposent pas parfaitement. Cela ne
+    // concerne que les ~18 % d'analyses portant un poste chiffré, sur une route
+    // dont le budget est de 90 s et qui tourne en 34 s dans le cas vérifié.
+    //
+    // ⚠️ BEST-EFFORT ABSOLU : aucune panne de l'arbitre ne doit empêcher une
+    // analyse d'aboutir. Sans lui, on retombe exactement sur le comportement
+    // d'avant — le prix s'affiche.
+    let arbitrage: ResultatArbitrage | null = null;
+    try {
+      const postes = postesAArbitrer(priceDataPourSurcout as unknown[], totalHT);
+      if (postes.length > 0) {
+        // ⚠️ `process.env` d'abord : un secret lu via `import.meta.env` est inliné
+        // AU BUILD et devient `undefined` s'il manque à l'environnement de build,
+        // ce qui supprimerait silencieusement tout ce bloc (règle du 08/09).
+        const cleArbitre = process.env.GOOGLE_API_KEY || googleApiKey;
+        arbitrage = await arbitrerRapprochements(postes, cleArbitre, async (jobTypes) => {
+          const { data } = await supabase
+            .from("market_prices")
+            .select("job_type, price_max_unit_ht, fixed_max_ht")
+            .in("job_type", jobTypes);
+          return new Map((data ?? []).map((t: Record<string, unknown>) => [String(t.job_type), t]));
+        });
+        console.log(
+          `[conclusion] arbitre — ${arbitrage.postes_juges} poste(s) jugé(s) en ${arbitrage.duree_ms} ms : ` +
+          `${arbitrage.conteste.length} contestation(s) matérielle(s), ${arbitrage.sans_effet} sans effet, ${arbitrage.echecs} échec(s)`,
+        );
+        for (const c of arbitrage.conteste) {
+          console.warn(`[conclusion] arbitre CONTESTE « ${c.label} » (${c.ecart} €) → ${c.propose ?? "aucune entrée"} — ${c.raison}`);
+        }
+      }
+    } catch (e) {
+      console.warn("[conclusion] arbitre indisponible :", e instanceof Error ? e.message : e);
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     // 2026-09-05 (cas EC'eau, climatisation 12 666 € HT) — QUAND RIEN N'EST
     // COMPARABLE, LE SURCOÛT EST NUL. PAS « celui de Gemini ».
@@ -3261,6 +3336,13 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       verdict_reasons,
       ...(market_context_note     ? { market_context_note } : {}),
       ...(comparisonIndicative    ? { comparison_indicative: true } : {}),
+      // 2026-09-15 — l'avis de l'arbitre voyage AVEC la conclusion : c'est lui
+      // que `detectReviewTriggers` lit pour router en revue, et que l'écran
+      // d'admin affiche pour dire à l'expert POURQUOI on l'a sollicité.
+      // ⚠️ Enregistré même quand il ne conteste rien : « l'arbitre a regardé et
+      // n'a rien trouvé » est une information, « l'arbitre n'a pas tourné » en
+      // est une autre, et les confondre rendrait toute mesure impossible.
+      ...(arbitrage ? { arbitrage_rapprochement: arbitrage } : {}),
       // 2026-09-06 — les postes qu'aucun tarif de référence ne couvre, NOMMÉS.
       // 3 au plus, les plus gros d'abord : au-delà la phrase devient une liste
       // illisible et perd son intérêt.

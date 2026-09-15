@@ -26,18 +26,27 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 **Effet mesuré sur le stock (180 documents dédupliqués)** : 58 devis affichaient un écart → **49** ; montant total annoncé **253 149 € → 136 396 € (−46 %)**. Le seuil de mise en revue (2 000 €) passe de 26 à 20 devis.
 
-### 🔴 EN ATTENTE DE DÉCISION JOHAN — l'arbitre IA sur le rapprochement
+### ✅ Arbitre du rapprochement — EN PRODUCTION le 2026-09-15 (décision Johan)
 
-Mesure livrée le 2026-09-15 ([`banc-arbitre-rapprochement.mjs`](scripts/banc-arbitre-rapprochement.mjs)). **Le chiffre attendu : ~2,5 analyses/mois à relire en plus** (16 sur 180 dans le stock, 9 %).
+Une IA relit *« cette entrée catalogue décrit-elle la même prestation que cette ligne ? »* et route vers la relecture humaine quand elle conteste une référence qui porte un montant. Détail et mesures : `CLAUDE.md`.
 
-**Ce qui est tranché par la mesure, et n'a pas à être rediscuté** :
-- ❌ **IA en portier du verdict** — fermée le 30/08 (« corriger » sur 15 des 16 témoins).
-- ❌ **IA qui SUPPRIME un prix contesté** — coûterait 21 à 24 % des bons prix.
-- ✅ **IA qui ROUTE vers la relecture humaine** — volume mesuré, qualité vérifiée cas par cas.
+| | |
+|---|---|
+| Module | [`arbitreRapprochement.ts`](src/lib/analyse/arbitreRapprochement.ts) — 26 tests |
+| Modèle | `gemini-2.5-flash` (témoin repassé avec les deux modèles) |
+| Mode | **synchrone** dans `conclusion.ts`, best-effort — 8 à 12 s sur ~18 % des analyses |
+| Volume attendu | **~2,5 analyses/mois** de relecture en plus (17 sur 180 dans le stock) |
+| Coût | ~0,008 €/analyse |
 
-**Ce qui reste à décider (Johan)** : est-ce que 2,5 analyses/mois de relecture supplémentaire valent la suppression des fausses accusations que l'arbitre attrape ? Coût technique : ~0,008 €/analyse, hors chemin critique (asynchrone, aucun impact sur le temps d'affichage).
+**Ce qui est tranché par la mesure, à ne pas rediscuter** : IA en portier du verdict = fermée (30/08) ; IA qui SUPPRIME un prix contesté = coûterait un quart des bons prix.
 
-⚠️ **Ordre des chantiers** : décider CECI avant de régénérer le stock, sinon deux vagues de file de revue au lieu d'une.
+**À surveiller les premières semaines** : le volume réel de la file. S'il dépasse nettement 2,5/mois, le levier est `ARBITRE_ECART_MIN` (300 €), pas le modèle.
+
+### 🟠 Régénération du stock — à lancer
+
+**58 devis portent encore un montant majoré de 30 %** ; le bump `ENGINE_VERSION` ne les corrige qu'à la visite. La régénération de masse passe par le chemin NORMAL (sans `force`), qui protège les conclusions `corrected`.
+
+⚠️ Elle fera monter la file `pending_review` d'un coup — c'est le but, et c'est pour ça qu'elle vient APRÈS l'arbitre et pas avant.
 
 ### 🟠 Ce qui reste
 
