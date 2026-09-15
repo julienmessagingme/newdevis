@@ -42,6 +42,17 @@ La règle des deux sources ne bouge pas — c'est le sourcing qu'il fallait fini
 
 ⚠️ **Leçon** : une règle juste peut produire un mauvais résultat perçu. Le lecteur ne peut pas comprendre qu'on sache chiffrer un FTXM42 et pas un FTXM20 de la même gamme — l'incohérence décrédibilise les DEUX blocs à la fois. Avant d'ouvrir un vertical, vérifier qu'une GAMME entière est couverte, pas seulement les références les plus fréquentes.
 
+### ✅ Un seul espace pour une seule question (2026-09-15, retour Johan)
+
+« Il ne faut pas créer 2 espaces alors qu'on répond à la même question. » Le bloc matériel était une section autonome au-dessus du détail des postes : deux endroits pour répondre au prix d'un poste, donc un arbitrage laissé au lecteur. **Il vit désormais DANS l'analyse des postes**, en tête de liste — d'abord ce qu'on sait le mieux (correspondance littérale), ensuite le catalogue, enfin ce qu'on ne sait pas.
+
+Et les petits postes non vérifiables sont regroupés ([`petitsPostes.ts`](src/lib/analyse/petitsPostes.ts), 7 tests) : le détail alignait jusqu'à **dix cartes « Prix non vérifiable » d'affilée** sur des accessoires à 65-500 €.
+
+- **Mesuré sur VOLTELEC : 20 cartes → 11 cartes + 1 ligne de synthèse.**
+- ⚠️ **Le seuil est RELATIF (5 % du devis), jamais absolu** : 500 € est un accessoire à 16 485 € et un poste central à 3 000 €. Même raisonnement que le « fait marquant » de l'observatoire.
+- ⚠️ **On ne masque pas, on regroupe** : le nombre et le montant total restent affichés, sinon le lecteur perdrait la trace d'une part réelle de son devis (2 705 € sur ce devis).
+- ⚠️ **Le regroupement ne touche QUE les postes non vérifiables.** Un poste dont on connaît le prix se montre toujours, quel que soit son montant — le regrouper reviendrait à cacher ce qu'on sait faire.
+
 ### 🟠 Suite naturelle, non faite
 
 Un équipement en zone **question** (> +70 %) devrait devenir un **levier de négociation** à part entière (`LeviersNegociation`), et non rester cantonné au bloc matériel. Aujourd'hui il est signalé, mais il n'entre ni dans le surcoût chiffré ni dans les leviers — le verdict global l'ignore. C'est la brique qui manque pour le « tu peux signer, mais négocie ça » de bout en bout.

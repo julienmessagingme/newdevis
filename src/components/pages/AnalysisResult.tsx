@@ -58,8 +58,6 @@ import {
   MultiDevisBlock,
 } from "@/components/analysis";
 import type { DevisSegment } from "@/components/analysis/MultiDevisBlock";
-// 2026-09-15 — matériel chiffré par sa référence fabricant (vertical clim).
-import MaterielVerifie from "@/components/analysis/MaterielVerifie";
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 // V3.4.23 (2026-05-21) — Simplification UI : 2 blocs retirés pour ne garder que
 // le cœur du verdict (ConclusionIA + Entreprise + Postes collapsé). Imports
@@ -1630,20 +1628,14 @@ const AnalysisResult = () => {
             Le user voit uniquement la bannière "demandez détail" dans
             ConclusionIA.
         ══════════════════════════════════════════════════════ */}
-        {/* ══════════════════════════════════════════════════════
-            MATÉRIEL CHIFFRÉ PAR SA RÉFÉRENCE FABRICANT (2026-09-15)
-            Placé AVANT le détail poste par poste : c'est le chiffrage le plus
-            précis dont nous disposons sur ce devis, et les lignes concernées
-            sont retirées du bloc suivant pour ne pas afficher deux
-            fourchettes contradictoires.
-        ══════════════════════════════════════════════════════ */}
-        {materielVerifie.length > 0 && !isHorsScopeBtp && !isIncompleteQuote && (
-          <MaterielVerifie materiel={materielVerifie} />
-        )}
-
+        {/* 2026-09-15 (retour Johan) — le matériel chiffré par sa référence
+            fabricant est rendu DANS l'analyse des postes, en tête de liste.
+            Une première version en faisait un bloc séparé au-dessus : « il ne
+            faut pas créer 2 espaces alors qu'on répond à la même question ».
+            Le prix d'un poste est UNE question. */}
         {visibleBlocks.includes("prix_marche") && !isHorsScopeBtp && !isIncompleteQuote && (
           <BlockPrixMarche
-            lignesMateriel={materielVerifie.map((m) => m.ligne)}
+            materiel={materielVerifie}
             montantTotalHT={totalHT}
             codePostal={locationInfo.codePostal}
             selectedWorkType={analysis.work_type}

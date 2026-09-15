@@ -10,6 +10,8 @@ import { GlobalAnalysisCard } from "./GlobalAnalysisCard";
 import { analyzeQuoteGlobal, classifyRow } from "@/lib/analyse/quoteGlobalAnalysis";
 import { referenceOpposable } from "@/lib/analyse/referenceOpposable";
 import { cleLigneDevis, ligneCouverteParMateriel } from "@/lib/analyse/materielReference";
+import { separerPetitsPostes } from "@/lib/analyse/petitsPostes";
+import { CarteMateriel, IntroMateriel, NoteSourcesMateriel, type Materiel } from "./MaterielVerifie";
 // V3.5.14 (2026-06-13) — VectorialPriceList retiré du rendu : wording
 // "Match plausible / incertain" remplacé par les verdicts prix classiques
 // gérés par AnalysisCard ("Dans la norme / Au-delà / En-deçà du marché").
@@ -42,18 +44,24 @@ interface BlockPrixMarcheProps {
    */
   onGlobalAnalysisReady?: (anomalyCount: number, survalueCount: number) => void;
   /**
-   * 2026-09-15 — Les lignes déjà chiffrées par leur RÉFÉRENCE FABRICANT
-   * (`conclusion.materiel_verifie`). Elles sont retirées d'ici, verdict global
-   * compris.
+   * 2026-09-15 — Les équipements chiffrés par leur RÉFÉRENCE FABRICANT
+   * (`conclusion.materiel_verifie`). Ils sont rendus EN TÊTE de la liste des
+   * postes, et leurs lignes sont retirées du rapprochement catalogue, verdict
+   * global compris.
    *
-   * 🔴 SANS CE FILTRE, LA PAGE SE CONTREDIT. Mesuré sur le stock : le
-   * catalogue rapproche ces lignes sur « Climatisation mono-split ·
+   * 🔴 ILS VIVENT ICI, PAS DANS UN BLOC À PART. Première version : une section
+   * autonome au-dessus. Retour de Johan en voyant la page — « il ne faut pas
+   * créer 2 espaces alors qu'on répond à la même question ». Le prix d'un
+   * poste est UNE question ; deux endroits pour y répondre obligent le lecteur
+   * à arbitrer lui-même entre deux réponses.
+   *
+   * 🔴 ET SANS LE FILTRE, LA PAGE SE CONTREDIT. Mesuré sur le stock : le
+   * catalogue rapproche ces mêmes lignes sur « Climatisation mono-split ·
    * 900-2 800 € » — une unité intérieure seule comparée à une installation
    * complète. Une unité facturée 647 € y ressort BON MARCHÉ quand sa
-   * référence exacte la situe à +94 %. C'est exactement le défaut du
-   * 2026-09-10 : « soit on connaît les prix, soit on ne les connaît pas. »
+   * référence exacte la situe à +94 %.
    */
-  lignesMateriel?: string[];
+  materiel?: Materiel[];
 }
 
 // =======================
@@ -669,7 +677,7 @@ const BlockPrixMarche = ({
   convertToPermanent,
   currentUserId,
   onGlobalAnalysisReady,
-  lignesMateriel,
+  materiel,
 }: BlockPrixMarcheProps) => {
   const [isBlockOpen, setIsBlockOpen] = useState(defaultOpen);
   const { error, rows, isNewFormat } = useMarketPriceAPI({ cachedN8NData });
@@ -685,14 +693,14 @@ const BlockPrixMarche = ({
   // répartition compterait ces postes « prix correct » d'après une fourchette
   // de 900-2 800 € pendant que le bloc matériel annonce +94 %.
   const rowsAffichees = useMemo(() => {
-    if (!lignesMateriel || lignesMateriel.length === 0) return editor.rows;
-    const cles = new Set(lignesMateriel.map(cleLigneDevis));
+    if (!materiel || materiel.length === 0) return editor.rows;
+    const cles = new Set(materiel.map((m) => cleLigneDevis(m.ligne.replace(/…$/, ""))));
     return editor.rows.filter(
       (row) => !(row.devisLines ?? []).some((dl) =>
         ligneCouverteParMateriel(String(dl?.description ?? ""), cles),
       ),
     );
-  }, [editor.rows, lignesMateriel]);
+  }, [editor.rows, materiel]);
 
   // Synthèse globale — calculée au niveau du composant (respect des règles des hooks)
   const globalAnalysis = useMemo(
@@ -752,6 +760,26 @@ const BlockPrixMarche = ({
         (row) => row.devisLines.length > 0 && row.jobTypeLabel !== "Autre"
       );
 
+      // 2026-09-15 — ORDRE DE LECTURE : d'abord ce qu'on sait chiffrer, ensuite
+      // ce qu'on ne sait pas. Même principe que l'inversion du verdict le même
+      // jour : on dit sur quoi on s'est prononcé avant de dire ce qui manque.
+      const materielListe = materiel ?? [];
+      const opposables = analysisRows.filter((r) => referenceOpposable(r.vectorial));
+      const nonOpposables = analysisRows.filter((r) => !referenceOpposable(r.vectorial));
+      // ⚠️ Le regroupement ne porte QUE sur les postes non vérifiables : un
+      // poste dont on connaît le prix se montre toujours, quel que soit son
+      // montant — le regrouper reviendrait à cacher ce qu'on sait faire.
+      const {
+        affiches: grandsNonOpposables,
+        regroupes: petitsRegroupes,
+        montantRegroupe: montantPetits,
+      } = separerPetitsPostes(
+        nonOpposables,
+        (r) => r.devisTotalHT,
+        montantTotalHT ?? null,
+      );
+      const rowsAAfficher = [...opposables, ...grandsNonOpposables];
+
       return (
         <div className="space-y-3">
           <StepIndicator currentStep={2} />
@@ -780,8 +808,23 @@ const BlockPrixMarche = ({
             anomalie, survalue, surface_mismatch, low_confidence_match, null.
             La garde confidence V3.5.11 reste active via globalBadge.
           */}
-          {analysisRows.length > 0 ? (
-            analysisRows.map((row, idx) => {
+          {/* ══ Matériel identifié par sa référence fabricant ══
+              En TÊTE de la liste : c'est le chiffrage le plus précis dont on
+              dispose sur ce devis (correspondance littérale sur un modèle
+              exact, pas une similarité sémantique). Intégré ici et non dans un
+              bloc à part — retour Johan du 15/09 : « il ne faut pas créer
+              2 espaces alors qu'on répond à la même question ». */}
+          {materielListe.length > 0 && (
+            <>
+              <IntroMateriel materiel={materielListe} />
+              {materielListe.map((m, i) => (
+                <CarteMateriel key={`materiel-${m.reference}-${i}`} m={m} />
+              ))}
+            </>
+          )}
+
+          {rowsAAfficher.length > 0 ? (
+            rowsAAfficher.map((row, idx) => {
               // Badge bonus : classification individuelle.
               // V3.4.15 — surface_mismatch (jaune "Surface à vérifier") prioritaire
               // sur anomalie/survalue : si le poste n'est pas comparable au €/m²,
@@ -802,17 +845,46 @@ const BlockPrixMarche = ({
                 />
               );
             })
-          ) : (
+          ) : materielListe.length === 0 ? (
             <p className="text-sm text-muted-foreground italic py-4 text-center">
               Aucun poste avec référence de prix marché.
             </p>
+          ) : null}
+
+          {/* ══ Les petits postes sans référence, en UNE ligne ══
+              2026-09-15 (retour Johan) — le détail alignait jusqu'à dix cartes
+              « Prix non vérifiable » d'affilée sur des accessoires à 65-500 €
+              (liaison frigorifique, tuyau de condensat, kit anti-vibration).
+              Dix fois la même phrase : « du bruit pour rien ».
+              ⚠️ ON NE MASQUE PAS, ON REGROUPE : le nombre et le montant total
+              restent affichés, sinon le lecteur perdrait la trace d'une part
+              réelle de son devis. */}
+          {petitsRegroupes.length > 0 && (
+            <div className="border border-border/60 rounded-xl bg-muted/20 p-3 sm:p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-[13px] sm:text-sm font-medium text-foreground">
+                  {petitsRegroupes.length} petits postes sans référence de prix
+                </p>
+                <span className="text-[13px] sm:text-sm font-semibold text-foreground">
+                  {fmt(montantPetits)}
+                </span>
+              </div>
+              <p className="mt-1 text-[12px] sm:text-xs text-muted-foreground leading-relaxed">
+                Accessoires et fournitures de faible montant — {petitsRegroupes
+                  .slice(0, 3)
+                  .map((r) => (r.devisLines?.[0]?.description ?? r.jobTypeLabel ?? "").split(/[,(]/)[0].trim().slice(0, 34))
+                  .filter(Boolean)
+                  .join(", ")}
+                {petitsRegroupes.length > 3 ? "…" : ""}. Chacun pèse moins de 5 % du devis :
+                les détailler un par un n'apporterait rien.
+              </p>
+            </div>
           )}
 
-          {(
-            <p className="text-xs text-muted-foreground mt-3 italic">
-              Ces fourchettes sont basées sur des données de marché externes et ne constituent pas une évaluation de la qualité du prestataire.
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground mt-3 italic">
+            Ces fourchettes sont basées sur des données de marché externes et ne constituent pas une évaluation de la qualité du prestataire.
+          </p>
+          <NoteSourcesMateriel materiel={materielListe} />
         </div>
       );
     }
