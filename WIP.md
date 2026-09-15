@@ -34,6 +34,14 @@ Table `prix_materiel` (migration `20260915100000`, **appliquée et vérifiée**)
 - ✅ **Les 4 points du constat initial traités** : conseil au lieu d'excuse · ordre du verdict inversé · vocabulaire qui ne présume plus de la nature · libellés tronqués à leur objet.
 - ⚠️ Piège rencontré : `\b` ne borne pas après un accent — « Fourni et **posé** » échappait à la garde de pose. Même leçon que le 30/08.
 
+### 🔴 Retour terrain du 15/09 — la rigueur produisait une incohérence visible
+
+Johan, page ouverte : « le bloc matériel est en place mais il fait doublon avec l'analyse des postes et en contradiction ». Vérifié — **ce n'est pas un doublon** (le masquage fonctionne, les lignes chiffrées sont bien retirées du détail), mais la contradiction est réelle et pire que prévu : **quatre murals Daikin Perfera de la même gamme, deux chiffrés en haut, deux « Prix non vérifiable » plus bas**. FTXM20A et FVXM25B étaient au référentiel mais à UNE source, donc écartés par la contrainte SQL.
+
+La règle des deux sources ne bouge pas — c'est le sourcing qu'il fallait finir. Migration  : FTXM20A, FVXM25B et MXZ-3F54VF4 (dont la 2ᵉ source existait mais n'était pas NOMMÉE). **19 entrées en base**, couverture de VOLTELEC **57 % → ~69 %**.
+
+⚠️ **Leçon** : une règle juste peut produire un mauvais résultat perçu. Le lecteur ne peut pas comprendre qu'on sache chiffrer un FTXM42 et pas un FTXM20 de la même gamme — l'incohérence décrédibilise les DEUX blocs à la fois. Avant d'ouvrir un vertical, vérifier qu'une GAMME entière est couverte, pas seulement les références les plus fréquentes.
+
 ### 🟠 Suite naturelle, non faite
 
 Un équipement en zone **question** (> +70 %) devrait devenir un **levier de négociation** à part entière (`LeviersNegociation`), et non rester cantonné au bloc matériel. Aujourd'hui il est signalé, mais il n'entre ni dans le surcoût chiffré ni dans les leviers — le verdict global l'ignore. C'est la brique qui manque pour le « tu peux signer, mais négocie ça » de bout en bout.
