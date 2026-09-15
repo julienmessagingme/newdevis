@@ -414,6 +414,78 @@ export function objetDeLigne(libelle: string): string {
   return coupe.length > 80 ? `${coupe.slice(0, 78).trim()}…` : coupe;
 }
 
+/**
+ * 🔴 2026-09-15 — ON NE TRAITE QUE LES GROUPES ENTIÈREMENT COUVERTS.
+ *
+ * Le rapprochement matériel travaille sur des LIGNES (`extracted.travaux`),
+ * le calcul de surcoût sur des GROUPES (`n8n_price_data`). Dans le format
+ * vectoriel une ligne fait un groupe, et tout coïncide — mais les analyses au
+ * format LEGACY (groupement Gemini V3.6) rassemblent plusieurs lignes par
+ * groupe, et là rien ne coïncide.
+ *
+ * Deux défauts en sont nés, tous deux trouvés en production :
+ *
+ *  1. **DOUBLE COMPTAGE DU SURCOÛT.** Sur un devis à 16 245 € HT, un groupe de
+ *     12 275 € contenait 4 des 5 lignes de matériel. Il restait compté par le
+ *     catalogue — et on lui ajoutait 2 195 € de dépassement matériel. Résultat
+ *     affiché : « marge de négociation : 9 758 à 16 242 € », soit **99,98 % du
+ *     devis**. Un montant pareil se voit immédiatement et ruine la crédibilité
+ *     de toute la page.
+ *  2. **LIGNES DISPARUES DE L'AFFICHAGE.** Le filtre du détail retirait le
+ *     groupe dès qu'UNE ligne était couverte : la 5ᵉ, qui n'a rien à voir avec
+ *     le matériel, disparaissait sans laisser de trace.
+ *
+ * La règle est donc : un groupe n'est retiré du calcul ET de l'affichage QUE
+ * si toutes ses lignes sont couvertes. Sinon on n'y touche pas — et on
+ * n'ajoute pas non plus le dépassement de ses lignes, puisqu'elles restent
+ * comptées par le catalogue.
+ *
+ * ⚠️ Conséquence assumée : sur un devis legacy à groupe mixte, le matériel
+ * s'affiche mais ne pèse pas sur le score. Mieux vaut ne rien ajouter qu'un
+ * montant compté deux fois.
+ *
+ * Mesuré sur le corpus : 24 groupes entièrement couverts, 2 partiellement.
+ */
+export function groupeEntierementCouvert(
+  groupe: { devis_lines?: Array<{ description?: unknown }> | null },
+  cles: Set<string>,
+): boolean {
+  const lignes = Array.isArray(groupe?.devis_lines) ? groupe.devis_lines : [];
+  if (lignes.length === 0) return false;
+  return lignes.every((dl) => ligneCouverteParMateriel(String(dl?.description ?? ""), cles));
+}
+
+/**
+ * Les équipements dont le groupe d'origine sort entièrement du calcul — les
+ * SEULS dont le dépassement peut être ajouté au surcoût sans le compter deux
+ * fois.
+ */
+export function materielChiffrable<G extends { devis_lines?: Array<{ description?: unknown }> | null }>(
+  materiel: MaterielVerifie[],
+  groupes: G[],
+): MaterielVerifie[] {
+  if (materiel.length === 0) return [];
+  const cles = clesLignesMateriel(materiel);
+  // Les clés des lignes appartenant à un groupe PARTIELLEMENT couvert : leur
+  // montant est déjà dans le surcoût catalogue.
+  const dejaComptees = new Set<string>();
+  for (const g of groupes) {
+    if (groupeEntierementCouvert(g, cles)) continue;
+    for (const dl of (Array.isArray(g?.devis_lines) ? g.devis_lines : [])) {
+      const k = cleLigneDevis(String(dl?.description ?? ""));
+      if (k && ligneCouverteParMateriel(String(dl?.description ?? ""), cles)) dejaComptees.add(k);
+    }
+  }
+  if (dejaComptees.size === 0) return materiel;
+  return materiel.filter((m) => {
+    const k = cleLigneDevis(m.ligne.replace(/…$/, ""));
+    for (const d of dejaComptees) {
+      if (k === d || k.startsWith(d) || d.startsWith(k)) return false;
+    }
+    return true;
+  });
+}
+
 /** Une ligne du détail est-elle déjà couverte par une référence matériel ? */
 export function ligneCouverteParMateriel(libelle: string, cles: Set<string>): boolean {
   const k = cleLigneDevis(libelle);

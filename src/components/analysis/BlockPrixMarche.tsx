@@ -9,7 +9,7 @@ import PremiumGate from "@/components/funnel/PremiumGate";
 import { GlobalAnalysisCard } from "./GlobalAnalysisCard";
 import { analyzeQuoteGlobal, classifyRow } from "@/lib/analyse/quoteGlobalAnalysis";
 import { referenceOpposable } from "@/lib/analyse/referenceOpposable";
-import { cleLigneDevis, ligneCouverteParMateriel } from "@/lib/analyse/materielReference";
+import { cleLigneDevis, groupeEntierementCouvert } from "@/lib/analyse/materielReference";
 import { separerPetitsPostes } from "@/lib/analyse/petitsPostes";
 import { CarteMateriel, IntroMateriel, NoteSourcesMateriel, type Materiel } from "./MaterielVerifie";
 // V3.5.14 (2026-06-13) — VectorialPriceList retiré du rendu : wording
@@ -715,10 +715,12 @@ const BlockPrixMarche = ({
   const rowsAffichees = useMemo(() => {
     if (!materiel || materiel.length === 0) return editor.rows;
     const cles = new Set(materiel.map((m) => cleLigneDevis(m.ligne.replace(/…$/, ""))));
+    // ⚠️ ENTIEREMENT couvert, jamais « au moins une ligne » : un groupe legacy
+    // peut melanger 4 lignes de materiel et 1 de main d'oeuvre. Le retirer sur
+    // un  faisait disparaitre la 5e ligne, qui n'a rien a voir avec le
+    // materiel et que plus rien n'affichait.
     return editor.rows.filter(
-      (row) => !(row.devisLines ?? []).some((dl) =>
-        ligneCouverteParMateriel(String(dl?.description ?? ""), cles),
-      ),
+      (row) => !groupeEntierementCouvert({ devis_lines: row.devisLines }, cles),
     );
   }, [editor.rows, materiel]);
 

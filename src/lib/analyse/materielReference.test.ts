@@ -21,6 +21,9 @@ import {
   objetDeLigne,
   depassementUsage,
   chiffrerDepassementMateriel,
+  groupeEntierementCouvert,
+  materielChiffrable,
+  clesLignesMateriel,
   SEUIL_MENTION_PCT,
   SEUIL_QUESTION_PCT,
   type PrixMateriel,
@@ -244,6 +247,57 @@ describe("montant vérifié", () => {
     );
     expect(r).toHaveLength(2);
     expect(montantVerifie(r)).toBe(1510 + 3500);
+  });
+});
+
+describe("groupes partiellement couverts — le double comptage du 15/09", () => {
+  const m4 = [
+    { ligne: "Mitsubishi Réf: MXZ-4F72VF4 Unité extérieure", reference: "MXZ-4F72VF4", designation: "d",
+      quantite: 1, prix_unitaire_devis: 4257, marche_min_ht: 1874.17, marche_max_ht: 2334.61,
+      ecart_min_pct: 82, ecart_max_pct: 127, zone: "question" as const, nb_sources: 3, releve_le: "2026-09-15" },
+  ];
+
+  it("un groupe MIXTE n'est pas considéré couvert", () => {
+    const cles = clesLignesMateriel(m4);
+    const groupeMixte = { devis_lines: [
+      { description: "Mitsubishi Réf: MXZ-4F72VF4 Unité extérieure" },
+      { description: "Forfait main d'œuvre 4 jours ouvrés" },
+    ]};
+    expect(groupeEntierementCouvert(groupeMixte, cles)).toBe(false);
+  });
+
+  it("un groupe dont TOUTES les lignes sont couvertes l'est", () => {
+    const cles = clesLignesMateriel(m4);
+    expect(groupeEntierementCouvert(
+      { devis_lines: [{ description: "Mitsubishi Réf: MXZ-4F72VF4 Unité extérieure" }] },
+      cles,
+    )).toBe(true);
+  });
+
+  it("un groupe vide n'est jamais 'couvert'", () => {
+    expect(groupeEntierementCouvert({ devis_lines: [] }, new Set(["X"]))).toBe(false);
+    expect(groupeEntierementCouvert({}, new Set(["X"]))).toBe(false);
+  });
+
+  it("🔴 n'est PAS chiffrable quand son groupe reste dans le calcul catalogue", () => {
+    // Le cas réel : un groupe de 12 275 € contenant 4 lignes matériel sur 5.
+    // Ajouter leur dépassement produisait « 9 758 à 16 242 € » de marge sur un
+    // devis de 16 245 € — 99,98 % du devis.
+    const groupes = [{ devis_lines: [
+      { description: "Mitsubishi Réf: MXZ-4F72VF4 Unité extérieure" },
+      { description: "Forfait main d'œuvre 4 jours ouvrés" },
+    ]}];
+    expect(materielChiffrable(m4, groupes)).toHaveLength(0);
+  });
+
+  it("EST chiffrable quand son groupe sort entièrement du calcul", () => {
+    const groupes = [{ devis_lines: [{ description: "Mitsubishi Réf: MXZ-4F72VF4 Unité extérieure" }] }];
+    expect(materielChiffrable(m4, groupes)).toHaveLength(1);
+  });
+
+  it("sans groupe connu, on ne retire rien", () => {
+    expect(materielChiffrable(m4, [])).toHaveLength(1);
+    expect(materielChiffrable([], [])).toHaveLength(0);
   });
 });
 

@@ -423,6 +423,8 @@ import { estGrosOeuvre, motifGrosOeuvre, type LigneTravaux } from "@/lib/analyse
 import {
   rapprocherMateriel,
   chiffrerDepassementMateriel,
+  groupeEntierementCouvert,
+  materielChiffrable,
   clesLignesMateriel,
   ligneCouverteParMateriel,
   objetDeLigne,
@@ -2818,7 +2820,20 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
 
     // Surcoût global — source de vérité : calcul serveur (miroir de quoteGlobalAnalysis.ts)
     // Le calcul serveur est plus fiable que Gemini qui confond prix unitaires et totaux.
-    const serverSurcoutCatalogue = computeServerSurcout(priceData);
+    // 🔴 2026-09-15 — LES GROUPES ENTIÈREMENT REPRIS PAR LE MATÉRIEL SORTENT DU
+    // CALCUL CATALOGUE. Sans ça, leur montant est compté deux fois : une fois
+    // par le rapprochement catalogue, une fois par le dépassement matériel
+    // ajouté plus bas. Constaté en production sur un devis à 16 245 € HT :
+    // « marge de négociation : 9 758 à 16 242 € », soit 99,98 % du devis.
+    // ⚠️ Un groupe seulement PARTIELLEMENT couvert n'est pas retiré (on
+    // casserait le chiffrage de ses autres lignes) — et `materielChiffrable`
+    // écarte alors ses équipements du dépassement, pour la même raison.
+    const clesMateriel = clesLignesMateriel(materielVerifie);
+    const priceDataPourSurcout = Array.isArray(priceData)
+      ? (priceData as Array<{ devis_lines?: Array<{ description?: unknown }> | null }>)
+          .filter((g) => !groupeEntierementCouvert(g, clesMateriel))
+      : priceData;
+    const serverSurcoutCatalogue = computeServerSurcout(priceDataPourSurcout);
 
     // ── 2026-09-15 (demande Johan) — LE MATÉRIEL ENTRE DANS LE SCORE ─────────
     // « Intègre dans le score : un équipement à plus de 50 % est signalé. »
@@ -2839,7 +2854,14 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // « ne pas signer », et le devis d'origine ne dépasse que de 99 € — sous
     // le plancher). Ce qui change réellement est le levier NOMMÉ et le montant
     // sur les devis à venir, pas une bascule de pastille sur le stock.
-    const depassementMateriel = chiffrerDepassementMateriel(materielVerifie);
+    const depassementMateriel = chiffrerDepassementMateriel(
+      materielChiffrable(
+        materielVerifie,
+        Array.isArray(priceData)
+          ? (priceData as Array<{ devis_lines?: Array<{ description?: unknown }> | null }>)
+          : [],
+      ),
+    );
     const serverSurcout = depassementMateriel.montant > 0
       ? {
           min: serverSurcoutCatalogue.min + depassementMateriel.montant,
