@@ -11,6 +11,38 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 🟡 Prix du matériel par référence fabricant (vertical clim) — tranche 1 livrée le 2026-09-15
+
+**Origine** : devis VOLTELEC déclaré « cohérent » sur **5,22 % de couverture** — 15 625 € sur 16 485 € sans référence, et la phrase « les prestations standards sont au bon prix » portait sur 860 € d'alimentation électrique et de goulottes. Décision Johan : on doit trouver le prix public nous-mêmes, pas renvoyer le client le chercher.
+
+### ✅ Tranche 1 — le référentiel (EN BASE, aucun impact produit)
+
+Table `prix_materiel` (migration `20260915100000`, **appliquée et vérifiée**), **16 entrées** Mitsubishi / Daikin / gainable, chacune avec ses sources nommées, son prix HT, sa date de relevé et sa péremption. Règle des deux sources **portée par une contrainte SQL**, testée avec une valeur interdite.
+
+- ✅ Seuils validés Johan : **< +50 % silence · +50-70 % mention · > +70 % question**. Répartition : 11 / 3 / 3. Aucun cas limite entre 70 et 94 %.
+- ✅ Cinq pièges mesurés et documentés (tarif constructeur 2,5× le réel · pack monosplit vs unité seule ×2,8 · HT/TTC · import long délai · montant de ligne vs prix unitaire). Détail en tête de la migration et dans `CLAUDE.md`.
+- ✅ Correctif attrapé à la relecture de la table : les groupes extérieurs étaient classés `ensemble` alors qu'ils se vendent seuls — ça neutralisait la garde du piège n°2 sur six entrées. Fichier **et** base corrigés.
+- 📄 Sourcing complet (22 entrées dont les 6 non publiables) dans `referentiel-materiel-clim.json`.
+
+### 🟡 Tranche 2 — le chemin de lecture (À FAIRE, rien ne lit encore la table)
+
+**En l'état, la table ne change rien pour l'utilisateur.** Il manque :
+
+1. **L'extraction de la référence** depuis la ligne de devis — motifs de nomenclature par constructeur (`MXZ-nFxxVFn`, `nMXMxxAn`, `FTXM/CTXM/FVXMnn`, `MSZ-AYnnVGK`, `PEAD/SUZ`). ⚠️ Un extracteur générique produit du bruit (`SCOP4`, `POIDS59KG`, `DV817` qui est un numéro de ligne) — n'utiliser que les motifs constructeur.
+2. **La correspondance littérale**, en amont du vectoriel, sur `reference_normalisee`. ⚠️ Jamais sémantique.
+3. **La garde du périmètre** : une entrée `unite_seule` ne se compare qu'à une ligne qui ne porte ni la pose ni le groupe extérieur. Mesuré : **19 devis clim sur 35 séparent déjà** matériel et pose (83 % de ceux où une marque est nommée), 3 combinent en « fourniture et pose » — et ces 3 sont détectables au libellé.
+4. **L'affichage** : citer le nombre de sources et la date (« trois distributeurs français, relevé le 15/09 »), liens au dépli. ⚠️ **Ne jamais en faire une incitation à acheter le matériel soi-même** — un artisan refuse souvent de poser du matériel fourni par le client, ou décline sa garantie dessus.
+
+### 🟡 Ce qui reste à sourcer
+
+Six références à une source, **non publiables** — et ce sont celles dont le verdict bascule : FTXM20A (+70 %), ERGA08EV + EHBH08E6V (+61 %, poste le plus cher du corpus à 5 516 €), FVXM25B (+44 %), Bosch CL5000M 53/2E et 62/3E, MXZ-3F54VF4.
+
+⚠️ **Re-vérification trimestrielle obligatoire** (`perime_le` = 2026-12-15) : un prix de clim a bougé de 20 % en deux ans.
+
+🟠 **Piste en veille — le comparatif entre nos propres devis.** Réfutée par le **volume**, pas par le principe : 40 références partagées dont la moitié sont des faux positifs, les vraies plafonnent à 2 devis quand l'observatoire en exige 8. ⚠️ Mais le biais de circularité **n'est pas confirmé** : sur 557 lignes à référence sûre, nos devis se situent à **0,38** dans la fourchette (0 = min, 1 = max), 23 % sous le minimum. À rouvrir quand le volume viendra — 13 des 39 devis clim sont de septembre.
+
+---
+
 ## 🟢 Refonte du hero d'accueil — LIVRÉE le 2026-09-14
 
 **Livrée le jour même**, décision Johan (l'attente jusqu'au 21/09 initialement prévue a été levée). ⚠️ **Conséquence sur la mesure** : la collecte de provenance a démarré le 14/09 et le hero change le même jour — il n'y a donc **pas de semaine de référence**. On pourra toujours lire d'où vient le trafic ; en revanche, un mouvement du taux de clic ne sera pas attribuable avec certitude à la refonte. À garder en tête avant d'en tirer une conclusion.

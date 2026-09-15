@@ -1,0 +1,597 @@
+{
+ "releve_le": "2026-09-15",
+ "seuils_valides_johan": {
+  "silence": "<50%",
+  "mention": "50-70%",
+  "question": ">70%"
+ },
+ "entrees": [
+  {
+   "r": "CL5000M 53/2E",
+   "m": "Bosch",
+   "f": "groupe ext 2 sorties 5,3 kW",
+   "fa": [
+    1022
+   ],
+   "s": [
+    {
+     "n": "sanitaire-distrib",
+     "p": 1216.4
+    }
+   ],
+   "lo": 1216.4,
+   "hi": 1216.4,
+   "fmin": 1022,
+   "fmax": 1022,
+   "eMin": -16,
+   "eMax": -16,
+   "nb": 1,
+   "z": "silence"
+  },
+  {
+   "r": "PEAD-M60JA + SUZ-M60VA",
+   "m": "Mitsubishi",
+   "f": "gainable 6 kW (ensemble)",
+   "fa": [
+    2481
+   ],
+   "s": [
+    {
+     "n": "climonline",
+     "p": 2132.5
+    },
+    {
+     "n": "clim-planete",
+     "p": 2107.5
+    }
+   ],
+   "lo": 2107.5,
+   "hi": 2132.5,
+   "fmin": 2481,
+   "fmax": 2481,
+   "eMin": 16,
+   "eMax": 18,
+   "nb": 2,
+   "z": "silence"
+  },
+  {
+   "r": "MXZ-3F54VF4",
+   "m": "Mitsubishi",
+   "f": "groupe ext 3 sorties 5,4 kW",
+   "fa": [
+    1717
+   ],
+   "s": [
+    {
+     "n": "climfactory",
+     "p": 1374.17
+    },
+    {
+     "n": "clim-planete",
+     "p": 1332.5,
+     "i": 1
+    }
+   ],
+   "lo": 1374.17,
+   "hi": 1374.17,
+   "fmin": 1717,
+   "fmax": 1717,
+   "eMin": 25,
+   "eMax": 25,
+   "nb": 1,
+   "z": "silence"
+  },
+  {
+   "r": "MSZ-AY20VGK",
+   "m": "Mitsubishi",
+   "f": "mural 2,0 kW (unite seule)",
+   "fa": [
+    435
+   ],
+   "s": [
+    {
+     "n": "climonline",
+     "p": 324.17
+    },
+    {
+     "n": "climfactory",
+     "p": 351
+    }
+   ],
+   "lo": 324.17,
+   "hi": 351,
+   "fmin": 435,
+   "fmax": 435,
+   "eMin": 24,
+   "eMax": 34,
+   "nb": 2,
+   "z": "silence"
+  },
+  {
+   "r": "CL5000M 62/3E",
+   "m": "Bosch",
+   "f": "groupe ext 3 sorties 6,2 kW",
+   "fa": [
+    2045
+   ],
+   "s": [
+    {
+     "n": "sanitaire-distrib",
+     "p": 1521.83
+    }
+   ],
+   "lo": 1521.83,
+   "hi": 1521.83,
+   "fmin": 2045,
+   "fmax": 2045,
+   "eMin": 34,
+   "eMax": 34,
+   "nb": 1,
+   "z": "silence"
+  },
+  {
+   "r": "MSZ-AY25VGK",
+   "m": "Mitsubishi",
+   "f": "mural 2,5 kW (unite seule)",
+   "fa": [
+    465,
+    473
+   ],
+   "s": [
+    {
+     "n": "climonline",
+     "p": 349.17
+    },
+    {
+     "n": "climfactory fiche",
+     "p": 357.5
+    },
+    {
+     "n": "climfactory cat.",
+     "p": 370
+    }
+   ],
+   "lo": 349.17,
+   "hi": 370,
+   "fmin": 465,
+   "fmax": 473,
+   "eMin": 26,
+   "eMax": 35,
+   "nb": 3,
+   "z": "silence"
+  },
+  {
+   "r": "MSZ-AY42VGK",
+   "m": "Mitsubishi",
+   "f": "mural 4,2 kW (unite seule)",
+   "fa": [
+    622,
+    624
+   ],
+   "s": [
+    {
+     "n": "climonline",
+     "p": 462.5
+    },
+    {
+     "n": "climfactory",
+     "p": 498
+    }
+   ],
+   "lo": 462.5,
+   "hi": 498,
+   "fmin": 622,
+   "fmax": 624,
+   "eMin": 25,
+   "eMax": 35,
+   "nb": 2,
+   "z": "silence"
+  },
+  {
+   "r": "MFZ-KT25VG",
+   "m": "Mitsubishi",
+   "f": "console 2,5 kW (unite seule)",
+   "fa": [
+    942,
+    1007
+   ],
+   "s": [
+    {
+     "n": "climshop",
+     "p": 729.17
+    },
+    {
+     "n": "climfactory",
+     "p": 773.75
+    }
+   ],
+   "lo": 729.17,
+   "hi": 773.75,
+   "fmin": 942,
+   "fmax": 1007,
+   "eMin": 22,
+   "eMax": 38,
+   "nb": 2,
+   "z": "silence"
+  },
+  {
+   "r": "MFZ-KT35VG",
+   "m": "Mitsubishi",
+   "f": "console 3,5 kW (unite seule)",
+   "fa": [
+    993,
+    1091
+   ],
+   "s": [
+    {
+     "n": "climshop",
+     "p": 792.5
+    },
+    {
+     "n": "climfactory",
+     "p": 840.42
+    }
+   ],
+   "lo": 792.5,
+   "hi": 840.42,
+   "fmin": 993,
+   "fmax": 1091,
+   "eMin": 18,
+   "eMax": 38,
+   "nb": 2,
+   "z": "silence"
+  },
+  {
+   "r": "MXZ-2F33VF4",
+   "m": "Mitsubishi",
+   "f": "groupe ext 2 sorties 3,3 kW",
+   "fa": [
+    1241
+   ],
+   "s": [
+    {
+     "n": "climplus",
+     "p": 1030.45
+    },
+    {
+     "n": "clim-planete FR",
+     "p": 882.5
+    },
+    {
+     "n": "climfactory",
+     "p": 874.17
+    }
+   ],
+   "lo": 874.17,
+   "hi": 1030.45,
+   "fmin": 1241,
+   "fmax": 1241,
+   "eMin": 20,
+   "eMax": 42,
+   "nb": 3,
+   "z": "silence"
+  },
+  {
+   "r": "FTXM42A",
+   "m": "Daikin",
+   "f": "mural 4,2 kW (unite seule)",
+   "fa": [
+    755
+   ],
+   "s": [
+    {
+     "n": "climonline",
+     "p": 524.17
+    },
+    {
+     "n": "climplus",
+     "p": 532.5
+    }
+   ],
+   "lo": 524.17,
+   "hi": 532.5,
+   "fmin": 755,
+   "fmax": 755,
+   "eMin": 42,
+   "eMax": 44,
+   "nb": 2,
+   "z": "silence"
+  },
+  {
+   "r": "FVXM25B",
+   "m": "Daikin",
+   "f": "console 2,5 kW (unite seule)",
+   "fa": [
+    1450
+   ],
+   "s": [
+    {
+     "n": "climshop",
+     "p": 1007.5
+    }
+   ],
+   "lo": 1007.5,
+   "hi": 1007.5,
+   "fmin": 1450,
+   "fmax": 1450,
+   "eMin": 44,
+   "eMax": 44,
+   "nb": 1,
+   "z": "silence"
+  },
+  {
+   "r": "4MXM80A8/A9",
+   "m": "Daikin",
+   "f": "groupe ext 4 sorties 8,0 kW",
+   "fa": [
+    3500
+   ],
+   "s": [
+    {
+     "n": "clim-planete",
+     "p": 2415.83
+    },
+    {
+     "n": "gus-astuces",
+     "p": 2576.28
+    }
+   ],
+   "lo": 2415.83,
+   "hi": 2576.28,
+   "fmin": 3500,
+   "fmax": 3500,
+   "eMin": 36,
+   "eMax": 45,
+   "nb": 2,
+   "z": "silence"
+  },
+  {
+   "r": "MSZ-AY35VGK",
+   "m": "Mitsubishi",
+   "f": "mural 3,5 kW (unite seule)",
+   "fa": [
+    587
+   ],
+   "s": [
+    {
+     "n": "climonline",
+     "p": 399.17
+    },
+    {
+     "n": "climfactory",
+     "p": 429
+    }
+   ],
+   "lo": 399.17,
+   "hi": 429,
+   "fmin": 587,
+   "fmax": 587,
+   "eMin": 37,
+   "eMax": 47,
+   "nb": 2,
+   "z": "silence"
+  },
+  {
+   "r": "CTXM15A",
+   "m": "Daikin",
+   "f": "mural 1,5 kW (unite seule)",
+   "fa": [
+    450
+   ],
+   "s": [
+    {
+     "n": "climonline",
+     "p": 290.83
+    },
+    {
+     "n": "condizionati",
+     "p": 307.5
+    }
+   ],
+   "lo": 290.83,
+   "hi": 307.5,
+   "fmin": 450,
+   "fmax": 450,
+   "eMin": 46,
+   "eMax": 55,
+   "nb": 2,
+   "z": "mention"
+  },
+  {
+   "r": "MXZ-2F53VF4",
+   "m": "Mitsubishi",
+   "f": "groupe ext 2 sorties 5,3 kW",
+   "fa": [
+    1621,
+    1813
+   ],
+   "s": [
+    {
+     "n": "domotelec",
+     "p": 1417.78
+    },
+    {
+     "n": "climfactory",
+     "p": 1165.83
+    },
+    {
+     "n": "clim-planete",
+     "p": 1140.83,
+     "i": 1
+    }
+   ],
+   "lo": 1165.83,
+   "hi": 1417.78,
+   "fmin": 1621,
+   "fmax": 1813,
+   "eMin": 14,
+   "eMax": 56,
+   "nb": 2,
+   "z": "mention"
+  },
+  {
+   "r": "ERGA08EV + EHBH08E6V",
+   "m": "Daikin",
+   "f": "PAC air/eau 8 kW (ensemble)",
+   "fa": [
+    5516
+   ],
+   "s": [
+    {
+     "n": "climfrais",
+     "p": 3435.69
+    }
+   ],
+   "lo": 3435.69,
+   "hi": 3435.69,
+   "fmin": 5516,
+   "fmax": 5516,
+   "eMin": 61,
+   "eMax": 61,
+   "nb": 1,
+   "z": "mention"
+  },
+  {
+   "r": "2MXM68A8/A9",
+   "m": "Daikin",
+   "f": "groupe ext 2 sorties 6,8 kW",
+   "fa": [
+    2650
+   ],
+   "s": [
+    {
+     "n": "climneo",
+     "p": 1708.25
+    },
+    {
+     "n": "clim-planete",
+     "p": 1640.83
+    }
+   ],
+   "lo": 1640.83,
+   "hi": 1708.25,
+   "fmin": 2650,
+   "fmax": 2650,
+   "eMin": 55,
+   "eMax": 62,
+   "nb": 2,
+   "z": "mention"
+  },
+  {
+   "r": "FTXM20A",
+   "m": "Daikin",
+   "f": "mural 2,0 kW (unite seule)",
+   "fa": [
+    510
+   ],
+   "s": [
+    {
+     "n": "climonline",
+     "p": 299.17
+    }
+   ],
+   "lo": 299.17,
+   "hi": 299.17,
+   "fmin": 510,
+   "fmax": 510,
+   "eMin": 70,
+   "eMax": 70,
+   "nb": 1,
+   "z": "question"
+  },
+  {
+   "r": "MXZ-4F72VF4",
+   "m": "Mitsubishi",
+   "f": "groupe ext 4 sorties 7,2 kW",
+   "fa": [
+    2737,
+    2900,
+    3850,
+    4257
+   ],
+   "s": [
+    {
+     "n": "gus-astuces",
+     "p": 2334.61
+    },
+    {
+     "n": "clim-planete FR",
+     "p": 1965.83
+    },
+    {
+     "n": "climfactory",
+     "p": 1874.17
+    }
+   ],
+   "lo": 1874.17,
+   "hi": 2334.61,
+   "fmin": 2737,
+   "fmax": 4257,
+   "eMin": 17,
+   "eMax": 127,
+   "nb": 3,
+   "z": "question"
+  },
+  {
+   "r": "MXZ-3F68VF4",
+   "m": "Mitsubishi",
+   "f": "groupe ext 3 sorties 6,8 kW",
+   "fa": [
+    2311,
+    3650,
+    3680
+   ],
+   "s": [
+    {
+     "n": "gus-astuces",
+     "p": 1980.28
+    },
+    {
+     "n": "climfactory",
+     "p": 1582.5
+    },
+    {
+     "n": "clim-planete",
+     "p": 1582.5,
+     "i": 1
+    }
+   ],
+   "lo": 1582.5,
+   "hi": 1980.28,
+   "fmin": 2311,
+   "fmax": 3680,
+   "eMin": 17,
+   "eMax": 133,
+   "nb": 2,
+   "z": "question"
+  },
+  {
+   "r": "MSZ-AY15VGK",
+   "m": "Mitsubishi",
+   "f": "mural 1,5 kW (unite seule)",
+   "fa": [
+    647,
+    700,
+    750
+   ],
+   "s": [
+    {
+     "n": "climonline",
+     "p": 307.5
+    },
+    {
+     "n": "climfactory",
+     "p": 334
+    }
+   ],
+   "lo": 307.5,
+   "hi": 334,
+   "fmin": 647,
+   "fmax": 750,
+   "eMin": 94,
+   "eMax": 144,
+   "nb": 2,
+   "z": "question"
+  }
+ ]
+}
