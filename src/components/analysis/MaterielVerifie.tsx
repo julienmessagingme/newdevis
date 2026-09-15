@@ -49,11 +49,21 @@ const TON: Record<Materiel["zone"], { cadre: string; badge: string; libelle: str
   question: { cadre: "border-rose-200",   badge: "bg-rose-500/10 text-rose-700",      libelle: "À faire expliquer" },
 };
 
-/** Une carte d'équipement, au format des autres cartes de poste. */
-export function CarteMateriel({ m }: { m: Materiel }) {
-  const t = TON[m.zone];
+/**
+ * Une carte d'équipement, au format des autres cartes de poste.
+ *
+ * 🔴 `provisoire` (analyse en attente de validation experte, règle du
+ * 2026-08-30) : le PRIX DISTRIBUTEUR et sa date restent affichés — ce sont des
+ * faits sourcés, pas notre estimation — mais **notre jugement disparaît** : le
+ * badge de zone et la phrase qui conclut. Sans ça, le bandeau bleu « verdict
+ * provisoire » aurait surmonté quatre cartes affirmant « facturé +82 % au-dessus
+ * du marché », et le client serait parti négocier sur un chiffre que l'expert
+ * n'a pas encore confirmé.
+ */
+export function CarteMateriel({ m, provisoire = false }: { m: Materiel; provisoire?: boolean }) {
+  const t = TON[provisoire ? "normal" : m.zone];
   return (
-    <div className={`border ${t.cadre} rounded-xl bg-card p-3 sm:p-4`}>
+    <div className={`border ${provisoire ? "border-border/60" : t.cadre} rounded-xl bg-card p-3 sm:p-4`}>
       <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
         {/* ⚠️ Le titre est la LIGNE DU DEVIS, jamais notre désignation
             catalogue — règle du 2026-09-10 : le lecteur doit reconnaître
@@ -61,9 +71,15 @@ export function CarteMateriel({ m }: { m: Materiel }) {
         <p className="text-[13px] sm:text-sm font-semibold text-foreground leading-snug min-w-0 flex-1">
           {m.ligne}
         </p>
-        <span className={`px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${t.badge}`}>
-          {t.libelle}
-        </span>
+        {provisoire ? (
+          <span className="px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-sky-500/10 text-sky-700">
+            En cours de vérification
+          </span>
+        ) : (
+          <span className={`px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${t.badge}`}>
+            {t.libelle}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] sm:text-xs">
@@ -85,7 +101,9 @@ export function CarteMateriel({ m }: { m: Materiel }) {
         <span className="font-mono text-[11px] text-muted-foreground">{m.reference}</span>
       </div>
 
-      {m.zone !== "normal" && (
+      {/* ⚠️ Notre JUGEMENT est tu tant que l'expert n'a pas tranché — le prix
+          relevé ci-dessus, lui, reste affiché : c'est un fait, pas un avis. */}
+      {!provisoire && m.zone !== "normal" && (
         <p className="mt-2 text-[12px] sm:text-xs text-foreground/75 leading-relaxed">
           {m.zone === "question"
             ? `Facturé environ ${m.ecart_min_pct} % au-dessus de son prix en distribution, quand l'usage se situe entre 30 et 50 %. Demandez le détail entre le matériel et la pose.`
@@ -100,7 +118,7 @@ export function CarteMateriel({ m }: { m: Materiel }) {
  * La phrase qui introduit ces cartes dans la liste des postes.
  * Courte : elle ne redit pas ce que le verdict a déjà dit plus haut.
  */
-export function IntroMateriel({ materiel }: { materiel: Materiel[] }) {
+export function IntroMateriel({ materiel, provisoire = false }: { materiel: Materiel[]; provisoire?: boolean }) {
   const horsUsage = materiel.filter((m) => m.zone !== "normal").length;
   return (
     <p className="text-[12px] sm:text-xs text-muted-foreground leading-relaxed">
@@ -109,9 +127,14 @@ export function IntroMateriel({ materiel }: { materiel: Materiel[] }) {
       </span>{" "}
       par leur référence fabricant. Nous les comparons au prix auquel vous les achèteriez
       vous-même chez un distributeur — pas à ce que l'artisan les a payés, que personne ne
-      connaît. {horsUsage === 0
-        ? "L'écart couvre sa pose, son déplacement et sa garantie."
-        : "L'écart couvre sa pose, son déplacement et sa garantie ; au-delà de la moitié du prix, il mérite une explication."}
+      connaît.{" "}
+      {provisoire
+        // ⚠️ En attente de validation experte : on donne la référence, on ne
+        // conclut pas. Règle du 2026-08-30.
+        ? "Notre lecture de ces écarts est en cours de vérification par un expert."
+        : horsUsage === 0
+          ? "L'écart couvre sa pose, son déplacement et sa garantie."
+          : "L'écart couvre sa pose, son déplacement et sa garantie ; au-delà de la moitié du prix, il mérite une explication."}
     </p>
   );
 }

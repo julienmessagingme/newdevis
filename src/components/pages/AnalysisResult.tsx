@@ -1636,6 +1636,11 @@ const AnalysisResult = () => {
         {visibleBlocks.includes("prix_marche") && !isHorsScopeBtp && !isIncompleteQuote && (
           <BlockPrixMarche
             materiel={materielVerifie}
+            // 2026-09-15 — respecte la règle du 2026-08-30 : en attente de
+            // validation experte, AUCUN écart chiffré ne s'affiche. Sans ça, le
+            // bandeau bleu aurait annoncé « verdict provisoire » au-dessus de
+            // quatre cartes affirmant « facturé +82 % au-dessus du marché ».
+            provisoire={analysis.review_status === "pending_review"}
             montantTotalHT={totalHT}
             codePostal={locationInfo.codePostal}
             selectedWorkType={analysis.work_type}

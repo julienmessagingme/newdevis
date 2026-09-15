@@ -62,6 +62,18 @@ interface BlockPrixMarcheProps {
    * référence exacte la situe à +94 %.
    */
   materiel?: Materiel[];
+  /**
+   * 2026-08-30 — analyse en attente de validation experte. **Aucun écart
+   * chiffré ne s'affiche** : un client pouvait partir négocier sur un chiffre
+   * que nous savions déjà incertain.
+   *
+   * ⚠️ Les cartes matériel restent visibles, avec leur prix distributeur et
+   * leur date de relevé — ce sont des FAITS sourcés, pas notre estimation. Ce
+   * qui disparaît est notre JUGEMENT : le badge de zone et la phrase qui
+   * conclut. La distinction est celle du 2026-09-10 : on peut dire ce qu'on a
+   * relevé, on ne conclut pas tant que l'expert n'a pas tranché.
+   */
+  provisoire?: boolean;
 }
 
 // =======================
@@ -685,6 +697,7 @@ const BlockPrixMarche = ({
   currentUserId,
   onGlobalAnalysisReady,
   materiel,
+  provisoire = false,
 }: BlockPrixMarcheProps) => {
   const [isBlockOpen, setIsBlockOpen] = useState(defaultOpen);
   const { error, rows, isNewFormat } = useMarketPriceAPI({ cachedN8NData });
@@ -823,9 +836,9 @@ const BlockPrixMarche = ({
               2 espaces alors qu'on répond à la même question ». */}
           {materielListe.length > 0 && (
             <>
-              <IntroMateriel materiel={materielListe} />
+              <IntroMateriel materiel={materielListe} provisoire={provisoire} />
               {materielListe.map((m, i) => (
-                <CarteMateriel key={`materiel-${m.reference}-${i}`} m={m} />
+                <CarteMateriel key={`materiel-${m.reference}-${i}`} m={m} provisoire={provisoire} />
               ))}
             </>
           )}
