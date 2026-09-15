@@ -26,9 +26,23 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 **Effet mesuré sur le stock (180 documents dédupliqués)** : 58 devis affichaient un écart → **49** ; montant total annoncé **253 149 € → 136 396 € (−46 %)**. Le seuil de mise en revue (2 000 €) passe de 26 à 20 devis.
 
+### 🔴 EN ATTENTE DE DÉCISION JOHAN — l'arbitre IA sur le rapprochement
+
+Mesure livrée le 2026-09-15 ([`banc-arbitre-rapprochement.mjs`](scripts/banc-arbitre-rapprochement.mjs)). **Le chiffre attendu : ~2,5 analyses/mois à relire en plus** (16 sur 180 dans le stock, 9 %).
+
+**Ce qui est tranché par la mesure, et n'a pas à être rediscuté** :
+- ❌ **IA en portier du verdict** — fermée le 30/08 (« corriger » sur 15 des 16 témoins).
+- ❌ **IA qui SUPPRIME un prix contesté** — coûterait 21 à 24 % des bons prix.
+- ✅ **IA qui ROUTE vers la relecture humaine** — volume mesuré, qualité vérifiée cas par cas.
+
+**Ce qui reste à décider (Johan)** : est-ce que 2,5 analyses/mois de relecture supplémentaire valent la suppression des fausses accusations que l'arbitre attrape ? Coût technique : ~0,008 €/analyse, hors chemin critique (asynchrone, aucun impact sur le temps d'affichage).
+
+⚠️ **Ordre des chantiers** : décider CECI avant de régénérer le stock, sinon deux vagues de file de revue au lieu d'une.
+
 ### 🟠 Ce qui reste
 
 - **Le stock ne se répare qu'à la visite.** Les analyses jamais rouvertes gardent leur montant majoré. Un script de régénération de masse est possible mais n'a pas été lancé — il faut d'abord absorber la file `pending_review` que le bump va créer.
+- **Doublon catalogue vivant** : `mur_parpaing_20` (55-115 €/m²) et `mur_parpaing_20_construction` (55-128) — même ouvrage, même unité. Échappé à la déduplication du 10/09 (libellés différant par « Construction » en tête).
 - **Les `anomalies` de Gemini ne sont PAS filtrées par les gardes.** Quand une garde retire un poste, la carte d'anomalie correspondante peut encore afficher son propre `surcout_estime`. La relecture plafonne le montant CITÉ (R6), pas le montant de chaque carte. À mesurer avant de décider — matcher un libellé Gemini contre un libellé catalogue est fragile.
 - **Warning `validateDOMNesting` dans `BlockPrixMarche`** (bouton imbriqué dans un bouton, vu en console le 15/09) — hérité du dépli cliquable ajouté la veille, sans effet visible mais à nettoyer.
 

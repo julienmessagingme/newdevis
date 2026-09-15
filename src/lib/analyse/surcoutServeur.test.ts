@@ -125,15 +125,39 @@ describe("tarifMainDoeuvreFaceAFourniture", () => {
     }))).toBe(true);
   });
 
-  it("laisse comparer quand la ligne du devis dit elle-même « hors fourniture »", () => {
+  it("laisse comparer quand la LIGNE DU DEVIS dit elle-même « hors fourniture »", () => {
+    // ⚠️ Ce test renseignait `job_type_label` — donc NOTRE étiquette — alors
+    // qu'il prétend vérifier ce que dit le devis. Il encodait ainsi le bug du
+    // 15/09 et l'aurait protégé. La mention doit être dans la ligne.
     expect(tarifMainDoeuvreFaceAFourniture(groupe({
-      job_type_label: "Pose carrelage hors fourniture",
+      devis_lines: [{ description: "Pose carrelage hors fourniture", amount_ht: 400, quantity: 10, unit: "m2" }],
       prices: [{ label: "Pose carrelage sol (hors fourniture)", unit: "m2", price_max_unit_ht: 40 }],
     }))).toBe(false);
   });
 
   it("ne se déclenche pas sur un tarif fourni+posé", () => {
     expect(tarifMainDoeuvreFaceAFourniture(groupe())).toBe(false);
+  });
+
+  it("🔴 NOTRE étiquette catalogue n'entre pas dans le test (bug du 15/09)", () => {
+    // La première version concaténait `job_type_label` au texte du devis. Notre
+    // libellé portant lui-même « (hors fourniture) », la garde se lisait
+    // elle-même et se désarmait. Cas réel : 4 radiateurs du devis Mélier.
+    expect(tarifMainDoeuvreFaceAFourniture(groupe({
+      job_type_label: "Pose radiateur électrique à inertie (hors fourniture)",
+      devis_lines: [{ description: "Fourniture et pose d'un radiateur à inertie MOZART 1250 W", amount_ht: 500, quantity: 1, unit: "u" }],
+      prices: [{ label: "Pose radiateur électrique à inertie (hors fourniture)", unit: "u", price_max_unit_ht: 120 }],
+    }))).toBe(true);
+  });
+
+  it("⚠️ mais une ligne qui dit « non fournie » reste comparable", () => {
+    // Trois lignes réelles de carrelage disent « fournie colle et joint
+    // (carrelage NON fournie) » : le tarif de pose seule EST le bon comparatif.
+    expect(tarifMainDoeuvreFaceAFourniture(groupe({
+      job_type_label: "Pose carrelage sol (hors fourniture)",
+      devis_lines: [{ description: "Pose carrelage, fournie colle et joint (carrelage non fournie)", amount_ht: 780, quantity: 6, unit: "m2" }],
+      prices: [{ label: "Pose carrelage sol (hors fourniture)", unit: "m2", price_max_unit_ht: 65 }],
+    }))).toBe(false);
   });
 
   it("retire le chiffrage d'un tel groupe", () => {

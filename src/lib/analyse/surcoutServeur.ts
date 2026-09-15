@@ -175,7 +175,7 @@ export function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
 const CATALOGUE_POSE_SEULE_RE =
   /\((?:mo|m\.o\.|pose|main[- ]d['’]?œuvre|main[- ]d['’]?oeuvre|hors fourniture)\)|taux horaire|hors fourniture|main[- ]d['’]?œuvre seule/i;
 const LIGNE_DIT_POSE_SEULE_RE =
-  /\bhors fourniture\b|\bpose seule\b|\bfourniture non comprise\b|\bmat[ée]riel non compris\b|\bfourni par le client\b|\bfourniture client\b/i;
+  /\bhors fourniture\b|\bpose seule\b|\bfourniture non comprise\b|\bmat[ée]riel non compris\b|\bfourni par le client\b|\bfourniture client\b|\bnon fournies?\b|\bnon fourni\b/i;
 
 export function tarifMainDoeuvreFaceAFourniture(group: Record<string, any>): boolean {
   const prices: any[] = Array.isArray(group?.prices) ? group.prices : [];
@@ -183,10 +183,20 @@ export function tarifMainDoeuvreFaceAFourniture(group: Record<string, any>): boo
   const tousPoseSeule = prices.every((p) => CATALOGUE_POSE_SEULE_RE.test(String(p?.label ?? "")));
   if (!tousPoseSeule) return false;
 
+  // 🔴 2026-09-15 — LE TEXTE NE VIENT QUE DU DEVIS, JAMAIS DE NOTRE ÉTIQUETTE.
+  // Première version : `job_type_label` était concaténé ici. Or c'est NOTRE
+  // libellé catalogue, et il contient précisément « (hors fourniture) » sur les
+  // entrées que cette garde vise. Elle lisait donc sa propre étiquette, croyait
+  // que le DEVIS annonçait la pose seule, et **se désarmait sur exactement les
+  // cas pour lesquels elle avait été écrite**.
+  // Trouvé en mesurant, pas en relisant : « Pose radiateur électrique à inertie
+  // (hors fourniture) » restait opposé à « Fourniture et pose d'un radiateur à
+  // inertie MOZART » — quatre fois sur le même devis.
+  // ⚠️ Même famille que le piège du 10/09 (« nommer la LIGNE DU DEVIS, pas notre
+  // étiquette catalogue ») : dès qu'on juge ce que le devis DIT, notre propre
+  // vocabulaire n'a rien à faire dans l'entrée du test.
   const lines: any[] = Array.isArray(group?.devis_lines) ? group.devis_lines : [];
-  const texte = [group?.job_type_label, ...lines.map((l: any) => l?.description)]
-    .filter((t) => typeof t === "string")
-    .join(" ");
+  const texte = lines.map((l: any) => l?.description).filter((t) => typeof t === "string").join(" ");
   // La ligne annonce elle-même qu'elle ne porte que la pose → comparaison licite.
   return !LIGNE_DIT_POSE_SEULE_RE.test(texte);
 }
