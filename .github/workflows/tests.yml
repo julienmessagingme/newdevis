@@ -47,8 +47,17 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      # ⚠️ `npm install` ET NON `npm ci`, ET C'EST UN CONSTAT, PAS UNE PRÉFÉRENCE.
+      # `npm ci` exige que `package-lock.json` corresponde exactement à l'arbre
+      # résolu ; or le verrou du dépôt a DÉRIVÉ — il lui manque les paquets
+      # optionnels d'esbuild des autres plateformes (`@esbuild/linux-x64`,
+      # `win32-x64`, `darwin-arm64`…), parce qu'il a été généré sous Windows.
+      # Première mise en service de cette CI : `npm ci` échoue en 9 s, avant
+      # d'avoir lancé le moindre test.
+      # 🟡 Le verrou reste à régénérer proprement (`TODO.md`) — le faire ici
+      # toucherait aux dépendances de tout le projet dans un commit de CI.
       - name: Install
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       # Le gros du filet : règles de verdict, leviers, rapprochement, gardes.
       - name: Vitest (src/**)
