@@ -35,7 +35,13 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
   - ⚠️ **NE PAS se précipiter sur une formule** : « prendre le forfait seul » est faux aussi dès que la quantité dépasse 1 (une entrée « par unité intérieure » à 800-2 200 € se multiplie par 4 pour 4 unités). La règle est **« on choisit UN des deux tarifs, on ne les additionne jamais »** — et le choix dépend de l'unité de la ligne. À écrire avec ses tests, comme `motifNonChiffrable`.
   - 🟢 **C'est la traduction directe des 13 notes « forfait vs métrique ».**
 
-- [ ] 🔴 **2. REJOUER LES 55 DÉCISIONS D'EXPERT CONTRE LE MOTEUR D'AUJOURD'HUI** — c'est le filet anti-régression promis depuis juin, et **la matière existe déjà** : `analysis_corrections` contient `original_conclusion` (ce que la machine disait) ET `corrected_verdict_*` / `corrected_surcout_*` (ce que l'expert a tranché). Aucun script ne les compare.
+- [x] ~~**2. REJOUER LES 55 DÉCISIONS D'EXPERT**~~ — ✅ **FAIT le 2026-09-16**, banc [`banc-rejeu-decisions-expert.mjs`](scripts/banc-rejeu-decisions-expert.mjs). Résultat : **31 accords · 11 défauts encore vivants (9 jamais corrigés + 2 RÉGRESSIONS après validation) · 11 écarts à relire · 2 correctifs effectifs**. Les 2 régressions (*Renov’Toitures* validé, *Mélier Cognac* rejeté) inventent 1 504 € et 2 161 € là où l'expert avait endossé 0 €. Détail dans CLAUDE.md. **À relancer après chaque correctif du chiffrage.**
+
+- [ ] 🔴 **2bis. TRAITER LES 11 DÉFAUTS ENCORE VIVANTS** — la liste sort du banc ci-dessus. Commencer par les 2 RÉGRESSIONS (l'expert avait validé, le moteur s'est dégradé depuis), puis les 9 jamais corrigés. Le plus lourd, *Devis 25030*, accuse 8 868 € sur une charpente au forfait — c'est l'action 1.
+
+- [ ] 🟡 **2ter. RELIRE LES 11 ÉCARTS SIGNIFICATIFS** — ni accord ni accusation franche : le moteur et l'expert divergent de plus de 10 %. À relire un par un avant d'en tirer une règle.
+
+- [ ] ~~ancien libellé~~ - [ ] 🔴 **2. REJOUER LES 55 DÉCISIONS D'EXPERT CONTRE LE MOTEUR D'AUJOURD'HUI** — c'est le filet anti-régression promis depuis juin, et **la matière existe déjà** : `analysis_corrections` contient `original_conclusion` (ce que la machine disait) ET `corrected_verdict_*` / `corrected_surcout_*` (ce que l'expert a tranché). Aucun script ne les compare.
   - **Ce que ça donnerait** : pour chaque défaut corrigé à la main, le moteur actuel le reproduit-il encore ? C'est LA réponse à « a-t-on appris ? », et elle se calcule sans rien réécrire.
   - ⚠️ Attention au piège : les 36 conclusions `corrected` ne sont **pas** régénérées (filet du 04/09), donc leur conclusion stockée EST celle de l'expert. La comparaison utile est `original_conclusion` (machine d'alors) contre le rejeu du moteur d'aujourd'hui, pas contre le stocké.
 
