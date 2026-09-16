@@ -486,6 +486,7 @@ import {
 import {
   computeServerSurcout, hasIncomparableUnit, hasSurfaceUnitMismatch,
   extractKnownSurface, FORFAIT_UNIT_KEYWORDS, SURFACE_WORK_KEYWORDS, UNIT_LIKE,
+  motifNonChiffrable,
 } from "@/lib/analyse/surcoutServeur";
 import { relireVerdict } from "@/lib/analyse/relectureVerdict";
 import { phraseIntroSansReference } from "@/lib/analyse/phraseIntroSansReference";
@@ -1219,7 +1220,49 @@ export const POST: APIRoute = async ({ params, request }) => {
       const vect = g?.vectorial as { confidence?: string } | undefined;
       // Pas de méta vectorielle (V3.6 legacy) → considéré comparable (permissif,
       // aligné sur le filtre ci-dessous).
-      if (!vect || typeof vect !== "object" || vect.confidence === "high") comparableHT += t;
+      const confianceOk = !vect || typeof vect !== "object" || vect.confidence === "high";
+      // 🔴 2026-09-16 (devis DESMARIS ÉNERGIES, retour Johan) — UNE COUVERTURE
+      // NE PEUT PAS COMPTER UN POSTE QUE LE MOTEUR REFUSE DE CHIFFRER.
+      //
+      // Sur ce devis d'une seule ligne (« Remplacement d'une sortie cheminée »,
+      // 2 395 € HT, facturée « 1 Ens »), le rapprochement sort en confiance
+      // HAUTE (0,794) : la couverture affichait donc **100 %**. Mais le poste
+      // est un FORFAIT opposé à une entrée tarifée au ml — `motifNonChiffrable`
+      // rend `forfait`, `computeServerSurcout` l'écarte, et le surcoût tombe à
+      // zéro. Résultat : `rienDeComparable` valait `false`, le verdict passait
+      // en « signer », et le titre annonçait **« prix dans les fourchettes du
+      // marché »** au-dessus d'une carte « Anomalie marché ». Le même poste
+      // était à la fois intégralement couvert et impossible à chiffrer.
+      //
+      // C'est le même invariant que le 04/09 et le 16/09 — la page affirme ce
+      // que le moteur ne sait pas — mais par une TROISIÈME porte : ni le texte
+      // de Gemini, ni le résumé déterministe, la COUVERTURE elle-même.
+      // `phraseIntroSansReference` ne pouvait rien y faire, puisqu'il ne se
+      // déclenche que quand la couverture est basse.
+      //
+      // ⚠️ Deux règles pour une seule question, c'est la divergence du 10/09
+      // reconstruite : `comparableHT` demandait « a-t-on trouvé une référence ? »
+      // quand `computeServerSurcout` demande « peut-on l'opposer ? ». Les deux
+      // posent désormais la MÊME question.
+      //
+      // ⚠️ `totalHT` n'existe pas encore à ce point du flux (il est calculé
+      // ~700 lignes plus bas) : le lire ici serait le piège de zone morte
+      // temporelle documenté dans CLAUDE.md. On passe `null`, exactement comme
+      // le fait `classifyRowEnriched` côté carte — seule la garde « un poste ne
+      // pèse pas plus que le devis entier » reste alors inactive ici. Limite
+      // assumée et mesurée (2 postes sur tout le stock), pas un oubli.
+      const chiffrable = !motifNonChiffrable(g, null);
+      if (confianceOk && chiffrable) comparableHT += t;
+      else if (confianceOk && !chiffrable) {
+        // Le poste a bien une référence, mais elle n'est pas opposable : il
+        // rejoint les prestations « sans référence » nommées à l'utilisateur.
+        const lignes = Array.isArray(g?.devis_lines) ? (g.devis_lines as Array<Record<string, unknown>>) : [];
+        const desc = lignes.length === 1 && typeof lignes[0]?.description === "string"
+          ? (lignes[0].description as string).trim() : "";
+        const etiq = typeof g?.job_type_label === "string" ? g.job_type_label.trim() : "";
+        const label = desc || (!/^non comparable$/i.test(etiq) ? etiq : "");
+        if (label) sansReference.push({ label, ht: t });
+      }
       else {
         // 2026-09-10 (cas AQUIVOLTAIQUE) — NOMMER LA LIGNE DU DEVIS, PAS NOTRE
         // ÉTIQUETTE. La phrase « certains postes n'ont pas d'équivalent dans nos
