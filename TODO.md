@@ -6,6 +6,46 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ---
 
+## 🟢 PLAN D'ACTION ISSU DU GOLD STANDARD (2026-09-16, consigne Johan)
+
+> *« Il suffit de collecter tout ce qui a été fait et transformer cette information en actions. Plus de fuite en avant, on capitalise l'existant. »*
+
+**Constat de départ, mesuré** : 28 outils de mesure écrits en 6 jours, 119 items ouverts ici, et **55 décisions d'expert que rien ne rejouait**. On produit, on ne consolide pas.
+
+**La récolte** : les 44 notes d'expert de `analysis_corrections` ont été classées par cause citée. Une famille écrase toutes les autres :
+
+| Cause citée par l'expert dans ses notes | Fois |
+|---|---:|
+| **Faux rapprochement (matching)** | **28 / 44** |
+| ** · dont explicitement « forfait vs métrique »** | **13** |
+| Acompte / échéancier | 18 |
+| Faux ROUGE (verdict trop dur) | 10 |
+| Entreprise / statut juridique | 10 |
+| Fourchette catalogue fausse | 3 |
+
+⚠️ Classification par mots-clés sur du texte libre : **c'est un indicateur, pas une vérité**, et une note peut compter dans deux familles. Ce qu'on en retient est l'ordre de grandeur, pas le chiffre exact.
+
+🔴 **Johan a écrit « forfait vs métrique » TREIZE FOIS EN UN MOIS** — et c'est exactement le devis DESMARIS du 16/09 au soir. Le signal était dans les données depuis des semaines ; il n'avait jamais été agrégé.
+
+### Les actions, dans l'ordre — chacune s'appuie sur du matériel qui existe déjà
+
+- [ ] 🔴 **1. NE JAMAIS ADDITIONNER UN TARIF UNITAIRE ET UN FORFAIT** — mesuré : **45 groupes** portent une entrée catalogue MIXTE (`price_*_unit_ht` ET `fixed_*_ht`) face à une ligne forfaitaire, et l'affichage **additionne les deux**. L'erreur va dans les DEUX sens :
+  - *Tubage conduit cheminée* — affiché **280-1 080 €**, forfait seul **200-800 €** → accuse à tort un devis à 2 395 € (cas DESMARIS) ;
+  - *Climatisation multi-split* — affiché **2 000-5 400 €**, forfait seul **800-2 200 €** → une unité facturée 510 € passe pour **bon marché** alors qu'elle est dans la fourchette.
+  - ⚠️ **NE PAS se précipiter sur une formule** : « prendre le forfait seul » est faux aussi dès que la quantité dépasse 1 (une entrée « par unité intérieure » à 800-2 200 € se multiplie par 4 pour 4 unités). La règle est **« on choisit UN des deux tarifs, on ne les additionne jamais »** — et le choix dépend de l'unité de la ligne. À écrire avec ses tests, comme `motifNonChiffrable`.
+  - 🟢 **C'est la traduction directe des 13 notes « forfait vs métrique ».**
+
+- [ ] 🔴 **2. REJOUER LES 55 DÉCISIONS D'EXPERT CONTRE LE MOTEUR D'AUJOURD'HUI** — c'est le filet anti-régression promis depuis juin, et **la matière existe déjà** : `analysis_corrections` contient `original_conclusion` (ce que la machine disait) ET `corrected_verdict_*` / `corrected_surcout_*` (ce que l'expert a tranché). Aucun script ne les compare.
+  - **Ce que ça donnerait** : pour chaque défaut corrigé à la main, le moteur actuel le reproduit-il encore ? C'est LA réponse à « a-t-on appris ? », et elle se calcule sans rien réécrire.
+  - ⚠️ Attention au piège : les 36 conclusions `corrected` ne sont **pas** régénérées (filet du 04/09), donc leur conclusion stockée EST celle de l'expert. La comparaison utile est `original_conclusion` (machine d'alors) contre le rejeu du moteur d'aujourd'hui, pas contre le stocké.
+
+- [ ] 🟡 **3. `forfait` NE DOIT PAS NEUTRALISER TOUTES LES CARTES — mesuré et écarté** — basculer `forfait` dans `MOTIFS_SANS_VERDICT_DE_PRIX` retirerait le verdict de **290 cartes sur 1 271 (23 %)**, pour **1,6 M€ de devis**. Or beaucoup sont légitimes : *fosse septique 8 823 € forfait* ou *PAC multi-split 3 300 € forfait* sont comparées à des entrées **qui sont elles-mêmes des forfaits**. **L'action 1 traite la vraie cause ; celle-ci est refermée.**
+
+- [ ] 🟡 **4. FAIRE VIVRE LES 28 BANCS AU LIEU D'EN ÉCRIRE UN 29ᵉ** — chaque banc a répondu une fois à une question, puis plus personne ne l'a relancé. CLAUDE.md le dit déjà : *« tout chiffre de couverture tiré du stock est un chiffre d'archive »*. Les numéros cités dans la doc datent pour la plupart du 10-15/09.
+  - **Ne PAS construire un orchestrateur** (ce serait la fuite en avant). Le geste utile est plus petit : quand une règle change, **relancer le banc qui l'a justifiée** et mettre le chiffre à jour dans CLAUDE.md, comme on l'a fait le 16/09 pour l'invariant d'affirmation.
+
+---
+
 ## Scoring V3.x — qualité d'analyse (suite de la stabilisation 2026-05-11)
 
 ### P0 — Crédibilité produit critique
