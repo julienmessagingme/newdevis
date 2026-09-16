@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { cleanJobTypeLabel, detectRoomMismatch, type HomogeneityGroupInput } from "@/lib/analyse/groupHomogeneity";
 import { referenceOpposable } from "@/lib/analyse/referenceOpposable";
+import { bornesMarche } from "@/lib/analyse/surcoutServeur";
 
 // ========================================
 // TYPES — New hierarchical job type format
@@ -318,15 +319,15 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
     }
 
     // Calculate theoretical prices (0 if no catalog match)
-    let theoreticalMinHT = 0;
-    let theoreticalAvgHT = 0;
-    let theoreticalMaxHT = 0;
-
-    for (const price of prices) {
-      theoreticalMinHT += price.price_min_unit_ht * mainQuantity + (price.fixed_min_ht || 0);
-      theoreticalAvgHT += price.price_avg_unit_ht * mainQuantity + (price.fixed_avg_ht || 0);
-      theoreticalMaxHT += price.price_max_unit_ht * mainQuantity + (price.fixed_max_ht || 0);
-    }
+    // 🔴 2026-09-16 — RÈGLE UNIQUE : JAMAIS « unitaire × qté + forfait ».
+    // 13 entrées du catalogue portent les DEUX tarifs (« 80-280 €/ml OU
+    // 200-800 € au forfait ») : c'est une alternative, pas un supplément.
+    // Recopier la formule ici rebâtirait exactement la divergence que le
+    // 2026-09-15 a supprimée entre le serveur et les cartes.
+    const bornes = bornesMarche(prices, mainQuantity, item.main_unit);
+    const theoreticalMinHT = bornes.min;
+    const theoreticalAvgHT = bornes.avg;
+    const theoreticalMaxHT = bornes.max;
 
     const devisTotalHT = typeof item.devis_total_ht === "number" ? item.devis_total_ht : null;
     const isForfait = detectForfait(item);
@@ -521,15 +522,11 @@ function processLegacyWorkItems(data: unknown): MarketPriceTableRow[] {
 
     const qty = (item.quantity !== null && item.quantity > 0) ? item.quantity : 1;
 
-    let totalMinHT = 0;
-    let totalAvgHT = 0;
-    let totalMaxHT = 0;
-
-    for (const price of item.prices) {
-      totalMinHT += price.price_min_unit_ht * qty + (price.fixed_min_ht || 0);
-      totalAvgHT += price.price_avg_unit_ht * qty + (price.fixed_avg_ht || 0);
-      totalMaxHT += price.price_max_unit_ht * qty + (price.fixed_max_ht || 0);
-    }
+    // Même règle unique qu'au-dessus — un seul endroit décide.
+    const bornesLigne = bornesMarche(item.prices, qty, item.unit_devis);
+    const totalMinHT = bornesLigne.min;
+    const totalAvgHT = bornesLigne.avg;
+    const totalMaxHT = bornesLigne.max;
 
     const combinedLabel = item.prices.map(p => p.label).join(" + ");
     const combinedNotes = item.prices.map(p => p.notes).filter(Boolean).join(" / ");

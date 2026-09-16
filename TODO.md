@@ -29,15 +29,15 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ### Les actions, dans l'ordre — chacune s'appuie sur du matériel qui existe déjà
 
-- [ ] 🔴 **1. NE JAMAIS ADDITIONNER UN TARIF UNITAIRE ET UN FORFAIT** — mesuré : **45 groupes** portent une entrée catalogue MIXTE (`price_*_unit_ht` ET `fixed_*_ht`) face à une ligne forfaitaire, et l'affichage **additionne les deux**. L'erreur va dans les DEUX sens :
-  - *Tubage conduit cheminée* — affiché **280-1 080 €**, forfait seul **200-800 €** → accuse à tort un devis à 2 395 € (cas DESMARIS) ;
-  - *Climatisation multi-split* — affiché **2 000-5 400 €**, forfait seul **800-2 200 €** → une unité facturée 510 € passe pour **bon marché** alors qu'elle est dans la fourchette.
-  - ⚠️ **NE PAS se précipiter sur une formule** : « prendre le forfait seul » est faux aussi dès que la quantité dépasse 1 (une entrée « par unité intérieure » à 800-2 200 € se multiplie par 4 pour 4 unités). La règle est **« on choisit UN des deux tarifs, on ne les additionne jamais »** — et le choix dépend de l'unité de la ligne. À écrire avec ses tests, comme `motifNonChiffrable`.
-  - 🟢 **C'est la traduction directe des 13 notes « forfait vs métrique ».**
+- [x] ~~**1. NE JAMAIS ADDITIONNER UN TARIF UNITAIRE ET UN FORFAIT**~~ — ✅ **FAIT le 2026-09-16** : `bornesMarche()` dans [`surcoutServeur.ts`](src/lib/analyse/surcoutServeur.ts), branchée aux **4 sites** qui produisent un chiffre affiché (2 serveur, 2 client), 9 tests dédiés. Le choix dépend de l'unité de la LIGNE : tarif métrique + quantité métrique → unitaire, sinon → forfait. Mesuré : **53 groupes changent sur 21 devis · 2 postes deviennent accusés · 0 cesse de l'être**, les 2 relus (2 en confiance non haute donc sans verdict affiché, 1 légitime à 71 €/ml contre un marché 15-50).
+  - 🔴 **ET LE REJEU DES 55 DÉCISIONS N'A PAS BOUGÉ : toujours 31 accords / 11 défauts vivants.** Le correctif est juste et ne referme aucun cas de l'étalon — leurs causes sont ailleurs. À dire tel quel plutôt que de le présenter comme un progrès de l'étalon.
+  - ⚠️ Piège rencontré, documenté dans CLAUDE.md : ma 1re version comparait « u » et « unité » **littéralement** → 5 postes accusés à tort. Vu par la mesure, pas par la relecture.
+
+- [ ] 🟡 **1bis. DEUX SITES ADDITIONNENT ENCORE, DÉLIBÉRÉMENT** — `supabase/functions/analyze-quote/verdict-utils.ts:297` (edge **Deno**, ne peut pas importer depuis `src/` — recopier la règle serait exactement l'erreur qu'on évite : il faudrait la déplacer dans un module partagé ou l'importer via `_shared/`) et `src/components/landing/DevisCalculatorSection.tsx:96-98` (calculette de la landing, aucun verdict opposable — impact cosmétique). Aucun des deux ne produit un montant affiché sur une page d'analyse.
 
 - [x] ~~**2. REJOUER LES 55 DÉCISIONS D'EXPERT**~~ — ✅ **FAIT le 2026-09-16**, banc [`banc-rejeu-decisions-expert.mjs`](scripts/banc-rejeu-decisions-expert.mjs). Résultat : **31 accords · 11 défauts encore vivants (9 jamais corrigés + 2 RÉGRESSIONS après validation) · 11 écarts à relire · 2 correctifs effectifs**. Les 2 régressions (*Renov’Toitures* validé, *Mélier Cognac* rejeté) inventent 1 504 € et 2 161 € là où l'expert avait endossé 0 €. Détail dans CLAUDE.md. **À relancer après chaque correctif du chiffrage.**
 
-- [ ] 🔴 **2bis. TRAITER LES 11 DÉFAUTS ENCORE VIVANTS** — la liste sort du banc ci-dessus. Commencer par les 2 RÉGRESSIONS (l'expert avait validé, le moteur s'est dégradé depuis), puis les 9 jamais corrigés. Le plus lourd, *Devis 25030*, accuse 8 868 € sur une charpente au forfait — c'est l'action 1.
+- [ ] 🔴 **2bis. TRAITER LES 11 DÉFAUTS ENCORE VIVANTS** — la liste sort du banc ci-dessus. Commencer par les 2 RÉGRESSIONS (l'expert avait validé, le moteur s'est dégradé depuis), puis les 9 jamais corrigés. Le plus lourd, *Devis 25030*, accuse 8 868 € sur une charpente au forfait — ⚠️ **et l'action 1 ne l'a PAS corrigé** (mesuré : le compteur est resté à 11). Sa cause est la garde d'unité (tarif au m² face à une ligne au forfait), pas l'addition des deux tarifs. C'est le premier à instruire.
 
 - [ ] 🟡 **2ter. RELIRE LES 11 ÉCARTS SIGNIFICATIFS** — ni accord ni accusation franche : le moteur et l'expert divergent de plus de 10 %. À relire un par un avant d'en tirer une règle.
 

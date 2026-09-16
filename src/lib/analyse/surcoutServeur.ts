@@ -122,6 +122,99 @@ export function hasIncomparableUnit(group: Record<string, any>): boolean {
   return !(METRIC_UNIT_RE.test(unitDevis) && qty > 0);
 }
 
+/**
+ * 🔴 2026-09-16 — ON N'ADDITIONNE JAMAIS UN TARIF UNITAIRE ET UN FORFAIT.
+ *
+ * Une entrée du catalogue peut porter les DEUX : « Tubage conduit cheminée »
+ * vaut **80-280 €/ml OU 200-800 € au forfait** — le forfait est l'alternative
+ * « petit chantier », pas un supplément. Elles sont 13 sur 925 dans ce cas
+ * (2 au ml, 10 au m², 1 à l'unité), et le sens est le même partout : un OU.
+ *
+ * Or six endroits du code calculaient `unitaire × quantité + forfait`. Sur le
+ * devis DESMARIS (16/09), cela donnait une fourchette **280-1 080 €** là où la
+ * seule lecture défendable est **200-800 €** : ni la borne basse ni la haute ne
+ * correspondaient à quoi que ce soit. Mesuré : **45 groupes** du stock touchés,
+ * et l'erreur va dans les DEUX sens — le tubage était accusé à tort, tandis
+ * qu'une unité de climatisation à 510 € passait pour bon marché face à un
+ * « 2 000-5 400 € » tout aussi inventé.
+ *
+ * 🟢 CE N'EST PAS UNE INTUITION, C'EST LA RÉCOLTE DU GOLD STANDARD. Sur les 44
+ * notes d'expert de `analysis_corrections`, **28 citent un faux rapprochement,
+ * dont 13 disent explicitement « forfait vs métrique »**. Le rejeu des 55
+ * décisions (`banc-rejeu-decisions-expert.mjs`) retrouve la même famille en
+ * tête des défauts encore vivants.
+ *
+ * LA RÈGLE : on choisit UN des deux tarifs.
+ *   · le tarif UNITAIRE quand la ligne du devis peut réellement s'y comparer —
+ *     c'est-à-dire quand son unité correspond à celle du catalogue et qu'elle
+ *     porte une quantité exploitable ;
+ *   · le FORFAIT sinon (ligne au forfait, ou unité qui ne correspond pas).
+ *
+ * ⚠️ NE PAS « SIMPLIFIER » EN PRENANT TOUJOURS LE FORFAIT : sur une entrée
+ * tarifée « par unité intérieure », quatre unités valent 4 × le tarif unitaire,
+ * pas un forfait unique. C'est le piège que la première version de ce correctif
+ * a failli introduire.
+ *
+ * ⚠️ Comportement INCHANGÉ pour les 912 autres entrées : celles qui n'ont qu'un
+ * seul des deux tarifs passent exactement par le même calcul qu'avant.
+ */
+export function bornesMarche(
+  prices: Array<Record<string, any>> | null | undefined,
+  quantite: number,
+  uniteLigne: string | null | undefined,
+): { min: number; avg: number; max: number } {
+  const qty = Number.isFinite(quantite) && quantite > 0 ? quantite : 1;
+  const uDevis = String(uniteLigne ?? "").trim();
+  let min = 0;
+  let avg = 0;
+  let max = 0;
+
+  for (const p of Array.isArray(prices) ? prices : []) {
+    if (!p || typeof p !== "object") continue;
+    const uMin = Number(p.price_min_unit_ht) || 0;
+    const uAvg = Number(p.price_avg_unit_ht) || 0;
+    const uMax = Number(p.price_max_unit_ht) || 0;
+    const fMin = Number(p.fixed_min_ht) || 0;
+    const fAvg = Number(p.fixed_avg_ht) || 0;
+    const fMax = Number(p.fixed_max_ht) || 0;
+
+    if (uMax > 0 && fMax > 0) {
+      // L'entrée propose les deux : on tranche, on n'additionne pas.
+      // ⚠️ La moyenne suit le MÊME choix que les bornes — sinon elle peut
+      // sortir de l'intervalle qu'elle est censée résumer.
+      //
+      // 🔴 NE PAS COMPARER LES DEUX UNITÉS LITTÉRALEMENT — ma première version
+      // le faisait, et « u » ≠ « unité » alors que c'est le même mot. Elle
+      // basculait donc sur le forfait pour « Climatisation multi-split (par
+      // unité intérieure) » et rendait 5 postes ACCUSÉS à tort, en mesurant
+      // une amélioration là où elle créait un défaut. Mesuré avant livraison.
+      //
+      // La vraie question n'est pas « les deux unités sont-elles identiques ? »
+      // mais « le tarif unitaire est-il APPLICABLE à cette ligne ? ». Il ne
+      // l'est pas quand le catalogue facture au MÈTRE et que la ligne n'a pas
+      // de quantité métrique — c'est exactement `hasIncomparableUnit`, dont on
+      // réutilise le test plutôt que d'en réinventer un.
+      const catalogueMetrique = METRIC_UNIT_RE.test(String(p.unit ?? "").trim());
+      const ligneMetrique = METRIC_UNIT_RE.test(uDevis) && qty > 0;
+      const unitaireApplicable = !catalogueMetrique || ligneMetrique;
+
+      if (unitaireApplicable) {
+        min += uMin * qty; avg += uAvg * qty; max += uMax * qty;
+      } else {
+        min += fMin; avg += fAvg; max += fMax;
+      }
+      continue;
+    }
+
+    // Un seul tarif : comportement historique, strictement inchangé.
+    min += uMin * qty + fMin;
+    avg += uAvg * qty + fAvg;
+    max += uMax * qty + fMax;
+  }
+
+  return { min, avg, max };
+}
+
 export function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
   const label = (group?.job_type_label || "").toLowerCase();
   const unit = (group?.main_unit || "").toLowerCase().trim();
@@ -270,10 +363,8 @@ export function motifNonChiffrable(
 
   const devisTotal = Number(group?.devis_total_ht) || 0;
   const qty = typeof group?.main_quantity === "number" && group.main_quantity > 0 ? group.main_quantity : 1;
-  let plafond = 0;
-  for (const p of Array.isArray(group?.prices) ? group.prices : []) {
-    plafond += (Number(p?.price_max_unit_ht) || 0) * qty + (Number(p?.fixed_max_ht) || 0);
-  }
+  // Règle unique : jamais unitaire + forfait (cf. `bornesMarche`).
+  const plafond = bornesMarche(group?.prices, qty, group?.main_unit).max;
   if (plafond <= 0 || devisTotal <= 0) return null; // rien à opposer : ce n'est pas un refus
 
   if (devisTotal / plafond > RATIO_RAPPROCHEMENT_INVRAISEMBLABLE) return "rapprochement_invraisemblable";
@@ -382,12 +473,8 @@ export function computeServerSurcout(
     const qty: number =
       typeof group.main_quantity === "number" && group.main_quantity > 0 ? group.main_quantity : 1;
 
-    let theoreticalMaxHT = 0;
-    for (const p of prices) {
-      theoreticalMaxHT +=
-        (typeof p.price_max_unit_ht === "number" ? p.price_max_unit_ht : 0) * qty +
-        (typeof p.fixed_max_ht === "number" ? p.fixed_max_ht : 0);
-    }
+    // Règle unique : jamais unitaire + forfait (cf. `bornesMarche`).
+    const theoreticalMaxHT = bornesMarche(prices, qty, group.main_unit).max;
     if (theoreticalMaxHT <= 0) continue;
     if (devisTotal <= theoreticalMaxHT) continue;
 

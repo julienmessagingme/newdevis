@@ -5,6 +5,7 @@ import {
   hasIncomparableUnit,
   hasSurfaceUnitMismatch,
   RATIO_RAPPROCHEMENT_INVRAISEMBLABLE,
+  bornesMarche,
 } from "./surcoutServeur";
 
 /** Groupe minimal : un tarif catalogue unitaire, une ligne de devis. */
@@ -193,5 +194,88 @@ describe("gardes d'unité héritées (anti-régression)", () => {
       main_unit: "U",
       devis_lines: [{ description: "Climatisation mono-split", amount_ht: 2000, quantity: 1, unit: "U" }],
     }))).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 2026-09-16 — ON N'ADDITIONNE JAMAIS UN TARIF UNITAIRE ET UN FORFAIT.
+//
+// Cas fondateur : devis DESMARIS, « Remplacement d'une sortie de cheminée »
+// 2 395 € HT facturée « 1 Ens ». L'entrée `tubage_conduit_cheminee` porte
+// 80-280 €/ml ET un forfait 200-800 € — une ALTERNATIVE, pas un supplément.
+// Six endroits du code calculaient `unitaire × qté + forfait`, ce qui donnait
+// une fourchette 280-1 080 € dont aucune borne ne correspondait à rien.
+//
+// Les 13 entrées mixtes du catalogue (sur 925) sont toutes dans ce cas.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("bornesMarche — jamais unitaire + forfait", () => {
+  /** L'entrée réelle qui a déclenché le correctif. */
+  const tubage = [{
+    unit: "ml",
+    price_min_unit_ht: 80, price_avg_unit_ht: 150, price_max_unit_ht: 280,
+    fixed_min_ht: 200, fixed_avg_ht: 400, fixed_max_ht: 800,
+  }];
+
+  it("ligne au FORFAIT face à un tarif au mètre → le forfait seul", () => {
+    // C'est le cas DESMARIS : « 1 Ens » ne se compare pas à un prix au ml.
+    expect(bornesMarche(tubage, 1, "Ens")).toEqual({ min: 200, avg: 400, max: 800 });
+  });
+
+  it("ligne au MÈTRE face au même tarif → le tarif unitaire seul", () => {
+    expect(bornesMarche(tubage, 10, "ml")).toEqual({ min: 800, avg: 1500, max: 2800 });
+  });
+
+  it("la somme des deux n'est JAMAIS produite", () => {
+    // 280 = 80×1 + 200 et 1080 = 280×1 + 800 : les deux bornes de l'ancienne
+    // règle. Aucune ne doit réapparaître.
+    const r = bornesMarche(tubage, 1, "Ens");
+    expect(r.min).not.toBe(280);
+    expect(r.max).not.toBe(1080);
+  });
+
+  it("« u » et « unité » ne sont PAS comparés littéralement", () => {
+    // 🔴 Ma première version comparait les deux chaînes : « u » ≠ « unité »,
+    // donc elle basculait sur le forfait et rendait 5 postes ACCUSÉS à tort.
+    // Un tarif catalogue NON métrique reste applicable quelle que soit la
+    // façon dont le devis écrit son unité.
+    const clim = [{
+      unit: "unité",
+      price_min_unit_ht: 1200, price_avg_unit_ht: 1900, price_max_unit_ht: 3200,
+      fixed_min_ht: 800, fixed_avg_ht: 1200, fixed_max_ht: 2200,
+    }];
+    expect(bornesMarche(clim, 2, "u").max).toBe(6400);      // 3200 × 2, pas 8600
+    expect(bornesMarche(clim, 1, "U").max).toBe(3200);      // pas 5400
+  });
+
+  it("la MOYENNE suit le même choix que les bornes", () => {
+    // Sinon elle peut sortir de l'intervalle qu'elle résume.
+    const r = bornesMarche(tubage, 1, "forfait");
+    expect(r.avg).toBeGreaterThanOrEqual(r.min);
+    expect(r.avg).toBeLessThanOrEqual(r.max);
+  });
+
+  it("entrée à tarif UNITAIRE seul : comportement historique inchangé", () => {
+    const seulUnitaire = [{ unit: "m2", price_min_unit_ht: 40, price_avg_unit_ht: 70, price_max_unit_ht: 100,
+                            fixed_min_ht: 0, fixed_avg_ht: 0, fixed_max_ht: 0 }];
+    expect(bornesMarche(seulUnitaire, 20, "m2")).toEqual({ min: 800, avg: 1400, max: 2000 });
+  });
+
+  it("entrée au FORFAIT seul : comportement historique inchangé", () => {
+    const seulForfait = [{ unit: "forfait", price_min_unit_ht: 0, price_avg_unit_ht: 0, price_max_unit_ht: 0,
+                           fixed_min_ht: 300, fixed_avg_ht: 700, fixed_max_ht: 1200 }];
+    expect(bornesMarche(seulForfait, 1, "forfait")).toEqual({ min: 300, avg: 700, max: 1200 });
+    // ⚠️ Et la quantité ne multiplie pas un forfait.
+    expect(bornesMarche(seulForfait, 5, "forfait").max).toBe(1200);
+  });
+
+  it("aucun tarif / entrée vide → zéro, sans planter", () => {
+    expect(bornesMarche([], 3, "m2")).toEqual({ min: 0, avg: 0, max: 0 });
+    expect(bornesMarche(null, 3, "m2")).toEqual({ min: 0, avg: 0, max: 0 });
+    expect(bornesMarche(undefined, 3, null)).toEqual({ min: 0, avg: 0, max: 0 });
+  });
+
+  it("quantité absente ou absurde → 1, jamais NaN", () => {
+    expect(bornesMarche(tubage, 0, "ml").max).toBe(280);
+    expect(bornesMarche(tubage, Number.NaN, "ml").max).toBe(280);
   });
 });
