@@ -35,7 +35,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { trackEvent } from "@/lib/integrations/amplitude";
 
-export type SujetSondage = "dommages_ouvrage" | "credit";
+export type SujetSondage = "dommages_ouvrage" | "credit" | "utilite";
 export type ReponseSondage = "interesse" | "deja_equipe" | "non";
 
 interface Props {
@@ -92,6 +92,7 @@ const TONES = {
 const EVENEMENT_VU: Record<SujetSondage, string> = {
   dommages_ouvrage: "sondage_do_vu",
   credit: "sondage_credit_vu",
+  utilite: "sondage_utilite_vu",
 };
 
 export default function SondageInteret({

@@ -44,6 +44,7 @@ const EVENEMENTS_AUTORISES = new Set([
   // décision de 15 % était donc incalculable.
   "sondage_do_vu",
   "sondage_credit_vu",
+  "sondage_utilite_vu",
   // 2026-09-13 — « a commencé à remplir le formulaire d'inscription ». Sans
   // lui, on sait qui ARRIVE sur /inscription et qui TERMINE, jamais qui
   // essaie : impossible de separer « reparti devant le mur » de « a renoncé

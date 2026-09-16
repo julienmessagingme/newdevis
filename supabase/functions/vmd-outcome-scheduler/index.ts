@@ -71,6 +71,78 @@ Deno.serve(async (_req) => {
   }
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+  // ────────────────────────────────────────────────────────────────────────
+  // MODE TEST — 2026-09-16, sur le modèle de « Tester l'envoi » (10/09).
+  //
+  // 25 relances sont parties, ZÉRO retour n'a été enregistré. Impossible de
+  // distinguer d'ici « personne ne clique » de « le lien ne marche pas » : le
+  // jeton est un HMAC calculé ICI avec le secret SUPABASE, et vérifié SUR
+  // VERCEL avec le secret Vercel. Si les deux diffèrent, tout clic échoue en
+  // silence — exactement la panne de septembre, où « le problème n'était pas
+  // la clé, c'était l'endroit ».
+  //
+  // Ce mode envoie UNE relance réelle, par le même chemin de code, sur une
+  // analyse désignée. ⚠️ Il NE STAMPE PAS `outcome_request_sent_at` : sans
+  // cette précaution le test retirerait l'analyse de la vraie boucle.
+  // ⚠️ Et il exige le secret partagé : sans lui, la route deviendrait un moyen
+  // d'envoyer un e-mail à n'importe quel utilisateur.
+  // ────────────────────────────────────────────────────────────────────────
+  let corps: Record<string, unknown> = {};
+  try {
+    corps = await _req.json();
+  } catch { /* le cron appelle sans corps */ }
+
+  if (corps?.mode === "test") {
+    if (corps.secret !== AGENT_SECRET_KEY) {
+      return new Response(JSON.stringify({ ok: false, error: "secret invalide" }), { status: 403 });
+    }
+    const cible = String(corps.analysis_id ?? "");
+    const { data: a } = await supabase
+      .from("analyses")
+      .select("id, user_id, file_name")
+      .eq("id", cible)
+      .maybeSingle();
+    if (!a) return new Response(JSON.stringify({ ok: false, error: "analyse introuvable" }), { status: 404 });
+
+    const { data: u } = await supabase.auth.admin.getUserById(a.user_id);
+    const email = u?.user?.email;
+    if (!email) return new Response(JSON.stringify({ ok: false, error: "propriétaire sans e-mail" }), { status: 400 });
+
+    const token = await hmacHex(a.id, AGENT_SECRET_KEY);
+    const mk = (choice: string) => `${SITE}/api/analyse/outcome-click?id=${a.id}&t=${token}&choice=${choice}`;
+    // Le marqueur de test vit dans la DONNÉE, jamais dans le gabarit : un outil
+    // de vérification qui a son propre texte fait approuver un message qui
+    // n'est pas celui qui part (leçon du 11/09 sur preview-review-email).
+    const html = buildHtml(`${a.file_name} — TEST D'ACHEMINEMENT`, {
+      signe_tel_quel: mk("signe_tel_quel"),
+      signe_apres_negociation: mk("signe_apres_negociation"),
+      non_signe: mk("non_signe"),
+      hesite: mk("hesite"),
+    });
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "VerifierMonDevis <bonjour@verifiermondevis.fr>",
+        reply_to: "contact@verifiermondevis.fr",
+        to: [email],
+        subject: "[TEST] Ce devis, finalement ? (1 clic pour nous dire)",
+        html,
+      }),
+    });
+    const detail = r.ok ? null : (await r.text()).slice(0, 300);
+    console.log(`[outcome-scheduler] TEST vers ${email} — Resend ${r.status}`);
+    return new Response(JSON.stringify({
+      ok: r.ok,
+      destinataire: email,
+      analyse: a.id,
+      statut_resend: r.status,
+      detail,
+      // Le lien exact, pour pouvoir le cliquer sans attendre l'e-mail.
+      lien_hesite: mk("hesite"),
+    }), { status: 200 });
+  }
+
   const now = Date.now();
   const from = new Date(now - 30 * 86400_000).toISOString();
   const to = new Date(now - 15 * 86400_000).toISOString();
