@@ -177,37 +177,17 @@ export default function LeviersNegociation({ conclusion, analysisId, totalHt, pr
           l'ancien comportement est conservé pour elles. */}
       {analysisId && sondageDoHorsListe && <SondageInteret {...sondageDo(analysisId)} />}
 
-      {/* 🔴 2026-09-16 (décision Johan) — LE SONDAGE CRÉDIT CÈDE SA PLACE.
+      {/* 🔴 2026-09-16 (décision Johan) — PLUS AUCUN SONDAGE CRÉDIT ICI.
           Mesuré : **32 affichages, ZÉRO réponse** — pas même un « non »,
-          pourtant enregistrable depuis le 13/09. Le bloc est rendu ici, dans le
-          2e écran de la page : le lecteur vient d'apprendre s'il doit signer et
-          on l'interrompt avec une question de financement. Consigne : « on ne
-          brouille pas et on ne fait pas 2 demandes en même temps ».
+          pourtant enregistrable depuis le 13/09. Le bloc était rendu ici, dans
+          le 2ᵉ écran de la page : le lecteur vient d'apprendre s'il doit signer
+          et on l'interrompait avec une question de financement.
 
-          Le créneau porte donc UNE seule question, et c'est la nôtre. Elle a un
-          second mérite : aujourd'hui un zéro ne distingue pas « pas intéressé »
-          de « jamais vu » — une question sur l'analyse elle-même, à laquelle un
-          lecteur engagé répond, nous dira enfin si le bloc est lu.
-
-          ⚠️ Le sondage crédit n'est PAS supprimé : `sujet="credit"` reste
-          valide côté composant et en base, il attend un meilleur emplacement.
-          ⚠️ Il reste UNE autre demande sur la page — `FeedbackModal`, au
-          défilement à 90 %. Les deux ne se gênent pas (mi-page contre fin de
-          page) mais il faudra surveiller le taux de réponse de la seconde. */}
-      {analysisId && (
-        <SondageInteret
-          analysisId={analysisId}
-          sujet="utilite"
-          tone="sky"
-          question="Cette analyse vous a-t-elle été utile ?"
-          reponses={[
-            { valeur: "interesse", libelle: "Oui, elle m'a servi" },
-            { valeur: "deja_equipe", libelle: "En partie" },
-            { valeur: "non", libelle: "Non, pas vraiment" },
-          ]}
-          besoin="si ce que nous affichons vous aide réellement à décider"
-        />
-      )}
+          La question de financement a déménagé dans `FeedbackModal`, où elle
+          remplace PROVISOIREMENT la demande de satisfaction — une seule
+          demande, et à la fin de la lecture. ⚠️ Ne pas en réintroduire une ici
+          tant que le test court : ce serait exactement les deux demandes
+          simultanées qu'on vient de supprimer. */}
     </section>
   );
 }

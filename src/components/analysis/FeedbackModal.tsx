@@ -75,7 +75,35 @@ export interface UseFeedbackOptions {
   analysisId?: string | null;
   /** Verdict global courant (snapshot pour cohorter en admin). */
   verdict?: VerdictColor | null;
+  /** Montant HT du devis — gate du test crédit (cf. REMPLACEMENT_CREDIT). */
+  totalHt?: number | null;
 }
+
+/**
+ * 🔴 2026-09-16 (décision Johan) — LA QUESTION DE FINANCEMENT REMPLACE
+ * PROVISOIREMENT LA DEMANDE DE SATISFACTION.
+ *
+ * Le sondage crédit vivait dans le 2ᵉ écran de la page d'analyse et a produit
+ * **32 affichages pour ZÉRO réponse** — pas même un « non », pourtant
+ * enregistrable depuis le 13/09. Le lecteur y découvre s'il doit signer ; une
+ * question de financement à cet instant ne pouvait que passer à côté.
+ *
+ * Consigne : *« ôter cette partie test sondage pour le crédit et remplacer
+ * provisoirement le feedback client par la question du crédit »*. Une seule
+ * demande, posée à la fin de la lecture (défilement à 90 %), là où l'attention
+ * a déjà été payée.
+ *
+ * ⚠️ CE QUE CE TEST COÛTE, ET IL FAUT LE SAVOIR : pendant sa durée, on ne
+ * recueille plus de satisfaction (`analysis_feedback`), plus les motifs de
+ * mécontentement, et **on ne propose plus Trustpilot** — le lien n'était offert
+ * qu'après un avis positif. C'est un échange délibéré et RÉVERSIBLE : remettre
+ * `false` ci-dessous restaure l'ancien comportement à l'identique.
+ *
+ * ⚠️ Le seuil de 5 000 € HT est celui de l'ancien emplacement : en dessous, la
+ * question de financement n'a pas de sens, et la satisfaction reprend la main.
+ */
+const REMPLACEMENT_CREDIT = true;
+const CREDIT_MONTANT_MIN_HT = 5000;
 
 // ─── Tracking helper ──────────────────────────────────────────────────────────
 
@@ -450,10 +478,85 @@ function ProgressBar({ step, withReward }: { step: Step; withReward: boolean }) 
   );
 }
 
+// ─── Test crédit — une seule question, à la fin de la lecture ─────────────────
+
+type ReponseCredit = "interesse" | "deja_equipe" | "non";
+
+const REPONSES_CREDIT: { valeur: ReponseCredit; libelle: string }[] = [
+  { valeur: "interesse",   libelle: "Je cherche une solution" },
+  // 2026-09-13 (retour Johan) — les trois réponses doivent être du même
+  // registre que la question, qui demande une INTENTION.
+  { valeur: "deja_equipe", libelle: "C'est déjà financé" },
+  { valeur: "non",         libelle: "Je paie sans emprunter" },
+];
+
+function StepCredit({
+  totalHt, repondu, onRepondre, onClose,
+}: {
+  totalHt: number | null;
+  repondu: boolean;
+  onRepondre: (v: ReponseCredit) => void;
+  onClose: () => void;
+}) {
+  if (repondu) {
+    return (
+      <div className="text-center">
+        <CheckCircle2 className="h-9 w-9 text-emerald-500 mx-auto mb-3" aria-hidden="true" />
+        <p className="text-[15px] font-semibold text-slate-900">Merci.</p>
+        <p className="mt-1.5 text-[13.5px] text-slate-600 leading-relaxed">
+          Votre réponse nous aide à décider si nous développons ce service.
+        </p>
+        <Button onClick={onClose} className="mt-5 w-full">Fermer</Button>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <h3 className="text-[16px] font-semibold text-slate-900 leading-snug">
+        {/* 2026-09-13 (retour Johan) — « qu'envisagez-vous ? » et non « où en
+            êtes-vous ? » : la seconde présuppose une démarche déjà engagée,
+            alors qu'on s'adresse à quelqu'un qui vient d'analyser un devis. */}
+        Pour financer ces travaux
+        {typeof totalHt === "number" && totalHt > 0
+          ? ` (${Math.round(totalHt).toLocaleString("fr-FR")} € HT)`
+          : ""}, qu'envisagez-vous&nbsp;?
+      </h3>
+      <div className="mt-4 flex flex-col gap-2">
+        {REPONSES_CREDIT.map((r) => (
+          <button
+            key={r.valeur}
+            onClick={() => onRepondre(r.valeur)}
+            className="w-full text-left rounded-lg border border-indigo-300 px-3.5 py-2.5 text-[14px] text-indigo-900 hover:bg-indigo-50 transition-colors touch-manipulation"
+          >
+            {r.libelle}
+          </button>
+        ))}
+      </div>
+      {/* 2026-09-14 (retour Johan) — dire POURQUOI on interroge. ⚠️ L'ORDRE DES
+          DEUX PHRASES EST LA GARDE : l'intention d'abord, la garantie ensuite.
+          Inversées, « partenaires » resterait seul en tête et se lirait comme
+          une revente de dossier — ce que la page d'accueil promet de ne pas
+          faire (« sans revente de lead »). */}
+      <p className="mt-4 text-[12.5px] text-slate-600 leading-relaxed">
+        <span className="font-semibold text-slate-800">Pourquoi cette question&nbsp;?</span>{" "}
+        Nous cherchons à estimer si le financement est un frein réel sur des chantiers de ce
+        montant. Si le besoin se confirme, nous irions chercher des partenaires pour construire
+        la meilleure solution. Ce service n'existe pas encore&nbsp;: votre réponse sert à décider
+        s'il doit exister.
+      </p>
+      {/* ⚠️ NE PAS écrire « anonyme » : la réponse est enregistrée avec le
+          compte et l'analyse. On dit ce qui est vrai et suffisant. */}
+      <p className="mt-2 text-[12px] text-slate-400 leading-relaxed">
+        Votre réponse ne déclenche aucun appel ni aucun e-mail, et n'est transmise à personne.
+      </p>
+    </div>
+  );
+}
+
 // ─── Hook — source de vérité unique ───────────────────────────────────────────
 
 export function useFeedback(opts: UseFeedbackOptions = {}) {
-  const { analysisId = null, verdict = null } = opts;
+  const { analysisId = null, verdict = null, totalHt = null } = opts;
 
   const [open,       setOpen]       = useState(false);
   const [step,       setStep]       = useState<Step>("feedback");
@@ -466,8 +569,56 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
   // V3.4.14+ — refs pour lire la valeur courante des props sans causer de
   // re-création des callbacks (qui invaliderait le useMemo du Modal).
   const analysisIdRef = useRef(analysisId);
+  const totalHtRef    = useRef(totalHt);
+  const [creditRepondu, setCreditRepondu] = useState(false);
+
+  /**
+   * Le test ne remplace la satisfaction QUE là où la question a un sens : un
+   * devis de 400 € n'appelle pas de financement. En dessous du seuil, la
+   * modale garde son comportement d'origine.
+   */
+  const creditActif =
+    REMPLACEMENT_CREDIT &&
+    typeof totalHt === "number" &&
+    totalHt >= CREDIT_MONTANT_MIN_HT;
+
+  // ⚠️ SANS DÉNOMINATEUR, UN TAUX N'EXISTE PAS (règle du 13/09). On journalise
+  // l'affichage une seule fois par ouverture, sinon chaque revisite gonflerait
+  // le dénominateur et le taux baisserait tout seul.
+  const vuEnvoye = useRef(false);
+  useEffect(() => {
+    if (!open || !creditActif || vuEnvoye.current) return;
+    vuEnvoye.current = true;
+    fetch("/api/track/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: "sondage_credit_vu", path: `/analyse/${analysisIdRef.current ?? ""}` }),
+      keepalive: true,
+    }).catch(() => { /* best-effort */ });
+  }, [open, creditActif]);
+
+  const repondreCredit = useCallback(async (valeur: ReponseCredit) => {
+    const aid = analysisIdRef.current;
+    // On remercie TOUJOURS, même si l'enregistrement échoue : une mesure
+    // best-effort ne doit jamais se voir de l'utilisateur.
+    setCreditRepondu(true);
+    markShown();
+    track("sondage_reponse", { topic: "credit", reponse: valeur, analysis_id: aid });
+    if (!aid) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      await fetch(`/api/analyse/${aid}/interest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ topic: "credit", reponse: valeur }),
+      });
+    } catch { /* ignoré — best-effort */ }
+  }, []);
   const verdictRef    = useRef(verdict);
   useEffect(() => { analysisIdRef.current = analysisId; }, [analysisId]);
+  useEffect(() => { totalHtRef.current = totalHt; }, [totalHt]);
   useEffect(() => { verdictRef.current    = verdict;    }, [verdict]);
 
   const triggeredRef = useRef(false);
@@ -645,9 +796,20 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
             <X className="h-4 w-4" />
           </button>
 
-          <ProgressBar step={step} withReward={withReward} />
+          {/* Test crédit : une seule question, pas de parcours en trois temps —
+              donc pas de barre de progression qui promettrait des étapes. */}
+          {!creditActif && <ProgressBar step={step} withReward={withReward} />}
 
-          {step === "feedback" && (
+          {creditActif && (
+            <StepCredit
+              totalHt={totalHtRef.current}
+              repondu={creditRepondu}
+              onRepondre={repondreCredit}
+              onClose={close}
+            />
+          )}
+
+          {!creditActif && step === "feedback" && (
             <StepFeedback
               choice={choice}
               text={text}
@@ -660,7 +822,7 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
             />
           )}
 
-          {step === "reward" && (
+          {!creditActif && step === "reward" && (
             <StepReward
               activating={activating}
               onActivate={handleActivate}
@@ -668,14 +830,14 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
             />
           )}
 
-          {step === "done" && choice && (
+          {!creditActif && step === "done" && choice && (
             <StepDone choice={choice} rewardActivated={rewardActivated} onClose={close} />
           )}
         </div>
       </>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, step, choice, text, tags, submitting, activating]);
+  }, [open, step, choice, text, tags, submitting, activating, creditActif, creditRepondu, repondreCredit]);
 
   return { openFeedback, FeedbackModal: Modal };
 }

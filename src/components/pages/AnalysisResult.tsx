@@ -382,9 +382,17 @@ const AnalysisResult = () => {
   // est sync via useEffect plus bas car effectiveScore est calculé après.
   // useFeedback lit en refs en interne → pas de re-render si verdict change.
   const [verdictForFeedback, setVerdictForFeedback] = useState<"VERT" | "ORANGE" | "ROUGE" | null>(null);
+  // ⚠️ MÊME RAISON QUE POUR LE VERDICT, ET C'EST LA ZONE MORTE TEMPORELLE :
+  // `totalHT` est déclaré ~280 lignes PLUS BAS. Le lire ici lèverait un
+  // ReferenceError, illisible en production (Vite renomme la variable en une
+  // lettre). On passe donc par un état synchronisé, comme le verdict.
+  const [totalHtForFeedback, setTotalHtForFeedback] = useState<number | null>(null);
   const { openFeedback, FeedbackModal } = useFeedback({
     analysisId: id ?? null,
     verdict: verdictForFeedback,
+    // 2026-09-16 — gate du test crédit : la question de financement ne remplace
+    // la satisfaction que sur les devis d'au moins 5 000 € HT.
+    totalHt: totalHtForFeedback,
   });
   // V3.4.15+ (2026-05-18) — Modal Trustpilot legacy supprimée.
   // Avant : popup automatique 5s après chargement de l'analyse.
@@ -928,6 +936,11 @@ const AnalysisResult = () => {
   useEffect(() => {
     setVerdictForFeedback(effectiveScore ?? null);
   }, [effectiveScore]);
+
+  // 2026-09-16 — même mécanique pour le montant, lu par le test crédit.
+  useEffect(() => {
+    setTotalHtForFeedback(typeof totalHT === "number" && totalHT > 0 ? totalHT : null);
+  }, [totalHT]);
 
   // ---- Waiting message rotation (must be before any conditional return) ----
   const [waitingMsgIdx, setWaitingMsgIdx] = useState(0);
