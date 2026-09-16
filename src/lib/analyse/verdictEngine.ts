@@ -756,6 +756,24 @@ export interface VerdictReasonsInput {
    * "vous dites 2 postes, je vois 3 lignes — qui croire ?".
    */
   display_anomalies_count?: number;
+
+  /**
+   * 🔴 2026-09-16 — LA SECONDE SOURCE MESURÉE DE LA FUITE DE L'INVARIANT.
+   *
+   * `true` quand la couverture comparée en confiance haute est sous le seuil du
+   * produit (`COUVERTURE_MIN_POUR_AFFIRMER_PCT = 5`), autrement dit : nous ne
+   * savons pas chiffrer ce devis.
+   *
+   * ⚠️ `has_market_data` NE RÉPOND PAS à cette question, et c'est tout le
+   * piège. Il vaut `market_estimate_max > 0` : « une fourchette a été trouvée »,
+   * jamais « nous croyons à cette fourchette ». C'est exactement l'asymétrie
+   * corrigée le 2026-09-10 (cas AQUIVOLTAIQUE) — 37 analyses sur 40 annonçaient
+   * « rien de comparable » tout en affichant des verdicts de prix.
+   *
+   * Optionnel et `false` par défaut : les appelants qui ne le passent pas
+   * gardent exactement le comportement antérieur.
+   */
+  rien_de_comparable?: boolean;
 }
 
 export interface VerdictReasonsResult {
@@ -791,7 +809,7 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     company_risk, flags, has_market_data,
     market_dispersion_pct, chantier_complexity, threshold_ok,
     hard_block_reason, company_status, weighted_anomalies,
-    server_surcout_mid, display_anomalies_count,
+    server_surcout_mid, display_anomalies_count, rien_de_comparable,
   } = input;
 
   const wa = weighted_anomalies;
@@ -807,6 +825,17 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
   // V3.1 : le wording du summary doit toujours être cohérent avec le verdict.
   // Avant : si verdict="a_negocier" + impact="faible" → "Devis globalement cohérent"
   // → contradiction visible avec le bandeau "À renégocier" affiché par-dessus.
+  // 🔴 2026-09-16 — LE REPLI AFFIRMAIT UN PRIX SANS JAMAIS REGARDER S'IL Y EN
+  // AVAIT UN. La dernière branche écrivait « Ce devis est cohérent avec les
+  // prix du marché » dès que le verdict valait « signer » — y compris sur les
+  // devis dont AUCUNE ligne n'est rapprochée en confiance haute. C'est la
+  // seconde source mesurée par `scripts/banc-invariant-affirmation.mjs`
+  // (2 violations), et la seule qui ne vienne pas du LLM : elle est écrite
+  // en dur, ici, depuis l'origine.
+  //
+  // ⚠️ On ne bascule PAS vers une accusation (« postes à renégocier ») : sans
+  // référence, réclamer une négociation serait le conseil intempestif proscrit
+  // le 2026-09-04. Un doute produit un doute — on dit ce qu'on ne sait pas.
   const summary =
     hard_block_reason === "company_status"
       ? "🛑 Ne signez pas ce devis — entreprise juridiquement à risque"
@@ -814,6 +843,8 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
       ? "Ce devis présente un risque élevé — ne signez pas"
     : verdict === "a_negocier"
       ? "Ce devis présente des postes à renégocier avant signature"
+    : (rien_de_comparable === true || has_market_data === false)
+      ? "Aucun prix de référence à opposer — nous ne pouvons pas nous prononcer sur les montants"
     : "Ce devis est cohérent avec les prix du marché";
 
   const reasons: string[] = [];

@@ -45,39 +45,22 @@ const supa = createClient(lire("PUBLIC_SUPABASE_URL"), lire("SUPABASE_SERVICE_RO
 const COUVERTURE_MIN = 5;
 
 /**
- * Ce qui compte comme AFFIRMER que le prix est correct.
+ * 🔴 LE DÉTECTEUR VIT DANS UN SEUL FICHIER, PARTAGÉ AVEC LE TEST DU COMPOSEUR.
  *
- * ⚠️ Cette liste est volontairement LARGE — elle sert à MESURER, pas à filtrer.
- * C'est précisément parce qu'une liste ne peut pas être exhaustive que le banc
- * existe : si elle trouve déjà des violations, une liste plus fine n'est pas la
- * solution.
+ * `phraseIntroSansReference` (livré le même jour) doit prouver que la phrase
+ * que NOUS composons n'affirme jamais un prix correct. Un test qui utiliserait
+ * sa propre définition de « affirmer un prix » prouverait seulement qu'elle
+ * échappe à un motif écrit pour elle — il doit échapper au motif de la MESURE.
+ * D'où `scripts/detecteur-affirmation-prix.mjs`, et surtout : pas de copie.
+ * (Leçon de `preview-review-email.ts`, 2026-09-11.)
  */
-const AFFIRME_UN_PRIX =
-  /\b(prix|tarifs?|montants?|devis)\b[^.!?]{0,40}\b(coh[ée]rents?|corrects?|justes?|normaux?|conformes?|dans (la|les) (norme|moyenne|fourchettes?)|raisonnables?|align[ée]s?|competitifs?|comp[ée]titifs?|attractifs?|bien plac[ée]s?)\b|\b(coh[ée]rents?|corrects?|conformes?|raisonnables?)\b[^.!?]{0,30}\b(march[ée]|prix|tarifs?)\b|\bau (bon|juste) prix\b|\bpas de surco[ûu]t\b|\brien [àa] redire sur (le|les) prix\b/i;
-
-/**
- * 🔴 UNE NÉGATION N'EST PAS UNE AFFIRMATION — et mon premier jet l'ignorait.
- *
- * « nous ne sommes **pas en mesure** de dire si le prix est juste » contient
- * « prix … juste » : le motif brut y voyait une violation. Il en a compté 19,
- * dont la plupart étaient des phrases qui disent EXACTEMENT ce qu'on veut
- * qu'elles disent. Troisième fois aujourd'hui qu'un indicateur mal écrit
- * fabrique un signal qui n'existe pas.
- *
- * On travaille donc PHRASE PAR PHRASE, et on écarte celle qui porte une
- * marque de négation ou de réserve.
- */
-const NEGATION =
-  /\b(ne |n'|pas |aucun|sans |impossible|ni |jamais|ne pouvons|pas en mesure|hors d'[ée]tat|faute de|insuffisan|invérifiable|non v[ée]rifiable|ne permet pas|ne dit rien)/i;
-
-function phraseAffirmative(texte) {
-  for (const phrase of String(texte).split(/(?<=[.!?])\s+/)) {
-    if (!AFFIRME_UN_PRIX.test(phrase)) continue;
-    if (NEGATION.test(phrase)) continue;
-    return phrase.trim();
-  }
-  return null;
-}
+import {
+  AFFIRME_UN_PRIX,
+  NEGATION,
+  phraseAffirmative,
+} from "./detecteur-affirmation-prix.mjs";
+void AFFIRME_UN_PRIX;
+void NEGATION;
 
 const { data: analyses, error } = await supa
   .from("analyses")

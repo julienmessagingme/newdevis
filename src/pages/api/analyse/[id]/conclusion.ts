@@ -488,6 +488,7 @@ import {
   extractKnownSurface, FORFAIT_UNIT_KEYWORDS, SURFACE_WORK_KEYWORDS, UNIT_LIKE,
 } from "@/lib/analyse/surcoutServeur";
 import { relireVerdict } from "@/lib/analyse/relectureVerdict";
+import { phraseIntroSansReference } from "@/lib/analyse/phraseIntroSansReference";
 import {
   postesAArbitrer, arbitrerRapprochements, type ResultatArbitrage,
 } from "@/lib/analyse/arbitreRapprochement";
@@ -2005,12 +2006,21 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // Devis ancien : calcul âge pour avertissement
   let devisAgeWarning = "";
+  // 🔴 2026-09-16 — L'ANNÉE DOIT SURVIVRE AU REMPLACEMENT DE LA PHRASE D'INTRO.
+  // Mesuré par `scripts/banc-perte-phrase-intro.mjs` : sur les 42 analyses dont
+  // la phrase d'intro devient déterministe, l'âge du devis n'était porté QUE
+  // par cette phrase — le levier « devis > 12 mois » ne se déclenche pas sur
+  // ces cas (défaut préexistant, non traité ici). Remplacer la phrase sans
+  // reprendre l'année aurait fait disparaître le fait de la page : un correctif
+  // ne doit pas défaire ce qu'il ne visait pas (règle du 2026-09-10).
+  let anneeDevisAncien: number | null = null;
   const dateDevis = typeof dates.date_devis === "string" ? dates.date_devis : null;
   if (dateDevis) {
     const devisDate = new Date(dateDevis);
     const now = new Date();
     const ageMonths = (now.getFullYear() - devisDate.getFullYear()) * 12 + (now.getMonth() - devisDate.getMonth());
-    if (ageMonths > 12) {
+    if (ageMonths > 12 && !Number.isNaN(devisDate.getFullYear())) {
+      anneeDevisAncien = devisDate.getFullYear();
       devisAgeWarning = `⚠️ DEVIS ANCIEN : ce devis date de ${devisDate.getFullYear()} (${Math.floor(ageMonths / 12)} an${Math.floor(ageMonths / 12) > 1 ? "s" : ""} environ). Les prix des matériaux et de la main d'œuvre ont évolué depuis — la comparaison au marché est indicative, pas définitive. Mentionner ce point explicitement dans la conclusion.`;
     }
   }
@@ -3074,12 +3084,43 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     const sanitizeVerdict = preEngine.verdict; // "signer" | "a_negocier" | "refuser"
     const hasServerSurcout = isMaterialServerSurcout(surcoutMax, totalHT, marketPosition.totalDevis);
 
-    const phraseIntro    = sanitizeLLMText(
-      typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "",
-      sanitizeVerdict,
-      hasServerSurcout,
-      rienDeComparable,
-    );
+    // 🔴 2026-09-16 — QUAND LE MOTEUR NE SAIT PAS CHIFFRER, LA PHRASE D'INTRO
+    // EST COMPOSÉE PAR NOUS, PAS ÉCRITE PAR GEMINI.
+    //
+    // Mesuré sur le stock (`scripts/banc-invariant-affirmation.mjs`) : sur les
+    // 43 analyses incapables de chiffrer, 5 affirmaient quand même que le prix
+    // était correct — et les 5 violations venaient de CE champ. Zéro violation
+    // sur `verdict_ligne`, `leviers` et `justifications`, qui sont composés
+    // par le serveur. Cent pour cent sur le seul champ que Gemini écrit.
+    //
+    // ⚠️ Ce n'est pas une garde de plus. `sanitizeLLMText` (niveau 0, juste
+    // en dessous) est une LISTE NOIRE posée sur de la prose générée : le 04/09
+    // elle bloquait « globalement cohérent », le 16/09 Gemini écrit « présente
+    // un prix cohérent » et passe. Il y aura toujours une formulation de plus.
+    // On cesse donc de SOUSTRAIRE l'affirmation : on ne la produit pas.
+    //
+    // ⚠️ Et ce n'est pas une invention : `phrase_intro` est DÉJÀ composée en dur
+    // sur les quatre chemins d'exception plus haut (étranger, courtier, devis
+    // incomplet, hors-scope), où elle ne fuit jamais. On étend au chemin normal
+    // ce qui marche déjà sur les exceptions.
+    //
+    // ⚠️ PORTÉE STRICTEMENT LIMITÉE À `rienDeComparable`. Hors de ce cas, Gemini
+    // garde la main : il décrit le devis mieux que nous, et il n'y a là aucune
+    // fuite mesurée. `sanitizeLLMText` continue de couvrir ce chemin.
+    const phraseIntro    = rienDeComparable
+      ? phraseIntroSansReference({
+          totalHT,
+          ville,
+          coveragePct,
+          aucuneLigneTravaux,
+          anneeDevisAncien,
+        })
+      : sanitizeLLMText(
+          typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "",
+          sanitizeVerdict,
+          hasServerSurcout,
+          rienDeComparable,
+        );
     const justifications = sanitizeLLMText(
       typeof parsed.justifications === "string" ? parsed.justifications.trim() : "",
       sanitizeVerdict,
@@ -3265,6 +3306,11 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       weighted_anomalies:    preEngine.weighted_anomalies,         // vraie valeur, pas boostée
       server_surcout_mid:    serverSurcoutMid,                     // cohérence avec hero
       display_anomalies_count: displayAnomaliesCount,              // cohérence avec bandeau + liste
+      // 2026-09-16 — sans ce drapeau, le résumé retombait sur « Ce devis est
+      // cohérent avec les prix du marché » alors que rien n'avait été comparé.
+      // ⚠️ `has_market_data` ne suffit PAS : il dit qu'une fourchette a été
+      // trouvée, pas qu'elle est opposable (cf. asymétrie du 2026-09-10).
+      rien_de_comparable:    rienDeComparable,
     });
 
     // ──────────────────────────────────────────────────────────────────────────
