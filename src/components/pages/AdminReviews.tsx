@@ -737,6 +737,7 @@ export default function AdminReviews() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [testEnvoiEnCours, setTestEnvoiEnCours] = useState(false);
+  const [testIssueEnCours, setTestIssueEnCours] = useState(false);
   const [rattrapageEnCours, setRattrapageEnCours] = useState(false);
 
   /**
@@ -777,6 +778,50 @@ export default function AdminReviews() {
       });
     } finally {
       setTestEnvoiEnCours(false);
+    }
+  }, []);
+
+  /**
+   * 2026-09-16 (demande Johan) — LA BOUCLE « ALORS CE DEVIS ? » REMONTE-T-ELLE ?
+   *
+   * **25 relances envoyées, ZÉRO ligne dans `analysis_outcomes`.** Deux
+   * explications possibles, opposées dans ce qu'elles commandent : personne ne
+   * clique (revoir le message ou le moment), ou le lien ne marche pas (on n'a
+   * jamais rien mesuré). Le jeton est signé côté SUPABASE et vérifié côté
+   * VERCEL : deux valeurs différentes de `AGENT_SECRET_KEY` feraient échouer
+   * chaque clic en silence — la panne de septembre à l'identique.
+   *
+   * Ce bouton envoie une VRAIE relance sur une analyse de l'admin connecté, par
+   * le même chemin que le cron. Il reste à cliquer le lien reçu : si la ligne
+   * apparaît, le tuyau est bon et le zéro est un vrai signal.
+   */
+  const testerRelanceIssue = useCallback(async () => {
+    setTestIssueEnCours(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/admin/test-outcome-email", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => null);
+      const d = json?.data ?? json;
+      const r = d?.resultat;
+      setNotifDerniereAction({
+        ok: Boolean(r?.ok),
+        raison: r?.ok
+          ? `relance envoyée à ${r.destinataire} sur « ${d?.fichier ?? "votre analyse"} » — cliquez un des 4 boutons du mail, puis vérifiez qu'une ligne apparaît`
+          : `échec : ${r?.error ?? d?.raison ?? "inconnu"}${r?.detail ? ` — ${r.detail}` : ""}`,
+        contexte: "test",
+      });
+    } catch (e) {
+      setNotifDerniereAction({
+        ok: false,
+        raison: e instanceof Error ? e.message : "échec réseau",
+        contexte: "test",
+      });
+    } finally {
+      setTestIssueEnCours(false);
     }
   }, []);
 
@@ -964,6 +1009,15 @@ export default function AdminReviews() {
           >
             <Mail className={`h-3 w-3 ${testEnvoiEnCours ? "animate-pulse" : ""}`} aria-hidden="true" />
             {testEnvoiEnCours ? "Envoi…" : "Tester l'envoi"}
+          </button>
+          <button
+            onClick={testerRelanceIssue}
+            disabled={testIssueEnCours}
+            title="Envoie une vraie relance « alors ce devis ? » sur une de VOS analyses, par le même chemin que le cron. Cliquez ensuite un bouton du mail : si aucune ligne n'apparaît dans analysis_outcomes, le jeton ne se vérifie pas — et les 25 relances déjà parties étaient muettes."
+            className="px-3 py-1.5 border rounded text-sm inline-flex items-center gap-2 hover:bg-muted/50 disabled:opacity-50"
+          >
+            <Mail className={`h-3 w-3 ${testIssueEnCours ? "animate-pulse" : ""}`} aria-hidden="true" />
+            {testIssueEnCours ? "Envoi…" : "Tester la relance d'issue"}
           </button>
           <button
             onClick={rattrapage}
