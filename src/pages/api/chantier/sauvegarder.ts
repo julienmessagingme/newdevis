@@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
 import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody, CORS, hasGmcWriteAccess, gmcPaywallResponse } from '@/lib/api/apiHelpers';
 import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
 import { getSemanticEmoji } from '@/lib/chantier/lotUtils';
-import { GMC_PAYMENTS_LIVE } from '@/lib/integrations/gmc-stripe-config';
+import { gmcPaymentsLive } from '@/lib/integrations/gmc-stripe-config';
 
 // Vrai emoji Unicode = pas de lettres/chiffres ASCII, pas de scripts CJK/kana/hangul.
 // Évite les hallucinations Gemini type "タイル" ou "Tile" rendues comme texte au lieu d'icône.
@@ -39,7 +39,7 @@ export const POST: APIRoute = async ({ request }) => {
   // l'offre Multi payante. N'enforce QUE quand les paiements GMC sont configurés
   // (sinon on bloquerait des essais sans moyen de payer). Garde autoritaire
   // (service-role) : empêche le contournement par appel direct. Frontend : code=multi_required.
-  if (GMC_PAYMENTS_LIVE) {
+  if (gmcPaymentsLive()) {
     const { count: chantierCount } = await supabase
       .from('chantiers')
       .select('id', { count: 'exact', head: true })

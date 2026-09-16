@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { computeGmcInfo } from '@/lib/integrations/gmc-status-compute';
-import { GMC_PAYMENTS_LIVE } from '@/lib/integrations/gmc-stripe-config';
+import { gmcPaymentsLive } from '@/lib/integrations/gmc-stripe-config';
 import { evaluateArtisanAccess } from './artisanScope';
 
 // ── CORS ────────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ export function internalFanoutBase(request: Request): string {
 /** Acces en ECRITURE GMC : essai en cours OU abonnement actif/past_due. Inactif
  *  tant que les paiements ne sont pas configures (GMC_PAYMENTS_LIVE = price env vars). */
 export async function hasGmcWriteAccess(supabase: SupabaseClient, userId: string): Promise<boolean> {
-  if (!GMC_PAYMENTS_LIVE) return true;
+  if (!gmcPaymentsLive()) return true;
   const { data } = await supabase
     .from('gmc_subscriptions')
     .select('status, plan, trial_ends_at, current_period_end')

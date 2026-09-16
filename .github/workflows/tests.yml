@@ -1,0 +1,82 @@
+name: Tests
+
+# 🔴 2026-09-16 (question Johan : « sinon dans 6 mois on va être au même stade
+# voire régression du modèle ») — AVANT CE WORKFLOW, AUCUNE CI NE LANÇAIT LES
+# TESTS. Ni hook git, ni husky, ni action : `npm test` existait et personne ne
+# l'appelait. Plus de 600 cas d'anti-régression, dont la quasi-totalité écrits
+# après un incident RÉEL signalé par un utilisateur, ne protégeaient donc rien.
+#
+# Ce que l'audit a trouvé le jour où on a regardé :
+#   · `advancedPlanningAccess.test.ts` — les 10 tests que CLAUDE.md désigne comme
+#     le filet du gate « planning avancé » — ÉTAIT CASSÉ. Un module de sa chaîne
+#     lisait `import.meta.env` au chargement ; sous `tsx` ça vaut `undefined`,
+#     donc le simple import plantait. Silencieusement, depuis des semaines.
+#   · `vitest.config.ts` n'inclut que `src/**` : les 10 fichiers de tests des
+#     edge functions (SIRET/Luhn, repli par personne, devis incomplet, lignes
+#     récap, fourniture seule…) n'étaient JAMAIS exécutés par `npm test`.
+#
+# ⚠️ CE WORKFLOW NE BLOQUE PAS LE DÉPLOIEMENT. Le déploiement réel vient de
+# l'intégration Git de Vercel, indépendante des Actions. Un échec ici produit une
+# pastille ROUGE sur le commit — c'est exactement le signal qui a permis de
+# diagnostiquer l'incident `vercel.json` d'août. Pour bloquer réellement, il
+# faudrait une branch protection rule ou l'« Ignored Build Step » de Vercel :
+# décision à prendre, pas un oubli.
+#
+# ⚠️ ON NE LANCE PAS `tsc --noEmit` : le dépôt porte des erreurs TypeScript
+# préexistantes dans des composants UI. Une CI rouge dès le premier jour
+# s'ignore au bout d'une semaine — et une alerte qu'on ignore est pire que pas
+# d'alerte (leçon des 4 crons morts pendant deux mois, 2026-08-29).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      # Le gros du filet : règles de verdict, leviers, rapprochement, gardes.
+      - name: Vitest (src/**)
+        run: npx vitest run
+
+      # 🔴 CES FICHIERS NE SONT PAS DANS VITEST, ET C'EST PRÉCISÉMENT POURQUOI
+      # ILS DOIVENT ÊTRE ICI. Harness maison (`check()` + console.log, sans
+      # describe/it) — soit exclus explicitement de `vitest.config.ts`, soit hors
+      # du périmètre `src/**`. Chacun est le filet d'un incident réel :
+      #   verdictEngine (54)          — entreprise radiée, escalade de verdict
+      #   advancedPlanningAccess (10) — gate offre Multi
+      #   planningUtils.subphases     — CPM sous-phases, équivalence sans sous-phase
+      #   siren-luhn, repli-personne  — identification entreprise (13/09)
+      #   incomplete-quote, recap-lines, supply-only, inline-quantities,
+      #   country, company-status, market-matcher* — extraction et rapprochement
+      #
+      # ⚠️ `set -e` + boucle : un seul échec fait échouer l'étape. Ne pas
+      # remplacer par un `|| true` « le temps de stabiliser » — c'est ainsi
+      # qu'on se retrouve avec un test cassé depuis des semaines.
+      - name: Tests standalone (harness maison, lancés via tsx)
+        run: |
+          set -e
+          for f in \
+            src/lib/analyse/verdictEngine.test.ts \
+            src/lib/auth/advancedPlanningAccess.test.ts \
+            src/lib/chantier/planningUtils.subphases.test.ts \
+            supabase/functions/analyze-quote/*.test.ts
+          do
+            echo "──────── $f"
+            npx tsx "$f"
+          done

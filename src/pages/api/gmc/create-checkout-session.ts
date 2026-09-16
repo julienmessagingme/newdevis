@@ -5,7 +5,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { optionsResponse, jsonOk, jsonError, requireAuth, originFromRequest } from '@/lib/api/apiHelpers';
 import {
-  gmcPriceId, gmcPlanDb, GMC_FIRST_MONTH_COUPON,
+  gmcPriceId, gmcPlanDb, gmcFirstMonthCoupon,
   type GmcPlanKey, type GmcInterval,
 } from '@/lib/integrations/gmc-stripe-config';
 
@@ -39,7 +39,8 @@ export const POST: APIRoute = async ({ request }) => {
 
   // Coupon -50% 1er mois : UNIQUEMENT sur le mensuel. Sur l'annuel, duration:once
   // donnerait -50% sur l'annee entiere (hors offre). Ignore si l'env du coupon manque.
-  const applyCoupon = body.offer === true && interval === 'month' && !!GMC_FIRST_MONTH_COUPON;
+  const coupon = gmcFirstMonthCoupon();
+  const applyCoupon = body.offer === true && interval === 'month' && !!coupon;
 
   const stripe = new Stripe(stripeSecretKey);
   // Client service-role dedie aux ecritures gmc_subscriptions (RLS = service_role only).
@@ -85,7 +86,7 @@ export const POST: APIRoute = async ({ request }) => {
       line_items: [{ price: priceId, quantity: 1 }],
       // discounts et allow_promotion_codes sont mutuellement exclusifs chez Stripe.
       ...(applyCoupon
-        ? { discounts: [{ coupon: GMC_FIRST_MONTH_COUPON! }] }
+        ? { discounts: [{ coupon: coupon! }] }
         : { allow_promotion_codes: true }),
       success_url: `${origin}/mon-chantier?abonnement=success`,
       cancel_url: `${origin}/gmc-abonnement?canceled=true`,
