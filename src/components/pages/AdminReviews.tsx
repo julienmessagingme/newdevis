@@ -490,25 +490,41 @@ function ReviewDetail({
                 ))}
               </select>
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Surcout min (€)</label>
-              <input
-                type="number"
-                value={surcoutMin}
-                onChange={(e) => setSurcoutMin(e.target.value)}
-                className="w-full text-sm border rounded px-2 py-1"
-                inputMode="decimal"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Surcout max (€)</label>
+            {/* 🔴 2026-09-17 — UN SEUL CHAMP, PARCE QU'UN SEUL NOMBRE EST
+                AFFICHÉ. Le coefficient ×1,3 a été retiré le 15/09 : l'écart est
+                un nombre unique, égal à la somme des postes nommés, et
+                « rétablir une fourchette pour faire moins sec » est proscrit —
+                un intervalle décoratif est un chiffre faux.
+                Deux champs invitaient pourtant à en saisir une : sur le devis
+                Vilette, « 3 000 / 4 000 » a produit « environ 3 000 à 4 000 € »
+                sur la page, à côté d'un message d'expert qui disait 3 880 € et
+                d'un détail à 4 520 €. Trois nombres pour un seul fait. */}
+            {/* ⚠️ « 3 880 € est trop précis » (Johan, 17/09) — et il a raison :
+                l'écart dépend d'où tombe le vrai prix dans la fourchette, une
+                décimale près suggère une exactitude qu'on n'a pas. La réponse
+                est d'ARRONDIR, pas d'ouvrir un intervalle : « environ 4 000 € »
+                est un nombre rond ET rattachable au poste, alors que le
+                plancher d'un « 3 000 à 4 000 » ne correspond à rien — ni à
+                l'écart au plafond du marché, ni à une somme de postes. C'est le
+                lecteur qui demande « pourquoi 3 000 ? » et à qui on ne peut
+                rien répondre. */}
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Écart retenu (€) — un seul nombre, arrondi librement
+              </label>
               <input
                 type="number"
                 value={surcoutMax}
-                onChange={(e) => setSurcoutMax(e.target.value)}
+                onChange={(e) => { setSurcoutMax(e.target.value); setSurcoutMin(e.target.value); }}
                 className="w-full text-sm border rounded px-2 py-1"
                 inputMode="decimal"
               />
+              {Number(surcoutMax) > 0 && anomalies.some((_, i) => keptAnomalies[i]) && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Le détail sera réaligné sur ce montant — le lecteur qui additionne les
+                  postes doit retomber dessus.
+                </p>
+              )}
             </div>
           </div>
           <p className="text-xs text-muted-foreground">

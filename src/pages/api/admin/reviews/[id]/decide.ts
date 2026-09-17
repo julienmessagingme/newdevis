@@ -231,6 +231,35 @@ export const POST: APIRoute = async ({ request, params }) => {
         resyncVerdictLigne(vl, conclusionToPersist);
       }
     } else if (conclusionToPersist.verdict_ligne && typeof conclusionToPersist.verdict_ligne === "object") {
+      // 🔴 2026-09-17 — LE DÉTAIL DOIT SOMMER AU MONTANT ANNONCÉ, SINON LA PAGE
+      // PORTE DEUX CHIFFRES QUI SE CONTREDISENT.
+      //
+      // Cas réel (devis Vilette) : l'expert ramène le surcoût à 4 000 €, garde
+      // l'anomalie cochée — et celle-ci conserve ses **4 520 €** d'origine. Le
+      // lecteur qui additionne le détail ne retombe jamais sur le montant du
+      // hero. C'est exactement la règle R « montant ≠ somme du détail » de la
+      // relecture du verdict (15/09), qui ne tourne qu'à la GÉNÉRATION et ne
+      // voyait donc pas une correction manuelle.
+      //
+      // On réaligne les anomalies de PRIX au prorata. Avec une seule — le cas
+      // courant — elle prend simplement le montant de l'expert.
+      // ⚠️ Les anomalies QUALITATIVES (surcoût nul) ne sont pas touchées : même
+      // discriminant que le filet ci-dessus.
+      const cible = Number(conclusionToPersist.surcout_global?.max ?? 0) || 0;
+      const chiffrees = (conclusionToPersist.anomalies ?? []).filter(
+        (an: any) => Number(an?.surcout_estime ?? 0) > 0,
+      );
+      const somme = chiffrees.reduce((n: number, an: any) => n + Number(an.surcout_estime), 0);
+      if (cible > 0 && somme > 0 && Math.abs(somme - cible) > 1) {
+        const facteur = cible / somme;
+        for (const an of chiffrees) {
+          an.surcout_estime = Math.round(Number(an.surcout_estime) * facteur);
+        }
+        console.log(
+          `[decide] détail réaligné sur le montant de l'expert : ${Math.round(somme)} € → ${cible} €`,
+        );
+      }
+
       // 2026-09-05 (cas devis cuisine) — L'EXPERT A CORRIGÉ LE MONTANT SANS
       // L'ANNULER : le rattrapage ci-dessus ne se déclenchait pas.
       //
