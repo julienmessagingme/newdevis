@@ -71,3 +71,9 @@ scratchpad/
 # de clients reels. Depot public : meme regle que la feuille de relecture.
 sourcage-*.json
 rapport-sourcage*.md
+
+# 2026-09-17 — Sauvegardes de conclusion avant rejeu forcé (rejouer-une-analyse.mjs).
+# Elles contiennent la conclusion COMPLÈTE d'un devis de client réel — lignes,
+# montants, entreprise. Le dépôt est public : même règle que l'étalon du 10/09
+# et que les feuilles de relecture.
+sauvegarde-conclusion-*.json
