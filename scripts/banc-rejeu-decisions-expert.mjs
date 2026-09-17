@@ -37,7 +37,7 @@
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { computeServerSurcout } from "../src/lib/analyse/surcoutServeur.ts";
-import { memePoste, postesJugesParExpert, postesTranchesApresCoup } from "./memes-postes.mjs";
+import { confronterPostes } from "./memes-postes.mjs";
 import { groupesChiffrables } from "./groupes-chiffrables.mjs";
 
 const env = fs.readFileSync(".env.local", "utf8");
@@ -120,22 +120,16 @@ for (const c of corrections) {
 
   // Les postes que l'expert avait réellement sous les yeux, et ceux que le
   // moteur accuse aujourd'hui — c'est leur INTERSECTION qui fait la régression.
-  const jugesAlors = postesJugesParExpert(c.original_conclusion);
-  const reaccuses = (rejeu?.postes ?? []).filter((p) => jugesAlors.some((n) => memePoste(n, p.label)));
-
-  // 🟢 2026-09-17 — LES POSTES TRANCHÉS APRÈS COUP (sourçage validé par Johan).
-  // Ils portent un verdict PAR POSTE, ce que la comparaison de totaux ne sait
-  // pas exprimer : « ne pas accuser celui-ci » est vérifiable directement.
-  const tranches = postesTranchesApresCoup(c.corrected_anomalies);
-  const aTort = [];   // le moteur accuse un poste que l'expert dit NORMAL
-  const aRaison = []; // le moteur accuse un poste que l'expert dit SURFACTURÉ
-  const manques = []; // l'expert dit surfacturé, le moteur n'accuse pas
-  for (const t of tranches) {
-    const accuse = (rejeu?.postes ?? []).find((p) => memePoste(t.poste, p.label));
-    if (t.verdict === "OK" && accuse) aTort.push({ ...t, ecart: accuse.ecart });
-    else if (t.verdict === "ECART" && accuse) aRaison.push({ ...t, ecart: accuse.ecart });
-    else if (t.verdict === "ECART" && !accuse) manques.push(t);
-  }
+  // 🔴 LA CONFRONTATION VIT DANS `memes-postes.mjs`, PAS ICI (17/09). Un second
+  // banc écrit le même jour recombinait ces deux chemins à sa façon et publiait
+  // 16 postes là où celui-ci en publie 8 + 4. Deux compteurs d'apprentissage
+  // qui ne comptent pas la même chose ne valent ni l'un ni l'autre.
+  // `reaccuses` = l'expert avait le poste NOMMÉ et a annulé le montant.
+  // `aTort` / `aRaison` / `manques` = verdicts par poste tranchés après coup.
+  const { jugesAlors, reaccuses, aTort, aRaison, manques } = confronterPostes(
+    { originalConclusion: c.original_conclusion, correctedAnomalies: c.corrected_anomalies },
+    rejeu?.postes ?? [],
+  );
 
   const ligne = {
     etiquette, action: c.action, original, expert, auj, note: c.expert_notes,
