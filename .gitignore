@@ -58,6 +58,11 @@ relecture-rapprochement.cle.json
 relecture-rapprochement.md
 relecture-reponses.json
 relecture-ia.json
+# Feuille de relecture des postes accusés (2026-09-17) — contient des lignes de
+# devis de clients réels ET les tarifs d'artisans identifiables ; le dépôt est
+# public. Même règle que l'étalon de rapprochement du 10/09.
+relecture-postes-jamais-juges.md
+relecture-postes*.md
 desaccords.json
 rattrapage-envois.json
 scratchpad/
