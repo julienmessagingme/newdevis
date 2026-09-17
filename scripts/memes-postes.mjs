@@ -57,3 +57,33 @@ export function postesJugesParExpert(originalConclusion) {
     .map((x) => String(x).trim())
     .filter(Boolean);
 }
+
+/**
+ * 🟢 2026-09-17 — LES POSTES TRANCHÉS APRÈS COUP, avec leur verdict.
+ *
+ * Versés dans `analysis_corrections.corrected_anomalies` par
+ * `injecter-postes-tranches.mjs` : l'expert a jugé des POSTES que la conclusion
+ * d'origine ne nommait pas (elle n'affichait qu'un montant anonyme, d'avant le
+ * correctif du 05/09). C'est ainsi que l'étalon GRANDIT sans qu'on invente ses
+ * réponses.
+ *
+ * Rend `[{ poste, verdict, ecartValide }]` où :
+ *   · verdict "OK"    → ce poste ne doit PAS être accusé (écart attendu : 0)
+ *   · verdict "ECART" → il doit l'être ; `ecartValide` vaut `null` quand seul
+ *     le verdict a été validé et pas le montant.
+ *
+ * ⚠️ Ne retourne QUE les postes portant le marqueur d'origine : le champ
+ * pourrait un jour servir à autre chose, et un banc ne doit pas se nourrir de
+ * ce qu'il ne reconnaît pas.
+ */
+export function postesTranchesApresCoup(correctedAnomalies) {
+  const liste = Array.isArray(correctedAnomalies) ? correctedAnomalies : [];
+  return liste
+    .filter((x) => x && typeof x.poste === "string" && typeof x.origine === "string" && x.origine.includes("SOURÇAGE IA VALIDÉ"))
+    .map((x) => ({
+      poste: String(x.poste).trim(),
+      verdict: x.verdict === "OK" ? "OK" : "ECART",
+      ecartValide: typeof x.ecart_valide === "number" ? x.ecart_valide : null,
+    }))
+    .filter((x) => x.poste);
+}

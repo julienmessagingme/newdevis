@@ -23,6 +23,7 @@
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { computeServerSurcout } from "../src/lib/analyse/surcoutServeur.ts";
+import { groupesChiffrables } from "./groupes-chiffrables.mjs";
 
 const [jobType, sMin, sAvg, sMax] = process.argv.slice(2);
 if (!jobType || !sMax) {
@@ -67,7 +68,7 @@ const details = [];
 for (const a of analyses) {
   let r = {};
   try { r = JSON.parse(a.raw_text ?? "{}"); } catch { continue; }
-  const groupes = Array.isArray(r.n8n_price_data) ? r.n8n_price_data : [];
+  const groupes = groupesChiffrables(r.n8n_price_data);
   if (groupes.length === 0) continue;
   if (!groupes.some((g) => (g?.prices ?? []).some((p) => p?.job_type === jobType))) continue;
   touches++;

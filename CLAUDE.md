@@ -424,6 +424,23 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
     - ⚠️ **NE PAS REMONTER `mur_parpaing_20` POUR AUTANT** : ce serait fausser une entrée correcte et absoudre tous les vrais murs de bâtiment. Le manque est une **entrée dédiée « muret de clôture (fondation comprise) »**, au même titre que le trou « enduit chaux » du 11/09 — à instruire (`TODO.md`).
     - 🔴 **LA LEÇON DE MÉTHODE : UNE NOTE D'EXPERT EST UNE PISTE, PAS UNE SOURCE.** Le fichier le dit déjà depuis le 10/09 (« ne pas traiter les réponses humaines comme un oracle »). Ici elle était juste sur l'aluminium et fausse sur le parpaing — et seul le sourcing pouvait les départager.
 
+- 🔴 **TOUS MES BANCS MESURAIENT UN MOTEUR PLUS SÉVÈRE QUE LA PRODUCTION — LE FILTRE DE CONFIANCE ÉTAIT OUBLIÉ (2026-09-17)** : `computeServerSurcout` n'est **jamais** appelée sur les groupes bruts en production. `conclusion.ts` (V3.5.13, ~l.1284) retire d'abord **tout groupe dont `vectorial.confidence` n'est pas `high`**. Or les bancs écrits les 16 et 17/09 passaient les groupes **stockés** directement à la fonction : ils comptaient comme accusés des postes que la production **ne chiffre pas**.
+  - 🔴 **TROUVÉ EN CHERCHANT UNE AUTRE CAUSE.** Les deux faux rapprochements les plus lourds (« Plancher poutrelles hourdis » opposé à *Isolation plancher haut*, « Fenêtre + BVR électrique intégré » opposée à *Fenêtre PVC* sans volet) étaient **tous deux en `medium`** — une régularité trop nette pour être un hasard. C'est le doute sur une coïncidence qui a ouvert le défaut, pas une relecture du code.
+  - **Ce que ça coûtait, mesuré** :
+
+    | | banc sans filtre | banc corrigé (= production) |
+    |---|---:|---:|
+    | postes accusés à tort (verdict expert) | 8 · **7 162 €** | **4 · 1 945 €** |
+    | groupes aux unités discordantes | 55 (5,6 %) | **42 (6,2 %)** |
+    | gain réel du correctif d'unité | 5 610 € annoncés | **≈ 3 966 €** |
+    | analyses « non rejouables » | 0 | **13** |
+
+  - 🔴 **DONC MON ANNONCE DU MATIN ÉTAIT SURÉVALUÉE.** J'avais écrit que le correctif d'unité effaçait « les 1 504 € de *Renov'Toitures*, son unique poste ». Ce poste est en confiance **`low`** : **la production ne le chiffrait pas**, et l'écart n'existait que dans mon banc. Idem pour « Étanchéité » (`medium`, 140 €). Le correctif reste juste et à gain pur — mais sur **3 966 €**, pas 5 610 €.
+  - 🟢 **LA RÈGLE VIT DÉSORMAIS UNE SEULE FOIS** : [`groupes-chiffrables.mjs`](scripts/groupes-chiffrables.mjs), importé par les six bancs. C'est exactement la duplication qui a produit la divergence — troisième fois en deux jours qu'un module partagé règle ce genre de dérive (après `motifNonChiffrable` le 15/09 et `memes-postes` le 17/09).
+  - ⚠️ **« PAS DE MÉTA VECTORIELLE → ON GARDE »** : les analyses V3.6 legacy n'ont pas de champ `vectorial`, et la production les laisse passer. Les écarter dans le banc retirerait de la mesure une part entière du stock.
+  - ⚠️ **ET « 13 NON REJOUABLES » N'EST PAS UNE PANNE** : ce sont des analyses dont **tous** les groupes sont en `medium`/`low`. La production n'y chiffre rien — c'est le comportement voulu, pas une perte de données.
+  - 🔴 **LA LEÇON, ET ELLE VAUT POUR TOUT BANC FUTUR : REJOUER UNE FONCTION N'EST PAS REJOUER LA PRODUCTION.** Importer la règle ne suffit pas si l'appelant réel la précède d'un filtre. **Avant de mesurer, vérifier ce que le chemin de production fait AVANT d'appeler la fonction qu'on rejoue.**
+
 - 🟢 **SOURCEUR DE PRIX IA — L'IA SOURCE, ELLE NE JUGE PAS (2026-09-17, demande Johan : « je ne suis pas assez spécialiste pour savoir si le prix est ok »)** : [`sourceur-prix-ia.mjs`](scripts/sourceur-prix-ia.mjs), `gemini-2.5-pro` avec recherche Google. **74 % d'accord avec l'expert au témoin, et il DISCRIMINE** — là où le relecteur IA du 30/08 disait « corriger » sur 37/37 du gold standard ET 15/16 des témoins.
   - 🔴 **CE QUI CHANGE TOUT PAR RAPPORT À 2026-08-30 : LA QUESTION POSÉE.** On ne demande pas « ce prix est-il correct ? » — un jugement global, invérifiable, que le projet a mesuré comme sans valeur. On demande **« quel est le prix de marché de cet ouvrage, en France, en 2026, HT, avec tes sources ? »**. Le **verdict n'est jamais rendu par l'IA** : il se **CALCULE** en comparant le prix facturé à la fourchette sourcée. Même doctrine que l'arbitre du rapprochement (15/09) : une seule question vérifiable.
   - 🔴 **ON NE LUI MONTRE PAS LE PRIX FACTURÉ.** Sinon elle le justifie. C'est exactement pourquoi la feuille de relecture du 10/09 masquait les fourchettes du catalogue (« sinon le relecteur choisit celle qui tombe juste et l'étalon devient circulaire »). Elle ne voit que la **description de la ligne**, la quantité et l'unité.

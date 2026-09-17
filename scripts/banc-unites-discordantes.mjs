@@ -31,6 +31,7 @@
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { computeServerSurcout } from "../src/lib/analyse/surcoutServeur.ts";
+import { groupesChiffrables } from "./groupes-chiffrables.mjs";
 
 const env = fs.readFileSync(".env.local", "utf8");
 const lire = (k) => env.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1]?.trim();
@@ -66,7 +67,7 @@ let temoinConcordants = 0;
 for (const a of analyses) {
   let r = {};
   try { r = JSON.parse(a.raw_text ?? "{}"); } catch { continue; }
-  const groupes = Array.isArray(r.n8n_price_data) ? r.n8n_price_data : [];
+  const groupes = groupesChiffrables(r.n8n_price_data);
   if (groupes.length === 0) continue;
   const totalHT = Number(r.extracted_data?.totaux?.ht ?? r.extracted?.totaux?.ht ?? 0) || null;
 

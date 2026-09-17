@@ -37,7 +37,8 @@
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { computeServerSurcout } from "../src/lib/analyse/surcoutServeur.ts";
-import { memePoste, postesJugesParExpert } from "./memes-postes.mjs";
+import { memePoste, postesJugesParExpert, postesTranchesApresCoup } from "./memes-postes.mjs";
+import { groupesChiffrables } from "./groupes-chiffrables.mjs";
 
 const env = fs.readFileSync(".env.local", "utf8");
 const lire = (k) => env.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1]?.trim();
@@ -51,7 +52,7 @@ const eur = (n) => `${Math.round(n).toLocaleString("fr-FR")} €`;
 
 const { data: corrections, error } = await supa
   .from("analysis_corrections")
-  .select("analysis_id, action, corrected_surcout_max, original_conclusion, expert_notes, reviewed_at")
+  .select("analysis_id, action, corrected_surcout_max, original_conclusion, corrected_anomalies, expert_notes, reviewed_at")
   .order("reviewed_at", { ascending: false });
 if (error) throw new Error(error.message);
 
@@ -97,7 +98,7 @@ for (const c of corrections) {
 
   let r = {};
   try { r = JSON.parse(a?.raw_text ?? "{}"); } catch { /* illisible */ }
-  const groupes = Array.isArray(r.n8n_price_data) ? r.n8n_price_data : [];
+  const groupes = groupesChiffrables(r.n8n_price_data);
   const totalHT = Number(r.extracted_data?.totaux?.ht ?? r.extracted?.totaux?.ht ?? 0) || null;
 
   if (groupes.length === 0) {
@@ -122,9 +123,24 @@ for (const c of corrections) {
   const jugesAlors = postesJugesParExpert(c.original_conclusion);
   const reaccuses = (rejeu?.postes ?? []).filter((p) => jugesAlors.some((n) => memePoste(n, p.label)));
 
+  // 🟢 2026-09-17 — LES POSTES TRANCHÉS APRÈS COUP (sourçage validé par Johan).
+  // Ils portent un verdict PAR POSTE, ce que la comparaison de totaux ne sait
+  // pas exprimer : « ne pas accuser celui-ci » est vérifiable directement.
+  const tranches = postesTranchesApresCoup(c.corrected_anomalies);
+  const aTort = [];   // le moteur accuse un poste que l'expert dit NORMAL
+  const aRaison = []; // le moteur accuse un poste que l'expert dit SURFACTURÉ
+  const manques = []; // l'expert dit surfacturé, le moteur n'accuse pas
+  for (const t of tranches) {
+    const accuse = (rejeu?.postes ?? []).find((p) => memePoste(t.poste, p.label));
+    if (t.verdict === "OK" && accuse) aTort.push({ ...t, ecart: accuse.ecart });
+    else if (t.verdict === "ECART" && accuse) aRaison.push({ ...t, ecart: accuse.ecart });
+    else if (t.verdict === "ECART" && !accuse) manques.push(t);
+  }
+
   const ligne = {
     etiquette, action: c.action, original, expert, auj, note: c.expert_notes,
     reaccuses, nbPostes: rejeu?.postes?.length ?? 0, jugesAlors,
+    aTort, aRaison, manques,
   };
 
   // Les deux seuils du produit : le plancher d'affichage, et 10 % de tolérance.
@@ -173,6 +189,35 @@ if (jamaisJuges.length > 0) {
   for (const x of jamaisJuges) {
     console.log(`   · ${x.etiquette} — ${eur(x.auj)} sur ${x.nbPostes} poste(s)` +
       `${x.jugesAlors.length === 0 ? " (aucune anomalie nommée à l'époque)" : ""}`);
+  }
+}
+
+// ── 🟢 LE VERDICT PAR POSTE — la mesure la plus directe qu'on ait ───────────
+// Un poste tranché dit « accuser » ou « ne pas accuser ». Pas besoin de
+// comparer des totaux : on regarde si le moteur fait ce que l'expert a dit.
+// C'est cette granularité qui manquait au banc du 16/09 (cf. la correction du
+// 17/09 : « il comparait des montants quand l'expert avait jugé des postes »).
+const toutes = Object.values(seaux).flat();
+const aTort = toutes.flatMap((x) => (x.aTort ?? []).map((t) => ({ ...t, devis: x.etiquette })));
+const aRaison = toutes.flatMap((x) => (x.aRaison ?? []).map((t) => ({ ...t, devis: x.etiquette })));
+const manques = toutes.flatMap((x) => (x.manques ?? []).map((t) => ({ ...t, devis: x.etiquette })));
+const nTranches = aTort.length + aRaison.length + manques.length;
+
+if (nTranches > 0) {
+  const montantATort = aTort.reduce((n, t) => n + t.ecart, 0);
+  console.log(`\n── 🎯 VERDICT PAR POSTE (postes tranchés par l'expert) ──`);
+  console.log(`   ${nTranches} poste(s) tranché(s) · le moteur est d'accord sur ${aRaison.length}`);
+  console.log(`   🔴 ACCUSE À TORT : ${aTort.length} poste(s) · ${eur(montantATort)}`);
+  console.log(`   🟡 N'ACCUSE PAS alors qu'il le devrait : ${manques.length} poste(s)`);
+  if (aTort.length > 0) {
+    console.log(`\n   ── ce que le moteur accuse alors que l'expert dit « prix normal » ──`);
+    for (const t of aTort.sort((a, b) => b.ecart - a.ecart)) {
+      console.log(`   ${eur(t.ecart).padStart(10)}  ${t.poste.slice(0, 46).padEnd(46)} ${String(t.devis).slice(0, 26)}`);
+    }
+  }
+  if (manques.length > 0) {
+    console.log(`\n   ── ce que l'expert juge surfacturé et que le moteur laisse passer ──`);
+    for (const t of manques) console.log(`   ${t.poste.slice(0, 46).padEnd(46)} ${String(t.devis).slice(0, 26)}`);
   }
 }
 
