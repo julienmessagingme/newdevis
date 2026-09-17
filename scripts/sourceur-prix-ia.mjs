@@ -27,6 +27,13 @@
  * ne peut pas citer ne compte pas (règle du 15/09, vertical clim) — et deux
  * prix issus de résumés sans site identifié avaient alors été retirés.
  *
+ * 🔴 ET « NOMMABLE » VEUT DIRE « QUI RÉPOND », PAS « QUI RESSEMBLE À UNE URL ».
+ * La première version de ce script comptait les chaînes commençant par `http` ;
+ * mesuré le 17/09, **21 URL citées sur 21 ne répondaient pas**, dont un domaine
+ * qui n'existe pas. La vérification vit désormais dans `source-vivante.mjs`.
+ * ⚠️ Les 23 postes tranchés le 17/09 au matin l'ont été AVANT ce correctif :
+ * ils reposent sur le jugement de l'expert, pas sur les URL du rapport.
+ *
  * ⚠️ LE TÉMOIN PASSE AVANT LA MESURE. Mode `--temoin` : on lui soumet les 27
  * postes que l'expert a DÉJÀ tranchés (8 qu'il a annulés → le sourcing doit
  * dire « dans le marché », 19 qu'il a endossés → il doit dire « au-dessus »).
@@ -45,6 +52,7 @@ import { createClient } from "@supabase/supabase-js";
 import { computeServerSurcout } from "../src/lib/analyse/surcoutServeur.ts";
 import { groupesChiffrables } from "./groupes-chiffrables.mjs";
 import { memePoste, postesJugesParExpert } from "./memes-postes.mjs";
+import { compterSourcesVivantes } from "./source-vivante.mjs";
 
 const env = fs.readFileSync(".env.local", "utf8");
 const lire = (k) => env.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1]?.trim();
@@ -138,11 +146,11 @@ async function sourcer(l) {
  * ⚠️ On ne compare QUE si l'unité sourcée correspond à celle du devis : c'est
  * la faille corrigée le 17/09 (un prix au m² multiplié par un métré linéaire).
  */
-function trancher(poste, src) {
+function trancher(poste, src, nbVivantes) {
   if (src?.erreur) return { verdict: "ERREUR", motif: src.erreur };
-  const nb = (src?.sources ?? []).filter((s) => s?.url && String(s.url).startsWith("http")).length;
   if (src?.certitude === "aucune" || src?.prix_max_ht == null) return { verdict: "NON CONCLUANT", motif: "l'IA n'a pas trouvé de prix de marché" };
-  if (nb < 2) return { verdict: "NON CONCLUANT", motif: `${nb} source(s) nommable(s), il en faut 2` };
+  const nbCitees = (src?.sources ?? []).length;
+  if (nbVivantes < 2) return { verdict: "NON CONCLUANT", motif: `${nbVivantes} source(s) RÉELLEMENT vivante(s) sur ${nbCitees} citée(s), il en faut 2` };
 
   const fam = (u) => {
     const s = String(u ?? "").toLowerCase().trim();
@@ -239,8 +247,10 @@ const resultats = [];
 for (const [i, p] of population.entries()) {
   process.stdout.write(`   [${i + 1}/${population.length}] ${p.label.slice(0, 46).padEnd(46)} `);
   const src = await sourcer(p);
-  const t = trancher(p, src);
-  resultats.push({ ...p, source: src, ...t });
+  // 🔴 On INTERROGE chaque URL avant de la compter. Cf. l'en-tête.
+  const nbVivantes = await compterSourcesVivantes(src?.sources);
+  const t = trancher(p, src, nbVivantes);
+  resultats.push({ ...p, source: src, nbVivantes, ...t });
   const ok = t.verdict === "OK" ? "🟢" : t.verdict === "ÉCART" ? "🔴" : "⚪";
   const accord = p.attendu ? (t.verdict === p.attendu ? " ✓" : t.verdict.startsWith("NON") || t.verdict === "ERREUR" ? " ·" : " ✗") : "";
   console.log(`${ok} ${t.verdict}${accord}`);

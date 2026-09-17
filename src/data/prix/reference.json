@@ -1,9 +1,9 @@
 {
-  "genereLe": "2026-09-11T09:57:38.543Z",
+  "genereLe": "2026-09-17T08:57:48.010Z",
   "source": "market_prices",
   "tva": "HT",
   "catalogueTaille": 925,
-  "analysesTotal": 438,
+  "analysesTotal": 461,
   "postes": {
     "peinture_murs_plafonds": {
       "libelle": "Peinture murs et plafonds",
@@ -39,9 +39,9 @@
       "libelle": "Parquet stratifié (fourni + posé)",
       "note": "Entrée / milieu de gamme",
       "unite": "m²",
-      "min": 31,
-      "moy": 45,
-      "max": 58,
+      "min": 33,
+      "moy": 48,
+      "max": 70,
       "job_type": "parquet_stratifie_standard",
       "label_catalogue": "Parquet stratifié standard (fourni+posé)"
     },
