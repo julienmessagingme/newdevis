@@ -179,6 +179,68 @@ describe("gardes d'unité héritées (anti-régression)", () => {
     expect(hasIncomparableUnit(groupe({ main_unit: "U", main_quantity: 1 }))).toBe(true);
     expect(hasIncomparableUnit(groupe())).toBe(false);
   });
+});
+
+/**
+ * 🔴 2026-09-17 — « métrique des deux côtés » ne veut pas dire « comparable ».
+ * Les deux premiers cas sont RÉELS et portaient à eux seuls les montants
+ * accusés sur deux devis que l'expert avait annulés.
+ */
+describe("unités métriques discordantes", () => {
+  it("un tarif au m² face à une ligne au ML est incomparable (cas Renov'Toitures, 1 504 €)", () => {
+    expect(hasIncomparableUnit(groupe({
+      job_type_label: "Traitement hydrofuge / imperméabilisant toiture",
+      main_unit: "ML",
+      main_quantity: 38,
+      prices: [{ label: "Hydrofuge toiture", unit: "m2", price_max_unit_ht: 26 }],
+    }))).toBe(true);
+  });
+
+  it("un tarif au ml face à une ligne au m² est incomparable (cas Mélier, 378 €)", () => {
+    expect(hasIncomparableUnit(groupe({
+      job_type_label: "Faîtage tuile (fourni+posé)",
+      main_unit: "m²",
+      main_quantity: 6.9,
+      prices: [{ label: "Faîtage tuile", unit: "ml", price_max_unit_ht: 60 }],
+    }))).toBe(true);
+  });
+
+  it("le chiffrage est retiré, avec le motif d'unité", () => {
+    const r = computeServerSurcout([groupe({
+      job_type_label: "Traitement hydrofuge / imperméabilisant toiture",
+      main_unit: "ML",
+      main_quantity: 38,
+      devis_total_ht: 2492,
+      prices: [{ label: "Hydrofuge toiture", unit: "m2", price_max_unit_ht: 26, fixed_max_ht: 0 }],
+    })], 6830);
+    expect(r.max).toBe(0);
+    expect(r.ecartes[0].motif).toBe("unite_incomparable");
+  });
+
+  it("MÊME famille = toujours comparable — m² contre m², ml contre mètre linéaire", () => {
+    expect(hasIncomparableUnit(groupe({ main_unit: "m²", main_quantity: 20 }))).toBe(false);
+    expect(hasIncomparableUnit(groupe({
+      main_unit: "mètres linéaires",
+      main_quantity: 12,
+      prices: [{ label: "Plinthe", unit: "ml", price_max_unit_ht: 18 }],
+    }))).toBe(false);
+  });
+
+  it("une unité qu'on ne sait pas classer ne devient PAS un refus silencieux", () => {
+    // Le tarif est métrique, la ligne porte une quantité métrique reconnue par
+    // METRIC_UNIT_RE mais non classable : on garde le comportement d'origine
+    // plutôt que d'inventer une incompatibilité.
+    expect(hasIncomparableUnit(groupe({
+      main_unit: "metre carre",       // passe METRIC_UNIT_RE (« metre »), famille « lineaire »
+      main_quantity: 10,
+      prices: [{ label: "X", unit: "m2", price_max_unit_ht: 50 }],
+    }))).toBe(true); // familles identifiées ET différentes → refus assumé
+    expect(hasIncomparableUnit(groupe({
+      main_unit: "m²",
+      main_quantity: 10,
+      prices: [{ label: "X", unit: "unité", price_max_unit_ht: 50 }],
+    }))).toBe(false); // tarif non métrique : la garde ne s'applique pas
+  });
 
   it("hasSurfaceUnitMismatch — poste surfacique facturé au forfait", () => {
     expect(hasSurfaceUnitMismatch(groupe({

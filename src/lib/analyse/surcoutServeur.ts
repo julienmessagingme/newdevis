@@ -107,19 +107,57 @@ export function extractKnownSurface(lines: any[]): number | null {
  */
 const METRIC_UNIT_RE = /^(m2|m²|m3|m³|ml|mètre|metre)/i;
 
+/**
+ * 🔴 2026-09-17 — « MÉTRIQUE DES DEUX CÔTÉS » NE VEUT PAS DIRE « COMPARABLE ».
+ *
+ * Jusqu'ici la garde demandait seulement si le tarif catalogue était métrique
+ * et si la ligne portait UNE quantité métrique. Jamais si c'était la MÊME.
+ * Un tarif au **m²** face à une ligne en **ml** passait donc : on multipliait un
+ * prix au mètre carré par un métré linéaire.
+ *
+ * Mesuré avant correctif ([`banc-unites-discordantes.mjs`](scripts/banc-unites-discordantes.mjs))
+ * sur 984 groupes comparés à un tarif métrique : **55 (5,6 %) opposent deux
+ * familles d'unités différentes, dont 6 portent un écart chiffré — 5 610 €**.
+ * Les six ont été relus un par un : **tous mécaniquement faux**, et deux
+ * d'entre eux composaient à eux seuls les montants accusés sur deux devis que
+ * l'expert avait annulés — « Traitement hydrofuge toiture » 38 ML × tarif/m²
+ * (1 504 €, tout le devis Renov'Toitures) et « Faîtage tuile » 6,9 m² ×
+ * tarif/ml (378 €, Mélier). **Zéro accusation légitime perdue.**
+ *
+ * C'est la même famille que le cas DESMARIS du 16/09 (« 80 €/ml × 1 Ens »),
+ * mais entre deux unités TOUTES DEUX métriques — l'angle mort exact de la
+ * formulation d'origine.
+ */
+function familleUnite(u: unknown): "surface" | "lineaire" | "volume" | null {
+  const s = String(u ?? "").trim().toLowerCase();
+  if (/^(m2|m²)/.test(s)) return "surface";
+  if (/^(m3|m³)/.test(s)) return "volume";
+  if (/^(ml|mètre|metre)/.test(s)) return "lineaire";
+  return null;
+}
+
 export function hasIncomparableUnit(group: Record<string, any>): boolean {
   const prices: any[] = Array.isArray(group?.prices) ? group.prices : [];
   if (prices.length === 0) return false;
-  const metrique = prices.some(
+  const tarifMetrique = prices.find(
     (p) =>
       typeof p?.price_max_unit_ht === "number" &&
       p.price_max_unit_ht > 0 &&
       METRIC_UNIT_RE.test(String(p?.unit ?? "").trim()),
   );
-  if (!metrique) return false;
+  if (!tarifMetrique) return false;
+
   const unitDevis = String(group?.main_unit ?? "").trim();
   const qty = Number(group?.main_quantity ?? 0);
-  return !(METRIC_UNIT_RE.test(unitDevis) && qty > 0);
+  // Cas d'origine (30/08) : la ligne ne porte aucune quantité métrique.
+  if (!(METRIC_UNIT_RE.test(unitDevis) && qty > 0)) return true;
+
+  // Cas ajouté le 17/09 : les deux sont métriques, mais pas de la même famille.
+  // ⚠️ On ne rejette QUE sur deux familles identifiées et différentes — une
+  // unité qu'on ne sait pas classer ne doit pas devenir un refus silencieux.
+  const fCatalogue = familleUnite(tarifMetrique.unit);
+  const fDevis = familleUnite(unitDevis);
+  return fCatalogue !== null && fDevis !== null && fCatalogue !== fDevis;
 }
 
 /**
