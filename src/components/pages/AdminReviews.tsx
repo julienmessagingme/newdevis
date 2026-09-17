@@ -419,9 +419,14 @@ function ReviewDetail({
                     {a.poste ?? "—"}
                   </p>
                   <p className="text-muted-foreground">
-                    Devis: {a.prix_unitaire_devis ?? "—"} {a.unite ?? ""} · Marché:{" "}
-                    {a.fourchette_min ?? "—"}-{a.fourchette_max ?? "—"} · Surcout: +
-                    {Math.round(a.surcout_estime ?? 0).toLocaleString("fr-FR")} €
+                    {/* 🔴 2026-09-17 — « Devis: 90.63 m² » se lisait comme une
+                        SURFACE alors que c'est un PRIX AU m². Sur l'écran où
+                        l'expert tranche, un chiffre dont on ne sait pas s'il
+                        compte des mètres ou des euros est pire qu'absent : ici
+                        90,63 €/m² face à 6-20 €/m², c'est tout le sujet. */}
+                    Devis : {a.prix_unitaire_devis ?? "—"} €/{a.unite ?? "u"} · Marché :{" "}
+                    {a.fourchette_min ?? "—"}-{a.fourchette_max ?? "—"} €/{a.unite ?? "u"} ·
+                    Surcoût : +{Math.round(a.surcout_estime ?? 0).toLocaleString("fr-FR")} €
                   </p>
                   {a.explication && (
                     <p className="text-muted-foreground italic mt-1">{a.explication}</p>
