@@ -13,6 +13,7 @@
 // ============================================================
 
 import { resendApiKey, diagnosticCleResend } from "./resendKey";
+import { createServiceClient } from "@/lib/api/apiHelpers";
 
 export type ReviewAction = "validated" | "corrected" | "rejected";
 
@@ -208,7 +209,64 @@ export function buildHtml(input: ReviewEmailInput): string {
  * Best-effort : ne throw jamais. Retourne `true` si Resend a accepté la requête,
  * `false` sinon. À appeler en fire-and-forget après le UPDATE analyses.
  */
+/**
+ * 🔴 2026-09-17 — « FERME L'ANGLE MORT DES MAILS DE REVUE » (demande Johan).
+ *
+ * Depuis le 08/09, la raison d'un échec remonte jusqu'à l'écran de revue — mais
+ * elle n'est affichée QU'UNE FOIS, au moment du clic. Dix minutes plus tard,
+ * « est-ce que le mail est parti ? » n'avait plus de réponse. On l'a constaté
+ * en essayant de répondre à cette question exacte sur une correction fraîche.
+ *
+ * ⚠️ LA JOURNALISATION VIT ICI, PAS CHEZ LES APPELANTS. Trois routes appellent
+ * l'envoi (`decide`, `rattrapage-notifications`, `test-email`) ; la poser chez
+ * chacune garantirait qu'on en oublie une — et c'est celle-là qu'on chercherait
+ * le jour d'un incident. Ici, tout envoi est journalisé par construction.
+ *
+ * ⚠️ BEST-EFFORT ABSOLU : un journal qui ferait échouer un envoi serait pire
+ * que pas de journal. Toute erreur d'écriture est avalée après un log.
+ */
+export async function journaliserNotificationRevue(entree: {
+  analysisId: string | null;
+  toEmail: string;
+  action: string;
+  envoye: boolean;
+  raison: string;
+}): Promise<void> {
+  try {
+    const service = createServiceClient();
+    const { error } = await service.from("review_notification_log").insert({
+      analysis_id: entree.analysisId,
+      to_email: entree.toEmail,
+      action: entree.action,
+      envoye: entree.envoye,
+      raison: entree.raison,
+    });
+    if (error) console.warn(`[reviewEmail] journal non écrit : ${error.message}`);
+  } catch (e) {
+    console.warn(
+      `[reviewEmail] journal non écrit : ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
 export async function sendReviewNotificationEmail(
+  input: ReviewEmailInput,
+): Promise<ResultatEnvoi> {
+  const resultat = await envoyerViaResend(input);
+  // Les TROIS issues sont journalisées : le succès, l'échec avec sa cause, et
+  // (depuis `decide.ts`) le silence délibéré. Un journal qui n'enregistre que
+  // ce qui a marché laisse exactement le trou qu'on ferme.
+  await journaliserNotificationRevue({
+    analysisId: input.analysisId || null,
+    toEmail: input.toEmail || "(aucun destinataire)",
+    action: input.action,
+    envoye: resultat.ok,
+    raison: resultat.raison,
+  });
+  return resultat;
+}
+
+async function envoyerViaResend(
   input: ReviewEmailInput,
 ): Promise<ResultatEnvoi> {
   // ⚠️ Lecture au RUNTIME via `resendApiKey()`, jamais `import.meta.env` :

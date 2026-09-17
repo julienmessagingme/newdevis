@@ -5,6 +5,7 @@ import { optionsResponse, jsonOk, jsonError, requireAuth } from "@/lib/api/apiHe
 import { deriveMotifHero } from "@/lib/analyse/motifHero";
 import {
   sendReviewNotificationEmail,
+  journaliserNotificationRevue,
   type ReviewAction,
 } from "@/lib/integrations/reviewNotificationEmail";
 
@@ -360,8 +361,25 @@ export const POST: APIRoute = async ({ request, params }) => {
   // Le silence est DEMANDÉ, jamais subi : on le dit dans la réponse pour que
   // l'écran puisse l'afficher. Un envoi qu'on croit parti alors qu'il ne l'est
   // pas est le défaut du 08/09 ; un envoi tu sans le dire en serait le miroir.
+  // ⚠️ Le helper d'envoi journalise LUI-MÊME dès qu'il est appelé (succès comme
+  // échec). Les chemins où il n'est JAMAIS atteint — analyse sans utilisateur,
+  // compte sans adresse, exception en amont — n'écriraient donc rien : c'est
+  // précisément le silence indiscernable que ce journal existe pour lever.
+  let journalise = false;
+
   if (silencieux) {
     notification = { ok: false, raison: "silencieux demandé — l'utilisateur n'a PAS été prévenu" };
+    // 🔴 LE SILENCE SE JOURNALISE AUSSI (17/09). Sans cette ligne, une analyse
+    // sans notification serait indiscernable d'une analyse dont l'envoi a
+    // échoué — soit exactement la confusion que le journal existe pour lever.
+    await journaliserNotificationRevue({
+      analysisId: id,
+      toEmail: "(non envoyé)",
+      action,
+      envoye: false,
+      raison: notification.raison,
+    });
+    journalise = true;
   }
 
   try {
@@ -382,6 +400,7 @@ export const POST: APIRoute = async ({ request, params }) => {
             (conclusionToPersist as any)?.verdict_decisionnel ?? correctedVerdictDecisionnel,
           verdictGlobal: (conclusionToPersist as any)?.verdict_global ?? correctedVerdictGlobal,
         });
+        journalise = true; // le helper a écrit le journal lui-même
       } else {
         notification = {
           ok: false,
@@ -396,6 +415,16 @@ export const POST: APIRoute = async ({ request, params }) => {
     };
     console.error("[decide.ts] notification email failed:", notification.raison);
     // pas de propagation : la décision admin reste OK même si l'email a échoué
+  }
+
+  if (!journalise) {
+    await journaliserNotificationRevue({
+      analysisId: id,
+      toEmail: "(aucun destinataire)",
+      action,
+      envoye: false,
+      raison: notification.raison,
+    });
   }
 
   return jsonOk({

@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from "astro";
-import { optionsResponse, jsonOk, jsonError, requireAuth } from "@/lib/api/apiHelpers";
+import { optionsResponse, jsonOk, jsonError, requireAuth, createServiceClient } from "@/lib/api/apiHelpers";
 
 /**
  * GET /api/admin/reviews/[id]
@@ -131,12 +131,27 @@ export const GET: APIRoute = async ({ request, params }) => {
     .eq("analysis_id", id)
     .order("reviewed_at", { ascending: false });
 
+  // 🔴 2026-09-17 — LE JOURNAL DES NOTIFICATIONS (demande Johan : « ferme
+  // l'angle mort des mails de revue »). La raison d'un échec ne vivait que dans
+  // le bandeau affiché au moment du clic ; dix minutes plus tard, « est-ce que
+  // le mail est parti ? » n'avait plus de réponse.
+  // ⚠️ Lecture via `service` : la table porte des adresses e-mail et n'est
+  // ouverte qu'à `service_role` (même régime que la vue de la file).
+  const { data: notifications } = await createServiceClient()
+    .from("review_notification_log")
+    .select("action, envoye, raison, to_email, created_at")
+    .eq("analysis_id", id)
+    .order("created_at", { ascending: false });
+
   return jsonOk({
     analysis,
     conclusion,
     raw,
     review_triggers,
     previous_corrections: corrections ?? [],
+    // 2026-09-17 — « est-ce que le mail est parti ? » doit avoir une réponse
+    // APRÈS le clic, pas seulement pendant. Journal écrit par le helper d'envoi.
+    notifications: notifications ?? [],
   });
 };
 

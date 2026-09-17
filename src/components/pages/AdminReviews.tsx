@@ -61,6 +61,17 @@ interface ReviewDetail {
     reviewed_by_email: string;
     expert_notes: string | null;
   }>;
+  /**
+   * 2026-09-17 — journal des notifications (`review_notification_log`).
+   * Optionnel : une réponse servie avant la livraison n'en a pas.
+   */
+  notifications?: Array<{
+    action: string;
+    envoye: boolean;
+    raison: string;
+    to_email: string;
+    created_at: string;
+  }>;
 }
 
 const VERDICT_GLOBAL_OPTIONS = [
@@ -451,6 +462,42 @@ function ReviewDetail({
                 {new Date(p.reviewed_at).toLocaleString("fr-FR", { dateStyle: "short" })}
               </li>
             ))}
+          </ul>
+        </div>
+      )}
+
+      {/* 🔴 2026-09-17 — « EST-CE QUE LE MAIL EST PARTI ? » DOIT AVOIR UNE
+          RÉPONSE APRÈS LE CLIC. La cause d'un échec n'existait que dans le
+          bandeau affiché au moment de la décision ; dix minutes plus tard,
+          plus rien. Les TROIS issues sont montrées — un journal qui n'affiche
+          que les succès laisse exactement le trou qu'on ferme. */}
+      {Array.isArray(detail.notifications) && detail.notifications.length > 0 && (
+        <div className="mb-6 p-3 bg-slate-50 border border-slate-200 rounded">
+          <p className="text-xs font-semibold text-slate-800 mb-1">
+            Notifications envoyées à l'utilisateur ({detail.notifications.length})
+          </p>
+          <ul className="text-xs space-y-1">
+            {detail.notifications.map((n, i) => {
+              // Le silence délibéré n'est PAS un échec : le distinguer est la
+              // raison d'être de la troisième issue journalisée.
+              const silence = !n.envoye && /^silencieux/i.test(n.raison);
+              return (
+                <li
+                  key={`${n.created_at}-${i}`}
+                  className={
+                    n.envoye ? "text-emerald-800" : silence ? "text-slate-600" : "text-red-700"
+                  }
+                >
+                  {n.envoye ? "✅" : silence ? "🔕" : "❌"}{" "}
+                  {new Date(n.created_at).toLocaleString("fr-FR", {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}{" "}
+                  · {n.action} · {n.to_email}
+                  {!n.envoye && <> — {n.raison}</>}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
