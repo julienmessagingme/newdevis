@@ -110,3 +110,80 @@ export function diagnostiquerQuantites(
     surfaceEcriteNonExtraite: trouvee ? trouvee[0].trim() : null,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 2026-09-17 — « LE FORMAT DE CE DEVIS EST INÉDIT, POUR AUTANT LA SURFACE
+//    EST BIEN INDIQUÉE DE 64 m², DONC NOTRE VERDICT EST FAUX » (retour Johan).
+//
+// Un devis de couverture de 38 000 € HT annonçait « 64 m² » **deux fois**, en
+// toutes lettres dans ses libellés, et l'extraction avait correctement relevé
+// la quantité sur ces deux lignes. Le moteur a pourtant déclaré : « Ce devis
+// est trop synthétique pour être analysé en l'état. Il manque les quantités
+// précises (m², ml, u) » — puis a conseillé au client de **réclamer à son
+// artisan ce que son devis contient déjà**. C'est exactement ce que la règle du
+// 30/08, en tête de ce fichier, interdit : « le genre de détail qui fait perdre
+// la confiance d'un coup ».
+//
+// La cause est le bypass « devis incomplet » (`is_incomplete_quote`), un
+// interrupteur TOUT OU RIEN : il éteint l'analyse de prix entière. Sa garde de
+// vocabulaire compte comme « intitulé de lot » des mots — dépose, charpente,
+// étanchéité, nettoyage — qu'un vrai devis de couverture DÉTAILLÉ emploie
+// forcément à chaque ligne, puisque ce sont les opérations du métier. Elle ne
+// sait donc pas distinguer « Couverture — 12 000 € » (un résumé) de « Dépose
+// des liteaux existants et mise en décharge — 2 200 € » (un vrai poste).
+//
+// 🟢 LE SIGNAL DÉCISIF ÉTAIT DISPONIBLE ET IGNORÉ : la quantité est ÉCRITE.
+// On ne déclare plus un devis inanalysable quand une part significative de son
+// montant est portée par des lignes réellement quantifiées. Le chemin normal
+// reprend, et les gardes PAR POSTE (`motifNonChiffrable`, filtre de confiance)
+// se taisent ligne par ligne sur ce qui n'est pas comparable — au lieu d'un
+// silence global. C'est la doctrine du 10/09 : on dit ce qu'on sait, on se tait
+// sur le reste.
+//
+// ⚠️ LE SEUIL TOMBE DANS UN TROU DE LA DISTRIBUTION, ET C'EST CE QUI LE REND
+// ROBUSTE. Mesuré sur les 17 devis du stock déclarés inanalysables : la part du
+// montant réellement quantifiée vaut **74 %** (ATEX), **29 %** (le devis de
+// couverture) — puis **0 % pour les quinze autres**. N'importe quelle valeur
+// entre 1 et 29 % donne exactement le même résultat : 2 devis basculent. Le
+// déplacer un peu ne change rien.
+//
+// ⚠️ ON EXIGE UNE QUANTITÉ MÉTRIQUE RÉELLEMENT EXTRAITE, pas une surface
+// aperçue dans un texte libre. Une surface écrite mais NON rattachée à ses
+// lignes ne permet pas de chiffrer : les groupes partent alors avec une
+// quantité de 1, et comparer un total de ligne à un tarif au m² est le défaut
+// du 30/08 (cas ALES). Dans ce cas-là le bypass reste justifié — on se contente
+// de ne rien RÉCLAMER au client, ce que `diagnostiquerQuantites` gère déjà.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Sous cette part du montant HT, le devis est réellement un résumé par lot. */
+export const PART_MONTANT_QUANTIFIE_MIN = 0.2;
+
+export interface LigneMontant extends LigneDevis {
+  montant?: number | null;
+}
+
+/**
+ * Part du montant HT portée par des lignes dont la quantité métrique est
+ * réellement exploitable. Rend `0` quand aucun montant n'est lisible — un
+ * devis sans prix ne peut pas être « suffisamment quantifié ».
+ */
+export function partMontantQuantifie(lignes: LigneMontant[]): number {
+  const liste = Array.isArray(lignes) ? lignes : [];
+  let total = 0;
+  let quantifie = 0;
+  for (const l of liste) {
+    const m = Number(l?.montant ?? 0);
+    if (!Number.isFinite(m) || m <= 0) continue;
+    total += m;
+    if (aUneQuantiteExploitable(l)) quantifie += m;
+  }
+  return total > 0 ? quantifie / total : 0;
+}
+
+/**
+ * Le devis mérite-t-il vraiment le verdict « trop synthétique pour être
+ * analysé » ? Non dès qu'une part significative de son montant est quantifiée.
+ */
+export function devisReellementInanalysable(lignes: LigneMontant[]): boolean {
+  return partMontantQuantifie(lignes) < PART_MONTANT_QUANTIFIE_MIN;
+}

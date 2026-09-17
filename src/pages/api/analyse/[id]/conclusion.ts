@@ -464,7 +464,7 @@ const GEMINI_URL =
 
 import type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
 import { detectPrestationIntellectuelleReglementee } from "@/lib/analyse/detectPrestationIntellectuelle";
-import { diagnostiquerQuantites } from "@/lib/analyse/surfaceManquante";
+import { diagnostiquerQuantites, devisReellementInanalysable } from "@/lib/analyse/surfaceManquante";
 import { estGrosOeuvre, motifGrosOeuvre, type LigneTravaux } from "@/lib/analyse/grosOeuvre";
 import {
   rapprocherMateriel,
@@ -1403,9 +1403,49 @@ export const POST: APIRoute = async ({ params, request }) => {
     const parsed = JSON.parse(analysis.raw_text || "{}");
     const extractedActuel = parsed.extracted as Record<string, unknown> | undefined;
     const extractedLegacy2 = parsed.extracted_data as Record<string, unknown> | undefined;
-    const isIncomplete =
+    const drapeauIncomplet =
       (extractedActuel?.is_incomplete_quote === true) ||
       (extractedLegacy2?.is_incomplete_quote === true);
+
+    // 🔴 2026-09-17 — ON NE DÉCLARE PAS INANALYSABLE UN DEVIS QUI PORTE SES
+    // QUANTITÉS (retour Johan : « la surface est bien indiquée de 64 m², donc
+    // notre verdict est faux »).
+    //
+    // Le drapeau vient de l'extraction et compte des LIGNES sans unité. Sur un
+    // devis de couverture détaillé, l'artisan écrit la surface UNE FOIS (« - 64
+    // m² ») et ne la répète pas sur le contre-lattage ni le litonnage, qui
+    // portent pourtant sur la même toiture. Le bypass éteignait alors l'analyse
+    // entière et conseillait au client de réclamer ce que son devis contient —
+    // ce que la règle du 30/08 interdit explicitement.
+    //
+    // La garde est posée ICI, à la CONSOMMATION, et non dans l'extraction :
+    // (a) elle corrige aussi les drapeaux déjà écrits dans le stock, y compris
+    //     ceux produits avant les correctifs successifs de `incomplete-quote.ts` ;
+    // (b) `incomplete-quote.ts` est une edge function Deno qui ne peut pas
+    //     importer depuis `src/` — y recopier la règle serait précisément
+    //     l'erreur que ce projet évite (cf. `bornesMarche`, 16/09).
+    //
+    // ⚠️ Le bypass reste entier pour les VRAIS résumés par lot : mesuré sur les
+    // 17 devis du stock concernés, seuls 2 basculent. Les 15 autres ont 0 % de
+    // leur montant quantifié.
+    const lignesTravaux = (
+      (extractedActuel?.travaux as unknown[] | undefined) ??
+      (extractedLegacy2?.travaux as unknown[] | undefined) ??
+      []
+    ).map((t) => {
+      const l = (t ?? {}) as Record<string, unknown>;
+      return {
+        unite: l.unite as string | null,
+        quantite: l.quantite as number | null,
+        montant: Number(l.montant_ht ?? l.montant ?? 0) || null,
+      };
+    });
+    const isIncomplete = drapeauIncomplet && devisReellementInanalysable(lignesTravaux);
+    if (drapeauIncomplet && !isIncomplete) {
+      console.log(
+        `[conclusion] devis_incomplet LEVÉ — une part significative du montant est quantifiée (analyse ${analysisId.slice(0, 8)})`,
+      );
+    }
 
     // V3.5.6 (2026-05-31) — GARDE de priorité : ne PAS bypass vers le verdict
     // synthétique "devis incomplet" si le pipeline a déjà détecté un critère

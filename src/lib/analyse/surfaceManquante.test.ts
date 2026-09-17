@@ -3,7 +3,7 @@
  * Cas tirés du stock réel (mesure du 2026-08-30 sur 220 devis FR).
  */
 import { describe, it, expect } from "vitest";
-import { diagnostiquerQuantites } from "./surfaceManquante";
+import { diagnostiquerQuantites, partMontantQuantifie, devisReellementInanalysable, PART_MONTANT_QUANTIFIE_MIN } from "./surfaceManquante";
 
 describe("diagnostiquerQuantites — quantités présentes", () => {
   it("des lignes au m² → aucune absence", () => {
@@ -89,5 +89,78 @@ describe("diagnostiquerQuantites — robustesse", () => {
   it("champs absents ou nuls", () => {
     const d = diagnostiquerQuantites([{ description: null, unite: null, quantite: null }]);
     expect(d.absenceReelle).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-09-17 — « la surface est bien indiquée de 64 m², donc notre verdict est
+// faux » (retour Johan). Un devis qui porte ses quantités n'est pas un résumé.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("devisReellementInanalysable", () => {
+  /** Le cas RÉEL qui a déclenché la règle : couverture, 38 000 € HT, 10 lignes,
+   *  deux seulement portent « 64 m² » — mais elles pèsent 29 % du montant. */
+  const couverture64m2 = [
+    { libelle: "Installation, sécurisation et protection du chantier", unite: null, quantite: null, montant: 2800 },
+    { libelle: "Dépose soignée des tuiles et stockage pour réemploi - 64 m²", unite: "m²", quantite: 64, montant: 5200 },
+    { libelle: "Dépose des liteaux existants et mise en décharge", unite: null, quantite: null, montant: 2200 },
+    { libelle: "Diagnostic visuel de la charpente", unite: null, quantite: null, montant: 1800 },
+    { libelle: "Fourniture et pose de l'écran sous-toiture - 64 m²", unite: "m²", quantite: 64, montant: 5800 },
+    { libelle: "Fourniture et pose du contre-lattage neuf", unite: null, quantite: null, montant: 5100 },
+    { libelle: "Fourniture et pose du litonnage neuf", unite: null, quantite: null, montant: 5200 },
+    { libelle: "Étanchéité complète de deux pieds de cheminée", unite: null, quantite: null, montant: 5700 },
+    { libelle: "Repose des tuiles réutilisables", unite: null, quantite: null, montant: 3300 },
+    { libelle: "Repli, évacuation des déchets et nettoyage final", unite: null, quantite: null, montant: 900 },
+  ];
+
+  it("un devis dont 29 % du montant est quantifié N'EST PAS inanalysable", () => {
+    expect(partMontantQuantifie(couverture64m2)).toBeCloseTo(0.289, 2);
+    expect(devisReellementInanalysable(couverture64m2)).toBe(false);
+  });
+
+  it("un vrai résumé par lot reste inanalysable", () => {
+    // Le cas d'origine du bypass (V3.5.1) : un sous-total par corps de métier.
+    const resumeParLot = [
+      { libelle: "Plomberie", unite: null, quantite: null, montant: 7600 },
+      { libelle: "Électricité", unite: null, quantite: null, montant: 5400 },
+      { libelle: "Peinture", unite: null, quantite: null, montant: 3200 },
+    ];
+    expect(partMontantQuantifie(resumeParLot)).toBe(0);
+    expect(devisReellementInanalysable(resumeParLot)).toBe(true);
+  });
+
+  it("une quantité ANECDOTIQUE ne suffit pas à rendre un résumé analysable", () => {
+    // 1 ligne quantifiée sur 4, mais elle ne porte que 5 % du montant : le
+    // devis reste un résumé. C'est ce qui sépare les 2 devis qui basculent des
+    // 15 qui ne basculent pas.
+    const presqueResume = [
+      { libelle: "Plomberie", unite: null, quantite: null, montant: 7600 },
+      { libelle: "Électricité", unite: null, quantite: null, montant: 5400 },
+      { libelle: "Peinture", unite: null, quantite: null, montant: 3200 },
+      { libelle: "Faïence", unite: "m²", quantite: 10, montant: 850 },
+    ];
+    expect(partMontantQuantifie(presqueResume)).toBeLessThan(PART_MONTANT_QUANTIFIE_MIN);
+    expect(devisReellementInanalysable(presqueResume)).toBe(true);
+  });
+
+  it("un devis SANS AUCUN PRIX reste inanalysable, même avec des unités", () => {
+    // Garde du 13/09 (« Entreprise Fk ») : sans montant, il n'y a rien à
+    // comparer — et une part de zéro sur zéro ne vaut pas « quantifié ».
+    const sansPrix = [
+      { libelle: "Ravalement", unite: "m²", quantite: 80, montant: null },
+      { libelle: "Enduit", unite: "m²", quantite: 80, montant: 0 },
+    ];
+    expect(partMontantQuantifie(sansPrix)).toBe(0);
+    expect(devisReellementInanalysable(sansPrix)).toBe(true);
+  });
+
+  it("une unité NON métrique ne compte pas comme une quantité exploitable", () => {
+    // « 1 u » n'autorise pas à comparer à un tarif au m² — c'est le défaut du
+    // 30/08 (cas ALES) qu'on ne veut surtout pas rouvrir.
+    const forfaits = [
+      { libelle: "Salle de bain complète", unite: "u", quantite: 1, montant: 8950 },
+      { libelle: "Cuisine", unite: "forfait", quantite: 1, montant: 6200 },
+    ];
+    expect(partMontantQuantifie(forfaits)).toBe(0);
+    expect(devisReellementInanalysable(forfaits)).toBe(true);
   });
 });
