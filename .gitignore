@@ -66,3 +66,8 @@ relecture-postes*.md
 desaccords.json
 rattrapage-envois.json
 scratchpad/
+
+# Sortie du sourceur de prix IA (2026-09-17) — contient des lignes de devis
+# de clients reels. Depot public : meme regle que la feuille de relecture.
+sourcage-*.json
+rapport-sourcage*.md
