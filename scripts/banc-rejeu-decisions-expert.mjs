@@ -37,6 +37,7 @@
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { computeServerSurcout } from "../src/lib/analyse/surcoutServeur.ts";
+import { memePoste, postesJugesParExpert } from "./memes-postes.mjs";
 
 const env = fs.readFileSync(".env.local", "utf8");
 const lire = (k) => env.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1]?.trim();
@@ -61,8 +62,29 @@ const { data: analyses } = await supa
   .in("id", ids);
 const parId = new Map((analyses ?? []).map((a) => [a.id, a]));
 
+/**
+ * 🔴 2026-09-17 — DEUX SEAUX LÀ OÙ IL N'Y EN AVAIT QU'UN, ET C'EST UNE
+ * CORRECTION DE CE BANC, PAS UN RAFFINEMENT.
+ *
+ * Écrit le 16/09, il comparait deux MONTANTS et concluait « le moteur accuse
+ * encore ce que l'expert avait annulé ». Le contrôle du 17/09
+ * (`controle-postes-juges.mjs`) montre que c'est faux dans la majorité des cas :
+ * sur les 31 postes accusés, **24 (77 %, 19 226 €) n'ont JAMAIS été soumis à
+ * l'expert** — il avait annulé un montant ANONYME, produit par le repli
+ * supprimé depuis le 05/09 (« aucun montant sans poste nommé »).
+ *
+ * Confondre les deux rend le compteur inutilisable : il montait quand le moteur
+ * se mettait à NOMMER ce qu'il chiffre, c'est-à-dire quand il progressait.
+ *
+ *   · RÉACCUSE UN POSTE ANNULÉ  → régression vraie, l'expert s'est prononcé
+ *     dessus. C'est LE chiffre à faire baisser.
+ *   · ACCUSE UN POSTE JAMAIS JUGÉ → dérive à instruire. L'étalon ne dit rien
+ *     de ces postes : les compter comme des désaccords serait inventer un
+ *     jugement que personne n'a rendu.
+ */
 const seaux = {
-  "🔴 le moteur ACCUSE ENCORE ce que l'expert a annulé": [],
+  "🔴 RÉACCUSE un poste que l'expert avait annulé": [],
+  "🟡 accuse des postes que l'expert n'a JAMAIS jugés": [],
   "🟢 le moteur a CESSÉ d'accuser (correctif effectif)": [],
   "🟢 accord avec l'expert": [],
   "🟡 écart significatif (à relire)": [],
@@ -95,12 +117,21 @@ for (const c of corrections) {
     ? (Number(c.corrected_surcout_max ?? 0) || 0)
     : original;
 
-  const ligne = { etiquette, action: c.action, original, expert, auj, note: c.expert_notes };
+  // Les postes que l'expert avait réellement sous les yeux, et ceux que le
+  // moteur accuse aujourd'hui — c'est leur INTERSECTION qui fait la régression.
+  const jugesAlors = postesJugesParExpert(c.original_conclusion);
+  const reaccuses = (rejeu?.postes ?? []).filter((p) => jugesAlors.some((n) => memePoste(n, p.label)));
+
+  const ligne = {
+    etiquette, action: c.action, original, expert, auj, note: c.expert_notes,
+    reaccuses, nbPostes: rejeu?.postes?.length ?? 0, jugesAlors,
+  };
 
   // Les deux seuils du produit : le plancher d'affichage, et 10 % de tolérance.
   const tolerance = Math.max(PLANCHER, expert * 0.1);
 
-  if (expert === 0 && auj > PLANCHER)        seaux["🔴 le moteur ACCUSE ENCORE ce que l'expert a annulé"].push(ligne);
+  if (expert === 0 && auj > PLANCHER && reaccuses.length > 0) seaux["🔴 RÉACCUSE un poste que l'expert avait annulé"].push(ligne);
+  else if (expert === 0 && auj > PLANCHER)   seaux["🟡 accuse des postes que l'expert n'a JAMAIS jugés"].push(ligne);
   else if (expert === 0 && original > PLANCHER) seaux["🟢 le moteur a CESSÉ d'accuser (correctif effectif)"].push(ligne);
   else if (Math.abs(auj - expert) <= tolerance) seaux["🟢 accord avec l'expert"].push(ligne);
   else                                          seaux["🟡 écart significatif (à relire)"].push(ligne);
@@ -119,33 +150,29 @@ for (const [nom, liste] of Object.entries(seaux)) {
   console.log(`  ${String(liste.length).padStart(3)}  ${nom}`);
 }
 
-const encore = seaux["🔴 le moteur ACCUSE ENCORE ce que l'expert a annulé"];
-if (encore.length > 0) {
-  // 🔴 DEUX SITUATIONS TRÈS DIFFÉRENTES, ET LES CONFONDRE FAUSSERAIT LA PRIORITÉ.
-  //   `corrected` → l'expert a annulé un montant, le moteur le refait : défaut
-  //                 jamais corrigé.
-  //   `validated` / `rejected` → l'expert avait ENDOSSÉ la machine (0 € était
-  //                 juste), et le moteur invente un montant depuis : RÉGRESSION
-  //                 introduite après la revue. C'est le cas le plus grave, et
-  //                 c'est précisément ce que la question de Johan cherchait.
-  const jamaisCorrige = encore.filter((x) => x.action === "corrected");
-  const regression = encore.filter((x) => x.action !== "corrected");
-  console.log(`\n   dont ${jamaisCorrige.length} défaut(s) jamais corrigé(s) · ${regression.length} RÉGRESSION(S) après validation`);
-
-  if (regression.length > 0) {
-    console.log(`\n── 🔴 RÉGRESSIONS : l'expert avait endossé « 0 € », le moteur accuse depuis ──`);
-    for (const x of regression) {
-      console.log(`\n · ${x.etiquette}  [${x.action}]`);
-      console.log(`   expert : 0 €   ·   moteur aujourd'hui : ${eur(x.auj)}`);
-      if (x.note) console.log(`   « ${String(x.note).replace(/\s+/g, " ").slice(0, 190)}… »`);
-    }
-  }
-
-  console.log(`\n── 🔴 DÉFAUTS JAMAIS CORRIGÉS — la liste de travail ──`);
-  for (const x of jamaisCorrige) {
-    console.log(`\n · ${x.etiquette}`);
-    console.log(`   expert : 0 €   ·   moteur aujourd'hui : ${eur(x.auj)}   (à l'époque : ${eur(x.original)})`);
+const reaccuse = seaux["🔴 RÉACCUSE un poste que l'expert avait annulé"];
+if (reaccuse.length > 0) {
+  console.log(`\n── 🔴 LE CHIFFRE À FAIRE BAISSER : postes annulés par l'expert, réaccusés aujourd'hui ──`);
+  const montantReaccuse = reaccuse.reduce((n, x) => n + x.reaccuses.reduce((m, p) => m + p.ecart, 0), 0);
+  console.log(`   ${reaccuse.length} devis · ${reaccuse.reduce((n, x) => n + x.reaccuses.length, 0)} postes · ${eur(montantReaccuse)}`);
+  for (const x of reaccuse) {
+    console.log(`\n · ${x.etiquette}  [${x.action}]   moteur ${eur(x.auj)} sur ${x.nbPostes} poste(s)`);
+    for (const p of x.reaccuses) console.log(`     ↳ ${eur(p.ecart).padStart(9)}  « ${p.label} »  — l'expert l'avait annulé`);
     if (x.note) console.log(`   « ${String(x.note).replace(/\s+/g, " ").slice(0, 190)}… »`);
+  }
+}
+
+const jamaisJuges = seaux["🟡 accuse des postes que l'expert n'a JAMAIS jugés"];
+if (jamaisJuges.length > 0) {
+  // ⚠️ CE N'EST PAS UNE RÉGRESSION, ET LE DIRE SERAIT FAUX. L'expert a annulé
+  // un montant ANONYME (aucun poste nommé dans la conclusion d'alors) ; le
+  // moteur nomme désormais ce qu'il chiffre — c'est l'amélioration du 05/09.
+  // Ces postes n'ont jamais été soumis à un humain : ils sont À INSTRUIRE.
+  console.log(`\n── 🟡 À INSTRUIRE : postes que l'étalon ne peut PAS trancher ──`);
+  console.log(`   L'expert avait annulé un montant sans poste nommé ; ces postes-là, personne ne les a jugés.`);
+  for (const x of jamaisJuges) {
+    console.log(`   · ${x.etiquette} — ${eur(x.auj)} sur ${x.nbPostes} poste(s)` +
+      `${x.jugesAlors.length === 0 ? " (aucune anomalie nommée à l'époque)" : ""}`);
   }
 }
 
