@@ -776,6 +776,7 @@ export default function AdminReviews() {
   const [error, setError] = useState<string | null>(null);
   const [reviews, setReviews] = useState<ReviewListItem[]>([]);
   const [count, setCount] = useState(0);
+  const [differees, setDifferees] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
   /**
@@ -954,6 +955,7 @@ export default function AdminReviews() {
       const data = await res.json();
       setReviews(data.reviews ?? []);
       setCount(data.count ?? 0);
+      setDifferees(data.differees ?? 0);
     } catch (e) {
       console.error("Fetch reviews error:", e);
       setError("Erreur de chargement des reviews");
@@ -1045,6 +1047,14 @@ export default function AdminReviews() {
             <p className="text-sm text-muted-foreground">
               {count} analyse{count !== 1 ? "s" : ""} en attente de validation expert
             </p>
+            {/* 2026-09-17 — hors de l'écran ne doit jamais vouloir dire hors de
+                la mémoire : on dit ce qu'on a mis de côté, et pourquoi. */}
+            {differees > 0 && (
+              <p className="text-xs text-muted-foreground/80 mt-0.5">
+                + {differees} différée{differees !== 1 ? "s" : ""} — re-signalées par la
+                régénération du 15/09, pas par un utilisateur qui attend
+              </p>
+            )}
           </div>
           <button
             onClick={fetchReviews}

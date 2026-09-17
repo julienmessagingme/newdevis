@@ -63,19 +63,35 @@ export const GET: APIRoute = async ({ request }) => {
     }
   }
 
-  // Compteur global (pour affichage "12 analyses en attente")
-  const { count, error: countError } = await supabase
+  // Compteur de la file RÉELLE — celles qui restent à trancher.
+  // 🔴 2026-09-17 : il comptait toutes les `pending_review` et annonçait donc
+  // « 77 » sous un écran qui en montrait 12. Un compteur qui ne compte pas ce
+  // qu'il désigne est un indicateur faux — la famille d'erreur la plus fréquente
+  // de ce projet. Il exclut désormais les analyses DIFFÉRÉES, exactement comme
+  // la vue.
+  const { count, error: countError } = await service
     .from("analyses")
     .select("id", { count: "exact", head: true })
-    .eq("review_status", "pending_review");
+    .eq("review_status", "pending_review")
+    .is("review_differe_le", null);
 
   if (countError) {
     return jsonError(countError.message, 500);
   }
 
+  // Et on dit combien ont été mises de côté : hors de l'écran ne doit jamais
+  // vouloir dire hors de la mémoire. 65 analyses re-signalées par notre propre
+  // régénération du 15/09 ne sont pas perdues, elles sont différées.
+  const { count: differees } = await service
+    .from("analyses")
+    .select("id", { count: "exact", head: true })
+    .eq("review_status", "pending_review")
+    .not("review_differe_le", "is", null);
+
   return jsonOk({
     reviews: data ?? [],
     count: count ?? 0,
+    differees: differees ?? 0,
   });
 };
 
