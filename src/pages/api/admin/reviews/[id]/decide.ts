@@ -250,6 +250,28 @@ export const POST: APIRoute = async ({ request, params }) => {
 
   const expertNotes = typeof body.expert_notes === "string" ? body.expert_notes : null;
 
+  /**
+   * 🔴 2026-09-17 — STATUER SANS PRÉVENIR L'UTILISATEUR (demande Johan).
+   *
+   * La file de revue contient **65 devis déposés entre avril et juillet**, qui
+   * n'y sont pas parce qu'un utilisateur attend : c'est notre propre passe de
+   * régénération du 15/09 qui les y a remis (Piste C by design). Écrire à ces
+   * gens « votre analyse a été relue » des mois après leur dépôt n'a aucun sens
+   * pour eux — c'est même le contraire du rattrapage du 10/09, qui s'adressait
+   * à des utilisateurs qu'on avait vraiment laissés sans réponse.
+   *
+   * ⚠️ RÉSERVÉ AUX ADMINS, comme le `silencieux` de la route de conclusion
+   * (15/09) : le rôle est déjà vérifié plus haut dans cette route, et la
+   * décision elle-même n'est ouverte qu'à eux. Ce drapeau ne peut donc pas
+   * servir à quelqu'un pour étouffer une alerte sur son propre devis.
+   *
+   * ⚠️ LE DÉFAUT PAR DÉFAUT RESTE D'ÉCRIRE. Un expert qui tranche un devis
+   * récent doit prévenir son utilisateur — c'est la promesse « réponse sous
+   * 24 h ». Il faut demander explicitement le silence, jamais l'obtenir par
+   * omission.
+   */
+  const silencieux = body.silencieux === true;
+
   // INSERT analysis_corrections (audit trail)
   const reviewTriggers = Array.isArray(body.review_triggers) ? body.review_triggers : [];
 
@@ -306,8 +328,15 @@ export const POST: APIRoute = async ({ request, params }) => {
     raison: "aucun destinataire (analyse sans utilisateur)",
   };
 
+  // Le silence est DEMANDÉ, jamais subi : on le dit dans la réponse pour que
+  // l'écran puisse l'afficher. Un envoi qu'on croit parti alors qu'il ne l'est
+  // pas est le défaut du 08/09 ; un envoi tu sans le dire en serait le miroir.
+  if (silencieux) {
+    notification = { ok: false, raison: "silencieux demandé — l'utilisateur n'a PAS été prévenu" };
+  }
+
   try {
-    if (analysis.user_id) {
+    if (analysis.user_id && !silencieux) {
       const { data: userData } = await supabase.auth.admin.getUserById(analysis.user_id);
       const recipient = userData?.user;
       const meta = (recipient?.user_metadata ?? {}) as Record<string, string>;

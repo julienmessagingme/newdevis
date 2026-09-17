@@ -19,6 +19,12 @@ interface ReviewListItem {
   is_incomplete: boolean | null;
   is_hors_scope: boolean | null;
   is_courtier: boolean | null;
+  /** 2026-09-17 — le nom de l'ARTISAN. C'est par là qu'un humain reconnaît un
+   *  devis : les noms de fichier de la file sont `image.jpg`, `document(1).pdf`,
+   *  `Screenshot_2026-09-16-…`. Johan a cherché « FA BAT » sans le trouver alors
+   *  que l'analyse était en première position — son fichier s'appelle
+   *  `Devis_DV00051.pdf`. */
+  entreprise_nom: string | null;
 }
 
 interface ReviewDetail {
@@ -111,8 +117,15 @@ function ReviewCard({
       <div className="flex items-start gap-2 mb-2">
         <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{item.file_name}</p>
-          <p className="text-xs text-muted-foreground truncate">{item.user_email ?? "—"}</p>
+          {/* L'ARTISAN d'abord : c'est l'identifiant utile. Le nom de fichier
+              passe en dessous — il est choisi par l'utilisateur et ne dit rien. */}
+          <p className="text-sm font-medium truncate">
+            {item.entreprise_nom ?? item.file_name}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">
+            {item.entreprise_nom ? `${item.file_name} · ` : ""}
+            {item.user_email ?? "—"}
+          </p>
         </div>
         {selected && <ChevronRight className="h-4 w-4 text-primary flex-shrink-0" />}
       </div>
@@ -181,6 +194,21 @@ function ReviewDetail({
   // avec des anomalies rouges listées dessous). L'expert décoche désormais
   // celles qu'il invalide.
   const [keptAnomalies, setKeptAnomalies] = useState<boolean[]>(() => anomalies.map(() => true));
+
+  /**
+   * 🔴 2026-09-17 — « je ne veux pas que les mails repartent chez les clients ».
+   * La file contient 65 devis d'avril à juillet que NOTRE passe de régénération
+   * du 15/09 y a remis — leurs utilisateurs n'attendent rien.
+   *
+   * ⚠️ DÉCOCHÉ PAR DÉFAUT, ET C'EST LA GARDE. Un devis récent tranché sans
+   * prévenir son utilisateur casse la promesse « réponse sous 24 h ». Le défaut
+   * par défaut doit rester d'écrire ; le silence se demande.
+   * Le repère proposé : > 30 jours, l'utilisateur est très probablement parti.
+   */
+  const joursDepuisDepot = Math.floor(
+    (Date.now() - new Date(detail.analysis.created_at).getTime()) / 86_400_000,
+  );
+  const [silencieux, setSilencieux] = useState(false);
   const toggleAnomaly = (i: number) =>
     setKeptAnomalies((prev) => prev.map((v, j) => (j === i ? !v : v)));
 
@@ -198,6 +226,8 @@ function ReviewDetail({
         action,
         expert_notes: notes || null,
         review_triggers: detail.review_triggers,
+        // 2026-09-17 — le silence est DEMANDÉ, jamais obtenu par omission.
+        silencieux,
       };
 
       if (action === "corrected") {
@@ -668,6 +698,28 @@ function ReviewDetail({
           {error}
         </div>
       )}
+
+      {/* Prévenir l'utilisateur, ou non — la décision est explicite. */}
+      <label className="mb-3 flex items-start gap-2 p-3 rounded border border-gray-200 bg-gray-50 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={silencieux}
+          onChange={(e) => setSilencieux(e.target.checked)}
+          className="mt-0.5 h-4 w-4"
+        />
+        <span className="text-sm">
+          <span className="font-medium">Ne pas prévenir l'utilisateur</span>
+          <span className="block text-xs text-muted-foreground">
+            {silencieux
+              ? "Aucun e-mail ne partira. La décision est enregistrée normalement."
+              : "Par défaut, l'utilisateur reçoit un e-mail dès que vous tranchez."}
+            {" "}Devis déposé il y a <strong>{joursDepuisDepot} jour{joursDepuisDepot > 1 ? "s" : ""}</strong>
+            {joursDepuisDepot > 30
+              ? " — au-delà d'un mois, l'utilisateur n'attend probablement plus de réponse."
+              : " — il attend probablement une réponse."}
+          </span>
+        </span>
+      </label>
 
       {/* Actions */}
       <div className="flex gap-2 flex-wrap">
