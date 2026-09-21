@@ -168,8 +168,11 @@ export function buildHtml(input: ReviewEmailInput): string {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F3F4F6;">
   <tr><td align="center" style="padding:32px 12px;">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-      <tr><td style="padding:32px 32px 8px;text-align:center;">
-        <img src="https://www.verifiermondevis.fr/email/logo-vmd-icon.png" alt="VerifierMonDevis" width="48" height="48" style="border:0;display:inline-block;"/>
+      <tr><td style="padding:28px 32px 4px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td valign="middle" style="padding-right:10px;"><img src="https://www.verifiermondevis.fr/email/logo-vmd.png" width="59" height="44" alt="" style="display:block;width:59px;height:44px;border:0;"/></td>
+          <td valign="middle"><div style="font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:#1B2232;line-height:1;">VerifierMon<span style="color:#F97316;">Devis</span><span style="font-size:17px;font-weight:600;color:#F97316;">.fr</span></div></td>
+        </tr></table>
       </td></tr>
       <tr><td style="padding:8px 32px 32px;">
         <p style="margin:0;font-family:'DM Sans',Arial,Helvetica,sans-serif;font-size:15px;color:#4B5563;line-height:1.78;">${greeting}</p>

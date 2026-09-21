@@ -51,10 +51,9 @@ function buildHtml(fileName: string | null, links: Record<string, string>): stri
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
 <tr><td style="padding:28px 32px 4px;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-<td valign="middle" style="padding-right:11px;"><img src="${SITE}/email/logo-vmd-icon.png" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border:0;"/></td>
+<td valign="middle" style="padding-right:10px;"><img src="${SITE}/email/logo-vmd.png" width="59" height="44" alt="" style="display:block;width:59px;height:44px;border:0;"/></td>
 <td valign="middle">
-<div style="font-family:'DM Sans',Arial,sans-serif;font-size:18px;font-weight:700;color:#1B2233;letter-spacing:-0.2px;">Verifier<span style="color:#2070C0;">Mon</span>Devis<span style="color:#F58A06;">.fr</span></div>
-<div style="font-family:'DM Sans',Arial,sans-serif;font-size:11px;font-weight:500;color:#677084;padding-top:2px;">L'avis d'expert sur vos devis</div>
+<div style="font-family:'DM Sans',Arial,sans-serif;font-size:22px;font-weight:700;color:#1B2232;line-height:1;">VerifierMon<span style="color:#F97316;">Devis</span><span style="font-size:17px;font-weight:600;color:#F97316;">.fr</span></div>
 </td>
 </tr></table>
 </td></tr>
