@@ -1315,6 +1315,23 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
   - ⚠️ **UN TÉMOIN M'A ALERTÉ À TORT** : `gemini-fetch` ne remontait qu'une fonction. Il est en fait importé par **trois fichiers d'une même fonction** — le compte était juste, ma lecture fausse.
   - **Échappatoire de rattrapage** : `workflow_dispatch` accepte une liste de fonctions à forcer, pour le cas où le correctif dont elles dépendent est déjà committé. ⚠️ **L'entrée passe par l'ENVIRONNEMENT, jamais par `${{ }}` dans le script** — interpolée directement, elle permettrait d'injecter une commande shell — et elle est validée contre les répertoires réellement présents.
   - 🔴 **ET UN WORKFLOW VERT NE PROUVE TOUJOURS RIEN** : la confirmation est la ligne `Deployed Functions on project vhrhgsqxwvouswjaiczn: …` dans le journal. ⚠️ Les lignes `::error::` qu'on y lit sont les **commandes affichées avant exécution**, pas des erreurs.
+  - 🟢 **CORRECTIF VÉRIFIÉ SUR LE CAS QUI L'A MOTIVÉ** : un commit ne touchant QUE `_shared/vmd-emails.ts` affiche désormais `fichier partagé modifié : vmd-emails` → `Functions to deploy: vmd-email-scheduler vmd-on-signup` → **deux `Deployed Functions`**. Le matin même, le même commit affichait une liste vide.
+
+- 🟢 **COMBIEN DE CORRECTIFS SONT RESTÉS DORMANTS ? MESURÉ — ET LE TROU S'EST REFERMÉ TOUT SEUL À CHAQUE FOIS (2026-09-21, demande Johan)** : depuis la création du workflow le **2026-05-21**, **14 commits** ont touché un fichier de `_shared/`. **7 ne touchaient QUE du partagé → 0 fonction déployée** ; les 7 autres déployaient la fonction modifiée, **mais pas les autres dépendant du même partagé**.
+  - 🔴 **LA BONNE QUESTION N'ÉTAIT PAS « COMBIEN DE COMMITS DORMANTS ».** Un correctif partagé est **rattrapé** dès qu'une fonction qui en dépend est modifiée pour une autre raison : elle repart alors avec le partagé à jour. La question qui compte est *« quelles fonctions tournent aujourd'hui avec une version périmée ? »* — et **la réponse est : aucune**.
+
+    | commit `_shared` seul | fichier | rattrapé par | délai |
+    |---|---|---|---:|
+    | 12/06 enquête « votre avis » | `gmc-emails` | `gmc-email-scheduler` | **1 j** |
+    | 15/06 error-tracking Telegram | `error-reporter` | `agent-orchestrator` | **0 j** |
+    | 15/06 `paid_welcome` temps réel | `gmc-emails` | `gmc-email-scheduler` | **17 j** |
+    | 29/06 E3 pointe vers `/beta` | `vmd-emails` | `vmd-email-scheduler` | **3 j** |
+    | 29/06 gabarits Claude Design | `vmd-emails` | `vmd-email-scheduler` | **3 j** |
+
+  - **Aucun correctif n'a été perdu définitivement**, mais l'exposition était réelle : **17 jours** pour le `paid_welcome` GMC. Et le rattrapage ne doit rien à une garde — il tient au fait que `vmd-email-scheduler`, `gmc-email-scheduler` et `agent-orchestrator` sont **souvent modifiées**. **Sur une fonction rarement touchée, le correctif serait resté dormant indéfiniment.**
+  - ⚠️ **LE BANC A PRODUIT DEUX FAUX POSITIFS, ET IL FALLAIT LES NOMMER** : il signalait `vmd-email-scheduler` et `vmd-on-signup` « en retard » — ce sont précisément celles déployées à la main une heure plus tôt. **Git ne voit pas un déploiement manuel** : ce banc mesure ce que la CI a fait, jamais l'état du projet Supabase. Tout écart qu'il rend est un **soupçon à vérifier**, pas une certitude.
+  - ⚠️ **Le graphe de dépendances est fermé transitivement** (`_shared` s'importe lui-même) et son témoin le rend lisible : `supabase-key` 24 fonctions · `cors` 11 · `error-reporter` 3 · `gmc-emails` 2 · `telegram-notify` 2 · `vmd-emails` 2 · `gemini-fetch` 1.
+  - ⚠️ **Piège Windows rencontré deux fois** : `execSync` passe par `cmd.exe`, où le `|` d'un format git devient un **pipe** — d'où `'%ad' n'est pas reconnu`. Utiliser `execFileSync` avec un tableau d'arguments, et `` comme séparateur.
     - ⚠️ **MON PREMIER TÉMOIN A ÉCHOUÉ SUR CES TROIS ACCENTS** en testant « plus aucune occurrence de `#F58A06` » : il mesurait l'absence d'une couleur là où la demande portait sur le lettrage. **Un témoin plus large que la règle qu'il contrôle produit un échec qui n'en est pas un** — et pousse à corriger au-delà de ce qui a été demandé.
   - ⚠️ **L'aperçu se rejoue depuis le gabarit, jamais depuis une copie** : le script de vérification extrait `btn()` et `buildHtml()` du fichier source et les exécute. Recopier le HTML pour l'examiner ferait approuver un texte qui n'est pas celui qui part — **la leçon de `preview-review-email.ts` du 11/09**.
 
