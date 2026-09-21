@@ -1,5 +1,6 @@
 ---
 import '@/index.css';
+import { urlCanonique } from '@/lib/seo/urlCanonique.mjs';
 
 interface BreadcrumbItem {
   name: string;
@@ -33,14 +34,19 @@ const {
   noChatWidget = false,
 } = Astro.props;
 
-// Auto-canonical : utilise l'URL explicite si fournie, sinon construit depuis Astro.url
-// Remplace http par https et retire le trailing slash (sauf racine)
-const autoCanonical = canonical ?? (() => {
-  const raw = Astro.url.href.replace(/^http:/, 'https:');
-  return raw.endsWith('/') && raw !== 'https://www.verifiermondevis.fr/'
-    ? raw.slice(0, -1)
-    : raw;
-})();
+// Auto-canonical : utilise l'URL explicite si fournie, sinon construit depuis Astro.url.
+//
+// 🔴 2026-09-21 — LA RÈGLE EST IMPORTÉE, PLUS ÉCRITE ICI. Elle existait en
+// double (ici et, implicitement, dans `@astrojs/sitemap` qui écrivait l'autre
+// forme) : le sitemap déclarait `/faq/` quand cette ligne produisait `/faq`.
+// Les deux endroits appellent désormais `urlCanonique`. Ne pas la recopier.
+//
+// ⚠️ Un changement de comportement, mineur et voulu : l'ancienne version
+// comparait à la chaîne VMD codée en dur, ce qui retirait le slash de la racine
+// de gerermonchantier.fr. La règle porte maintenant sur le CHEMIN, donc les deux
+// domaines sont traités pareil. Aucune page en production n'est concernée —
+// la racine GMC passe par `/gmc-home`, qui fournit son canonical explicite.
+const autoCanonical = canonical ?? urlCanonique(Astro.url.href);
 
 // 2026-09-07 — MARQUE DÉDUITE DU CANONICAL, PAS DES EN-TÊTES.
 //

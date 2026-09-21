@@ -3,6 +3,7 @@ import react from '@astrojs/react';
 import tailwind from '@astrojs/tailwind';
 import vercel from '@astrojs/vercel';
 import sitemap from '@astrojs/sitemap';
+import { urlCanonique } from './src/lib/seo/urlCanonique.mjs';
 
 export default defineConfig({
   site: 'https://www.verifiermondevis.fr',
@@ -54,6 +55,25 @@ export default defineConfig({
         }
         return true;
       },
+      // 🔴 2026-09-21 — LE SITEMAP DÉCLARAIT UNE FORME QUE LES PAGES DÉSAVOUAIENT.
+      //
+      // `@astrojs/sitemap` écrit les URLs avec un slash final (`/faq/`), alors
+      // que le canonical de chaque page dit `/faq` et que nos 325 liens internes
+      // pointent tous vers cette même forme. Mesuré sur les 98 URLs servies :
+      // **97 pages sur 97** répondaient 200 dans les DEUX formes, avec un
+      // contenu identique à l'octet près et AUCUNE redirection — une duplication
+      // que nous fabriquions nous-mêmes, et qui alimentait les lignes
+      // « Page en double » et « Autre page avec balise canonique correcte » de
+      // Search Console.
+      //
+      // ⚠️ On ne touche PAS à `trailingSlash` d'Astro : le routage sert
+      // aujourd'hui les deux formes en 200 et le changer aurait un effet bien
+      // au-delà du sitemap. Ici on corrige la seule chose qui était fausse —
+      // la liste qu'on soumet à Google.
+      //
+      // ⚠️ La règle est IMPORTÉE, jamais recopiée : c'est sa duplication entre
+      // `BaseLayout` et ce fichier qui a produit le défaut.
+      serialize: (item) => ({ ...item, url: urlCanonique(item.url) }),
       changefreq: 'weekly',
       priority: 0.7,
       lastmod: new Date(),
