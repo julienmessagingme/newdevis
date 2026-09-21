@@ -96,5 +96,18 @@ Disallow: /
 # ⚠️ Toute route qui sert du contenu en SSR est invisible pour @astrojs/sitemap
 # et doit avoir son propre sitemap déclaré ICI.
 # ═══════════════════════════════════════════════════════════════════════════
+# ⚠️ CE FICHIER EST SERVI SUR LES DEUX DOMAINES — c'est le même build.
+#
+# Les trois lignes ci-dessous portent donc des URL ABSOLUES, et chaque robot
+# ignore celles qui ne concernent pas le domaine qu'il explore (un sitemap
+# déclaré sur un autre hôte n'est pas une erreur : il est simplement écarté).
+# C'est le compromis assumé tant que robots.txt reste un fichier statique.
+#
+# 🔴 2026-09-21 — `sitemap-gmc.xml` ajouté. Le fichier servi sur
+# gerermonchantier.fr contenait 97 URLs du domaine VMD (même build, un seul
+# `site` connu d'@astrojs/sitemap) : AUCUNE page GMC n'était déclarée sur son
+# propre domaine. L'intégration `sitemapDeuxDomaines` répartit désormais les
+# URLs d'après le CANONICAL de chaque page — voir CLAUDE.md.
 Sitemap: https://www.verifiermondevis.fr/sitemap-index.xml
 Sitemap: https://www.verifiermondevis.fr/sitemap-blog.xml
+Sitemap: https://www.gerermonchantier.fr/sitemap-gmc.xml

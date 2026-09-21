@@ -4,6 +4,7 @@ import tailwind from '@astrojs/tailwind';
 import vercel from '@astrojs/vercel';
 import sitemap from '@astrojs/sitemap';
 import { urlCanonique } from './src/lib/seo/urlCanonique.mjs';
+import { sitemapDeuxDomaines } from './src/lib/seo/sitemapDeuxDomaines.mjs';
 
 export default defineConfig({
   site: 'https://www.verifiermondevis.fr',
@@ -90,6 +91,16 @@ export default defineConfig({
       priority: 0.7,
       lastmod: new Date(),
     }),
+    // 🔴 2026-09-21 — UN BUILD SERT DEUX DOMAINES, `@astrojs/sitemap` N'EN
+    // CONNAÎT QU'UN. Le sitemap de VMD déclarait 18 pages dont le canonical
+    // pointe vers gerermonchantier.fr, et le fichier servi sur GMC contenait
+    // 97 URLs du domaine VMD — donc aucune page GMC n'était déclarée sur son
+    // propre domaine. Cette intégration relit le sitemap produit ci-dessus et
+    // le répartit d'après le CANONICAL de chaque page.
+    // ⚠️ ELLE DOIT RESTER APRÈS `sitemap()` : les hooks `astro:build:done`
+    // s'exécutent dans l'ordre de ce tableau, et il n'y a rien à répartir
+    // tant que le fichier n'est pas écrit.
+    sitemapDeuxDomaines({ origine: 'https://www.verifiermondevis.fr' }),
   ],
   output: 'static',
   adapter: vercel(),
