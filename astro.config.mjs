@@ -45,7 +45,19 @@ export default defineConfig({
         // noindex » sur ces URLs qui étaient dans le sitemap.
         // Regex avec `\/?$` pour matcher AVEC ou SANS trailing slash (Astro
         // génère les URLs avec `/` final).
-        if (/\/(avis|beta|desinscription|gmc-abonnement|gmc-prototype)\/?$/.test(page)) {
+        // 2026-09-21 — `suivi-budget` ajouté. La page porte `noindex={true}`
+        // depuis toujours ET figurait au sitemap : nous demandions l'indexation
+        // d'une page à laquelle nous interdisons l'indexation. C'est nous qui
+        // fabriquions une ligne « Exclue par la balise noindex » de Search
+        // Console — le défaut même que le commentaire en tête de ce filtre
+        // décrit depuis le 19/07.
+        // ⚠️ Mesuré sur les 98 URLs servies : c'était la SEULE contradiction
+        // de ce type ; les 29 autres pages `noindex` du projet sont déjà
+        // exclues plus haut. Un `noindex` ajouté à une page du sitemap doit
+        // s'accompagner d'une entrée ICI.
+        // ⚠️ `\/?$` garde `/suivi-budget-travaux` — page publique distincte —
+        // hors de cette exclusion.
+        if (/\/(avis|beta|desinscription|gmc-abonnement|gmc-prototype|suivi-budget)\/?$/.test(page)) {
           return false;
         }
         // Catégories du centre d'aide en statut « coming_soon » — noindex tant
