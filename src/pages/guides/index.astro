@@ -1,6 +1,12 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import HubPageApp from '@/components/app/HubPageApp';
+// 2026-09-21 — RENDU STATIQUE (voir observatoire/[slug].astro pour le détail).
+// Le hub des guides partait en `client:only` : 23 Ko servis sans un mot de
+// texte. Import DIRECT du composant, jamais du wrapper `HubPageApp` qui est en
+// `lazy()` + `<Suspense>` — sans directive client, Astro rendrait le spinner.
+// Vérifié : HubPage, Breadcrumb, RelatedGuides et GmcGatewayBanner n'ont ni
+// état ni gestionnaire. ⚠️ Toute interactivité ajoutée ici impose de repasser en île.
+import HubPage from '@/components/pages/seo/HubPage';
 import { breadcrumbSchema } from '@/lib/seo/schemaOrg';
 
 const url = 'https://www.verifiermondevis.fr/guides';
@@ -30,10 +36,15 @@ const props = {
   `,
 };
 
-export const prerender = false;
+// 2026-09-21 — PRÉRENDUE. Page 100 % statique (contenu écrit en dur, aucun accès
+// fichier, aucun état runtime) : `prerender = false` imposait un rendu serveur à
+// chaque requête pour un HTML qui ne change jamais. Aligné sur le modèle des
+// pages métier. ⚠️ Repasser à `false` seulement si la page acquiert un besoin
+// runtime réel (auth, formulaire) — jamais par défaut.
+export const prerender = true;
 ---
 
 <BaseLayout title={title + " | VerifierMonDevis.fr"} description={description}>
   <script type="application/ld+json" set:html={JSON.stringify(breadcrumbs)} />
-  <HubPageApp {...props} client:only="react" />
+  <HubPage {...props} />
 </BaseLayout>

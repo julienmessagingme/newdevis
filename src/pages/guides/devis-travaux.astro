@@ -1,6 +1,13 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import GuideDevisTravauxApp from '@/components/app/GuideDevisTravauxApp';
+// 2026-09-21 — RENDU STATIQUE (voir observatoire/[slug].astro pour le détail).
+// 🔴 C'est la PAGE PILIER du cocon sémantique, et elle servait 23 Ko sans une
+// ligne de texte : tout son contenu — 9 sections, 6 FAQ, le JSON-LD Article —
+// était reconstruit dans le navigateur. Import DIRECT, jamais le wrapper
+// `GuideDevisTravauxApp` (lazy + Suspense → Astro rendrait le spinner).
+// Vérifié : GuideDevisTravauxPage et PillarPage n'ont ni état ni gestionnaire.
+// ⚠️ Une FAQ en accordéon ou un sommaire ancré imposeraient de repasser en île.
+import GuideDevisTravauxPage from '@/components/pages/seo/GuideDevisTravauxPage';
 import { articleSchema, faqSchema, breadcrumbSchema, combineSchemas } from '@/lib/seo/schemaOrg';
 
 const url = 'https://www.verifiermondevis.fr/guides/devis-travaux';
@@ -32,7 +39,12 @@ const faqs = faqSchema([
 
 const schemas = combineSchemas(article, breadcrumbs, faqs);
 
-export const prerender = false;
+// 2026-09-21 — PRÉRENDUE. Page 100 % statique (contenu écrit en dur, aucun accès
+// fichier, aucun état runtime) : `prerender = false` imposait un rendu serveur à
+// chaque requête pour un HTML qui ne change jamais. Aligné sur le modèle des
+// pages métier. ⚠️ Repasser à `false` seulement si la page acquiert un besoin
+// runtime réel (auth, formulaire) — jamais par défaut.
+export const prerender = true;
 ---
 
 <BaseLayout
@@ -42,5 +54,5 @@ export const prerender = false;
   {schemas.map((schema) => (
     <script type="application/ld+json" set:html={JSON.stringify(schema)} />
   ))}
-  <GuideDevisTravauxApp client:only="react" />
+  <GuideDevisTravauxPage />
 </BaseLayout>

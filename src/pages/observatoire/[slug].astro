@@ -1,6 +1,21 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import EtudeVmdApp from '@/components/app/EtudeVmdApp';
+// 2026-09-21 — RENDU STATIQUE, PAS UNE ÎLE.
+//
+// Même défaut que les pages métier le 07/09, resté ouvert sur les 5 études :
+// `client:only="react"` ne rend RIEN côté serveur, donc le HTML servi ne
+// contenait pas une ligne du texte — mesuré en production, 24 à 28 Ko de page
+// pour ZÉRO H1. Sur une page dont la raison d'être est le référencement, c'est
+// le défaut le plus coûteux qu'on puisse avoir.
+//
+// ⚠️ ON IMPORTE LE COMPOSANT DIRECTEMENT, JAMAIS LE WRAPPER `EtudeVmdApp` :
+// celui-ci enveloppe la page dans `lazy()` + `<Suspense>`, et sans directive
+// client Astro rendrait alors le SPINNER de repli en guise de contenu.
+//
+// Vérifié avant bascule, chaîne d'imports comprise : ni état, ni effet, ni
+// gestionnaire dans EtudeVmdPage, Breadcrumb, ObservatoireChip, Disclaimer ni
+// CrossLinks. ⚠️ Y ajouter la moindre interactivité obligerait à repasser en île.
+import EtudeVmdPage from '@/components/pages/seo/EtudeVmdPage';
 import { articleSchema, breadcrumbSchema, combineSchemas } from '@/lib/seo/schemaOrg';
 import { getRelatedLinks } from '@/lib/seo/internalLinking';
 
@@ -46,5 +61,5 @@ export const prerender = true;
   {schemas.map((schema) => (
     <script type="application/ld+json" set:html={JSON.stringify(schema)} />
   ))}
-  <EtudeVmdApp data={data} related={related} client:only="react" />
+  <EtudeVmdPage data={data} related={related} />
 </BaseLayout>

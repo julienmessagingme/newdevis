@@ -24,6 +24,15 @@ export default defineConfig({
             page.includes('/reset-password') ||
             page.includes('/mot-de-passe-oublie') ||
             page.includes('/tableau-de-bord') ||
+            // 2026-09-21 — `/mon-chantier` est en `Disallow` dans robots.txt.
+            // Le déclarer au sitemap revenait à demander à Google d'indexer ce
+            // qu'on lui interdit de lire : c'est NOUS qui fabriquions la ligne
+            // « Bloquée par le fichier robots.txt » de Search Console (4 URLs
+            // mesurées dans le sitemap servi le 21/09).
+            // ⚠️ Toute nouvelle règle `Disallow` dans public/robots.txt doit
+            // avoir son pendant ICI — les deux fichiers disent la même chose à
+            // Google et ne peuvent pas se contredire.
+            page.includes('/mon-chantier') ||
             page.includes('/nouvelle-analyse') ||
             page.includes('/analyse/') ||
             page.includes('/comparateur/') ||
