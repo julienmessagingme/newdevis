@@ -49,7 +49,15 @@ function buildHtml(fileName: string | null, links: Record<string, string>): stri
 <body style="margin:0;padding:0;background:#F3F4F6;font-family:'DM Sans',Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F3F4F6;"><tr><td align="center" style="padding:32px 12px;">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-<tr><td style="padding:32px 32px 8px;text-align:center;"><img src="${SITE}/email/logo-vmd-icon.png" alt="VerifierMonDevis" width="48" height="48" style="border:0;display:inline-block;"/></td></tr>
+<tr><td style="padding:28px 32px 4px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td valign="middle" style="padding-right:11px;"><img src="${SITE}/email/logo-vmd-icon.png" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border:0;"/></td>
+<td valign="middle">
+<div style="font-family:'DM Sans',Arial,sans-serif;font-size:18px;font-weight:700;color:#1B2233;letter-spacing:-0.2px;">Verifier<span style="color:#2070C0;">Mon</span>Devis<span style="color:#F58A06;">.fr</span></div>
+<div style="font-family:'DM Sans',Arial,sans-serif;font-size:11px;font-weight:500;color:#677084;padding-top:2px;">L'avis d'expert sur vos devis</div>
+</td>
+</tr></table>
+</td></tr>
 <tr><td style="padding:8px 32px 32px;">
 <h1 style="margin:10px 0 12px;font-size:22px;font-weight:700;color:#0E1730;line-height:1.3;">Ce devis, finalement&nbsp;?</h1>
 ${fileLine}
@@ -60,7 +68,7 @@ ${btn(links.non_signe, "❌ Pas signé", "#FEF2F2", "#991B1B", "#FCA5A5")}
 ${btn(links.hesite, "🤔 J'hésite encore", "#F8FAFC", "#334155", "#CBD5E1")}
 <p style="margin:20px 0 0;font-size:12.5px;color:#9CA3AF;line-height:1.6;text-align:center;">Un clic suffit — merci ! Vous pouvez répondre à cet email si vous avez une question.</p>
 </td></tr>
-<tr><td style="padding:16px 32px 24px;border-top:1px solid #E5E7EB;background:#F9FAFB;"><p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center;">VerifierMonDevis.fr — l'avis d'un expert avant votre signature.</p></td></tr>
+<tr><td style="padding:16px 32px 24px;border-top:1px solid #E5E7EB;background:#F9FAFB;"><p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:12px;line-height:20px;color:#9AA1AF;text-align:center;"><span style="font-weight:600;color:#677084;">VerifierMonDevis, l'avis d'expert sur vos devis.</span></p></td></tr>
 </table></td></tr></table></body></html>`;
 }
 
