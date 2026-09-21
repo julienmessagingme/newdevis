@@ -19,6 +19,11 @@ on:
       - 'supabase/functions/**'
       - '.github/workflows/deploy-edge-functions.yml'
   workflow_dispatch: # Permet de redéployer manuellement depuis l'UI GitHub
+    inputs:
+      functions:
+        description: "Fonctions à redéployer, séparées par des espaces. Vide = celles modifiées au dernier commit."
+        required: false
+        default: ""
 
 jobs:
   deploy:
@@ -40,7 +45,31 @@ jobs:
 
       - name: Identify changed edge functions
         id: changed
+        env:
+          # ⚠️ L'entrée passe par l'ENVIRONNEMENT, jamais par `${{ }}` dans le
+          # script : interpolée directement, elle permettrait d'injecter une
+          # commande shell. Elle est en plus validée ci-dessous contre les
+          # répertoires réellement présents.
+          FORCER: ${{ inputs.functions }}
         run: |
+          # Échappatoire de rattrapage : redéployer des fonctions nommées à la
+          # main, quand le correctif dont elles dépendent est déjà committé
+          # (le diff HEAD~1..HEAD ne le verrait plus).
+          if [ -n "$FORCER" ]; then
+            VALIDES=""
+            for fn in $FORCER; do
+              if [ -d "supabase/functions/$fn" ] && [ "${fn#_}" = "$fn" ]; then
+                VALIDES="$VALIDES $fn"
+              else
+                echo "::error::Fonction inconnue ou interdite : $fn"
+                exit 1
+              fi
+            done
+            echo "Functions to deploy (forcé) :$VALIDES"
+            echo "functions=$VALIDES" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # Liste les répertoires modifiés sous supabase/functions/ entre HEAD~1 et HEAD
           # Sur push initial (pas de HEAD~1), déploie TOUT.
           # NB : `|| true` indispensable. Le shell GHA tourne en `bash -e -o pipefail`.
@@ -48,12 +77,43 @@ jobs:
           # functions/), `grep -v '^_'` ne matche rien -> exit 1 -> pipefail+errexit tuent
           # l'etape (faux echec rouge). Le `|| true` neutralise ce cas : CHANGED reste vide
           # -> skip=true -> workflow vert. (Incident 2026-06-15 : commit _shared-only.)
+          #
+          # 🚨 INCIDENT 2026-09-21 : le `|| true` ci-dessus a bien supprimé le faux
+          # ÉCHEC ROUGE du cas « _shared seul », mais personne n'a vu que le SUCCÈS
+          # VERT était faux lui aussi. Modifier `_shared/vmd-emails.ts` (les 7
+          # gabarits e-mail) affichait « Functions to deploy: » VIDE, workflow vert,
+          # et RIEN n'était déployé — alors que **24 des 29 fonctions importent un
+          # fichier de `_shared/`**. Un correctif partagé pouvait donc rester
+          # dormant indéfiniment, exactement l'incident de mai que ce workflow
+          # existe pour empêcher.
+          # ⚠️ `_shared` n'est PAS une fonction : on ne la déploie jamais elle-même.
+          # Ce qu'il faut redéployer, ce sont les fonctions qui l'IMPORTENT.
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
-            CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'supabase/functions/' \
+            MODIFIES=$(git diff --name-only HEAD~1 HEAD -- 'supabase/functions/' || true)
+
+            # (a) fonctions dont le code propre a changé
+            DIRECTES=$(printf '%s\n' "$MODIFIES" \
               | awk -F'/' '{print $3}' \
-              | sort -u \
               | grep -v '^_' \
               | grep -v '^$' \
+              | sort -u || true)
+
+            # (b) fonctions qui importent un fichier de `_shared/` modifié
+            DEPENDANTES=""
+            for f in $(printf '%s\n' "$MODIFIES" | grep '^supabase/functions/_shared/' || true); do
+              base=$(basename "$f" .ts)
+              echo "  fichier partagé modifié : $base"
+              trouve=$(grep -rl "_shared/$base" supabase/functions --include='*.ts' 2>/dev/null \
+                | grep -v '/_shared/' \
+                | awk -F'/' '{print $3}' \
+                | sort -u || true)
+              DEPENDANTES="$DEPENDANTES $trouve"
+            done
+
+            CHANGED=$(printf '%s %s' "$DIRECTES" "$DEPENDANTES" \
+              | tr ' ' '\n' \
+              | grep -v '^$' \
+              | sort -u \
               | tr '\n' ' ' || true)
           else
             CHANGED=$(ls supabase/functions/ \
