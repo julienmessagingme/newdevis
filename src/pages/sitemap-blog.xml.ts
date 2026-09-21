@@ -37,16 +37,39 @@ export const GET: APIRoute = async () => {
       headers: {
         "Content-Type": "application/xml; charset=utf-8",
         "Cache-Control": "public, max-age=3600, s-maxage=3600",
-        "X-Robots-Tag": "noindex",
+        // 🔴 2026-09-21 — `X-Robots-Tag: noindex` RETIRÉ.
+        //
+        // L'intention était juste (« ce XML n'a rien à faire dans les
+        // résultats »), mais l'en-tête ne protégeait de rien : Google
+        // n'indexe pas les sitemaps, il les LIT. En revanche il produisait
+        // un échec rouge dans l'inspection d'URL — « Google n'a pas accès à
+        // cette URL · noindex détecté dans l'en-tête HTTP X-Robots-Tag » —
+        // sur le fichier même par lequel on demande l'exploration de 74
+        // articles.
+        //
+        // ⚠️ AUCUN autre sitemap du site ne porte cet en-tête (`sitemap-0.xml`
+        // d'@astrojs/sitemap, `sitemap.xml`) : c'était une incohérence isolée.
+        // Ne pas le remettre « par prudence » — un signal contradictoire sur
+        // un sitemap coûte plus qu'il ne protège.
       },
     });
   } catch (err) {
     console.error("[sitemap-blog] Unexpected error:", err);
-    // Retourne un sitemap vide valide plutôt qu'une erreur 500
+    // 🔴 2026-09-21 — ON RÉPOND 500, PLUS UN SITEMAP VIDE EN 200.
+    //
+    // L'ancien comportement servait `<urlset></urlset>` avec un statut 200 :
+    // pour Google, ce n'est pas « je n'ai pas pu répondre », c'est **« ces 74
+    // articles n'existent plus »**. Une panne Supabase de quelques minutes
+    // pouvait donc déclencher une désindexation du blog entier, en silence et
+    // sans qu'aucune alerte ne se déclenche.
+    //
+    // Avec un 500, Google conserve la dernière version connue du sitemap et
+    // réessaie — et l'erreur apparaît dans Search Console. C'est la règle du
+    // projet : un échec silencieux coûte plus cher que la panne qu'il masque.
     return new Response(
-      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>`,
+      `<?xml version="1.0" encoding="UTF-8"?>\n<!-- sitemap temporairement indisponible -->`,
       {
-        status: 200,
+        status: 500,
         headers: { "Content-Type": "application/xml; charset=utf-8" },
       }
     );
