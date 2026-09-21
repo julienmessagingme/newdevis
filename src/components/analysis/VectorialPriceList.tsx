@@ -28,6 +28,7 @@
 import { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, Info } from "lucide-react";
 import type { JobTypeDisplayRow } from "@/hooks/useMarketPriceAPI";
+import { CATALOGUE_TAILLE } from '@/lib/prix/reference';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -320,7 +321,7 @@ export function VectorialPriceList({ rows }: VectorialPriceListProps) {
       />
 
       <p className="text-xs text-muted-foreground mt-3 italic">
-        Ces correspondances sont calculées par similarité sémantique (embedding vectoriel) sur 911 entrées catalogue.
+        Ces correspondances sont calculées par similarité sémantique (embedding vectoriel) sur {CATALOGUE_TAILLE} entrées catalogue.
         Elles ne constituent pas une évaluation de la qualité du prestataire.
       </p>
     </div>

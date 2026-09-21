@@ -43,7 +43,7 @@ export const GENERE_LE: string = donnees.genereLe;
 /**
  * Nombre d'entrées du catalogue, à la génération.
  *
- * Il est annoncé en page d'accueil (« plus de 900 références ») : le faire
+ * Il est annoncé partout sur le site public : le faire
  * porter par le fichier généré évite qu'une promesse chiffrée se périme dans un
  * coin du site sans que personne ne le voie.
  */

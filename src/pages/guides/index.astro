@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
+import { CATALOGUE_TAILLE } from '@/lib/prix/reference';
 // 2026-09-21 — RENDU STATIQUE (voir observatoire/[slug].astro pour le détail).
 // Le hub des guides partait en `client:only` : 23 Ko servis sans un mot de
 // texte. Import DIRECT du composant, jamais du wrapper `HubPageApp` qui est en
@@ -25,7 +26,7 @@ const props = {
   subPages: [
     { href: "/guides/devis-travaux", title: "Le guide complet du devis travaux", excerpt: "Comprendre, comparer, négocier, signer ou refuser. Le pilier de référence.", topics: ["devis"], type: "pillar" },
     { href: "/observatoire", title: "L'Observatoire des devis travaux", excerpt: "Statistiques réelles : prix par métier, erreurs fréquentes, postes surfacturés.", topics: ["verifier", "prix"], type: "study" },
-    { href: "/verifier-devis-travaux", title: "Vérifier un devis avec notre IA", excerpt: "Analyse gratuite en 30 secondes contre 891 prix marché.", topics: ["devis", "verifier"], type: "tool" },
+    { href: "/verifier-devis-travaux", title: "Vérifier un devis avec notre IA", excerpt: `Analyse gratuite en 30 secondes contre ${CATALOGUE_TAILLE} prix marché.`, topics: ["devis", "verifier"], type: "tool" },
     { href: "/comparateur", title: "Comparer plusieurs devis", excerpt: "Analysez plusieurs devis pour un même chantier avec un verdict expert.", topics: ["comparateur", "devis"], type: "tool" },
   ],
   showGmcGateway: true,

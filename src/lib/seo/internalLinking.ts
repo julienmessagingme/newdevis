@@ -1,3 +1,4 @@
+import { CATALOGUE_TAILLE } from '@/lib/prix/reference';
 /**
  * src/lib/seo/internalLinking.ts
  *
@@ -49,7 +50,7 @@ export const INTERNAL_PAGES: InternalLink[] = [
   {
     href: "/verifier-devis-travaux",
     title: "Vérifier un devis avec notre IA",
-    excerpt: "Outil gratuit. Comparez votre devis à 891 prix marché en 30 secondes.",
+    excerpt: `Outil gratuit. Comparez votre devis à ${CATALOGUE_TAILLE} prix marché en 30 secondes.`,
     topics: ["devis", "verifier", "comparateur"],
     type: "tool",
   },

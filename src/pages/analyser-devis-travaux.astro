@@ -25,7 +25,7 @@ const faqs = [
   },
   {
     question: "Comment savoir si un devis travaux est trop cher ?",
-    answer: "Un devis travaux est considéré comme trop cher si son montant total dépasse de plus de 20 % la médiane du marché pour des prestations équivalentes dans votre zone géographique. La règle pratique : comparer les prix unitaires (€/m², €/ml, €/u) et non les totaux. Notre outil d'analyse IA effectue cette comparaison automatiquement sur 911+ références de prix marché à jour, ligne par ligne, et identifie précisément les postes anormalement élevés ainsi que le surcoût estimé."
+    answer: `Un devis travaux est considéré comme trop cher si son montant total dépasse de plus de 20 % la médiane du marché pour des prestations équivalentes dans votre zone géographique. La règle pratique : comparer les prix unitaires (€/m², €/ml, €/u) et non les totaux. Notre outil d'analyse IA effectue cette comparaison automatiquement sur ${CATALOGUE_TAILLE} références de prix marché à jour, ligne par ligne, et identifie précisément les postes anormalement élevés ainsi que le surcoût estimé.`
   },
   {
     question: "Peut-on vérifier un devis travaux gratuitement ?",
@@ -81,7 +81,7 @@ const jsonLd = [
     },
     "featureList": [
       "Décomposition ligne par ligne du devis",
-      "Comparaison aux prix marché (911+ références)",
+      `Comparaison aux prix marché (${CATALOGUE_TAILLE} références)`,
       "Vérification SIRET, assurances et santé entreprise",
       "Détection des anomalies juridiques",
       "Liste des points concrets à négocier"
@@ -216,7 +216,7 @@ const checklistRefuse = [
               {
                 icon: "📈",
                 title: "Prix anormalement élevés",
-                desc: "Comparaison poste par poste avec 911+ références marché à jour. Identification précise du surcoût en €.",
+                desc: `Comparaison poste par poste avec ${CATALOGUE_TAILLE} références marché à jour. Identification précise du surcoût en €.`,
               },
               {
                 icon: "🔍",
@@ -353,7 +353,7 @@ const checklistRefuse = [
               {
                 num: "2",
                 title: "Analyse IA automatisée",
-                desc: "Notre IA extrait chaque ligne, compare aux 911+ références marché, vérifie l'entreprise et détecte les anomalies juridiques.",
+                desc: `Notre IA extrait chaque ligne, compare aux ${CATALOGUE_TAILLE} références marché, vérifie l'entreprise et détecte les anomalies juridiques.`,
               },
               {
                 num: "3",

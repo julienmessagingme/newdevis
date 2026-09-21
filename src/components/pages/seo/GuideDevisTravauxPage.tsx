@@ -8,13 +8,14 @@
  * satellites (comprendre, comparer, signer, négocier, refuser) pointent
  * ici, et celle-ci pointe vers eux.
  *
- * Wording : pédagogique, factuel, basé sur l'expertise VMD (891 prix marché,
+ * Wording : pédagogique, factuel, basé sur l'expertise VMD (catalogue de prix marché,
  * 348 devis analysés). Pas de bullshit, pas d'IA générée — du contenu écrit
  * par/avec l'équipe.
  */
 
 import PillarPage from "@/components/pillar/PillarPage";
 import { getRelatedLinks } from "@/lib/seo/internalLinking";
+import { CATALOGUE_TAILLE } from '@/lib/prix/reference';
 
 export default function GuideDevisTravauxPage() {
   const related = getRelatedLinks(
@@ -299,7 +300,7 @@ export default function GuideDevisTravauxPage() {
               </p>
               <ul>
                 <li>Un <strong>verdict tranché</strong> : signer / négocier / ne pas signer</li>
-                <li>Une <strong>comparaison à 891 prix marché</strong> poste par poste</li>
+                <li>Une <strong>comparaison à {CATALOGUE_TAILLE} prix marché</strong> poste par poste</li>
                 <li>La <strong>vérification entreprise</strong> (SIRET, ancienneté, assurance, avis Google)</li>
                 <li>La <strong>détection automatique des clauses litigieuses</strong> dans le PDF</li>
                 <li>Un <strong>message prêt à copier</strong> pour négocier avec votre artisan</li>
