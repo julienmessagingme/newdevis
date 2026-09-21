@@ -533,8 +533,10 @@ devis-clarity/
 │   │   └── vendor/                     # React 18 + Babel UMD servis en local
 │   ├── favicon.ico                     # Favicon du site
 │   ├── placeholder.svg                 # Placeholder image
-│   ├── robots.txt                      # Directives pour les crawlers
-│   └── sitemap.xml                     # Sitemap pour le SEO
+│   └── robots.txt                      # Directives pour les crawlers + déclaration des 2 sitemaps
+│                                       # (aucun sitemap statique ici : sitemap-index.xml est généré
+│                                       #  au build par @astrojs/sitemap, sitemap-blog.xml est une
+│                                       #  route SSR — les articles n'existent pas au moment du build)
 │
 ├── astro.config.mjs                    # Configuration Astro
 ├── tailwind.config.ts                  # Configuration Tailwind + thème
