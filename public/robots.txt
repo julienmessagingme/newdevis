@@ -80,5 +80,21 @@ Disallow: /
 User-agent: Bytespider
 Disallow: /
 
-# Sitemaps (Astro @astrojs/sitemap génère sitemap-index.xml)
+# ═══════════════════════════════════════════════════════════════════════════
+# SITEMAPS — IL EN FAUT DEUX, ET C'EST STRUCTUREL (2026-09-21)
+#
+# `sitemap-index.xml` est généré par @astrojs/sitemap à partir des ROUTES DU
+# BUILD. Il ne peut donc pas voir les articles de blog : ils sont rendus en SSR
+# (`prerender = false` dans blog/[slug].astro) et n'existent pas au moment où le
+# sitemap est écrit.
+#
+# 🔴 CONSÉQUENCE MESURÉE LE 21/09 : `sitemap-blog.xml` fonctionnait depuis des
+# mois et servait 74 articles publiés — mais AUCUN fichier ne le déclarait à
+# Google. 74 pages, dont 4 des 10 premières pages d'entrée depuis la recherche,
+# vivaient hors de tout sitemap. Le travail était fait ; il manquait cette ligne.
+#
+# ⚠️ Toute route qui sert du contenu en SSR est invisible pour @astrojs/sitemap
+# et doit avoir son propre sitemap déclaré ICI.
+# ═══════════════════════════════════════════════════════════════════════════
 Sitemap: https://www.verifiermondevis.fr/sitemap-index.xml
+Sitemap: https://www.verifiermondevis.fr/sitemap-blog.xml
