@@ -300,6 +300,70 @@ describe("le message de l'expert n'est pas affiché deux fois", () => {
       } as never),
     );
     expect(texteRendu(html)).toMatch(/390/);
-    expect(texteRendu(html)).toMatch(/Marge de négociation estimée/);
+    // ⚠️ CE TEST A CHANGÉ DE LIBELLÉ LE 23/09 AU SOIR, ET C'EST DÉLIBÉRÉ : le
+    // scénario est un REFUS (ATARAXIA), et depuis le reformulage on n'y parle
+    // plus de « marge de négociation » mais d'« écart estimé sur les prix ».
+    // Son INTENTION est inchangée — le montant doit survivre au dédoublonnage —
+    // et c'est elle que porte l'assertion sur `390` juste au-dessus.
+    expect(texteRendu(html)).toMatch(/Écart estimé sur les prix/);
+  });
+});
+
+describe("on ne propose pas de négocier ce qu'on refuse (2026-09-23)", () => {
+  /** Carte en refus portant un montant que le titre ne peut pas afficher. */
+  const carteRefus = () => {
+    const groupes = [g("high", 9000, "Charpente")];
+    const conclusion = {
+      verdict_decisionnel: "ne_pas_signer",
+      verdict_global: "a_risque",
+      anomalies: [{ poste: "Charpente", surcout_estime: 390 }],
+      surcout_global: { min: 390, max: 390 },
+      leviers: [],
+      verdict_ligne: { resume: "17 565 € HT — deux postes dépassent le marché.", marge: "environ 390 €", motif: "x" },
+    } as unknown as ConclusionData;
+    return renderToStaticMarkup(
+      createElement(AvisSurLeDevis, {
+        conclusion, portee: porteeAnalyse(groupes, 0, 0), totalHt: 17565,
+        entrepriseName: "ATARAXIA", pointsOk: [], alertes: [],
+      } as never),
+    );
+  };
+
+  it("sous un refus, le montant est un ÉCART, pas une marge de négociation", () => {
+    // Mesuré sur le rendu des 200 cartes : 9 des 48 refus disaient « Marge de
+    // négociation estimée » sous « Ne signez pas en l'état » — le mot suppose
+    // qu'on va contracter, alors que la carte vient de dire l'inverse.
+    const t = texteRendu(carteRefus());
+    expect(t).not.toMatch(/Marge de négociation/);
+    expect(t).toMatch(/Écart estimé sur les prix/);
+  });
+
+  it("🔴 LE MONTANT RESTE AFFICHÉ — on reformule, on ne masque pas", () => {
+    // Sur ces cartes le titre ne porte aucun chiffre : masquer ferait
+    // disparaître le montant de la page. C'est la perte que le banc du 23/09
+    // a déjà attrapée une fois sur ce composant.
+    expect(texteRendu(carteRefus())).toMatch(/390/);
+  });
+
+  it("TÉMOIN — hors refus, le libellé de négociation RESTE", () => {
+    // Sans ce témoin, « supprimer le mot partout » passerait le test principal.
+    const groupes = [g("high", 9000, "Peinture")];
+    const conclusion = {
+      verdict_decisionnel: "signer_avec_negociation",
+      verdict_global: "a_negocier",
+      anomalies: [],                       // aucun poste nommé → le titre ne chiffre pas
+      surcout_global: { min: 390, max: 390 },
+      leviers: [{ type: "acompte", objectif: "securiser", niveau: "important", titre: "Acompte", detail: "" }],
+      verdict_ligne: { resume: "21 600 € HT — un poste dépasse le marché.", marge: "environ 390 €", motif: "x" },
+    } as unknown as ConclusionData;
+    const t = texteRendu(
+      renderToStaticMarkup(
+        createElement(AvisSurLeDevis, {
+          conclusion, portee: porteeAnalyse(groupes, 0, 0), totalHt: 21600,
+          entrepriseName: "SAS TEST", pointsOk: [], alertes: [],
+        } as never),
+      ),
+    );
+    expect(t).toMatch(/Marge de négociation estimée/);
   });
 });

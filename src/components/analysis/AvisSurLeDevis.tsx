@@ -274,6 +274,31 @@ export default function AvisSurLeDevis({
   const isSigner = decision.decision === "signer";
   const isNegocier = decision.decision === "negocier";
   const isRefuser = decision.decision === "ne_pas_signer";
+
+  /**
+   * 🔴 2026-09-23 (retour Johan) — ON NE PROPOSE PAS DE NÉGOCIER CE QU'ON
+   * REFUSE.
+   *
+   * « Marge de négociation estimée : environ 390 € » sous « Ne signez pas en
+   * l'état » suppose qu'on va contracter, alors que la carte vient de dire
+   * l'inverse. Mesuré sur le rendu des 200 cartes : **9 des 48 refus**
+   * affichaient ce libellé, toutes avec un montant en euros.
+   *
+   * ⚠️ ON REFORMULE, ON NE MASQUE PAS. Sur ces 9 cartes le titre ne porte
+   * aucun chiffre (c'est un refus) : masquer ferait disparaître le montant de
+   * la page. C'est la perte que le banc du 23/09 a déjà attrapée une fois —
+   * un correctif de wording qui supprime une information est pire que le
+   * défaut qu'il corrige. Le fait reste dit, le mot cesse de présumer l'action.
+   *
+   * ⚠️ UN SEUL LIBELLÉ POUR LES DEUX SITES D'APPEL. Ils se sont dédoublés le
+   * 23/09 (le dédoublonnage du message d'expert a créé le second) : les
+   * laisser composer chacun leur phrase les ferait diverger au premier
+   * ajustement.
+   */
+  const libelleMontant = (marge: string) =>
+    isRefuser
+      ? `Écart estimé sur les prix : ${marge}.`
+      : `Marge de négociation estimée : ${marge}.`;
   const title = titreDecision(decision, provisoire);
   const titreChiffre = !provisoire && decision.montantANegocier !== null && isNegocier;
 
@@ -384,9 +409,9 @@ export default function AvisSurLeDevis({
       // doit pas faire. On garde donc la marge seule quand le titre ne la
       // porte pas déjà.
       if (expertMessage && aplati(expertMessage).startsWith(aplati(phrase).replace(/\.$/, ""))) {
-        return vl.marge && !titreChiffre ? `Marge de négociation estimée : ${vl.marge}.` : null;
+        return vl.marge && !titreChiffre ? libelleMontant(vl.marge) : null;
       }
-      return vl.marge && !titreChiffre ? `${phrase} Marge de négociation estimée : ${vl.marge}.` : phrase;
+      return vl.marge && !titreChiffre ? `${phrase} ${libelleMontant(vl.marge)}` : phrase;
     }
     const base = (conclusion.phrase_intro || "").trim();
     if (isNegocier) {
