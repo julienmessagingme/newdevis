@@ -617,7 +617,25 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
     s.anomalies_postes.length > 0 && (s.surcout_nomme ?? 0) >= 300 &&
     (s.total_ht === null || (s.surcout_nomme ?? 0) >= (s.total_ht ?? 0) * 0.015)
   ) {
-    motif = `${s.anomalies_postes.length > 1 ? "quelques postes dépassent" : "un poste dépasse"} les fourchettes du marché (environ ${fmtEuros(s.surcout_nomme ?? 0)} € d'écart sur ${s.anomalies_postes.length > 1 ? "ces lignes" : "cette ligne"})`;
+    // 🔴 2026-09-22 (retour Johan, devis SMPAC) — LE MONTANT NE VIT QU'À UN
+    // SEUL ENDROIT : LA MARGE.
+    //
+    // Ce motif citait `surcout_nomme` (somme des anomalies écrites par Gemini)
+    // pendant que la marge, six mots plus loin, citait `surcout.max` (calcul
+    // serveur). Les deux sont légitimes et ne sont PAS égaux — Gemini ne nomme
+    // pas exactement les postes que le serveur chiffre. La carte affichait donc
+    // « environ 2 024 € d'écart sur ces lignes. Marge de négociation estimée :
+    // environ 2 223 € » : deux nombres pour un seul fait, et le lecteur qui
+    // additionne ne retombe sur aucun des deux.
+    //
+    // ⚠️ La relecture du 15/09 ne pouvait pas l'attraper : sa règle R6 PLAFONNE
+    // le montant cité au montant affiché (2 024 ≤ 2 223, donc elle se tait).
+    // Plafonner n'est pas égaliser.
+    //
+    // ⚠️ NE PAS « corriger » en citant `surcout.max` ici : on annoncerait
+    // 2 223 € sur des lignes qui somment à 2 024 €, soit le défaut inverse.
+    // Le motif NOMME, la marge CHIFFRE.
+    motif = `${s.anomalies_postes.length > 1 ? "quelques postes dépassent" : "un poste dépasse"} les fourchettes du marché`;
   } else if (s.acompte_cumule_pct !== null && s.acompte_cumule_pct > 30) {
     motif = s.comptes_opaques
       ? `l'acompte demandé (${Math.round(s.acompte_cumule_pct)} %) est au-dessus de l'usage alors que la société ne publie pas ses comptes — limitez votre exposition`
@@ -695,9 +713,33 @@ export function buildVerdictLigne(s: LevierSignals, leviers: Levier[]): VerdictL
     // plus, et ferait chercher au lecteur une nuance qui n'existe pas.
     // ⚠️ La branche fourchette reste nécessaire : les conclusions du stock
     // antérieures à ce jour portent encore deux bornes distinctes.
-    marge = s.surcout.min === s.surcout.max
-      ? `environ ${fmtEuros(s.surcout.max)} €`
-      : `environ ${fmtEuros(s.surcout.min)} à ${fmtEuros(s.surcout.max)} €`;
+    // 🔴 2026-09-22 (retour Johan, devis SMPAC) — LE MONTANT ANNONCÉ EST CELUI
+    // DES POSTES NOMMÉS, PAS L'AGRÉGAT SERVEUR.
+    //
+    // C'est la règle du 30/08 (« on ne chiffre que ce qu'on peut nommer »),
+    // qui n'avait été appliquée qu'au LEVIER et au motif — jamais à la marge.
+    // Sur SMPAC elle annonçait 2 223 € (calcul serveur) pendant que le motif
+    // citait 2 024 € (somme des postes nommés) : deux nombres, un seul fait.
+    // Sur le cas ALES du 30/08, elle aurait annoncé « 7 405 à 13 751 € » là où
+    // un seul poste à 887 € est attribuable — exactement ce que ce jour-là
+    // devait supprimer.
+    //
+    // ⚠️ `surcout_nomme` d'abord, `surcout.max` en repli : le second reste le
+    // bon chiffre quand aucune anomalie n'a été nommée par le LLM et que
+    // `anomalies_postes` vient des postes du calcul serveur (règle du 05/09) —
+    // les deux coïncident alors.
+    // ⚠️ ET LA BRANCHE FOURCHETTE RESTE, POUR LE CAS OÙ RIEN N'EST NOMMÉ.
+    // Ma première version prenait `surcout.max` en repli : sur un signal
+    // `{min: 800, max: 1200}` elle annonçait « environ 1 200 € », soit le HAUT
+    // d'une fourchette calculée — plus agressif que ce que le moteur affirme.
+    // Trois tests l'ont refusé, à juste titre.
+    const attribuable = (s.surcout_nomme ?? 0) > 0 ? (s.surcout_nomme as number) : null;
+    marge =
+      attribuable !== null
+        ? `environ ${fmtEuros(attribuable)} €`
+        : s.surcout.min === s.surcout.max
+          ? `environ ${fmtEuros(s.surcout.max)} €`
+          : `environ ${fmtEuros(s.surcout.min)} à ${fmtEuros(s.surcout.max)} €`;
   } else if (leviers.some((l) => l.type === "revision_tarifaire")) {
     // Seul levier générique qui justifie un POURCENTAGE : un devis de plus de
     // douze mois se réactualise, et l'ordre de grandeur (5 à 8 %/an) est écrit

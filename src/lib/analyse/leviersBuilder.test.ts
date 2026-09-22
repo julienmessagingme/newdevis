@@ -47,11 +47,22 @@ describe("buildLeviers — on ne chiffre que ce qu'on peut nommer", () => {
     expect(l!.detail).not.toMatch(/7\s?405|13\s?751/);
   });
 
-  it("la ligne de verdict ne reprend pas non plus l'agrégat", () => {
+  // 🔴 2026-09-22 — CE TEST A CHANGÉ D'EMPLACEMENT, PAS D'INTENTION.
+  // Il exigeait le montant attribuable (887) dans le MOTIF. Il l'exige
+  // désormais dans la MARGE, parce que le chiffre ne vit plus qu'à un seul
+  // endroit : la carte SMPAC affichait « environ 2 024 € d'écart sur ces
+  // lignes » (motif) ET « Marge estimée : environ 2 223 € » — deux nombres
+  // pour un seul fait. L'exigence de fond est renforcée, pas relâchée : la
+  // marge elle-même ne peut plus porter l'agrégat serveur (« 7 405 à
+  // 13 751 € »), ce que ce test ne vérifiait pas.
+  it("la ligne de verdict ne reprend pas l'agrégat — et n'annonce qu'un seul chiffre", () => {
     const leviers = buildLeviers(alesSignals);
     const vl = buildVerdictLigne(alesSignals, leviers);
     expect(vl.resume).not.toMatch(/7\s?405|13\s?751/);
-    expect(vl.motif).toMatch(/887/);
+    expect(vl.marge).toMatch(/887/);
+    expect(vl.marge).not.toMatch(/7\s?405|13\s?751/);
+    // Le motif NOMME, il ne chiffre pas — sinon deux montants cohabitent.
+    expect(vl.motif ?? "").not.toMatch(/\d[\d\s  ]*\s*€/);
   });
 
   // 2026-09-05 — CE TEST A CHANGÉ DE SENS, volontairement.
@@ -686,7 +697,13 @@ describe("aucun montant sans poste nommé", () => {
     expect(levier).toBeDefined();
     expect(levier!.titre).toContain("Climatisation gainable");
     const v = buildVerdictLigne(s, leviers);
-    expect(v.marge).toMatch(/800/);
+    // 🔴 2026-09-22 — 1 000 € (le poste NOMMÉ), plus « 800 à 1 200 € »
+    // (l'agrégat serveur). L'intention du 05/09 est conservée — une marge
+    // chiffrée dès qu'un poste porte l'écart — et resserrée : le chiffre est
+    // celui qu'on peut montrer, pas la fourchette du calcul. Annoncer
+    // « 800 à 1 200 » sur un poste qui porte 1 000 rouvrait la porte aux deux
+    // montants (devis SMPAC).
+    expect(v.marge).toMatch(/1\s* ?000/);
     expect(v.motif).toMatch(/Climatisation gainable|dépasse/i);
   });
 

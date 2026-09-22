@@ -90,6 +90,29 @@ interface AvisSurLeDevisProps {
    * négocier sur un chiffre que nous savions déjà faux.
    */
   provisoire?: boolean;
+  /**
+   * 🟡 2026-09-22 (structure en cours de validation Johan) — CE QUI APPELLE
+   * UNE VÉRIFICATION, remonté À CÔTÉ de ce qui rassure.
+   *
+   * Sur le devis JeanBERNARD, ce bloc affichait deux points verts pendant que
+   * la note Google de 3,6/5 vivait trois écrans plus bas, dans « ce qu'il ne
+   * faut pas oublier ». On remontait ce qui rassure et on enterrait ce qui
+   * inquiète : l'asymétrie corrigée le 10/09 sur les prix, reconstruite sur
+   * l'entreprise.
+   *
+   * ⚠️ Optionnelle et vide par défaut — aucun appelant existant ne change.
+   */
+  pointsAttention?: string[];
+  /**
+   * 🟡 2026-09-22 — UN SEUL ESPACE POUR UNE SEULE DÉCISION.
+   *
+   * Rendu DANS la carte, sous le bloc vérifié : leviers, puis préparation du
+   * rendez-vous en dépli. Trois cartes successives (verdict, « avant de
+   * signer », « préparez votre rendez-vous ») obligeaient le lecteur à
+   * arbitrer entre trois listes qui se répondent — le défaut de structure du
+   * 15/09 sur le matériel, reconstruit à l'échelle de la page.
+   */
+  children?: React.ReactNode;
 }
 
 export default function AvisSurLeDevis({
@@ -102,6 +125,8 @@ export default function AvisSurLeDevis({
   entrepriseName = null,
   totalHt = null,
   criticalReasons = [],
+  pointsAttention = [],
+  children,
 }: AvisSurLeDevisProps) {
   // ── Cas de bypass : le devis n'est pas comparable ──────────────────────
   if (conclusion.foreign_quote) {
@@ -182,6 +207,16 @@ export default function AvisSurLeDevis({
             ))}
           </ul>
         </Body>
+        {/* 🟡 2026-09-22 — LES LEVIERS SURVIVENT AU HARD BLOCK, PAS LES POINTS
+            D'ATTENTION. Sur les 17 analyses du stock qui passent ici (dont une
+            entreprise radiée portant 3 leviers), le retour anticipé avalait
+            tout ce qui suit : le lecteur le plus exposé perdait ses leviers.
+            C'est l'inverse de la règle du 20/08 (« les leviers STRUCTURELS
+            restent visibles même sous bypass »).
+            ⚠️ `pointsAttention` reste volontairement absent : empiler « à
+            vérifier avant de signer » sous « ne signez pas » dilue le fait
+            bloquant, qui doit occuper seul l'attention. */}
+        {children}
       </HeroCard>
     );
   }
@@ -290,6 +325,42 @@ export default function AvisSurLeDevis({
   // n'est pas la question.
   const reservePrix = !decision.prixVerifies && !isRefuser;
 
+  /**
+   * 🔴 2026-09-22 (retour Johan, devis SMPAC) — UNE RÉSERVE NE PEUT PAS NIER
+   * LE CHIFFRE QU'ON VIENT D'AFFICHER.
+   *
+   * La carte annonçait « Marge de négociation estimée : environ 2 223 € » puis,
+   * quatre lignes plus bas, « nous ne nous prononçons pas sur les prix ». Si on
+   * chiffre un écart sur des postes nommés, on SE PRONONCE — sur ces postes-là.
+   * La réserve ne vaut que pour LE RESTE.
+   *
+   * 🔴 ET C'EST MOI QUI AI CRÉÉ CE DÉFAUT LA VEILLE. La réserve existait depuis
+   * le 10/09 mais ne s'affichait qu'en dessous de 5 % de portée — jamais sur un
+   * devis chiffré. En la branchant sur `prixVerifies` (seuil 50 %), je l'ai
+   * fait apparaître sur des cartes qui annoncent un montant : **24 des 43
+   * analyses chiffrées du stock, soit 56 %**, se contredisaient ainsi.
+   *
+   * ⚠️ On ne SUPPRIME pas la réserve : elle reste vraie et utile. On la
+   * restreint à ce qu'elle décrit — et sans citer de ratio, le « X sur Y »
+   * ayant été retiré le 22/09 pour de bonnes raisons.
+   */
+  /**
+   * ⚠️ ON TESTE LE TEXTE RÉELLEMENT AFFICHÉ, PAS UNE DONNÉE DÉRIVÉE.
+   *
+   * Ma première version lisait `decision.montantANegocier`, qui exige un poste
+   * nommé ET un écart ≥ 300 €. Mesuré : elle ratait 10 cartes sur 43 — les
+   * marges du stock ancien (« environ 420 € »), et surtout les POURCENTAGES
+   * (« 3 à 5 % (révision tarifaire) »), qui s'affichaient à côté de « nous ne
+   * nous prononçons pas sur les prix » sur un devis à 0 % de portée.
+   *
+   * ⚠️ ET LE MONTANT EST DANS LE TITRE, PAS DANS LE CORPS. Depuis la refonte
+   * du 22/09, `titreDecision` porte le chiffre (« Environ 2 223 € à discuter
+   * avec l'artisan ») et le corps ne fait plus que nommer le motif. Tester le
+   * seul `bodyText` ne voyait donc rien — trouvé en regardant le HTML rendu,
+   * pas en relisant le code.
+   */
+  const chiffreAffiche = /\d[\d\s  ]*\s*(€|%)/.test(`${title} ${bodyText ?? ""}`);
+
   // 🟢 2026-08-29 (retour Johan, devis 25030) — quand un expert corrige une
   // analyse, il RETIRE ce qui était faux ; sans ce bloc, la page ne gagnait
   // rien en échange et affichait « négociable » sans le moindre argument. Le
@@ -320,7 +391,7 @@ export default function AvisSurLeDevis({
           </p>
         </div>
       )}
-      {(verifies.length > 0 || reservePrix) && (
+      {(verifies.length > 0 || reservePrix || pointsAttention.length > 0) && (
         <div className="mt-6 border-t border-foreground/10 pt-4 space-y-3">
           {verifies.length > 0 && (
             <div>
@@ -341,9 +412,29 @@ export default function AvisSurLeDevis({
               </ul>
             </div>
           )}
+          {/* 🟡 2026-09-22 — CE QUI APPELLE UNE VÉRIFICATION, au même niveau
+              que ce qui rassure. Jamais en rouge : ce ne sont pas des motifs
+              de refus, ce sont des choses à demander avant de signer. */}
+          {pointsAttention.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
+                À vérifier avant de signer
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {pointsAttention.map((p, i) => (
+                  <li key={i} className="flex items-baseline gap-1.5 text-[14px] leading-relaxed text-foreground/75">
+                    <span aria-hidden="true" className="text-amber-600">▸</span>
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {reservePrix && (
             <p className="text-[13px] leading-relaxed text-foreground/55">
-              Nos références ne couvrent pas vos prestations : nous ne nous prononçons pas sur les prix.{" "}
+              {chiffreAffiche
+                ? "Ce montant porte sur les postes que nous avons pu comparer. Pour les autres, nous n'avons pas de tarif de référence à opposer."
+                : "Nos références ne couvrent pas vos prestations : nous ne nous prononçons pas sur les prix."}{" "}
               <a
                 href="#detail-postes"
                 className="whitespace-nowrap font-medium text-foreground/75 underline decoration-foreground/25 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
@@ -354,6 +445,7 @@ export default function AvisSurLeDevis({
           )}
         </div>
       )}
+      {children}
     </HeroCard>
   );
 }
