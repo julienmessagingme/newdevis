@@ -132,3 +132,70 @@ describe("titreDecision", () => {
     }
   });
 });
+
+describe("decisionAffichee — une alerte sur l'entreprise est un constat (2026-09-23)", () => {
+  // 🔴 Devis JeanBERNARD : la carte titrait « Rien ne s'oppose à la signature »
+  // et listait quatre lignes plus bas « note Google 3,6/5 sur 140 avis ».
+  // La décision ne regardait que les LEVIERS.
+  const NOTE_GOOGLE =
+    "⚠️ Note Google moyenne : 3.6/5 (140 avis). En dessous du seuil de confort de 4,0/5.";
+  const ASSURANCE =
+    "Demandez à l'artisan une attestation d'assurance RC Pro et décennale.";
+
+  it("une note Google sous le seuil fait basculer en ambre", () => {
+    const d = decisionAffichee(c({}), PORTEE_VIDE, [], [NOTE_GOOGLE]);
+    expect(d.decision).toBe("negocier");
+    expect(d.constats).toBe(1);
+  });
+
+  it("un rappel universel ne colore PAS — sinon chaque devis serait ambre", () => {
+    // Mesuré : l'assurance est réclamée sur la quasi-totalité des devis.
+    // La faire peser rendrait la couleur muette, comme `retenue_garantie`.
+    const d = decisionAffichee(c({}), PORTEE_VIDE, [], [ASSURANCE]);
+    expect(d.decision).toBe("signer");
+    expect(d.constats).toBe(0);
+  });
+
+  it("les comptes non publiés et la radiation comptent aussi", () => {
+    for (const a of [
+      "Comptes non accessibles publiquement depuis 3 ans",
+      "Entreprise récente (moins de 2 ans d'activité)",
+    ]) {
+      expect(decisionAffichee(c({}), PORTEE_VIDE, [], [a]).constats).toBe(1);
+    }
+  });
+});
+
+describe("titreDecision — le point fort est NOMMÉ (2026-09-23)", () => {
+  const NOTE = "⚠️ Note Google moyenne : 3.6/5 (140 avis).";
+
+  it("l'ancienneté remplace « N points à sécuriser »", () => {
+    const d = decisionAffichee(c({}), PORTEE_VIDE, [], [NOTE], 25);
+    expect(titreDecision(d)).toBe("Entreprise établie depuis 25 ans, un point à vérifier.");
+  });
+
+  it("une entreprise de moins de 5 ans n'est PAS un argument", () => {
+    // Même garde que la réputation sous dix avis (06/09) : présenter « 2 ans »
+    // comme une force serait de la réassurance fabriquée.
+    const d = decisionAffichee(c({}), PORTEE_VIDE, [], [NOTE], 2);
+    expect(d.ancienneteAnnees).toBeNull();
+    expect(titreDecision(d)).toBe("Un point à sécuriser avant de signer.");
+  });
+
+  it("LE MONTANT GARDE TOUJOURS LA MAIN sur l'ancienneté", () => {
+    // C'est ce que le lecteur emporte. L'ancienneté redescend dans « Vérifié ».
+    const d = decisionAffichee(
+      c({ anomalies: [{ poste: "X" } as never], surcout_global: { min: 3237, max: 3237 } }),
+      PORTEE_PLEINE,
+      [],
+      [NOTE],
+      10,
+    );
+    expect(titreDecision(d)).toMatch(/^Environ 3\s237 € à discuter avec l'artisan\.$/);
+  });
+
+  it("un fait bloquant ignore l'ancienneté", () => {
+    const d = decisionAffichee(c({}), PORTEE_VIDE, ["entreprise radiée"], [NOTE], 25);
+    expect(titreDecision(d)).toBe("Ne signez pas en l'état.");
+  });
+});

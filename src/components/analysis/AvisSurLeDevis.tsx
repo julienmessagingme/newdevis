@@ -104,6 +104,18 @@ interface AvisSurLeDevisProps {
    */
   pointsAttention?: string[];
   /**
+   * 🔴 2026-09-23 — L'ANCIENNETÉ, QUE LE PRODUIT SAVAIT ET NE DISAIT PAS.
+   *
+   * `raw_text.verified.anciennete_annees` est renseigné, mais il n'existe
+   * AUCUN `points_ok` qui en parle : mesuré, **23 des 44 analyses vertes
+   * concernent une entreprise de 5 ans ou plus et aucune ne l'affichait**.
+   * Sur le devis JeanBERNARD, « 25 ans d'ancienneté » est l'argument le plus
+   * rassurant de la page — il était invisible.
+   */
+  ancienneteAnnees?: number | null;
+  /** Les alertes du scoring : les spécifiques comptent dans la décision. */
+  alertes?: string[];
+  /**
    * 🟡 2026-09-22 — UN SEUL ESPACE POUR UNE SEULE DÉCISION.
    *
    * Rendu DANS la carte, sous le bloc vérifié : leviers, puis préparation du
@@ -126,6 +138,8 @@ export default function AvisSurLeDevis({
   totalHt = null,
   criticalReasons = [],
   pointsAttention = [],
+  ancienneteAnnees = null,
+  alertes = [],
   children,
 }: AvisSurLeDevisProps) {
   // ── Cas de bypass : le devis n'est pas comparable ──────────────────────
@@ -241,7 +255,7 @@ export default function AvisSurLeDevis({
   }
 
   // ── Cas standards ──────────────────────────────────────────────────────
-  const decision = decisionAffichee(conclusion, portee, criticalReasons);
+  const decision = decisionAffichee(conclusion, portee, criticalReasons, alertes, ancienneteAnnees);
   const tone: Tone = decision.ton;
   const isSigner = decision.decision === "signer";
   const isNegocier = decision.decision === "negocier";
@@ -328,7 +342,17 @@ export default function AvisSurLeDevis({
   // chèrement acquises (pas d'assurance seulement mentionnée — 20/08 ; pas de
   // réputation sous dix avis — 06/09 ; pas d'entreprise de moins de trois ans
   // présentée comme établie).
-  const verifies = pointsVerifies(pointsOk, 3);
+  // 🔴 2026-09-23 — L'ANCIENNETÉ EN TÊTE DES POINTS VÉRIFIÉS.
+  // Elle n'existe dans AUCUN `points_ok` (vérifié sur le stock) : elle vient
+  // de `verified.anciennete_annees` et doit être composée ici. Placée en
+  // premier parce que c'est le fait le plus rassurant qu'on puisse établir
+  // sur une entreprise — et celui qu'un particulier cherche en premier.
+  const verifies = [
+    ...(decision.ancienneteAnnees !== null
+      ? [`Établie depuis ${decision.ancienneteAnnees} ans`]
+      : []),
+    ...pointsVerifies(pointsOk, 3),
+  ].slice(0, 4);
 
   // 🔴 2026-09-22 (retour Johan) — LE « X SUR Y » NE S'AFFICHE PLUS.
   //
@@ -449,18 +473,36 @@ export default function AvisSurLeDevis({
               </ul>
             </div>
           )}
+          {/* ⚪ 2026-09-23 (retour Johan) — TROISIÈME REGISTRE : CE QU'ON IGNORE.
+              *« il faudrait que le verdict reprenne clairement les points forts
+              en vert, et les points oranges à vérifier et en gris par exemple
+              les éléments inconnus (les prix pour ce devis). »* La phrase
+              existait depuis le 10/09 mais flottait sans étiquette, sous les
+              deux listes : elle se lisait comme une note de bas de page. Elle
+              prend le même gabarit que les deux autres — et reste GRISE, jamais
+              ambre : ne pas savoir n'est pas une alerte sur le devis. C'est
+              l'invariant du 22/09 (« la couleur ne porte que ce qu'on a
+              TROUVÉ »), rendu lisible d'un coup d'œil. */}
           {reservePrix && (
-            <p className="text-[13px] leading-relaxed text-foreground/55">
-              {chiffreAffiche
-                ? "Ce montant porte sur les postes que nous avons pu comparer. Pour les autres, nous n'avons pas de tarif de référence à opposer."
-                : "Nos références ne couvrent pas vos prestations : nous ne nous prononçons pas sur les prix."}{" "}
-              <a
-                href="#detail-postes"
-                className="whitespace-nowrap font-medium text-foreground/75 underline decoration-foreground/25 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
-              >
-                Voir le détail ↓
-              </a>
-            </p>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
+                Ce que nous ne savons pas
+              </p>
+              <p className="mt-1.5 flex items-baseline gap-1.5 text-[14px] leading-relaxed text-foreground/60">
+                <span aria-hidden="true" className="text-foreground/40">○</span>
+                <span>
+                  {chiffreAffiche
+                    ? "Ce montant porte sur les postes que nous avons pu comparer. Pour les autres, nous n'avons pas de tarif de référence à opposer."
+                    : "Nos références ne couvrent pas vos prestations : nous ne nous prononçons pas sur les prix."}{" "}
+                  <a
+                    href="#detail-postes"
+                    className="whitespace-nowrap font-medium text-foreground/75 underline decoration-foreground/25 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
+                  >
+                    Voir le détail ↓
+                  </a>
+                </span>
+              </p>
+            </div>
           )}
         </div>
       )}

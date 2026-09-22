@@ -1375,6 +1375,21 @@ Deux détails qui changent le fond :
 
 La rédaction reste celle de la fiche : tirets, déduplication par sujet, conseils de prudence distincts des questions à poser, et un point positif n'est affirmé que s'il est vérifié — sinon il devient une pièce à réclamer.
 
+#### Trois registres, trois couleurs (2026-09-23)
+
+Le verdict distingue désormais ce que nous avons **établi**, ce qu'il faut **vérifier**, et ce que nous **ignorons** :
+
+| | intitulé | exemple |
+|---|---|---|
+| ✓ vert | **Vérifié** | Établie depuis 25 ans · Immatriculée et en activité · Claire sur ses conditions de paiement |
+| ▸ ambre | **À vérifier avant de signer** | Note Google 3,6/5 (140 avis) — lisez les avis récents · attestation d'assurance à réclamer |
+| ○ gris | **Ce que nous ne savons pas** | Nos références ne couvrent pas vos prestations : nous ne nous prononçons pas sur les prix |
+
+Deux changements de fond l'accompagnent :
+
+- **Une alerte sur l'entreprise pèse sur la couleur.** Une note client sous le seuil, des comptes non publiés ou un SIRET introuvable sont des constats sur *ce* devis : la carte passe en ambre au lieu d'afficher « Rien ne s'oppose à la signature ». Les rappels adressés à tout le monde (attestation d'assurance, retenue de garantie) restent affichés mais ne colorent pas — sinon la couleur s'allumerait sur chaque devis et ne dirait plus rien.
+- **Le titre nomme le point fort quand il y en a un** : *« Entreprise établie depuis 25 ans, un point à vérifier. »* L'ancienneté est vérifiée au registre et n'apparaissait jusqu'ici nulle part. Elle n'est citée qu'à partir de cinq ans, et **jamais à la place d'un montant** : quand un écart est chiffré, c'est lui qui reste le titre.
+
 ### 23.4 Bannière de suivi (issue du devis)
 
 Au retour sur une analyse de plus de 7 jours, une bannière demande ce qu'est devenu le devis : signé tel quel / signé après négociation / pas signé. Un email à un clic part aussi à J+15 (lien signé, désinscription respectée). Sert à croiser prix et taux de signature — c'est ce qui rendra l'Observatoire prédictif.

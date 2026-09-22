@@ -23,11 +23,11 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import AvisUnifie from "@/components/analysis/AvisUnifie";
-import AvisSurLeDevis from "@/components/analysis/AvisSurLeDevis";
 import { porteeAnalyse } from "@/lib/analyse/porteeAnalyse";
 import { decisionAffichee } from "@/lib/analyse/decisionAffichee";
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
@@ -46,10 +46,47 @@ const supabase = createClient(
   { auth: { persistSession: false } },
 );
 
-/** Les trois analyses choisies — une par décision affichée. */
+/**
+ * 🔴 L'« AVANT » EST LE COMPOSANT DÉPLOYÉ, EXTRAIT DE `HEAD` — jamais une
+ * version neutralisée du nouveau.
+ *
+ * La tentation était de rendre deux fois le composant courant en ne lui
+ * passant pas les nouvelles données. Ça ne marche pas : neutraliser `alertes`
+ * viderait aussi les points d'attention, donc afficherait un « avant » qui n'a
+ * jamais existé, et l'aperçu ferait approuver une comparaison fausse. C'est la
+ * leçon de `preview-review-email.ts` (11/09) dans l'autre sens.
+ *
+ * Les copies importent la version COURANTE de `decisionAffichee` — sans risque,
+ * elles l'appellent à trois arguments et les paramètres ajoutés prennent leur
+ * défaut, ce qui reproduit exactement l'ancien comportement.
+ *
+ * ⚠️ Hors de `src/`, tsx applique la transformation JSX classique : `React`
+ * doit être dans la portée, d'où l'import ajouté en tête de chaque copie.
+ * ⚠️ Et l'import doit être DYNAMIQUE : un `import` statique est résolu avant
+ * que la moindre ligne ne s'exécute, donc avant que ces fichiers existent.
+ */
+const DOSSIER_AVANT = resolve(process.cwd(), "scripts/out/avant");
+mkdirSync(DOSSIER_AVANT, { recursive: true });
+for (const nom of ["AvisSurLeDevis", "AvisUnifie"]) {
+  const source = execSync(`git show HEAD:src/components/analysis/${nom}.tsx`, {
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  const reecrit = source.replace(/from "\.\/AvisSurLeDevis"/g, 'from "./AvisSurLeDevisAvant"');
+  writeFileSync(resolve(DOSSIER_AVANT, `${nom}Avant.tsx`), `import React from "react";\n${reecrit}`);
+}
+const AvisUnifieAvant = (await import(pathToFileURL(resolve(DOSSIER_AVANT, "AvisUnifieAvant.tsx")).href))
+  .default as typeof AvisUnifie;
+
+/** Une analyse par décision affichée, plus le devis signalé par Johan. */
 const CHOIX = [
   { id: "0213bf35-1c23-4ed7-ac9a-0d72b970d3c6", attendu: "🟢 VERT — le devis de ta capture" },
-  { id: "f0104531-c2b1-4270-b1cb-0b115c044d7f", attendu: "🟠 ORANGE — un écart chiffré et nommé" },
+  { id: "f0104531-c2b1-4270-b1cb-0b115c044d7f", attendu: "🟠 ORANGE — une réserve, sans montant" },
+  // ⚠️ LE CAS QUI VÉRIFIE QUE L'ANCIENNETÉ NE MANGE PAS LE CHIFFRE. Quand un
+  // montant est rattaché à des postes nommés, il DOIT rester le titre : c'est
+  // ce que le lecteur emporte. L'ancienneté redescend alors en premier point
+  // vérifié, à sa place.
+  { id: "8293f838-7534-4de1-a6cd-ec40645c5b87", attendu: "🟠 ORANGE — un montant chiffré et nommé" },
   { id: "3608b1d5-4955-4ffe-9459-fad768d69ce7", attendu: "🔴 ROUGE — verdict défavorable, sans fait bloquant" },
   // ⚠️ Le cas le plus exposé, et celui qui rend la décision la plus discutable :
   // sur un hard block, `AvisSurLeDevis` retourne tôt. Les leviers y sont
@@ -92,6 +129,8 @@ for (const choix of CHOIX) {
     raw?.extracted?.entreprise?.nom ?? raw?.extracted_data?.entreprise?.nom ?? null;
   const totalHt = Number(raw?.extracted?.totaux?.ht ?? raw?.extracted_data?.totaux?.ht ?? 0) || null;
   const provisoire = data.review_status === "pending_review";
+  // Vérifiée au registre (verify.ts), déjà affichée dans le bloc Entreprise.
+  const ancienneteAnnees = raw?.verified?.anciennete_annees ?? null;
 
   const props = {
     conclusion,
@@ -104,15 +143,17 @@ for (const choix of CHOIX) {
     provisoire,
   };
 
-  const apres = renderToStaticMarkup(createElement(AvisUnifie, { ...props, statique: true }));
-  // AVANT : le hero SEUL, tel qu'il est servi aujourd'hui (les deux autres
-  // cartes vivent dans des composants séparés — c'est précisément le défaut).
-  const avant = renderToStaticMarkup(createElement(AvisSurLeDevis, props));
+  const apres = renderToStaticMarkup(
+    createElement(AvisUnifie, { ...props, ancienneteAnnees, statique: true }),
+  );
+  const avant = renderToStaticMarkup(createElement(AvisUnifieAvant, { ...props, statique: true }));
 
-  const d = decisionAffichee(conclusion, portee, criticalReasons);
+  const avantD = decisionAffichee(conclusion, portee, criticalReasons);
+  const d = decisionAffichee(conclusion, portee, criticalReasons, props.alertes, ancienneteAnnees);
   const meta = [
     `${entrepriseName ?? "—"} · ${totalHt ? `${Math.round(totalHt).toLocaleString("fr-FR")} € HT` : "montant inconnu"}`,
-    `décision affichée : ${d.decision} (${d.ton})`,
+    `décision : ${avantD.decision} (${avantD.ton}) → ${d.decision} (${d.ton})`,
+    `ancienneté : ${ancienneteAnnees ?? "—"} an(s)`,
     `portée : ${portee ? `${portee.compares}/${portee.total} postes · ${portee.pctMontant} % du montant` : "—"}`,
     `${(data.points_ok ?? []).length} points vérifiés · ${(data.alertes ?? []).length} alertes · ${(conclusion?.leviers ?? []).length} leviers`,
     `statut : ${data.review_status ?? "—"} · déposé le ${new Date(data.created_at).toLocaleDateString("fr-FR")}`,

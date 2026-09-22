@@ -58,6 +58,8 @@ interface Props {
   portee?: Portee | null;
   totalHt?: number | null;
   provisoire?: boolean;
+  /** Âge de l'entreprise (raw_text.verified.anciennete_annees). */
+  ancienneteAnnees?: number | null;
   /**
    * Remonte la copie du message à `AnalysisResult` — c'est lui qui déclenche
    * la modale de retour (`openFeedback("manual_copy")`). Le perdre en
@@ -77,6 +79,7 @@ export default function AvisUnifie({
   portee = null,
   totalHt = null,
   provisoire = false,
+  ancienneteAnnees = null,
   onCopy,
   statique = false,
 }: Props) {
@@ -244,6 +247,8 @@ export default function AvisUnifie({
       portee={portee}
       pointsOk={pointsOk}
       pointsAttention={pointsAttention}
+      alertes={alertes}
+      ancienneteAnnees={ancienneteAnnees}
       entrepriseName={entrepriseName}
       totalHt={totalHt}
       criticalReasons={criticalReasons}

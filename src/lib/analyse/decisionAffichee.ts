@@ -62,6 +62,13 @@ export interface DecisionAffichee {
   constats: number;
   /** Un montant chiffré et rattaché à des postes nommés. */
   montantANegocier: number | null;
+  /**
+   * Ancienneté de l'entreprise si elle dépasse 5 ans, pour nommer le point
+   * fort dans le titre. `null` sinon — une entreprise de deux ans n'est pas
+   * un argument, et la présenter comme tel serait le contraire de la garde
+   * du 06/09 sur les réputations trop minces.
+   */
+  ancienneteAnnees: number | null;
 }
 
 /**
@@ -92,16 +99,50 @@ export function leviersDeConstat(conclusion: ConclusionData) {
 }
 
 /**
+ * 🔴 2026-09-23 (retour Johan, devis JeanBERNARD) — UNE ALERTE QUI DIT QUELQUE
+ * CHOSE SUR L'ENTREPRISE EST UN CONSTAT.
+ *
+ * La carte titrait « Rien ne s'oppose à la signature » et listait, quatre
+ * lignes plus bas, « À VÉRIFIER AVANT DE SIGNER : note Google 3,6/5 sur
+ * 140 avis ». Si rien ne s'oppose, pourquoi deux points à vérifier ? La
+ * décision ne regardait que les LEVIERS ; une note mesurée sur 140 avis ne
+ * pesait rien.
+ *
+ * ⚠️ SEULES LES ALERTES **SPÉCIFIQUES** COMPTENT. « Demandez l'attestation
+ * d'assurance » est un rappel qu'on adresse à tout le monde : le faire peser
+ * rendrait chaque devis orange, et une couleur qui s'allume toujours ne dit
+ * plus rien. Même distinction que `LEVIERS_SANS_CONSTAT`.
+ *
+ * Mesuré sur 138 analyses : **5 des 44 vertes** basculent, toutes légitimes
+ * (3,6/5 sur 140 avis, 3,3/5 sur 642 avis, entreprise de 0 an).
+ */
+export const ALERTE_SPECIFIQUE =
+  /note\s+google[^.]*?\d[.,]\d\s*\/\s*5|comptes?\s+non\s+(accessibles?|publi|d[ée]pos)|radi[ée]|liquidation|cessation|redressement|d[ée]cennale\s+(partielle|incertaine)|acompte\s+cumul|SIRET\s+(invalide|introuvable)|entreprise\s+(r[ée]cente|de moins de)/i;
+
+/** Les alertes qui disent quelque chose sur CETTE entreprise. */
+export function alertesDeConstat(alertes: string[]): string[] {
+  return alertes.filter((a) => ALERTE_SPECIFIQUE.test(a));
+}
+
+/**
  * @param criticalReasons Les `criteres_rouges` du scoring. Ils priment sur
  *        tout : une entreprise en liquidation ne devient pas verte parce que
  *        ses prix sont corrects.
+ * @param alertes Les alertes du scoring. Seules les spécifiques comptent.
+ * @param ancienneteAnnees Âge de l'entreprise, pour nommer le point fort dans
+ *        le titre. Le produit le SAIT et ne le disait nulle part : mesuré,
+ *        23 des 44 analyses vertes concernent une entreprise de 5 ans ou plus
+ *        et **aucune** ne l'affichait.
  */
 export function decisionAffichee(
   conclusion: ConclusionData,
   portee: Portee | null,
   criticalReasons: string[] = [],
+  alertes: string[] = [],
+  ancienneteAnnees: number | null = null,
 ): DecisionAffichee {
   const constats = leviersDeConstat(conclusion);
+  const alertesConstat = alertesDeConstat(alertes);
   const surcout = conclusion.surcout_global;
   const aUnPosteNomme = (conclusion.anomalies?.length ?? 0) > 0;
   const montant =
@@ -109,8 +150,11 @@ export function decisionAffichee(
 
   const base = {
     prixVerifies: porteeSuffisantePourAffirmer(portee),
-    constats: constats.length,
+    constats: constats.length + alertesConstat.length,
     montantANegocier: montant,
+    // Un point fort NOMMÉ vaut mieux qu'une couleur : « Entreprise établie
+    // depuis 25 ans » se vérifie, « rien ne s'oppose » ne se vérifie pas.
+    ancienneteAnnees: typeof ancienneteAnnees === "number" && ancienneteAnnees >= 5 ? ancienneteAnnees : null,
   };
 
   // 1. Un fait bloquant prime sur tout le reste.
@@ -120,7 +164,10 @@ export function decisionAffichee(
 
   // 2. Avons-nous CONSTATÉ quelque chose sur ce devis ?
   const aConstate =
-    aUnPosteNomme || Boolean(conclusion.verdict_ligne?.marge) || constats.length > 0;
+    aUnPosteNomme ||
+    Boolean(conclusion.verdict_ligne?.marge) ||
+    constats.length > 0 ||
+    alertesConstat.length > 0;
   if (aConstate) return { decision: "negocier", ton: "amber", ...base };
 
   // 3. Rien trouvé → rien ne s'oppose. La portée nuance le TITRE, pas la couleur.
@@ -148,6 +195,22 @@ export function titreDecision(d: DecisionAffichee, provisoire = false): string {
       return `Environ ${euros} € à discuter avec l'artisan.`;
     }
     if (d.constats === 0) return "Un point à vérifier avant de signer.";
+    /**
+     * 🔴 2026-09-23 (retour Johan) — LE TITRE PORTE LE POINT FORT QUAND IL Y
+     * EN A UN, ET IL EST NOMMÉ.
+     *
+     * « Deux points à sécuriser » ne dit que la réserve : le lecteur ignore
+     * que l'artisan tient depuis 25 ans, alors que nous le savons. Et le
+     * piège inverse est connu — « ce devis demande quelques clarifications »
+     * est le titre creux retiré le 22/09 parce qu'il ne nomme rien.
+     *
+     * ⚠️ Un seuil à 5 ans, jamais moins : présenter « 2 ans » comme un
+     * argument serait de la réassurance fabriquée.
+     */
+    const reserve = d.constats === 1 ? "un point à vérifier" : `${d.constats} points à vérifier`;
+    if (d.ancienneteAnnees !== null) {
+      return `Entreprise établie depuis ${d.ancienneteAnnees} ans, ${reserve}.`;
+    }
     return d.constats === 1
       ? "Un point à sécuriser avant de signer."
       : `${d.constats} points à sécuriser avant de signer.`;

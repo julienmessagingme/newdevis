@@ -1611,6 +1611,12 @@ const AnalysisResult = () => {
                  chiffre plus l'écart : le bandeau bleu disait « provisoire »
                  pendant que le hero affirmait « 7 405–13 751 € ». */
               provisoire={analysis.review_status === "pending_review"}
+              /* 2026-09-23 — l'ancienneté est vérifiée au registre et ne
+                 s'affichait NULLE PART : mesuré, 23 des 44 analyses vertes
+                 concernent une entreprise de 5 ans ou plus et aucune ne le
+                 disait. Le titre la nomme, le hero la met en premier point
+                 vérifié. */
+              ancienneteAnnees={companyData?.anciennete_annees ?? null}
               onVerdictReady={(raw) => {
                 setConclusionIaLive(raw);
                 // Meta + TikTok Pixel — conversion "analyse terminée", 1x par analyse.

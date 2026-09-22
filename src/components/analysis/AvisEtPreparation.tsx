@@ -51,6 +51,8 @@ interface Props {
    * déjà faux. Tant que l'expert n'a pas tranché, on ne chiffre pas.
    */
   provisoire?: boolean;
+  /** Âge de l'entreprise, pour nommer le point fort (raw_text.verified). */
+  ancienneteAnnees?: number | null;
   onVerdictReady?: (raw: string) => void;
   onCopy?: () => void;
 }
@@ -67,6 +69,7 @@ export default function AvisEtPreparation({
   portee = null,
   totalHt,
   provisoire = false,
+  ancienneteAnnees = null,
   onVerdictReady,
   onCopy,
 }: Props) {
@@ -166,6 +169,7 @@ export default function AvisEtPreparation({
         portee={portee}
         totalHt={totalHt}
         provisoire={provisoire}
+        ancienneteAnnees={ancienneteAnnees}
         onCopy={onCopy}
       />
       <InvitationPartager />
