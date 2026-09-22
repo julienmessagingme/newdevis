@@ -154,6 +154,28 @@ export interface PreparationSections {
   /** Standards du métier à ne pas oublier avant signature. */
   aNePasOublier: string[];
   /**
+   * 🟡 2026-09-22 (retour Johan : « donnez un conseil de lecture efficace ») —
+   * LES MÊMES ITEMS, MAIS ÉCRITS POUR LE CLIENT.
+   *
+   * `aNePasOublier` est mis en forme pour un MAIL À L'ARTISAN : il coupe à la
+   * parenthèse (l. ~790) et au premier auto-conseil (`truncateAtSelfGuidance`).
+   * Ces deux coupes sont justes là-bas — on n'écrit pas à un artisan « votre
+   * note est 3,6/5, je vais lire vos avis ».
+   *
+   * Mais la fiche affichée AU CLIENT utilisait la même sortie, et perdait
+   * précisément les deux informations qui lui servent. L'alerte stockée dit :
+   *   « Note Google moyenne : 3.6/5 (140 avis). En dessous du seuil de confort
+   *     de 4,0/5. Lisez les avis récents pour identifier les motifs de
+   *     mécontentement (qualité, délais, communication) avant de signer. »
+   * et la fiche n'affichait que « Note Google moyenne : 3.6/5 ».
+   *
+   * ⚠️ MÊME SÉLECTION, deux mises en forme. Le tri (quels items méritent
+   * d'être là) reste unique : seule l'écriture change selon le destinataire.
+   * Ne jamais filtrer différemment ici — ce serait deux règles pour une seule
+   * question, le défaut que ce projet corrige depuis le 10/09.
+   */
+  aNePasOublierAffichage: string[];
+  /**
    * 2026-08-20 (retour Johan, cas Renov'Toitures) — conseils de PRUDENCE
    * adressés au CLIENT (ex : « comptes non publiés → limitez l'acompte à
    * 20-30 % »). Affichés sur la fiche uniquement — JAMAIS injectés dans le
@@ -735,9 +757,16 @@ export function buildPreparationSections(
     // Le sujet « comptes » est porté par le conseil de prudence + l'attestation
     // URSSAF ci-dessous — l'item brut ne doit plus apparaître tel quel.
     .filter((s) => !COMPTES_OPAQUES_RE.test(s));
-  const aNePasOublier = combined
-    .slice(0, 3)
+  const retenus = combined.slice(0, 3);
+  const aNePasOublier = retenus
     .map((raw) => reformulateStandardItem(raw))
+    .filter((s) => s.length > 0 && !isPurelyInformative(s));
+  // Mêmes items, écrits pour le client : on retire l'emoji de tête et les
+  // scories administratives, on GARDE la parenthèse (« 140 avis ») et le
+  // conseil de lecture que `reformulateStandardItem` coupe pour le mail.
+  const aNePasOublierAffichage = retenus
+    .map((raw) => trimTrailingPunctuation(stripDevisFluff(stripAdminScoriae(raw))))
+    .map((s) => (s ? `${ucFirst(s)}.` : ""))
     .filter((s) => s.length > 0 && !isPurelyInformative(s));
 
   // ── Conseils de prudence (fiche uniquement, jamais dans le message) ────
@@ -756,6 +785,7 @@ export function buildPreparationSections(
   }
 
   return {
+    aNePasOublierAffichage,
     rappelPourOuvrir,
     aDemander,
     aNePasOublier,

@@ -207,15 +207,34 @@ export default function AvisSurLeDevis({
             ))}
           </ul>
         </Body>
-        {/* 🟡 2026-09-22 — LES LEVIERS SURVIVENT AU HARD BLOCK, PAS LES POINTS
-            D'ATTENTION. Sur les 17 analyses du stock qui passent ici (dont une
-            entreprise radiée portant 3 leviers), le retour anticipé avalait
-            tout ce qui suit : le lecteur le plus exposé perdait ses leviers.
-            C'est l'inverse de la règle du 20/08 (« les leviers STRUCTURELS
-            restent visibles même sous bypass »).
-            ⚠️ `pointsAttention` reste volontairement absent : empiler « à
-            vérifier avant de signer » sous « ne signez pas » dilue le fait
-            bloquant, qui doit occuper seul l'attention. */}
+        {/* 🟢 2026-09-22 — TOUT SURVIT AU HARD BLOCK : LEVIERS **ET** POINTS
+            D'ATTENTION.
+            Le retour anticipé avalait tout ce qui suit — le lecteur le plus
+            exposé était le seul à ne rien recevoir.
+            🔴 J'avais d'abord gardé les leviers et écarté les points
+            d'attention, au motif que le fait bloquant devait occuper seul
+            l'attention. **La mesure a réfuté cet argument, qui était
+            esthétique** : sur les 26 analyses du stock qui passent ici,
+            **25 perdaient au moins un point d'attention** — et ce sont les
+            plus actionnables de la page (« Refusez catégoriquement de verser
+            un acompte de 84 % à la signature », « Exigez une révision des
+            conditions de paiement »). Sur un devis d'entreprise radiée à 84 %
+            d'acompte, c'est L'information utile. */}
+        {pointsAttention.length > 0 && (
+          <div className="mt-6 border-t border-foreground/10 pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
+              À vérifier avant de signer
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {pointsAttention.map((p, i) => (
+                <li key={i} className="flex items-baseline gap-1.5 text-[14px] leading-relaxed text-foreground/75">
+                  <span aria-hidden="true" className="text-amber-600">▸</span>
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {children}
       </HeroCard>
     );

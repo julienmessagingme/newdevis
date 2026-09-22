@@ -1355,9 +1355,25 @@ Deux conseils à valeur ajoutée ajoutés le 2026-08-27/29 :
 
 Les trois variantes (SMS / mail / WhatsApp) ont été supprimées le 2026-08-27 : elles alourdissaient la lecture et produisaient des approximations. Il reste **un message unique**, construit par `buildArtisanMessage` à partir des leviers eux-mêmes (`levierQuestion` par type). Règles : jamais de question dont l'artisan ne peut rien faire (« demandez d'autres devis » est un conseil AU CLIENT, il ne part jamais dans le message), pronoms retournés pour que l'on sache toujours qui parle à qui, 5 questions maximum, ponctuation nettoyée.
 
-### 23.3 Fiche « Préparez votre rendez-vous »
+### 23.3 Un seul bloc pour une seule décision (2026-09-22)
 
-Rédaction en tirets (plus de titre suivi d'une question mal formulée), dédupliquée par sujet, avec une section « conseils de prudence » séparée des questions à poser. Un point positif n'est affirmé que s'il est vérifié — sinon il devient une pièce à réclamer.
+La page enchaînait trois cartes — « Notre lecture », « Avant de signer », « Préparez votre rendez-vous » — qui répondaient à la même question et obligeaient le lecteur à arbitrer entre trois listes. Elles n'en font plus qu'une :
+
+| Toujours visible | Replié |
+|---|---|
+| la décision (signer / négocier / ne pas signer) et son motif | ce qu'on peut rappeler pour ouvrir la discussion |
+| **ce que nous avons vérifié** (immatriculation, paiement, certifications) | ce qu'on peut lui demander |
+| **ce qu'il faut vérifier avant de signer** — assurance à réclamer, note client avec son conseil de lecture, conseils de prudence | le message prêt à envoyer, avec son bouton de copie |
+| les leviers de négociation ou de sécurisation | |
+
+**Ce qui alerte reste à l'écran ; ce qui sert à préparer l'entretien se déplie.** Neuf visiteurs sur dix ne voient qu'un écran : mettre les points d'attention derrière un dépli reviendrait à les enterrer autrement.
+
+Deux détails qui changent le fond :
+
+- **La note client porte enfin son conseil de lecture.** L'alerte stockée dit « Note Google moyenne : 3,6/5 (140 avis). […] Lisez les avis récents pour identifier les motifs de mécontentement » ; la fiche n'en affichait que « Note Google moyenne : 3,6/5 ». La mise en forme destinée au **mail à l'artisan** (où l'on n'écrit évidemment pas « votre note est 3,6/5 ») servait aussi ce que lit le **client**.
+- **Le bloc « Ce qui nous a menés à cet avis » est supprimé.** Sur 79 analyses dont la portée ne permet pas d'affirmer un prix, 7 l'affirmaient quand même ici — le plus souvent « ✅ Prix conforme au marché », sous un titre disant l'inverse.
+
+La rédaction reste celle de la fiche : tirets, déduplication par sujet, conseils de prudence distincts des questions à poser, et un point positif n'est affirmé que s'il est vérifié — sinon il devient une pièce à réclamer.
 
 ### 23.4 Bannière de suivi (issue du devis)
 

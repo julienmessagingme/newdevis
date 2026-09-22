@@ -2,15 +2,19 @@
  * src/components/analysis/AvisEtPreparation.tsx
  *
  * Orchestrateur — remplace ConclusionIA en drop-in dans AnalysisResult.
- * Assemble les composants issus de la Bible Produit VMD :
+ * Il charge la conclusion (`useConclusionIA`), traite les cas de bypass, et
+ * délègue la lecture du devis à un bloc unique :
  *
- *   1. Notre lecture (AvisSurLeDevis)
- *   2. Préparez votre rendez-vous avec votre artisan (PreparezVotreRendezVous)
- *   3. Ce qui nous a menés à cet avis (PourquoiCetAvis)
- *   4. Un proche a un chantier en cours ? (InvitationPartager)
+ *   1. Notre lecture, ce qu'on a vérifié, ce qu'il faut vérifier, les leviers
+ *      et la préparation du rendez-vous (AvisUnifie) — 2026-09-22
+ *   2. Un proche a un chantier en cours ? (InvitationPartager)
  *
  * Utilise le hook useConclusionIA existant — aucune modification du moteur,
  * aucune nouvelle route API, aucun nouveau calcul.
+ *
+ * ⚠️ `PreparezVotreRendezVous` et `PourquoiCetAvis` sont SUPPRIMÉS (22/09) :
+ * le premier est absorbé par `AvisUnifie`, le second rendait une affirmation
+ * de prix mesurée sur 7 analyses dont la portée ne le permettait pas.
  */
 
 import { useEffect, useRef } from "react";
@@ -18,10 +22,9 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConclusionIA } from "@/hooks/useConclusionIA";
 import AvisSurLeDevis from "./AvisSurLeDevis";
+import AvisUnifie from "./AvisUnifie";
 import type { Portee } from "@/lib/analyse/porteeAnalyse";
 import LeviersNegociation from "./LeviersNegociation";
-import PreparezVotreRendezVous from "./PreparezVotreRendezVous";
-import PourquoiCetAvis from "./PourquoiCetAvis";
 import InvitationPartager from "./InvitationPartager";
 
 interface Props {
@@ -131,29 +134,40 @@ export default function AvisEtPreparation({
     );
   }
 
+  /**
+   * 🟢 2026-09-22 (validé Johan) — UN SEUL BLOC, TROIS CHANGEMENTS.
+   *
+   * 1. `AvisSurLeDevis` + `LeviersNegociation` + `PreparezVotreRendezVous`
+   *    fusionnent dans `AvisUnifie` : trois cartes successives répondaient à
+   *    la même question et obligeaient le lecteur à arbitrer entre trois
+   *    listes. Défaut de structure du 15/09, à l'échelle de la page.
+   * 2. Les points d'attention (assurance, note Google + son conseil de
+   *    lecture) remontent DANS le verdict. Ils vivaient trois écrans plus bas
+   *    pendant que le hero affichait deux points verts.
+   * 3. `PourquoiCetAvis` DISPARAÎT. Mesuré sur 90 jours : sur 79 analyses
+   *    dont la portée ne permet pas d'affirmer un prix, **7 l'affirmaient
+   *    quand même dans ce bloc** — le plus souvent « ✅ Prix conforme au
+   *    marché », sous un titre disant l'inverse. Il rendait
+   *    `verdict_reasons.reasons[]` et `justifications`, deux champs que le
+   *    correctif du 16/09 n'avait pas couverts (il visait `phrase_intro` et
+   *    `.summary`). Le supprimer ferme une fuite de l'invariant.
+   *
+   * ⚠️ `InvitationPartager` reste en dehors : c'est un appel à l'action, pas
+   * une partie de la lecture du devis.
+   */
   return (
     <div className="space-y-2">
-      <AvisSurLeDevis
-        conclusion={conclusion}
-        comparableCount={comparableCount}
-        totalCount={totalCount}
-        portee={portee}
-        pointsOk={pointsOk}
-        entrepriseName={entrepriseName}
-        totalHt={totalHt}
-        criticalReasons={criticalReasons}
-        provisoire={provisoire}
-      />
-      {/* 🟢 Phase 4 — 3 leviers hiérarchisés (rendu seulement si conclusion.leviers) */}
-      <LeviersNegociation conclusion={conclusion} analysisId={analysisId} totalHt={totalHt} provisoire={provisoire} />
-      <PreparezVotreRendezVous
+      <AvisUnifie
         conclusion={conclusion}
         pointsOk={pointsOk}
         alertes={alertes}
         entrepriseName={entrepriseName}
+        criticalReasons={criticalReasons}
+        portee={portee}
+        totalHt={totalHt}
+        provisoire={provisoire}
         onCopy={onCopy}
       />
-      <PourquoiCetAvis conclusion={conclusion} provisoire={provisoire} />
       <InvitationPartager />
     </div>
   );
