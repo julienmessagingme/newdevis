@@ -18,6 +18,17 @@ Le hero porte désormais la DÉCISION (signer / négocier / ne pas signer) et no
 
 ---
 
+## 🟡 Trouvé en mesurant « où porte l'effort » (2026-09-22)
+
+Issus de [`scripts/banc-familles-non-chiffrees.mts`](scripts/banc-familles-non-chiffrees.mts) (cf. `CLAUDE.md` § « OÙ PORTE L'EFFORT ? »). Aucun n'est traité.
+
+- 🔴 **L'EXTRACTION REND PARFOIS LE MONTANT COMME DESCRIPTION.** Trois lignes du seau « aucune entrée » ont pour libellé **« 17250 euro »**, **« 9600 euro »**, **« 12 000 euro »** — pour 38 850 € cumulés. Rien ne peut être rapproché d'une ligne qui ne dit pas ce qu'elle facture, et ces montants sont loin d'être négligeables. À instruire côté `extract_v2.ts` : d'où vient la confusion (colonne mal lue ? ligne de total ?).
+- 🟡 **UN DEVIS DE MAISON CCMI ENTIÈRE (145 286 €) TOMBE DANS LE FOURRE-TOUT** — « Modèle Plain pied », 60 % du seau (A) à lui seul. Le catalogue chiffre des OUVRAGES, pas une maison complète, et il n'a pas vocation à le faire. La question est produit : dit-on à ce lecteur que nous ne savons pas comparer un CCMI (comme pour l'étranger ou le courtier), plutôt que de le laisser dans le cas général ?
+- 🔴 **NE PAS SOURCER LE VERTICAL CLIM PAR RÉFÉRENCES — mesuré, ça ne paie pas.** 13 références manquantes, **une seule vue sur 2 devis ou plus**, ~7 300 €/mois débloqués pour 13 sourcings qui ne serviront chacun qu'une fois ([`scripts/banc-clim-references-manquantes.mts`](scripts/banc-clim-references-manquantes.mts)). Même conclusion que le chauffage le 15/09. **Si la question revient, relancer le banc avant de s'engager** — elle ne redeviendra intéressante que si une référence se met à concentrer.
+- 🟡 **`prix_materiel` porte 19 références dont `perime_le` au 15/12/2026.** Le relevé date du 15/09 et la règle prévoit une re-vérification trimestrielle. **Passé cette date, `estPerimee` les écarte** et les 34 % de couverture clim tombent à zéro — en silence. À relever avant décembre, ou à mesurer pour décider si la date doit être repoussée.
+
+---
+
 ## 🟢 PLAN D'ACTION ISSU DU GOLD STANDARD (2026-09-16, consigne Johan)
 
 > *« Il suffit de collecter tout ce qui a été fait et transformer cette information en actions. Plus de fuite en avant, on capitalise l'existant. »*
