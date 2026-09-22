@@ -19,6 +19,19 @@ interface Props {
   noindex?: boolean;
   /** Si true, n'injecte pas le widget de chat MessagingMe (ex: cockpit chantier). */
   noChatWidget?: boolean;
+  /**
+   * Image à précharger — l'élément LCP de la page, quand c'en est un.
+   *
+   * 🔴 2026-09-23 — POURQUOI UNE PROP ET PAS UN `<link>` DANS LA PAGE : un
+   * `<link rel="preload">` écrit dans le corps d'une page Astro n'est PAS
+   * hissé dans le `<head>`. Découvert tard, il n'avance rien — or tout
+   * l'intérêt d'un preload est d'être lu avant le CSS.
+   *
+   * ⚠️ `media` N'EST PAS DÉCORATIF : le navigateur respecte cet attribut sur
+   * un preload. C'est ce qui permet de ne RIEN télécharger sur mobile pour
+   * une image que seul le desktop affiche.
+   */
+  preloadImage?: { href: string; media?: string; imagesrcset?: string; imagesizes?: string };
 }
 
 const {
@@ -32,6 +45,7 @@ const {
   breadcrumbs,
   noindex = false,
   noChatWidget = false,
+  preloadImage,
 } = Astro.props;
 
 // Auto-canonical : utilise l'URL explicite si fournie, sinon construit depuis Astro.url.
@@ -89,6 +103,17 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192.png" />
     <link rel="preload" href="/_astro/dm-sans-latin-400-normal.CW0RaeGs.woff2" as="font" type="font/woff2" crossorigin />
+    {preloadImage && (
+      <link
+        rel="preload"
+        as="image"
+        href={preloadImage.href}
+        media={preloadImage.media}
+        imagesrcset={preloadImage.imagesrcset}
+        imagesizes={preloadImage.imagesizes}
+        fetchpriority="high"
+      />
+    )}
     <link rel="canonical" href={autoCanonical} />
 
     <meta property="og:title" content={title} />

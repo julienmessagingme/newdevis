@@ -814,3 +814,15 @@ portrait 3/4 sur un écran à haute densité. La carte fait 274×365 px, donc
 masque la zone la plus regardée. Mais si le flou gêne sur un écran récent, il
 faut redemander au client des fichiers d'au moins **550×730** — recadrés en
 portrait, pas des panoramiques dont on jette les deux tiers.
+
+## Hero — photo source trop petite pour un fond pleine largeur (2026-09-23)
+
+La photo du handoff fait **896×1200**. En fond de hero `cover`, elle est
+agrandie de **×1,4 (1280 px) à ×2,1 (1920 px)** — et le double sur un écran
+à haute densité.
+
+⚠️ **Atténué, pas résolu** : le voile navy couvre 34 % à gauche et se referme
+dès 82 % à droite, donc le flou ne porte que sur la bande centrale, là où le
+sujet apparaît. Si cela gêne, demander au client une source d'au moins
+**1920 px de large**, cadrée en paysage — la photo actuelle est en portrait,
+et `cover` n'en montre qu'un tiers de la hauteur.

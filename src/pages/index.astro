@@ -122,6 +122,7 @@ const jsonLd = {
   description={`Analysez votre devis travaux : surcoût poste par poste sur ${CATALOGUE_TAILLE} références de prix, entreprise vérifiée (radiation, santé financière), clauses abusives détectées. Sans commission d'artisan.`}
   canonical="https://www.verifiermondevis.fr/"
   jsonLd={jsonLd}
+  preloadImage={{ href: '/images/hero-devis.webp', media: '(min-width: 1024px)' }}
 >
   <div class="min-h-screen flex flex-col">
     <AstroHeader />
@@ -152,7 +153,7 @@ const jsonLd = {
           faire tourner les cartes : les quatre sont dans le document. Ne
           jamais déplacer ce bloc dans une île `client:only` — le H1 et le
           texte disparaîtraient du HTML servi (règle du 07/09). */}
-      <section class="hero-gradient vmd-hero">
+      <section class="hero-gradient vmd-hero vmd-hero-photo">
         <div class="container vmd-hero-grid">
 
           {/* ── Zone haute : la thèse ─────────────────────────────────── */}
@@ -351,21 +352,21 @@ const jsonLd = {
           <div class="vh-bottom">
             <ul class="vh-proofs">
               <li>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-score-green" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#4ADE80" /><path d="M7 12l3 3 7-7" stroke="#0B2A6B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 <p><b>Surcoût chiffré, poste par poste</b> <span>— contre {CATALOGUE_TAILLE.toLocaleString('fr-FR')} références de prix sourcées</span></p>
               </li>
               <li>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-score-green" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#4ADE80" /><path d="M7 12l3 3 7-7" stroke="#0B2A6B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 <p><b>Entreprise vérifiée</b> <span>— radiation, procédure collective, santé financière, certifications RGE contrôlées dans les registres</span></p>
               </li>
               <li>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-score-green" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#4ADE80" /><path d="M7 12l3 3 7-7" stroke="#0B2A6B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 <p><b>Clauses abusives détectées</b> <span>— acompte excessif, IBAN suspect, rétractation refusée</span></p>
               </li>
               {/* La relecture humaine tenait dans un encadré de quatre lignes.
                   Elle reste — en une ligne, au même niveau que le reste. */}
               <li>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-score-green" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#4ADE80" /><path d="M7 12l3 3 7-7" stroke="#0B2A6B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 <p><b>Relu par un expert</b> <span>— et tant qu'il n'a pas tranché, aucun montant n'est affiché</span></p>
               </li>
             </ul>
@@ -395,6 +396,59 @@ const jsonLd = {
      lignes blanches parasites sur le dégradé, pas comme une texture —
      retiré sur retour Johan. Le fond reste le dégradé de marque, net. */
   .vmd-hero { position: relative; overflow: hidden; }
+
+  /* ── Fond photo du hero (design validé 2026-09-23) ───────────────────
+     Une photo réelle remplace le dégradé uni, avec un voile navy en sept
+     arrêts : opaque à gauche pour que le texte reste lisible, presque
+     transparent au centre pour révéler le sujet, refermé à droite derrière
+     la carte.
+
+     🔴 RIEN N'EST TÉLÉCHARGÉ SOUS 1024 px, ET C'EST UNE DÉCISION DE VITESSE,
+     PAS DE GOÛT. Mesuré avant ce chantier (Lighthouse, mobile 4G bridée) :
+     **score 80, LCP 4,6 s** — déjà au-dessus du seuil « bon » de 2,5 s.
+     Poser une image de plus sur ce chemin aurait aggravé la seule page que
+     voient neuf visiteurs sur dix. Le handoff l'autorise explicitement
+     (« repasser à un fond navy uni si la photo écrase trop le texte en
+     mobile — à arbitrer selon rendu réel »).
+
+     ⚠️ LA MÉDIA QUERY EST CE QUI GARANTIT LE ZÉRO OCTET. Un `<img>` masqué
+     par `hidden lg:block` reste téléchargé par certains navigateurs ; une
+     `background-image` déclarée à l'intérieur d'un `@media` non satisfait
+     n'est JAMAIS demandée. Le `<link rel="preload">` du head porte le même
+     `media`, donc il ne se déclenche pas non plus.
+
+     ⚠️ Le dégradé de marque (`.hero-gradient`) RESTE sous la photo : c'est
+     lui qu'on voit sur mobile, et il sert de fond pendant que la photo
+     charge sur desktop — donc aucun aplat noir, aucun saut. */
+  @media (min-width: 1024px) {
+    .vmd-hero-photo::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: url("/images/hero-devis.webp");
+      background-size: cover;
+      /* 62 % cadre le sujet dans la zone éclaircie du voile — ni sous le
+         texte à gauche, ni coupé par la carte à droite. */
+      background-position: 62% center;
+    }
+    .vmd-hero-photo::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, .15), transparent 30%),
+        linear-gradient(92deg,
+          #0B2A6B 0%, #0B2A6B 34%,
+          rgba(11, 42, 107, .75) 44%,
+          rgba(11, 42, 107, .18) 58%,
+          rgba(11, 42, 107, .12) 70%,
+          rgba(11, 42, 107, .5) 82%,
+          rgba(11, 42, 107, .7) 100%);
+    }
+    /* Les deux pseudo-éléments sont décoratifs et sortent du flux : le
+       contenu doit repasser devant. */
+    .vmd-hero-photo > .vmd-hero-grid { position: relative; z-index: 2; }
+  }
 
   /* Zones de grille : sur mobile la scène passe AVANT les preuves —
      l'ancienne colonne visuelle était `hidden lg:block`, le mobile
