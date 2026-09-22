@@ -169,3 +169,137 @@ describe("le motif ne duplique pas le montant de la marge", () => {
     ).toBe(false);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// 2026-09-23 — DEUX AUTRES PORTES DU MÊME INVARIANT, TROUVÉES EN RENDANT
+// LES 200 CARTES DU STOCK. Aucune n'était visible en lisant la base : la
+// première est coupée par un dédoublonnage qui ne connaissait qu'une forme,
+// la seconde naît de la cohabitation de deux blocs depuis la fusion du 22/09.
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * ⚠️ LE HTML ÉCHAPPE LES APOSTROPHES (`&#x27;`). Asserter « ne contient pas
+ * d'écart estimé » sur le HTML BRUT passerait même SANS correctif : la forme
+ * cherchée n'y apparaît jamais. Un test qui ne peut pas échouer ne teste rien —
+ * c'est le piège du 15/09, où un jeu de données renseignait la mauvaise clé.
+ */
+const texteRendu = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** Carte dont le TITRE porte le montant (portée pleine, poste nommé). */
+function carteTitreChiffre(resume: string, marge: string, expert?: string): string {
+  const groupes = [g("high", 9000, "Peinture"), g("high", 3000, "Cloison")];
+  const conclusion = {
+    verdict_decisionnel: "signer_avec_negociation",
+    verdict_global: "a_negocier",
+    anomalies: [{ poste: "Peinture", surcout_estime: 2017 }],
+    surcout_global: { min: 1412, max: 2622 },
+    leviers: [{ type: "surcout_postes", objectif: "negocier", niveau: "puissant", titre: "Négociez", detail: "" }],
+    verdict_ligne: { resume, marge, motif: "quelques postes dépassent les fourchettes du marché" },
+    ...(expert ? { expert_message: expert } : {}),
+  } as unknown as ConclusionData;
+  return renderToStaticMarkup(
+    createElement(AvisSurLeDevis, {
+      conclusion, portee: porteeAnalyse(groupes, 0, 0), totalHt: 21600,
+      entrepriseName: "SAS TEST", pointsOk: [], alertes: [],
+    } as never),
+  );
+}
+
+describe("la parenthèse d'écart ne répète pas le titre", () => {
+  it("coupe « (1 412–2 622 € d'écart estimé) » quand le titre chiffre déjà", () => {
+    // Mesuré sur le stock : 9 des 23 cartes dont le titre chiffre rouvraient
+    // un montant juste en dessous — jusqu'à trois nombres pour un seul fait.
+    const html = carteTitreChiffre(
+      "21 600 € HT — quelques postes dépassent les fourchettes du marché (1 412–2 622 € d'écart estimé).",
+      "environ 2 017 €",
+    );
+    expect(texteRendu(html)).not.toMatch(/d.écart estimé/);
+    expect(html).not.toMatch(/1\s*412/);
+    // Le fait, lui, reste dit.
+    expect(texteRendu(html)).toMatch(/dépassent les fourchettes du marché/);
+  });
+
+  it("coupe aussi la forme « (environ 12 300 € d'écart sur ces lignes) »", () => {
+    const html = carteTitreChiffre(
+      "21 600 € HT — un poste dépasse le marché (environ 2 017 € d'écart sur ces lignes).",
+      "environ 2 017 €",
+    );
+    expect(texteRendu(html)).not.toMatch(/d.écart sur ces lignes/);
+  });
+
+  it("TÉMOIN INVERSE — sans montant au titre, la parenthèse RESTE", () => {
+    // Sans ce témoin, « supprimer la parenthèse partout » passerait le test
+    // principal en faisant disparaître une information utile.
+    const groupes = [g("high", 9000, "Peinture")];
+    const conclusion = {
+      verdict_decisionnel: "signer_avec_negociation",
+      verdict_global: "a_negocier",
+      anomalies: [],                       // aucun poste nommé → le titre ne chiffre pas
+      surcout_global: { min: 1412, max: 2622 },
+      leviers: [{ type: "acompte", objectif: "securiser", niveau: "important", titre: "Acompte", detail: "" }],
+      verdict_ligne: {
+        resume: "21 600 € HT — quelques postes dépassent le marché (1 412–2 622 € d'écart estimé).",
+        marge: null, motif: "quelques postes dépassent le marché",
+      },
+    } as unknown as ConclusionData;
+    const html = renderToStaticMarkup(
+      createElement(AvisSurLeDevis, {
+        conclusion, portee: porteeAnalyse(groupes, 0, 0), totalHt: 21600,
+        entrepriseName: "SAS TEST", pointsOk: [], alertes: [],
+      } as never),
+    );
+    expect(texteRendu(html)).toMatch(/d.écart estimé/);
+  });
+});
+
+describe("le message de l'expert n'est pas affiché deux fois", () => {
+  const EXPERT =
+    "Bonjour, Après une relecture approfondie de votre devis par notre expert, nous vous recommandons de ne pas signer ce document en l'état pour plusieurs raisons majeures. La première tient aux conditions de paiement.";
+
+  it("le résumé se tait quand il n'est que le début du message d'expert", () => {
+    // `resyncVerdictLigne` (05/09) reprend la première phrase de l'expert comme
+    // résumé — légitime — mais depuis la fusion du 22/09 les deux blocs
+    // cohabitent : 15 cartes du stock l'affichaient deux fois.
+    const html = carteTitreChiffre(
+      "Bonjour, Après une relecture approfondie de votre devis par notre expert, nous vous recommandons de ne pas signer ce document en l'état pour plusieurs raisons majeures.",
+      "environ 2 017 €",
+      EXPERT,
+    );
+    const texte = html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/\s+/g, " ");
+    expect(texte.split("Après une relecture approfondie").length - 1).toBe(1);
+    // ⚠️ Et il reste affiché : on ne se tait que parce que l'encadré le porte.
+    expect(texte).toMatch(/Vérifié par un expert/);
+    expect(texte).toMatch(/La première tient aux conditions de paiement/);
+  });
+
+  it("🔴 LA MARGE SURVIT AU DÉDOUBLONNAGE quand le titre ne la porte pas", () => {
+    // Trouvé par le banc de perte, pas à la relecture : ma première version
+    // retournait `null` sec. Sur ATARAXIA (« Ne signez pas en l'état », titre
+    // sans montant) la carte perdait « environ 390 € » — un correctif de
+    // doublon ne doit jamais faire disparaître le montant.
+    const groupes = [g("high", 9000, "Peinture")];
+    const conclusion = {
+      verdict_decisionnel: "ne_pas_signer",
+      verdict_global: "a_risque",
+      anomalies: [{ poste: "Peinture", surcout_estime: 390 }],
+      surcout_global: { min: 390, max: 390 },
+      leviers: [],
+      verdict_ligne: { resume: "Bonjour, Après analyse de votre document.", marge: "environ 390 €", motif: "x" },
+      expert_message: "Bonjour, Après analyse de votre document. Les tarifs sont très élevés.",
+    } as unknown as ConclusionData;
+    const html = renderToStaticMarkup(
+      createElement(AvisSurLeDevis, {
+        conclusion, portee: porteeAnalyse(groupes, 0, 0), totalHt: 17565,
+        entrepriseName: "ATARAXIA", pointsOk: [], alertes: [],
+      } as never),
+    );
+    expect(texteRendu(html)).toMatch(/390/);
+    expect(texteRendu(html)).toMatch(/Marge de négociation estimée/);
+  });
+});

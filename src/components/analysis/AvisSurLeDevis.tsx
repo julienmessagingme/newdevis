@@ -17,6 +17,15 @@ import type { Portee } from "@/lib/analyse/porteeAnalyse";
 import { decisionAffichee, titreDecision } from "@/lib/analyse/decisionAffichee";
 import { pointsVerifies } from "@/lib/analyse/preparationBuilder";
 
+/**
+ * Une parenthèse qui rouvre le montant de l'écart : « (environ 12 300 € d'écart
+ * sur ces lignes) », « (1 412–2 622 € d'écart estimé) ».
+ *
+ * ⚠️ Les DEUX formes d'apostrophe sont couvertes — le stock porte la droite et
+ * la typographique. N'en reconnaître qu'une laisserait la moitié des cas.
+ */
+const ECART_ENTRE_PARENTHESES = /\s*\([^)]*€\s*d['’][ée]cart[^)]*\)/gi;
+
 type Tone = "calm" | "amber" | "alert";
 
 interface ToneStyle {
@@ -285,6 +294,25 @@ export default function AvisSurLeDevis({
       .join(" · ") || null;
 
   // Phrase explicative (une, courte)
+  // 🟢 2026-08-29 (retour Johan, devis 25030) — quand un expert corrige une
+  // analyse, il RETIRE ce qui était faux ; sans ce bloc, la page ne gagnait
+  // rien en échange et affichait « négociable » sans le moindre argument. Le
+  // message de l'expert porte désormais la substance : ce qu'il a vu, et
+  // pourquoi son verdict tient. Texte écrit par un humain (jamais du LLM
+  // brut), distinct des notes internes de l'écran de revue.
+  //
+  // ⚠️ REMONTÉ AVANT `bodyText` LE 2026-09-23, ET C'EST UNE NÉCESSITÉ, PAS UN
+  // RANGEMENT : le corps doit savoir si l'expert parle pour ne pas le répéter.
+  // Le laisser plus bas donnerait une zone morte temporelle — le piège que ce
+  // projet a déjà payé quatre fois, et que Vite rend illisible en production.
+  const expertMessage =
+    typeof (conclusion as { expert_message?: unknown }).expert_message === "string"
+      ? ((conclusion as { expert_message?: string }).expert_message ?? "").trim()
+      : "";
+
+  /** Normalise pour comparer deux textes sans buter sur les espaces et la casse. */
+  const aplati = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+
   const bodyText = (() => {
     // 2026-08-30 — en attente de validation experte, on ne CHIFFRE pas. La
     // structure du verdict (montant du devis + motif) est conservée, mais la
@@ -316,10 +344,43 @@ export default function AvisSurLeDevis({
       // 2. Si le TITRE porte le montant à négocier, « Marge de négociation
       //    estimée : environ 1 062 € » le répète une troisième fois — et deux
       //    occurrences du même chiffre se lisent comme deux faits distincts.
-      const resume = sousTitre
-        ? vl.resume.replace(/^\s*[\d\s  .,]+€\s*(?:HT|TTC)?\s*—\s*/i, "")
+      // 3. 🔴 2026-09-23 — LA PARENTHÈSE D'ÉCART, TROISIÈME PORTE DU MÊME
+      //    DÉFAUT. Mesuré sur le HTML RENDU de 200 cartes : **9 des 23 dont le
+      //    titre chiffre (39 %)** rouvraient un montant juste en dessous —
+      //    « Environ 12 300 € à discuter » puis « (environ 12 300 € d'écart sur
+      //    ces lignes) », ou pire « Environ 2 017 € » suivi de « (1 412–2 622 €
+      //    d'écart estimé) » : trois nombres pour un seul fait.
+      //    ⚠️ Le dédoublonnage du 22/09 coupait la MARGE, jamais cette
+      //    parenthèse ; et le script de réparation du même jour visait le
+      //    `motif`, avec un motif ancré sur « environ … € d'écart » qui ne
+      //    reconnaît pas la forme fourchette du stock ancien. On corrige donc à
+      //    l'AFFICHAGE : le correctif vaut pour toutes les analyses d'un coup,
+      //    y compris les conclusions `corrected` qu'on n'écrase jamais.
+      const sansEcart = titreChiffre
+        ? vl.resume.replace(ECART_ENTRE_PARENTHESES, "")
         : vl.resume;
+      const resume = sousTitre
+        ? sansEcart.replace(/^\s*[\d\s  .,]+€\s*(?:HT|TTC)?\s*—\s*/i, "")
+        : sansEcart;
       const phrase = resume.charAt(0).toUpperCase() + resume.slice(1);
+      // 🔴 2026-09-23 — ET SI CE RÉSUMÉ EST DÉJÀ LE DÉBUT DU MESSAGE DE
+      // L'EXPERT, ON SE TAIT : l'encadré le porte en entier trois lignes plus
+      // bas. `resyncVerdictLigne` (05/09) reprend la première phrase de
+      // l'expert comme motif — c'est légitime — mais depuis la fusion du 22/09
+      // les deux blocs cohabitent sur la même carte. Mesuré sur le HTML rendu :
+      // **15 cartes affichaient le message de l'expert DEUX FOIS**, la première
+      // occurrence tronquée au milieu d'une phrase.
+      // 🔴 MAIS ON NE JETTE PAS LA MARGE AVEC LE DOUBLON, ET C'EST LE BANC DE
+      // PERTE QUI L'A VU, PAS LA RELECTURE. Ma première version retournait
+      // `null` sec : sur ATARAXIA (« Ne signez pas en l'état », titre sans
+      // montant) la carte perdait « Marge de négociation estimée : environ
+      // 390 € », et sur SAS E.P.H. « environ 3 549 à 6 591 € ». Le montant
+      // disparaissait de la page — exactement ce qu'un correctif de doublon ne
+      // doit pas faire. On garde donc la marge seule quand le titre ne la
+      // porte pas déjà.
+      if (expertMessage && aplati(expertMessage).startsWith(aplati(phrase).replace(/\.$/, ""))) {
+        return vl.marge && !titreChiffre ? `Marge de négociation estimée : ${vl.marge}.` : null;
+      }
       return vl.marge && !titreChiffre ? `${phrase} Marge de négociation estimée : ${vl.marge}.` : phrase;
     }
     const base = (conclusion.phrase_intro || "").trim();
@@ -403,17 +464,6 @@ export default function AvisSurLeDevis({
    * pas en relisant le code.
    */
   const chiffreAffiche = /\d[\d\s  ]*\s*(€|%)/.test(`${title} ${bodyText ?? ""}`);
-
-  // 🟢 2026-08-29 (retour Johan, devis 25030) — quand un expert corrige une
-  // analyse, il RETIRE ce qui était faux ; sans ce bloc, la page ne gagnait
-  // rien en échange et affichait « négociable » sans le moindre argument. Le
-  // message de l'expert porte désormais la substance : ce qu'il a vu, et
-  // pourquoi son verdict tient. Texte écrit par un humain (jamais du LLM
-  // brut), distinct des notes internes de l'écran de revue.
-  const expertMessage =
-    typeof (conclusion as { expert_message?: unknown }).expert_message === "string"
-      ? ((conclusion as { expert_message?: string }).expert_message ?? "").trim()
-      : "";
 
   return (
     <HeroCard tone={tone}>
