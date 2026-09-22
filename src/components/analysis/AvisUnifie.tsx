@@ -38,7 +38,7 @@
  * 11/09 : un aperçu qui a son propre texte ne valide rien.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronDown, Copy, Check } from "lucide-react";
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 import type { Portee } from "@/lib/analyse/porteeAnalyse";
@@ -82,6 +82,59 @@ export default function AvisUnifie({
 }: Props) {
   const [ouvert, setOuvert] = useState(false);
   const [copie, setCopie] = useState(false);
+  const [copieImpossible, setCopieImpossible] = useState(false);
+  const zoneMessage = useRef<HTMLPreElement>(null);
+
+  /**
+   * 🔴 2026-09-22 — LE BOUTON « COPIER » ÉCHOUAIT EN SILENCE, ET LE DÉFAUT
+   * VENAIT DE LA FICHE D'ORIGINE.
+   *
+   * `navigator.clipboard.writeText(...).then(...)` sans `.catch()` : quand
+   * l'écriture est refusée (permission, contexte non sécurisé, iframe sans
+   * `clipboard-write`, Firefox restrictif), la promesse rejette, le `.then()`
+   * n'est jamais atteint — **le clic ne produit rien**. Ni copie, ni libellé
+   * « Copié », ni `onCopy`, donc pas de modale de retour. L'utilisateur
+   * recommence, puis abandonne.
+   *
+   * Constaté en cliquant dans le navigateur, pas en relisant le code :
+   * `Uncaught (in promise) NotAllowedError: Write permission denied`.
+   *
+   * ⚠️ `document.execCommand("copy")` est déprécié mais reste le SEUL repli
+   * qui fonctionne partout. Et si les deux échouent, on sélectionne le texte
+   * pour que l'utilisateur n'ait plus qu'à faire Ctrl+C — se taire serait
+   * revenir au défaut qu'on corrige.
+   */
+  const copierLeMessage = async () => {
+    if (!message) return;
+    let reussi = false;
+    try {
+      await navigator.clipboard.writeText(message);
+      reussi = true;
+    } catch {
+      try {
+        const zone = zoneMessage.current;
+        if (zone) {
+          const selection = window.getSelection();
+          const plage = document.createRange();
+          plage.selectNodeContents(zone);
+          selection?.removeAllRanges();
+          selection?.addRange(plage);
+          reussi = document.execCommand("copy");
+        }
+      } catch {
+        reussi = false;
+      }
+    }
+    if (reussi) {
+      setCopieImpossible(false);
+      setCopie(true);
+      setTimeout(() => setCopie(false), 2500);
+      onCopy?.();
+      return;
+    }
+    // Le texte reste sélectionné par le repli ci-dessus : on le dit.
+    setCopieImpossible(true);
+  };
 
   const sections = useMemo(
     () => buildPreparationSections(conclusion, pointsOk, alertes),
@@ -151,13 +204,7 @@ export default function AvisUnifie({
             {!statique && (
               <button
                 type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(message).then(() => {
-                    setCopie(true);
-                    setTimeout(() => setCopie(false), 2500);
-                    onCopy?.();
-                  });
-                }}
+                onClick={copierLeMessage}
                 className="inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground/70 hover:text-foreground"
               >
                 {copie ? (
@@ -168,9 +215,18 @@ export default function AvisUnifie({
               </button>
             )}
           </div>
-          <pre className="mt-1.5 whitespace-pre-wrap rounded-lg border border-foreground/10 bg-background/70 p-3.5 font-sans text-[14px] leading-relaxed text-foreground/80">
+          <pre
+            ref={zoneMessage}
+            className="mt-1.5 whitespace-pre-wrap rounded-lg border border-foreground/10 bg-background/70 p-3.5 font-sans text-[14px] leading-relaxed text-foreground/80"
+          >
             {message}
           </pre>
+          {copieImpossible && (
+            <p role="status" className="mt-1.5 text-[13px] leading-relaxed text-foreground/60">
+              Votre navigateur bloque la copie automatique. Le message est
+              sélectionné : faites Ctrl+C (ou Cmd+C) pour le copier.
+            </p>
+          )}
         </div>
       )}
       {/* Gardée de la fiche : elle cadre le TON de la démarche, et c'est ce qui
