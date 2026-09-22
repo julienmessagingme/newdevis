@@ -26,6 +26,12 @@ import DuDevisAuVerdict from '@/components/landing/DuDevisAuVerdict';
 // les deux doivent venir du fichier généré. Un exemple dont les fourchettes
 // sont écrites à la main devient faux dès que le catalogue bouge.
 import { CATALOGUE_TAILLE, ANALYSES_TOTAL, poste } from '@/lib/prix/reference';
+// 2026-09-23 — même raison, appliquée aux compteurs de l'Observatoire : les
+// sept nombres écrits en dur dans cette page étaient TOUS faux (isolation
+// annonçait 66 devis pour 38 réels). Ils viennent des JSON publiés, régénérés
+// chaque lundi. ⚠️ Import statique et non `fs` : cette page est en
+// `prerender = false`, et le runtime serverless n'embarque pas `src/`.
+import { CARTES_OBSERVATOIRE } from '@/lib/observatoire/cartesAccueil';
 import SimulateurAidesCard from '@/components/homepage/SimulateurAidesCard';
 import SocialProofTicker from '@/components/homepage/SocialProofTicker';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
@@ -680,55 +686,84 @@ const jsonLd = {
         </div>
       </section>
 
-      <!-- Observatoire des prix - Section maillage SEO + navigation -->
-      <section class="py-14 bg-gradient-to-b from-white to-slate-50 border-t border-slate-100">
-        <div class="container px-4 max-w-5xl mx-auto">
-          <div class="text-center mb-8">
-            <div class="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full mb-3">
-              📊 Basé sur les devis analysés par notre IA
-            </div>
-            <h2 class="text-2xl md:text-3xl font-bold text-slate-900 mb-3">
-              L'Observatoire des devis travaux
+      {/* ═══════════════════════════════════════════════════════════════
+           OBSERVATOIRE — design validé le 2026-09-23 (handoff « Observatoire
+           des devis travaux », bloc A).
+
+           Le rendu précédent était le style générique du reste de la page :
+           fond blanc, cartes grises, titre en gras. La section porte notre
+           actif le plus incopiable — des fourchettes tirées de vrais devis —
+           et ne s'en distinguait par rien.
+
+           ⚠️ LES COMPTEURS VIENNENT DE `CARTES_OBSERVATOIRE`, jamais du
+           template. Les sept nombres écrits ici à la main étaient TOUS faux
+           (isolation annonçait 66 devis pour 38 réels) : voir le module.
+
+           ⚠️ AUCUN JS. La section est statique, rendue au serveur : le texte
+           est indexable et rien n'est reconstruit côté navigateur — la règle
+           du 07/09 sur les pages SEO.
+           ═══════════════════════════════════════════════════════════════ */}
+      <section class="obs-section relative overflow-hidden text-white">
+        {/* Photo plaquée à droite à partir de 1280 px, bandeau au-dessus du
+            texte en dessous. ⚠️ TOUT LE POSITIONNEMENT EST DANS `.obs-photo`
+            (index.css), pas ici : mêlé à des classes Tailwind responsive, le
+            seuil aurait vécu à deux endroits et le tableau de mesures qui le
+            justifie serait devenu impossible à relire. */}
+        <div class="obs-photo z-[1] overflow-hidden">
+          <img
+            src="/images/observatoire-1024.webp"
+            srcset="/images/observatoire-640.webp 640w, /images/observatoire-1024.webp 1024w"
+            sizes="(max-width: 1279px) 100vw, 46vw"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            width="1024"
+            height="714"
+            class="h-full w-full object-cover [filter:saturate(1.05)_contrast(1.05)]"
+          />
+        </div>
+
+        {/* Anneaux décoratifs — ils débordent du cadre en haut à droite et
+            donnent la lecture « carte du ciel ». Purement ornementaux. */}
+        <div aria-hidden="true" class="pointer-events-none absolute -right-[180px] -top-[180px] hidden h-[640px] w-[640px] rounded-full border border-[rgba(230,180,90,.25)] xl:block"></div>
+        <div aria-hidden="true" class="pointer-events-none absolute -right-[60px] -top-[60px] hidden h-[400px] w-[400px] rounded-full border border-[rgba(230,180,90,.18)] xl:block"></div>
+
+        <div class="relative z-[3] mx-auto max-w-7xl px-6 py-14 md:px-16 md:py-[110px] md:pb-[100px]">
+          <div class="max-w-[600px]">
+            {/* Le kicker garde le texte du site. ⚠️ Pas de police mono : elle
+                a été retirée du projet en mai (uniformisation GMC ↔ VMD) et la
+                réintroduire pour un badge coûterait une webfont de plus. DM
+                Sans en majuscules espacées tient le même rôle éditorial. */}
+            <span class="inline-flex items-center gap-2.5 rounded-full border border-[rgba(230,180,90,.35)] bg-[rgba(230,180,90,.12)] px-4 py-2 text-[12.5px] font-semibold uppercase tracking-[0.04em] text-[#E6B45A]">
+              <span aria-hidden="true">◆</span> Basé sur les devis analysés par notre IA
+            </span>
+            <h2 class="mb-[18px] mt-[26px] font-[Fraunces,Georgia,serif] text-[34px] font-semibold leading-[1.08] tracking-[-0.01em] md:text-[52px]">
+              L'Observatoire<br />des <em class="italic text-[#E6B45A]">devis travaux</em>
             </h2>
-            <p class="text-slate-600 text-sm md:text-base max-w-2xl mx-auto">
+            <p class="mb-10 max-w-[560px] text-[15px] leading-[1.6] text-[#B8C2D9] md:mb-12 md:text-[17px]">
               Découvrez les fourchettes de prix réelles observées sur les devis analysés — par métier, par type de chantier et par étude thématique.
             </p>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <a href="/observatoire/chantiers/salle-de-bain" class="group p-4 rounded-xl bg-white border border-slate-200 hover:border-primary/40 hover:shadow-sm transition-all">
-              <p class="font-semibold text-slate-900 text-sm mb-1">Prix salle de bain</p>
-              <p class="text-xs text-slate-500">56 devis analysés</p>
-            </a>
-            <a href="/observatoire/chantiers/isolation" class="group p-4 rounded-xl bg-white border border-slate-200 hover:border-primary/40 hover:shadow-sm transition-all">
-              <p class="font-semibold text-slate-900 text-sm mb-1">Prix isolation</p>
-              <p class="text-xs text-slate-500">66 devis analysés</p>
-            </a>
-            <a href="/observatoire/chantiers/cuisine" class="group p-4 rounded-xl bg-white border border-slate-200 hover:border-primary/40 hover:shadow-sm transition-all">
-              <p class="font-semibold text-slate-900 text-sm mb-1">Prix rénovation cuisine</p>
-              <p class="text-xs text-slate-500">22 devis analysés</p>
-            </a>
-            <a href="/observatoire/chantiers/chauffage" class="group p-4 rounded-xl bg-white border border-slate-200 hover:border-primary/40 hover:shadow-sm transition-all">
-              <p class="font-semibold text-slate-900 text-sm mb-1">Prix chauffage</p>
-              <p class="text-xs text-slate-500">37 devis analysés</p>
-            </a>
-            <a href="/observatoire/postes-surfactures" class="group p-4 rounded-xl bg-white border border-slate-200 hover:border-red-300 hover:shadow-sm transition-all">
-              <p class="font-semibold text-slate-900 text-sm mb-1">Postes les plus surfacturés</p>
-              <p class="text-xs text-slate-500">Étude sur 347 devis</p>
-            </a>
-            <a href="/observatoire/erreurs-tva" class="group p-4 rounded-xl bg-white border border-slate-200 hover:border-orange-300 hover:shadow-sm transition-all">
-              <p class="font-semibold text-slate-900 text-sm mb-1">Erreurs de TVA fréquentes</p>
-              <p class="text-xs text-slate-500">Étude sur 313 devis</p>
-            </a>
-            <a href="/observatoire/metiers/menuiserie-vitrages" class="group p-4 rounded-xl bg-white border border-slate-200 hover:border-primary/40 hover:shadow-sm transition-all">
-              <p class="font-semibold text-slate-900 text-sm mb-1">Prix menuiserie</p>
-              <p class="text-xs text-slate-500">81 devis analysés</p>
-            </a>
-            <a href="/observatoire" class="group p-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all flex items-center justify-between">
-              <div>
-                <p class="font-semibold text-sm mb-1">Voir l'Observatoire</p>
-                <p class="text-xs opacity-80">Toutes les études</p>
-              </div>
-              <span class="text-xl">→</span>
+
+          <div class="relative z-[3] grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+            {CARTES_OBSERVATOIRE.map((carte) => (
+              <a
+                href={carte.href}
+                class="rounded-[14px] border border-white/10 bg-white/[0.04] px-5 pb-[18px] pt-5 backdrop-blur-[6px] transition-colors duration-200 hover:border-[rgba(230,180,90,.4)]"
+              >
+                <p class="mb-1.5 text-[14.5px] font-semibold text-white">{carte.titre}</p>
+                <p class="text-xs text-[#8391AE]">{carte.compteur}</p>
+              </a>
+            ))}
+            <a
+              href="/observatoire"
+              class="flex items-center justify-between rounded-[14px] bg-gradient-to-br from-[#E6B45A] to-[#C88A2E] px-5 pb-[18px] pt-5 transition-opacity duration-200 hover:opacity-90"
+            >
+              <p class="text-[14.5px] font-bold text-[#1a1206]">Voir l'Observatoire</p>
+              <svg class="h-[18px] w-[18px] flex-shrink-0 text-[#1a1206]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
             </a>
           </div>
         </div>
