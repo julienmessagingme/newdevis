@@ -116,6 +116,9 @@ export default function AvisEtPreparation({
           comparableCount={comparableCount}
           totalCount={totalCount}
           portee={portee}
+          pointsOk={pointsOk}
+          entrepriseName={entrepriseName}
+          totalHt={totalHt}
           criticalReasons={criticalReasons}
           provisoire={provisoire}
         />
@@ -135,6 +138,9 @@ export default function AvisEtPreparation({
         comparableCount={comparableCount}
         totalCount={totalCount}
         portee={portee}
+        pointsOk={pointsOk}
+        entrepriseName={entrepriseName}
+        totalHt={totalHt}
         criticalReasons={criticalReasons}
         provisoire={provisoire}
       />

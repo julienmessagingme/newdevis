@@ -60,6 +60,7 @@ import {
 import type { DevisSegment } from "@/components/analysis/MultiDevisBlock";
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 import { porteeAnalyse, type GroupePortee } from "@/lib/analyse/porteeAnalyse";
+import { decisionAffichee } from "@/lib/analyse/decisionAffichee";
 // V3.4.23 (2026-05-21) — Simplification UI : 2 blocs retirés pour ne garder que
 // le cœur du verdict (ConclusionIA + Entreprise + Postes collapsé). Imports
 // retirés en même temps pour éviter du code mort.
@@ -883,16 +884,27 @@ const AnalysisResult = () => {
             }
           } catch { /* parse fail global, on continue avec le mapping standard */ }
 
-          // V3.4.8 (2026-05-13) — mapping complet conclusion_ia.verdict_global
-          //   "dans_la_norme"  → VERT
-          //   "eleve_justifie" → ORANGE (cher mais justifié — bug avant : VERT par défaut)
-          //   "a_negocier"     → ORANGE
-          //   "a_risque"       → ROUGE
-          // Bug détecté : la version précédente ne reconnaissait que "a_risque" et
-          // "a_negocier" — donc "eleve_justifie" tombait en VERT, créant une
-          // divergence avec ConclusionIA qui affichait "À négocier".
-          return (vg === "a_risque" ? "ROUGE"
-                : vg === "a_negocier" || vg === "eleve_justifie" ? "ORANGE"
+          // 🔴 2026-09-22 — LA PASTILLE SUIT LA MÊME RÈGLE QUE LE HERO.
+          //
+          // Elle mappait `verdict_global` de son côté (V3.4.8). Depuis que le
+          // hero décide via `decisionAffichee` — un devis sans aucun constat
+          // n'est plus coloré en alerte —, garder deux mappings ferait diverger
+          // la pastille et le bandeau sur le même devis : c'est exactement
+          // l'incident du 13/05 (« Carrelage LEONARD » : feu vert sur la page,
+          // rouge dans l'admin).
+          //
+          // ⚠️ `verdict_global === "a_risque"` est passé comme motif critique :
+          // le moteur a tranché, la présentation ne l'adoucit jamais.
+          // ⚠️ L'ADMIN garde son propre mapping (`/api/admin/devis.ts`) — il
+          // doit voir le verdict du MOTEUR, pas la décision présentée au
+          // client. Divergence voulue, pas subie.
+          const _d = decisionAffichee(
+            parsedConclusion as ConclusionData,
+            porteeAffichee,
+            vg === "a_risque" ? ["verdict moteur : a_risque"] : [],
+          );
+          return (_d.ton === "alert" ? "ROUGE"
+                : _d.ton === "amber" ? "ORANGE"
                 : "VERT") as "VERT" | "ORANGE" | "ROUGE";
         }
       } catch { /* JSON corrompu → fallback recompute ci-dessous */ }
@@ -955,7 +967,10 @@ const AnalysisResult = () => {
     });
 
     return result.score_legacy;
-  }, [analysis, cachedN8NData, conclusionIaLive]); // eslint-disable-line react-hooks/exhaustive-deps
+    // 2026-09-22 — `porteeAffichee` entre dans les dépendances : sans elle, la
+    // pastille garderait la couleur calculée avant que la portée soit connue,
+    // et divergerait du hero au premier rendu.
+  }, [analysis, cachedN8NData, conclusionIaLive, porteeAffichee]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // V3.4.14+ — sync verdictForFeedback à chaque changement d'effectiveScore.
   // Permet à la modal de stocker en DB le snapshot du verdict au moment où le

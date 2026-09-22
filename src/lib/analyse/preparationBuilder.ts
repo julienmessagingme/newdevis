@@ -566,6 +566,29 @@ function extractSeniorityYears(lower: string): number | null {
   return null;
 }
 
+/**
+ * Les faits vérifiés, réduits à des fragments courts et sûrs.
+ *
+ * 🔴 2026-09-22 (retour Johan) — « les autres recherches (risques, réputation)
+ * devraient être valorisées ». Mesuré sur 30 jours : les devis dont nous ne
+ * pouvons pas comparer les prix portent **14 points vérifiés en médiane**
+ * (jusqu'à 45), et **15 sur 15** ont au moins un point positif. Leur afficher
+ * « nous n'avons pas pu vérifier les prix » revenait à taire tout le reste.
+ *
+ * ⚠️ EXPORTÉE POUR QUE LE HERO ET LA FICHE DISENT LA MÊME CHOSE. `simplifyPointOk`
+ * porte des gardes chèrement acquises — pas d'assurance seulement mentionnée
+ * (20/08), pas de réputation sous dix avis (06/09), pas d'entreprise de moins
+ * de trois ans présentée comme établie. Les recopier ailleurs, c'est les perdre.
+ */
+export function pointsVerifies(pointsOk: string[], max = 3): string[] {
+  const parCle = new Map<string, string>();
+  for (const p of pointsOk ?? []) {
+    const simp = simplifyPointOk(p);
+    if (simp && !parCle.has(simp.key)) parCle.set(simp.key, simp.short);
+  }
+  return [...parCle.values()].slice(0, max);
+}
+
 function simplifyPointOk(point: string): { key: string; short: string } | null {
   if (NON_POSITIVE_MARKERS.test(point)) return null;
   if (NEGATION_PATTERN.test(point)) return null;

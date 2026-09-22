@@ -11,7 +11,7 @@ const analysisId = Astro.url.searchParams.get("analysisId");
 
 <BaseLayout
   title="Comprendre le score de fiabilité | VerifierMonDevis.fr"
-  description="Comment lire le verdict de votre devis : vert, gris, orange ou rouge. Ce que chaque couleur dit, ce qu'elle ne dit pas, et les actions conseillées."
+  description="Comment lire le verdict de votre devis : vert, orange ou rouge. Ce que chaque couleur dit, ce qu'elle ne dit pas, et les actions conseillées."
   canonical="https://www.verifiermondevis.fr/comprendre-score"
   breadcrumbs={[
     { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
@@ -95,14 +95,15 @@ const analysisId = Astro.url.searchParams.get("analysisId");
           </p>
           <!--
             2026-09-22 — LA RÈGLE, DITE AVANT LES COULEURS.
-            Sans elle, le gris se lit comme un orange atténué. C'est exactement
-            l'inverse : la couleur ne porte QUE ce que nous avons trouvé sur le
-            devis. Ce que nous n'avons pas pu vérifier est écrit, et reste gris.
+            Trois couleurs, pas quatre : l'utilisateur veut savoir s'il signe ou
+            s'il négocie. Ce que nous n'avons PAS pu vérifier est écrit en
+            toutes lettres sur son analyse, mais ne change jamais la couleur —
+            un doute sur nous n'est pas un doute sur son devis.
           -->
           <p class="mt-5 text-base text-muted-foreground max-w-2xl mx-auto border-t border-border pt-5">
-            La couleur porte <strong class="text-foreground">ce que nous avons trouvé</strong>, jamais ce que nous
-            n'avons pas pu vérifier. Quand notre référentiel ne couvre pas vos prestations, nous le disons
-            en gris — <strong class="text-foreground">un doute sur nous n'est pas un doute sur votre devis</strong>.
+            La couleur porte <strong class="text-foreground">ce que nous avons trouvé sur votre devis</strong>,
+            jamais ce que nous n'avons pas pu vérifier. Quand notre référentiel ne couvre pas vos prestations,
+            nous vous le disons — mais nous ne transformons pas notre limite en alerte sur votre artisan.
           </p>
         </div>
 
@@ -127,15 +128,18 @@ const analysisId = Astro.url.searchParams.get("analysisId");
                 <ul class="space-y-2">
                   <li class="flex items-start gap-2 text-foreground/80">
                     <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
-                    Nous avons pu comparer <strong>plus de la moitié du montant</strong> aux prix du marché
+                    Aucun écart de prix, aucune clause litigieuse, aucun risque sur l'entreprise, aucune condition de paiement inhabituelle
                   </li>
                   <li class="flex items-start gap-2 text-foreground/80">
                     <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
-                    Aucun écart de prix, aucune clause litigieuse, aucun risque sur l'entreprise
+                    <strong>Deux titres possibles</strong> : « ce devis nous paraît cohérent » quand nous avons pu comparer
+                    plus de la moitié du montant, « rien ne s'oppose à la signature » quand nos références ne couvrent
+                    pas vos prestations
                   </li>
                   <li class="flex items-start gap-2 text-foreground/80">
                     <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
-                    Le vert porte sur <strong>ce que nous avons pu vérifier</strong> — le détail poste par poste vous dit exactement quoi
+                    Dans le second cas, nous vous le disons explicitement : <strong>nous ne nous prononçons pas sur
+                    les prix</strong>, et un second devis reste le seul comparatif réel
                   </li>
                 </ul>
               </div>
@@ -158,65 +162,6 @@ const analysisId = Astro.url.searchParams.get("analysisId");
               </div>
             </div>
           </div>
-
-          <!--
-            GRIS — 2026-09-22.
-            Le quatrième état, et il manquait depuis toujours. « Nous ne savons
-            pas » sortait en ORANGE, comme « nous avons trouvé un écart » :
-            mesuré sur le stock, 28 analyses sur 149 portaient un titre d'alerte
-            sans pouvoir rien nommer. Un doute sur NOUS n'est pas un doute sur
-            LE DEVIS — il s'écrit, il ne se colore pas en alerte.
-          -->
-          <div class="bg-slate-50 border-slate-300/70 border-2 rounded-2xl p-6 md:p-8">
-            <div class="flex items-start gap-4 mb-6">
-              <svg class="h-10 w-10 text-slate-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-              <div>
-                <h2 class="text-xl md:text-2xl font-bold text-slate-700 mb-1">
-                  &#x26AA; GRIS
-                </h2>
-                <p class="text-lg font-medium text-slate-700">
-                  Nous n'avons pas pu vérifier les prix
-                </p>
-              </div>
-            </div>
-            <div class="grid md:grid-cols-2 gap-6">
-              <div>
-                <h3 class="font-semibold text-foreground mb-3">Ce que cela signifie</h3>
-                <ul class="space-y-2">
-                  <li class="flex items-start gap-2 text-foreground/80">
-                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
-                    Vos prestations n'ont pas d'équivalent assez proche dans notre référentiel pour qu'un prix soit opposable
-                  </li>
-                  <li class="flex items-start gap-2 text-foreground/80">
-                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
-                    <strong>Ce n'est pas un signe que le prix est mauvais</strong> — c'est que nous ne pouvons pas l'affirmer
-                  </li>
-                  <li class="flex items-start gap-2 text-foreground/80">
-                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
-                    Le reste de l'analyse reste valable : entreprise, conditions de paiement, clauses
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h3 class="font-semibold text-foreground mb-3">Actions conseillées</h3>
-                <ul class="space-y-2">
-                  <li class="flex items-start gap-2 text-foreground/80">
-                    <svg class="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    Sur un montant qui compte pour vous, un second devis sur le même périmètre est le seul comparatif réel
-                  </li>
-                  <li class="flex items-start gap-2 text-foreground/80">
-                    <svg class="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    Lisez le détail poste par poste : il vous dit exactement ce que nous avons pu comparer, et ce que nous n'avons pas pu
-                  </li>
-                  <li class="flex items-start gap-2 text-foreground/80">
-                    <svg class="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    Appuyez-vous sur ce que nous avons vérifié : l'entreprise et les conditions de paiement
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
           <!-- FEU ORANGE -->
           <div class="bg-score-orange-bg border-score-orange/30 border-2 rounded-2xl p-6 md:p-8">
             <div class="flex items-start gap-4 mb-6">
@@ -411,9 +356,9 @@ const analysisId = Astro.url.searchParams.get("analysisId");
                 → génèrent des vigilances pouvant mener à un <strong class="text-score-orange">FEU ORANGE</strong>.
               </p>
               <p>
-                <strong class="text-slate-600">L'absence de référence</strong> n'est pas un critère : c'est une limite de notre
-                analyse. Elle ne dégrade jamais la couleur — elle donne un <strong class="text-slate-600">GRIS</strong>,
-                qui dit ce que nous n'avons pas pu comparer.
+                <strong class="text-foreground">L'absence de référence</strong> n'est pas un critère : c'est une limite de
+                notre analyse, pas un défaut de votre devis. Elle ne dégrade <strong class="text-foreground">jamais</strong>
+                la couleur — elle est écrite en toutes lettres sur votre analyse.
               </p>
               <p>
                 <strong class="text-score-green">Critères de confort</strong> (RGE, QUALIBAT, ancienneté…)

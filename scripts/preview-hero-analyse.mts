@@ -34,6 +34,9 @@ const g = (confidence: string, montant: number, label: string): GroupePortee => 
 
 interface Cas {
   cle: string;
+  entreprise?: string;
+  totalHt?: number;
+  pointsOk?: string[];
   attendu: string;
   provenance: string;
   conclusion: Partial<ConclusionData>;
@@ -45,7 +48,9 @@ const CAS: Cas[] = [
   // ── VERT ────────────────────────────────────────────────────────────────
   {
     cle: "vert",
-    attendu: "🟢 vérifié, rien constaté",
+    entreprise: "DUPONT Rénovation", totalHt: 8400,
+    pointsOk: ["SIRET verifie, entreprise active depuis 2012", "Conditions de paiement conformes aux usages", "Certification RGE verifiee au registre"],
+    attendu: "🟢 rien constaté, prix comparés",
     provenance: "construit — 7 postes sur 9 opposables, aucun écart, aucun levier de constat",
     conclusion: {
       verdict_decisionnel: "signer",
@@ -74,7 +79,9 @@ const CAS: Cas[] = [
   // ── GRIS ────────────────────────────────────────────────────────────────
   {
     cle: "gris",
-    attendu: "⚪ non vérifiable, rien constaté",
+    entreprise: "JeanBERNARD & Fils", totalHt: 1093,
+    pointsOk: ["SIRET verifie, entreprise active", "Conditions de paiement claires"],
+    attendu: "🟢 rien constaté, prix non comparables",
     provenance: "RÉEL — devis JeanBERNARD & Fils, 1 093 € HT, 22/09/2026",
     conclusion: {
       verdict_decisionnel: "signer_avec_negociation",
@@ -108,6 +115,8 @@ const CAS: Cas[] = [
   // ── ORANGE ──────────────────────────────────────────────────────────────
   {
     cle: "orange",
+    entreprise: "MARTIN Carrelage", totalHt: 10746,
+    pointsOk: ["SIRET verifie, entreprise active depuis 2009", "Conditions de paiement conformes aux usages"],
     attendu: "🟠 un écart constaté et nommé",
     provenance: "construit — 1 062 € sur deux postes nommés, 6 postes sur 9 opposables",
     conclusion: {
@@ -137,9 +146,39 @@ const CAS: Cas[] = [
     ],
   },
 
+  // ── ORANGE sans montant ─────────────────────────────────────────────────
+  {
+    cle: "orange-points",
+    entreprise: "ALTEC Plomberie", totalHt: 6200,
+    pointsOk: ["SIRET verifie, entreprise active depuis 2016"],
+    attendu: "🟠 des points à sécuriser, sans montant",
+    provenance: "construit — acompte au-dessus de l'usage + une clause à faire préciser",
+    conclusion: {
+      verdict_decisionnel: "signer_avec_negociation",
+      verdict_global: "a_negocier",
+      anomalies: [],
+      leviers: [
+        { type: "acompte", objectif: "negocier", niveau: "important",
+          titre: "Ramenez l'acompte à 30 %", detail: "Le devis demande 50 % à la signature." } as never,
+        { type: "clause_orange", objectif: "securiser", niveau: "important",
+          titre: "Faites préciser la clause de sous-traitance", detail: "" } as never,
+        // ⚠️ Conseil UNIVERSEL : présent, mais il ne colore plus la page.
+        { type: "retenue_garantie", objectif: "securiser", niveau: "bonus",
+          titre: "Prévoyez une retenue de garantie de 5 %", detail: "" } as never,
+      ],
+      verdict_ligne: { resume: "6 200 € HT — l'acompte demandé dépasse l'usage.", marge: null } as never,
+      surcout_global: { min: 0, max: 0 },
+    },
+    groupes: [
+      g("high", 3200, "Plomberie sanitaires"), g("high", 1800, "Carrelage sol"),
+      g("high", 700, "Peinture murs"), g("low", 500, "Divers"),
+    ],
+  },
+
   // ── ROUGE ───────────────────────────────────────────────────────────────
   {
     cle: "rouge",
+    entreprise: "RENOV EXPRESS", totalHt: 24300,
     attendu: "🔴 fait bloquant (hard block)",
     provenance: "construit — entreprise en liquidation + acompte 60 %",
     conclusion: {
@@ -164,6 +203,9 @@ const cartes = CAS.map((cas) => {
     createElement(AvisSurLeDevis, {
       conclusion: cas.conclusion as ConclusionData,
       portee,
+      pointsOk: cas.pointsOk ?? [],
+      entrepriseName: cas.entreprise ?? null,
+      totalHt: cas.totalHt ?? null,
       criticalReasons: cas.criticalReasons ?? [],
     }),
   );
@@ -181,7 +223,7 @@ const cartes = CAS.map((cas) => {
 const page = `<!doctype html>
 <html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Aperçu hero — les 4 états</title>
+<title>Aperçu hero — les états du verdict</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   /* Tokens du projet (src/index.css) — sans eux, text-foreground ne rend rien. */
@@ -206,7 +248,7 @@ const page = `<!doctype html>
   .portee{color:#cbd5e1}
   .rendu{}
 </style></head><body><div class="wrap">
-<h1>Hero d'analyse — les quatre états</h1>
+<h1>Hero d'analyse — les états du verdict</h1>
 <p class="intro">Rendu du composant <code>AvisSurLeDevis</code> par <code>renderToStaticMarkup</code>.
 Aucun texte n'est recopié ici : ce sont les titres, les phrases et les couleurs que le client voit.</p>
 ${cartes}
@@ -216,13 +258,16 @@ const sortie = resolve(process.cwd(), "scripts/out/preview-hero-analyse.html");
 mkdirSync(dirname(sortie), { recursive: true });
 writeFileSync(sortie, page, "utf8");
 
-console.log("APERÇU DU HERO — 4 ÉTATS\n" + "=".repeat(66) + "\n");
+console.log("APERÇU DU HERO\n" + "=".repeat(66) + "\n");
 for (const cas of CAS) {
   const portee = porteeAnalyse(cas.groupes);
   const html = renderToStaticMarkup(
     createElement(AvisSurLeDevis, {
       conclusion: cas.conclusion as ConclusionData,
       portee,
+      pointsOk: cas.pointsOk ?? [],
+      entrepriseName: cas.entreprise ?? null,
+      totalHt: cas.totalHt ?? null,
       criticalReasons: cas.criticalReasons ?? [],
     }),
   );

@@ -6,9 +6,9 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ---
 
-## 🟡 Suites du quatrième état « gris » (2026-09-22)
+## 🟡 Suites de la refonte du verdict affiché (2026-09-22)
 
-Le hero sépare désormais *ce que nous savons* de *ce que nous avons trouvé* (cf. `CLAUDE.md` § Verdict expert, entrée du 22/09). Deux résidus côté SERVEUR, non traités parce qu'ils ne se voient plus à l'écran — mais ils restent dans la donnée :
+Le hero porte désormais la DÉCISION (signer / négocier / ne pas signer) et non plus notre niveau de certitude (cf. `CLAUDE.md` § Verdict expert, entrées du 22/09). Résidus côté SERVEUR, non traités parce qu'ils ne se voient plus à l'écran — mais ils restent dans la donnée :
 
 - **`comparison_indicative` escalade encore `verdict_decisionnel`.** C'est un fait sur NOUS (« notre comparaison n'est pas fiable »), pas sur le devis : il devrait alimenter la portée et rien d'autre. Mesuré le 22/09 : c'est la cause de l'escalade sur **4 des 6** devis bien vérifiés mais alarmés. ⚠️ Le corriger change le `verdict_global` stocké — donc la pastille de l'admin et les KPI. À mesurer avant.
 - **`leviersBuilder` écrit toujours « quelques prestations méritent une clarification avec l'artisan avant signature »** dans `verdict_ligne.resume` (branche « décision non-signer sans signal dominant identifié », l. ~675). Le hero l'ignore en état gris, mais le texte reste dans la conclusion et peut ressortir ailleurs. À composer côté serveur comme `phraseIntroSansReference` le fait depuis le 16/09.

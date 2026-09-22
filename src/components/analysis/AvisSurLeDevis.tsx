@@ -13,13 +13,11 @@
  */
 
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
-import {
-  porteeSuffisantePourAffirmer,
-  phrasePortee,
-  type Portee,
-} from "@/lib/analyse/porteeAnalyse";
+import type { Portee } from "@/lib/analyse/porteeAnalyse";
+import { decisionAffichee, titreDecision } from "@/lib/analyse/decisionAffichee";
+import { pointsVerifies } from "@/lib/analyse/preparationBuilder";
 
-type Tone = "calm" | "neutral" | "amber" | "alert";
+type Tone = "calm" | "amber" | "alert";
 
 interface ToneStyle {
   container: string;
@@ -30,19 +28,6 @@ const TONE_STYLES: Record<Tone, ToneStyle> = {
   calm: {
     container: "bg-emerald-50/70 border-emerald-200/70",
     title: "text-emerald-950",
-  },
-  // 🔴 2026-09-22 — LE QUATRIÈME ÉTAT, ET IL MANQUAIT DEPUIS TOUJOURS.
-  // « Nous ne savons pas » sortait en AMBRE, comme « nous avons trouvé un
-  // écart » : mesuré sur le stock, 28 analyses sur 149 (18,8 %) portaient un
-  // titre d'alerte, et 23 d'entre elles ne pouvaient rien nommer. L'utilisateur
-  // repartait avec un doute sans objet — « VMD me dit clarification, puis c'est
-  // ok, puis on n'a pas pu vérifier » (Johan).
-  // Gris ardoise délibérément : ni satisfecit (le vert dirait « c'est bon »
-  // alors que nous n'en savons rien — la fuite d'invariant du 16/09 par
-  // l'autre bout), ni alarme.
-  neutral: {
-    container: "bg-slate-50 border-slate-200",
-    title: "text-slate-900",
   },
   amber: {
     container: "bg-amber-50/70 border-amber-200/70",
@@ -55,50 +40,12 @@ const TONE_STYLES: Record<Tone, ToneStyle> = {
 };
 
 /**
- * Types de leviers qui ne signalent AUCUN fait sur le devis.
+ * 🔴 2026-09-22 — LA DÉCISION VIT DANS `decisionAffichee`, PAS ICI.
  *
- * `references` est le fallback universel (« jamais de fiche vide ») et
- * `second_avis` dit précisément que nous n'avons pas su comparer. Les compter
- * comme des trouvailles ferait colorer en ambre un devis sur lequel nous
- * n'avons rien constaté — le défaut qu'on corrige.
+ * Elle est partagée avec la pastille du header (`AnalysisResult`) : le 13/05,
+ * deux mappings indépendants avaient fait diverger la pastille et le bandeau
+ * sur le même devis. Une seule règle, deux lecteurs.
  */
-const LEVIERS_SANS_CONSTAT = new Set(["references", "second_avis"]);
-
-/**
- * Avons-nous CONSTATÉ quelque chose sur ce devis ?
- *
- * ⚠️ Distinct de « savons-nous quelque chose » (c'est la portée). C'est la
- * séparation des deux axes qui referme le défaut : **la couleur ne porte que
- * ce qu'on a trouvé ; ce qu'on n'a pas pu vérifier s'écrit, il ne se colore
- * pas.**
- */
-function aConstateQuelqueChose(conclusion: ConclusionData): boolean {
-  if ((conclusion.anomalies?.length ?? 0) > 0) return true;
-  if (conclusion.verdict_ligne?.marge) return true;
-  return (conclusion.leviers ?? []).some(
-    (l) => !LEVIERS_SANS_CONSTAT.has(String((l as { type?: string }).type ?? "")),
-  );
-}
-
-function toneFor(conclusion: ConclusionData, portee: Portee | null): Tone {
-  if (conclusion.verdict_decisionnel === "ne_pas_signer") return "alert";
-  if (aConstateQuelqueChose(conclusion)) return "amber";
-  // Rien constaté : reste à savoir si nous avions de quoi constater.
-  if (!porteeSuffisantePourAffirmer(portee)) return "neutral";
-  return "calm";
-}
-
-/** Arrondi doux : « aux alentours de 400 € » plutôt que « 421 € ». */
-function softRound(n: number): number {
-  if (n < 100) return Math.round(n / 10) * 10;
-  if (n < 1000) return Math.round(n / 50) * 50;
-  if (n < 10000) return Math.round(n / 100) * 100;
-  return Math.round(n / 500) * 500;
-}
-
-function fmtEUR(n: number): string {
-  return `${n.toLocaleString("fr-FR")} €`;
-}
 
 interface AvisSurLeDevisProps {
   conclusion: ConclusionData;
@@ -120,6 +67,20 @@ interface AvisSurLeDevisProps {
    * d'appelants éventuels, la portée les remplace.
    */
   portee?: Portee | null;
+  /**
+   * 🔴 2026-09-22 — CE QUE NOUS AVONS VÉRIFIÉ, remonté dans le hero.
+   * Ces faits vivaient uniquement dans la fiche de préparation, plusieurs
+   * écrans plus bas. Le lecteur recevait donc ce que nous ne savions pas avant
+   * ce que nous avions établi.
+   */
+  pointsOk?: string[];
+  /**
+   * 2026-09-22 — l'identité du devis, en sous-titre. Depuis que le corps peut
+   * être vide (rien constaté → le titre suffit), le montant du devis n'était
+   * plus visible nulle part dans le bloc principal.
+   */
+  entrepriseName?: string | null;
+  totalHt?: number | null;
   /** Motifs critiques (criteres_rouges) issus du scoring, pour le hard block. */
   criticalReasons?: string[];
   /**
@@ -137,6 +98,9 @@ export default function AvisSurLeDevis({
   comparableCount,
   totalCount,
   portee = null,
+  pointsOk = [],
+  entrepriseName = null,
+  totalHt = null,
   criticalReasons = [],
 }: AvisSurLeDevisProps) {
   // ── Cas de bypass : le devis n'est pas comparable ──────────────────────
@@ -223,84 +187,34 @@ export default function AvisSurLeDevis({
   }
 
   // ── Cas standards ──────────────────────────────────────────────────────
-  const tone = toneFor(conclusion, portee);
-  const isSigner = tone === "calm";
-  const isNegocier = tone === "amber";
-  const isRefuser = conclusion.verdict_decisionnel === "ne_pas_signer";
-  const nonVerifiable = tone === "neutral";
+  const decision = decisionAffichee(conclusion, portee, criticalReasons);
+  const tone: Tone = decision.ton;
+  const isSigner = decision.decision === "signer";
+  const isNegocier = decision.decision === "negocier";
+  const isRefuser = decision.decision === "ne_pas_signer";
+  const title = titreDecision(decision, provisoire);
+  const titreChiffre = !provisoire && decision.montantANegocier !== null && isNegocier;
 
-  // 2026-09-06 (retour Johan, cas Les Artisans de l'Habitat) — « Ce devis nous
-  // paraît négociable » s'affichait sur un devis SANS écart chiffré, SANS
-  // anomalie et SANS le moindre levier de négociation. Le titre promettait une
-  // marge que rien ne soutenait.
-  const aDeQuoiNegocier =
-    (conclusion.leviers ?? []).some((l) => l.objectif === "negocier") ||
-    Boolean(conclusion.verdict_ligne?.marge) ||
-    (conclusion.anomalies?.length ?? 0) > 0;
-
-  /** Les constats nommables — ce sont eux qui autorisent un titre chiffré. */
-  const constats = (conclusion.leviers ?? []).filter(
-    (l) => !LEVIERS_SANS_CONSTAT.has(String((l as { type?: string }).type ?? "")),
-  ).length;
-
-  // ⚠️ CE BLOC EST REMONTÉ ICI DÉLIBÉRÉMENT (2026-09-22). Il vivait plus bas,
-  // après le titre ; depuis que le titre porte le montant, l'y laisser aurait
-  // produit un `ReferenceError` de zone morte temporelle — illisible en
-  // production, où Vite renomme la variable en une lettre. C'est le piège que
-  // ce projet a déjà payé trois fois (cf. CLAUDE.md § TDZ).
-  const surcout = conclusion.surcout_global;
-  // 2026-09-05 (retour Johan, cas EC'eau) — ce chemin ne sert plus que les
-  // conclusions SANS `verdict_ligne` (antérieures à la Phase 4). Il annonçait
-  // « environ X € peuvent être renégociés » sur le seul critère
-  // `surcout_global.max > 0`, sans qu'aucune anomalie ne soit listée en
-  // dessous : le lecteur repartait avec un montant et aucune ligne où aller le
-  // chercher. On exige désormais au moins une anomalie nommée — c'est elle qui
-  // rend le montant vérifiable dans le détail poste par poste.
-  const aUnPosteNomme = Array.isArray(conclusion.anomalies) && conclusion.anomalies.length > 0;
-  const hasMargin = !isSigner && surcout && surcout.max > 0 && aUnPosteNomme;
-  const midRaw = hasMargin ? (surcout.min + surcout.max) / 2 : 0;
-  const midSoft = hasMargin ? softRound(midRaw) : 0;
-
-  // 🔴 2026-09-22 — LE TITRE « demande quelques clarifications » DISPARAÎT.
-  // Il annonçait une action sans jamais pouvoir la nommer, et se faisait
-  // démentir trois lignes plus bas par « rien de significatif à négocier ».
-  // Désormais : ou bien nous pouvons nommer (et le titre le dit), ou bien nous
-  // n'avons pas pu vérifier (et le titre le dit aussi). Jamais d'entre-deux.
-  // 🔴 2026-09-22 — LE TITRE PORTE LE MONTANT, PAS L'ADJECTIF.
-  // « Le temps d'attention est de quelques secondes, le message principal doit
-  // être visible en premier » (Johan). « Ce devis nous paraît négociable »
-  // oblige à lire la phrase suivante pour savoir de combien on parle ; le
-  // montant, lui, se retient. Le reste de la carte devient la justification.
-  //
-  // ⚠️ Jamais de chiffre en `provisoire` : tant que l'expert n'a pas tranché,
-  // la page ne chiffre pas (règle du 30/08). Et jamais de chiffre sans poste
-  // nommé pour le porter (règle du 05/09) — `hasMargin` l'exige déjà.
-  //
-  // ⚠️ SANS `softRound`, ET C'EST LE POINT. La première version affichait
-  // « Environ 1 100 € » en titre quand le détail sommait 726 + 336 = 1 062 € :
-  // deux chiffres pour un seul fait, le défaut même qu'on corrige. Depuis le
-  // retrait du coefficient ×1,3 (15/09) le montant EST la somme des postes
-  // nommés — l'arrondir le décroche du détail, et le lecteur qui additionne ne
-  // retombe plus sur le chiffre annoncé.
-  const titreChiffre = !provisoire && hasMargin && surcout!.max >= 300;
-  const montantTitre =
-    surcout && surcout.min === surcout.max
-      ? fmtEUR(surcout.max)
-      : `${fmtEUR(surcout?.min ?? 0)} à ${fmtEUR(surcout?.max ?? 0)}`;
-
-  const title = isRefuser
-    ? "Ce devis présente plusieurs points qui méritent d'être clarifiés avant signature."
-    : nonVerifiable
-    ? "Nous n'avons pas pu vérifier les prix de ce devis."
-    : isNegocier
-    ? titreChiffre
-      ? `Environ ${montantTitre} semblent au-dessus du marché.`
-      : aDeQuoiNegocier
-      ? "Ce devis nous paraît négociable."
-      : constats === 1
-      ? "Un point à sécuriser avant de signer."
-      : `${constats} points à sécuriser avant de signer.`
-    : "Ce devis nous paraît cohérent.";
+  /**
+   * Identité du devis — qui, combien. Une ligne discrète sous le titre.
+   *
+   * ⚠️ DÉCLARÉ AVANT `bodyText`, ET CE N'EST PAS UN DÉTAIL DE STYLE. `bodyText`
+   * le lit pour couper le montant en doublon ; placé après, il produisait un
+   * `ReferenceError: Cannot access 'sousTitre' before initialization` — le
+   * piège de zone morte temporelle, quatrième occurrence dans ce projet.
+   * ⚠️ Les 601 tests unitaires ne l'ont PAS vu : c'est l'aperçu qui rend
+   * réellement le composant (`scripts/preview-hero-analyse.mts`) qui l'a
+   * attrapé. Seule la page montre ce genre de défaut.
+   */
+  const sousTitre =
+    [
+      entrepriseName?.trim() || null,
+      typeof totalHt === "number" && totalHt > 0
+        ? `${Math.round(totalHt).toLocaleString("fr-FR")} € HT`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || null;
 
   // Phrase explicative (une, courte)
   const bodyText = (() => {
@@ -317,48 +231,32 @@ export default function AvisSurLeDevis({
       const attente = "l'écart de prix est en cours de vérification par notre expert : nous préférons ne pas avancer de montant tant qu'il n'est pas confirmé.";
       return montant ? `${montant} — ${attente}` : attente.charAt(0).toUpperCase() + attente.slice(1);
     }
-    // 🔴 2026-09-22 — EN ÉTAT NON VÉRIFIABLE, ON NE REPREND PAS `vl.resume`.
+    // 🔴 2026-09-22 — QUAND RIEN N'EST CONSTATÉ, ON NE REPREND PAS `vl.resume`.
     // `leviersBuilder` y écrit « quelques prestations méritent une
     // clarification avec l'artisan avant signature » (branche « décision
-    // non-signer sans signal dominant identifié ») : c'est ce texte qui, sous
-    // l'ancien titre, laissait croire qu'il y avait quelque chose à demander.
-    // Or il n'y a rien à demander — il y a quelque chose que NOUS ne savons
-    // pas. On compose donc ici, avec la portée, qui est l'information juste.
-    if (nonVerifiable) {
-      const rien = (portee?.compares ?? 0) === 0;
-      return rien
-        ? "Aucune prestation de ce devis n'a d'équivalent assez proche dans nos références pour que nous puissions opposer un prix. Ce n'est pas un signe que le prix est mauvais : c'est que nous ne pouvons pas l'affirmer."
-        : "Nous avons des tarifs approchants sur plusieurs postes, mais aucun assez proche pour vous donner un chiffre à défendre face à l'artisan. Ce n'est pas un signe que le prix est mauvais : c'est que nous ne pouvons pas l'affirmer.";
-    }
+    // non-signer sans signal dominant identifié ») : c'est ce texte qui
+    // laissait croire qu'il y avait quelque chose à demander, alors que le bloc
+    // suivant annonçait « rien de significatif à négocier ». Quand nous n'avons
+    // rien trouvé, le titre suffit : le corps dit ce que nous AVONS vérifié.
+    if (isSigner) return null;
     if (vl?.resume) {
-      // ⚠️ Si le TITRE porte déjà le montant, on ne le répète pas ici : « Environ
-      // 1 062 € semblent au-dessus du marché » suivi de « Marge de négociation
-      // estimée : environ 1 062 € » fait lire deux fois le même chiffre et
-      // donne l'impression de deux faits distincts.
-      return vl.marge && !titreChiffre ? `${vl.resume} Marge de négociation estimée : ${vl.marge}.` : vl.resume;
+      // ⚠️ DEUX DOUBLONS À COUPER ICI, et les deux se voyaient à l'écran.
+      //
+      // 1. `vl.resume` commence par « 10 746 € HT — … ». Depuis que le
+      //    sous-titre porte ce montant, le laisser le fait lire deux fois à
+      //    trois centimètres d'intervalle.
+      // 2. Si le TITRE porte le montant à négocier, « Marge de négociation
+      //    estimée : environ 1 062 € » le répète une troisième fois — et deux
+      //    occurrences du même chiffre se lisent comme deux faits distincts.
+      const resume = sousTitre
+        ? vl.resume.replace(/^\s*[\d\s  .,]+€\s*(?:HT|TTC)?\s*—\s*/i, "")
+        : vl.resume;
+      const phrase = resume.charAt(0).toUpperCase() + resume.slice(1);
+      return vl.marge && !titreChiffre ? `${phrase} Marge de négociation estimée : ${vl.marge}.` : phrase;
     }
     const base = (conclusion.phrase_intro || "").trim();
-    if (isSigner) {
-      // Nous ne parlons pas d'écart quand tout est cohérent — silence assumé.
-      return base || "Le prix, l'entreprise et les conditions de paiement sont dans les habitudes du métier.";
-    }
-    if (isNegocier && hasMargin) {
-      // Ton adapté au montant absolu : dire « prix global raisonnable » sur
-      // une négo de 6 800 € n'est pas cohérent, on tempère selon l'ordre
-      // de grandeur du chiffre.
-      //   < 1 000 €   → ton soft (petite négo)
-      //   1 000-3 000 → ton neutre
-      //   > 3 000 €   → ton ferme (négo significative)
-      if (midSoft >= 3000) {
-        return `Plusieurs prestations semblent nettement au-dessus des habitudes du marché. Nous estimons qu'environ ${fmtEUR(midSoft)} peuvent être renégociés.`;
-      }
-      if (midSoft >= 1000) {
-        return `Quelques prestations semblent au-dessus des habitudes du marché. Environ ${fmtEUR(midSoft)} peuvent être renégociés.`;
-      }
-      return `Le prix global reste raisonnable, mais quelques prestations semblent au-dessus des habitudes du marché. Aux alentours de ${fmtEUR(midSoft)} peuvent être ouverts à la discussion.`;
-    }
     if (isNegocier) {
-      return base || "Quelques prestations méritent d'être discutées avec l'artisan avant de signer.";
+      return base || "Le détail des points à discuter est juste en dessous.";
     }
     if (isRefuser) {
       return base || "Plusieurs points nous interpellent et méritent une clarification avant tout engagement.";
@@ -366,27 +264,31 @@ export default function AvisSurLeDevis({
     return base;
   })();
 
-  // 🔴 2026-09-22 — LA PORTÉE REMPLACE L'ANCIENNE « LIGNE DE COUVERTURE ».
+  // 🔴 2026-09-22 (retour Johan) — « LES AUTRES RECHERCHES DOIVENT ÊTRE
+  // VALORISÉES ». Mesuré sur 30 jours : les devis dont nous ne savons pas
+  // comparer les prix portent **14 points vérifiés en médiane** — parfois 45 —
+  // et l'ancienne page n'en montrait aucun en tête. Elle titrait sur ce que
+  // nous ne savions pas, en taisant tout ce que nous avions établi.
   //
-  // Celle-ci faisait deux à trois phrases et se lisait comme une excuse
-  // (« Nous avons comparé au marché tout ce que notre référentiel couvre. Sur
-  // le reste, nous n'avons pas de prix à opposer — un second devis reste le
-  // meilleur comparatif… »). Pire : sa branche principale dépendait de
-  // `comparableCount`/`totalCount`, que `AnalysisResult` n'a JAMAIS passées —
-  // elle ne s'affichait donc que par `comparison_indicative`, au hasard des
-  // analyses, et sans jamais donner de compte.
+  // ⚠️ `pointsVerifies` est IMPORTÉE, jamais recopiée : elle porte des gardes
+  // chèrement acquises (pas d'assurance seulement mentionnée — 20/08 ; pas de
+  // réputation sous dix avis — 06/09 ; pas d'entreprise de moins de trois ans
+  // présentée comme établie).
+  const verifies = pointsVerifies(pointsOk, 3);
+
+  // 🔴 2026-09-22 (retour Johan) — LE « X SUR Y » NE S'AFFICHE PLUS.
   //
-  // Elle devient un FAIT VÉRIFIABLE, en une ligne, avec le renvoi vers l'endroit
-  // où le lecteur peut le contrôler : « 6 des 9 prestations » en tête doit se
-  // retrouver ligne à ligne dans le détail — c'est `porteeAnalyse` qui le
-  // garantit, en appliquant la même règle que `BlockPrixMarche`.
+  // *« Si le devis comporte 50 lignes et que nous en avons comparé 37,
+  // l'utilisateur n'a pas besoin de le savoir. »* C'est notre mécanique, pas sa
+  // décision — exactement le défaut du 13/09, où le message décrivait notre
+  // fonctionnement en prétendant décrire le devis.
   //
-  // ⚠️ La liste des postes sans référence n'est plus reprise ici. Elle
-  // apparaissait AVANT que le lecteur ait reçu sa réponse, et se lisait comme
-  // un aparté (« on nous parle de nos références, alors qu'on attend encore de
-  // savoir quoi faire »). Ces postes sont nommés là où ils comptent : dans le
-  // détail, chacun sur sa carte.
-  const ligneDePortee = phrasePortee(portee);
+  // Reste le FAIT qui le concerne : nous ne nous prononçons pas sur ses prix.
+  // Une ligne, avec le renvoi vers l'endroit où il peut le vérifier.
+  //
+  // ⚠️ Jamais en rouge : sur un devis où l'entreprise pose problème, le prix
+  // n'est pas la question.
+  const reservePrix = !decision.prixVerifies && !isRefuser;
 
   // 🟢 2026-08-29 (retour Johan, devis 25030) — quand un expert corrige une
   // analyse, il RETIRE ce qui était faux ; sans ce bloc, la page ne gagnait
@@ -402,7 +304,12 @@ export default function AvisSurLeDevis({
   return (
     <HeroCard tone={tone}>
       <Title>{title}</Title>
-      <Body>{bodyText}</Body>
+      {sousTitre && (
+        <p className="mt-2 text-[14px] text-foreground/55">{sousTitre}</p>
+      )}
+      {/* 2026-09-22 — quand rien n'est constaté, le titre suffit : on ne
+          meuble pas. Le bloc « Vérifié » dit ce que nous avons établi. */}
+      {bodyText && <Body>{bodyText}</Body>}
       {expertMessage && (
         <div className="mt-5 rounded-lg border border-foreground/15 bg-background/60 p-4">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-foreground/60">
@@ -413,16 +320,39 @@ export default function AvisSurLeDevis({
           </p>
         </div>
       )}
-      {ligneDePortee && (
-        <p className="mt-5 border-t border-foreground/10 pt-4 text-[13px] leading-relaxed text-foreground/60">
-          {ligneDePortee}{" "}
-          <a
-            href="#detail-postes"
-            className="whitespace-nowrap font-medium text-foreground/75 underline decoration-foreground/25 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
-          >
-            Voir le détail poste par poste ↓
-          </a>
-        </p>
+      {(verifies.length > 0 || reservePrix) && (
+        <div className="mt-6 border-t border-foreground/10 pt-4 space-y-3">
+          {verifies.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
+                Vérifié
+              </p>
+              {/* ⚠️ Le préfixe « L'entreprise est » n'est PAS répété à chaque
+                  puce : sur trois points il occupait la moitié de la ligne et
+                  noyait le fait. Les fragments de `simplifyPointOk` sont conçus
+                  pour suivre ce préfixe — on le supprime en capitalisant. */}
+              <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                {verifies.map((v, i) => (
+                  <li key={i} className="flex items-baseline gap-1.5 text-[14px] text-foreground/75">
+                    <span aria-hidden="true" className="text-emerald-600">✓</span>
+                    <span>{v.charAt(0).toUpperCase() + v.slice(1)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {reservePrix && (
+            <p className="text-[13px] leading-relaxed text-foreground/55">
+              Nos références ne couvrent pas vos prestations : nous ne nous prononçons pas sur les prix.{" "}
+              <a
+                href="#detail-postes"
+                className="whitespace-nowrap font-medium text-foreground/75 underline decoration-foreground/25 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
+              >
+                Voir le détail ↓
+              </a>
+            </p>
+          )}
+        </div>
       )}
     </HeroCard>
   );
