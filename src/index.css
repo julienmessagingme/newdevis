@@ -356,6 +356,66 @@ input[type='range']:focus::-webkit-slider-thumb {
     }
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     GUIDES TRAVAUX — section d'accueil (design validé 2026-09-23)
+     ═══════════════════════════════════════════════════════════════════
+     Même palette que l'Observatoire juste au-dessus, source de lumière
+     déplacée en haut à GAUCHE : les deux sections se lisent comme un seul
+     territoire, sans être la copie l'une de l'autre. */
+  .guides-section {
+    background: radial-gradient(120% 100% at 20% 0%, #1c2f52 0%, #0a1224 55%, #050810 100%);
+  }
+
+  /* Le bloc texte remonte pour laisser la place au lien, qui apparaît en
+     fondu. ⚠️ `:focus-visible` AUTANT QUE `:hover` : sans lui, l'effet
+     n'existerait que pour la souris et la navigation clavier n'aurait aucune
+     indication de la carte active. */
+  .guide-lire {
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.25s, transform 0.25s;
+  }
+
+  .guide-card:hover .guide-txt,
+  .guide-card:focus-visible .guide-txt {
+    transform: translateY(-26px);
+  }
+
+  .guide-card:hover .guide-lire,
+  .guide-card:focus-visible .guide-lire {
+    opacity: 1;
+    transform: translateY(-6px);
+  }
+
+  /* ⚠️ SUR UN ÉCRAN TACTILE IL N'Y A PAS DE SURVOL — le lien ne serait donc
+     JAMAIS visible, et la moitié du bas de chaque carte resterait vide. On
+     l'affiche d'emblée, texte remonté, dès que le pointeur n'est pas fin.
+     C'est la même mesure que le hero le 14/09 : le mobile est le pire cas et
+     c'est celui qu'on regarde en dernier. */
+  @media (hover: none) {
+    .guide-txt {
+      transform: translateY(-26px);
+    }
+    .guide-lire {
+      opacity: 1;
+      transform: translateY(-6px);
+    }
+  }
+
+  /* Le zoom de la photo et le glissement du texte sont des ornements : on les
+     coupe net si le visiteur a demandé moins de mouvement. Le lien, lui,
+     reste visible — ce n'est pas une animation, c'est une information. */
+  @media (prefers-reduced-motion: reduce) {
+    .guide-card img,
+    .guide-txt,
+    .guide-lire {
+      transition: none;
+    }
+    .guide-card:hover img {
+      transform: none;
+    }
+  }
+
   .score-badge-green {
     @apply bg-score-green-bg text-score-green-foreground border-score-green;
   }

@@ -796,3 +796,21 @@ Demande Johan : « vérifie dans l'ensemble du site qu'il n'y ait pas de contrad
 - [x] ✅ **FAIT LE 2026-09-21 — plus aucune teinte hors charte dans les 9 gabarits e-mail** (décision Johan). Les 3 accents orange du corps (bordure d'encadré, label « Offre réservée », prix) passent de `#F58A06` à `#F97316`. Mesuré avant : l'orange du site **améliore** le contraste sur le fond ambre (2,52:1 contre 2,21:1). ⚠️ **Les deux restent sous le seuil WCAG AA** (4,5:1) — défaut préexistant, non corrigé. Le fond ambre est conservé : le site emploie amber pour ses encadrés et orange-500 pour la marque seule. Détail : `CLAUDE.md`.
 - [x] ✅ **FAIT LE 2026-09-21 — un correctif dans `_shared/` redéploie enfin les fonctions qui en dépendent.** Le workflow `deploy-edge-functions` filtrait `_shared` (à raison : ce n'est pas une fonction) **sans rattraper les fonctions qui l'importent** — or **24 des 29** en importent un fichier. Modifier `_shared/vmd-emails.ts` affichait « Functions to deploy: » vide, **workflow VERT, rien de déployé**. ⚠️ Le cas était documenté dans le workflow depuis juin, mais interprété comme un faux échec rouge à neutraliser : personne n'a vu que **le succès vert était faux aussi**. Un `workflow_dispatch` accepte désormais une liste de fonctions à forcer (validée contre les répertoires réels, passée par l'environnement et non par `${{ }}` — sinon injection shell).
 - [x] ✅ **MESURÉ LE 2026-09-21 — aucun correctif partagé n'est resté dormant définitivement** (demande Johan). Depuis le 21/05, **14 commits** ont touché `_shared/` : **7 ne déployaient rien**, 7 ne déployaient que la fonction touchée. Mais tous ont été **rattrapés** par une modification ultérieure d'une fonction dépendante — délai médian **3 jours**, maximum **17 jours** (`paid_welcome` GMC). ⚠️ Le rattrapage ne doit rien à une garde : il tient au fait que `vmd-email-scheduler`, `gmc-email-scheduler` et `agent-orchestrator` sont souvent modifiées. **Sur une fonction rarement touchée, le correctif serait resté dormant indéfiniment.** Détail : `CLAUDE.md`.
+
+## Section Guides travaux — photos sources trop petites pour Retina (2026-09-23)
+
+Trois des quatre photos du handoff sont insuffisantes pour l'affichage en
+portrait 3/4 sur un écran à haute densité. La carte fait 274×365 px, donc
+548×730 en DPR 2 ; en `object-fit: cover`, le facteur d'agrandissement est :
+
+| photo | source | agrandissement |
+|---|---|---:|
+| comparer | 768×768 | **×0,95 — net** |
+| prix | 1080×476 | ×1,53 |
+| verifier | 626×417 | ×1,75 |
+| artisan | 626×417 | ×1,75 |
+
+⚠️ **Ce n'est pas bloquant** : net en DPR 1, et le voile sombre du bas de carte
+masque la zone la plus regardée. Mais si le flou gêne sur un écran récent, il
+faut redemander au client des fichiers d'au moins **550×730** — recadrés en
+portrait, pas des panoramiques dont on jette les deux tiers.
