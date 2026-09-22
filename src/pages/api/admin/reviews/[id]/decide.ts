@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from "astro";
 import { optionsResponse, jsonOk, jsonError, requireAuth } from "@/lib/api/apiHelpers";
 import { deriveMotifHero } from "@/lib/analyse/motifHero";
+import { verdictContreditLeMessage } from "@/lib/analyse/refusExplicite";
 import {
   sendReviewNotificationEmail,
   journaliserNotificationRevue,
@@ -190,6 +191,34 @@ export const POST: APIRoute = async ({ request, params }) => {
     // sans plus aucun argument à l'appui (retour Johan sur le devis 25030).
     if (typeof body.expert_message === "string" && body.expert_message.trim()) {
       conclusionToPersist.expert_message = body.expert_message.trim();
+    }
+
+    // ── 🔴 LE MESSAGE ET LE VERDICT NE PEUVENT PAS SE CONTREDIRE ───────────
+    // (2026-09-23, cause 2 du défaut ALES)
+    //
+    // `corrected_verdict_*` sont OPTIONNELS : un expert qui rédige un refus
+    // sans toucher les deux sélecteurs laisse le verdict automatique en place.
+    // Mesuré sur les 24 conclusions portant un message : **2** affichaient
+    // « Environ 1 332 € à discuter avec l'artisan » (ALES) ou « Un point à
+    // sécuriser avant de signer » (J.P. ROUX) au-dessus d'un encadré concluant
+    // « En résumé, ne signez pas ce devis en l'état ».
+    //
+    // ⚠️ ON NE DEVINE PAS LAQUELLE DES DEUX SOURCES A RAISON. Dériver un
+    // verdict d'un texte libre ferait basculer un devis en « ne pas signer »
+    // sur une mauvaise lecture — ce produit s'interdit d'accuser sur une
+    // incertitude. On REFUSE la décision et l'expert tranche.
+    // ⚠️ La règle vit dans `refusExplicite.ts`, avec un témoin double bâti sur
+    // les phrases RÉELLES du stock : 5 refus reconnus, 6 conditionnels écartés
+    // (« ne signer aucun document AVANT d'avoir obtenu… » n'est pas un refus).
+    const verdictRetenu =
+      correctedVerdictDecisionnel ?? conclusionToPersist.verdict_decisionnel ?? null;
+    if (verdictContreditLeMessage(conclusionToPersist.expert_message, verdictRetenu)) {
+      return jsonError(
+        "Votre message recommande de ne pas signer, mais le verdict retenu reste « " +
+          `${verdictRetenu ?? "inchangé"} ». La page afficherait donc un titre qui vous contredit. ` +
+          "Passez le verdict décisionnel à « ne pas signer », ou reformulez le message.",
+        400,
+      );
     }
 
     // ── Cohérence Phase 4 après correction (2026-08-29) ────────────────────
