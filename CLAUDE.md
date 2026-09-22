@@ -1906,6 +1906,18 @@ Quatre cartes photo en portrait 3/4 remplacent les quatre cartes emoji sur fond 
 Le fond bleu uni du hero devient une photo (homme lisant un devis) sous un voile navy en sept arrêts : opaque à gauche pour le texte, presque transparent au centre pour révéler le sujet, refermé à droite derrière la carte. **Tout le reste du hero est inchangé** — badge, H1, lede, CTA, carrousel : le handoff ne demandait que le fond.
 
 - 🔴 **RIEN N'EST TÉLÉCHARGÉ SOUS 1024 px, ET C'EST UNE DÉCISION DE VITESSE PRISE SUR MESURE.** Lighthouse avant ce chantier : **desktop 100 / LCP 0,5 s**, mais **mobile 80 / LCP 4,6 s** — déjà au-dessus du seuil « bon » de 2,5 s. Poser une image de plus sur ce chemin aurait aggravé la seule page que voient neuf visiteurs sur dix. Le handoff l'autorise explicitement (« repasser à un fond navy uni si la photo écrase trop le texte en mobile — à arbitrer selon rendu réel ») ; ici l'arbitrage est la vitesse, pas le goût.
+
+  **Mesuré après déploiement, dans les mêmes conditions :**
+
+  | | avant | après |
+  |---|---|---|
+  | desktop — score · LCP | 100 · 0,5 s | **96-97 · 1,0-1,2 s** |
+  | mobile — score · LCP | 80 · 4,6 s | **79 · 4,8 s** |
+  | mobile — poids total | 522 Kio | **521 Kio** |
+
+  Le poids mobile **ne bouge pas** : la photo n'y est jamais demandée, et l'écart de score y est du bruit de mesure. Sur desktop, le LCP double mais **reste largement dans le vert** (seuil 2,5 s) — c'est le prix de la photo, assumé.
+  ⚠️ **UNE SEULE PASSE LIGHTHOUSE NE SUFFIT PAS À CONCLURE.** La première annonçait un FCP desktop passé de 0,4 à 1,0 s et j'ai soupçonné `fetchpriority="high"` de faire passer l'image devant le rendu du texte. **La seconde passe donne 0,5 s** : c'était du bruit, et l'image est bien l'élément LCP (74 Ko, 695 → 932 ms), donc la priorité haute est justifiée.
+  ⚠️ **QUALITÉ WEBP LAISSÉE À 74, ET C'EST UN CHOIX MESURÉ** : descendre à 62 ferait gagner 11 Ko, soit ~35 ms de réseau. Dégrader une image **déjà agrandie de ×1,4 à ×2,1** pour ça serait un mauvais échange.
 - ⚠️ **LA MÉDIA QUERY EST CE QUI GARANTIT LE ZÉRO OCTET.** Un `<img>` masqué par `hidden lg:block` reste téléchargé par certains navigateurs ; une `background-image` déclarée dans un `@media` non satisfait n'est **jamais** demandée. Vérifié à 375 px : `imageTelechargee: false`.
 - 🟢 **`preloadImage` EST UNE PROP DE `BaseLayout`, ET IL FALLAIT QUE ÇA EN SOIT UNE.** Un `<link rel="preload">` écrit dans le corps d'une page Astro **n'est pas hissé dans le `<head>`** : découvert tard, il n'avance rien — or tout l'intérêt d'un preload est d'être lu avant le CSS. ⚠️ Il porte le **même `media`** que la règle CSS, sinon il téléchargerait sur mobile l'image que le CSS refuse d'afficher. Mesuré : l'image démarre à **38 ms**.
 - **Photo : 2 413 Ko de PNG → 75 Ko de WebP (−97 %)**, une seule résolution. ⚠️ **Pas de `srcset`** : la source ne fait que 896 px de large, et la version 1400 px testée pesait 39 Ko de plus **sans un pixel d'information réelle** — c'était un agrandissement. Un `srcset` qui n'offre pas de vraie résolution supplémentaire est du poids déguisé en optimisation.
