@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decisionAffichee, titreDecision, LEVIERS_SANS_CONSTAT } from "./decisionAffichee";
+import { decisionAffichee, titreDecision, LEVIERS_SANS_CONSTAT, motifsBloquants } from "./decisionAffichee";
 import type { ConclusionData } from "./conclusionTypes";
 import type { Portee } from "./porteeAnalyse";
 
@@ -197,5 +197,50 @@ describe("titreDecision — le point fort est NOMMÉ (2026-09-23)", () => {
   it("un fait bloquant ignore l'ancienneté", () => {
     const d = decisionAffichee(c({}), PORTEE_VIDE, ["entreprise radiée"], [NOTE], 25);
     expect(titreDecision(d)).toBe("Ne signez pas en l'état.");
+  });
+});
+
+describe("la décision de l'expert prime sur les critères du moteur (2026-09-23)", () => {
+  const ROUGES = ["Acompte cumulé supérieur à 50% demandé avant démarrage (80%)"];
+  const AVEC_EXPERT = (verdict: string) =>
+    c({
+      verdict_decisionnel: verdict as never,
+      expert_message: "Après analyse par notre expert, les prix sont cohérents et l'entreprise sérieuse.",
+    } as never);
+
+  it("un expert qui valide lève le hard block", () => {
+    // Devis SOLTANI : l'expert met « signer » et écrit que les prix sont
+    // cohérents ; la page titrait « Nous vous invitons à ne pas signer ».
+    // `decide.ts` n'écrit jamais `score` ni `raw_text.scoring`, donc le
+    // critère rouge survivait à la correction et l'écrasait.
+    const d = decisionAffichee(AVEC_EXPERT("signer"), PORTEE_PLEINE, ROUGES);
+    expect(d.decision).not.toBe("ne_pas_signer");
+    expect(motifsBloquants(AVEC_EXPERT("signer"), ROUGES)).toEqual([]);
+  });
+
+  it("TÉMOIN — un expert qui MAINTIENT le refus garde son hard block", () => {
+    const d = decisionAffichee(AVEC_EXPERT("ne_pas_signer"), PORTEE_PLEINE, ROUGES);
+    expect(d.decision).toBe("ne_pas_signer");
+    expect(motifsBloquants(AVEC_EXPERT("ne_pas_signer"), ROUGES)).toEqual(ROUGES);
+  });
+
+  it("TÉMOIN — sans relecture humaine, le critère bloque TOUJOURS", () => {
+    // Le cas de loin le plus fréquent : 32 analyses du stock portent un
+    // critère rouge sans correction experte. En lever un seul serait la pire
+    // régression possible sur ce chemin.
+    const d = decisionAffichee(c({ verdict_decisionnel: "signer" }), PORTEE_PLEINE, ROUGES);
+    expect(d.decision).toBe("ne_pas_signer");
+    expect(motifsBloquants(c({}), ROUGES)).toEqual(ROUGES);
+  });
+
+  it("un message VIDE ne lève rien — c'est la relecture qui compte, pas le champ", () => {
+    const vide = c({ verdict_decisionnel: "signer", expert_message: "   " } as never);
+    expect(motifsBloquants(vide, ROUGES)).toEqual(ROUGES);
+  });
+
+  it("`signer_avec_negociation` est aussi une validation", () => {
+    // L'expert dit « négociez », pas « ne signez pas » : le hard block, qui
+    // affirme l'inverse, n'a pas à s'imposer à sa décision.
+    expect(motifsBloquants(AVEC_EXPERT("signer_avec_negociation"), ROUGES)).toEqual([]);
   });
 });

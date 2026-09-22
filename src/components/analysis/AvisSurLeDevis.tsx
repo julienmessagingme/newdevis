@@ -14,7 +14,7 @@
 
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 import type { Portee } from "@/lib/analyse/porteeAnalyse";
-import { decisionAffichee, titreDecision } from "@/lib/analyse/decisionAffichee";
+import { decisionAffichee, titreDecision, motifsBloquants } from "@/lib/analyse/decisionAffichee";
 import { pointsVerifies } from "@/lib/analyse/preparationBuilder";
 
 /**
@@ -216,13 +216,18 @@ export default function AvisSurLeDevis({
   }
 
   // ── Hard block prioritaire (entreprise radiée, IBAN suspect, etc.) ─────
-  if (criticalReasons.length > 0) {
+  // 🔴 2026-09-23 — SAUF SI UN EXPERT A RELU ET TRANCHÉ AUTREMENT. La règle
+  // vit dans `decisionAffichee`, elle est IMPORTÉE et jamais recopiée : une
+  // condition locale ferait re-diverger le bandeau et la décision au premier
+  // ajustement (l'incident du 13/05).
+  const motifsRetenus = motifsBloquants(conclusion, criticalReasons);
+  if (motifsRetenus.length > 0) {
     return (
       <HeroCard tone="alert">
         <Title>Nous vous invitons à ne pas signer sans clarification.</Title>
         <Body>
           <ul className="mt-1 space-y-1.5 list-none pl-0">
-            {criticalReasons.slice(0, 3).map((r, i) => (
+            {motifsRetenus.slice(0, 3).map((r, i) => (
               <li key={i} className="flex gap-2 text-[15px] leading-relaxed">
                 <span aria-hidden="true" className="text-rose-900/60">•</span>
                 <span>{r}</span>

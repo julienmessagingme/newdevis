@@ -125,9 +125,61 @@ export function alertesDeConstat(alertes: string[]): string[] {
 }
 
 /**
+ * 🔴 2026-09-23 — QUAND UN EXPERT A RELU ET TRANCHÉ, SA DÉCISION PRIME SUR LES
+ * CRITÈRES DU MOTEUR.
+ *
+ * `decide.ts` n'écrit QUE `review_status`, `review_notes`, `reviewed_at`,
+ * `reviewed_by` et `conclusion_ia` — **jamais `score` ni `raw_text.scoring`**
+ * (vérifié dans le code). Les `criteres_rouges` survivent donc intacts à toute
+ * correction, et comme ils déclenchent un hard block prioritaire, ils écrasent
+ * le verdict que l'expert vient de poser.
+ *
+ * Cas mesuré : sur le **devis SOLTANI**, l'expert a mis `verdict_decisionnel =
+ * "signer"` et écrit « prix cohérents… particulièrement compétitif » — et la
+ * page titrait **« Nous vous invitons à ne pas signer sans clarification »**.
+ * Son critère rouge « acompte cumulé 80 % » est un artefact PÉRIMÉ, contredit
+ * par les alertes du même scoring (« Acompte modéré (40 %) ») et par la règle
+ * du 03/09 : 40 % à la livraison du matériel est une contrepartie réelle.
+ *
+ * ⚠️ RIEN N'EST PERDU EN SE TAISANT : sur ce devis l'acompte reste porté par
+ * le levier `acompte_livraison` (« Exigez la preuve de livraison avant de
+ * verser les 40 % ») et les comptes opaques par les alertes. Vérifié avant
+ * livraison, pas supposé.
+ *
+ * ⚠️ ET LA GARDE EST ÉTROITE, DÉLIBÉRÉMENT. Il faut **un message d'expert**
+ * (écrit uniquement par l'écran de revue, donc preuve d'une relecture humaine)
+ * ET **un verdict qui n'est pas un refus**. Un expert qui maintient
+ * « ne pas signer » garde son hard block, et les **32 analyses à critère rouge
+ * sans correction experte** ne sont pas touchées. Sur le stock : 1 seule carte
+ * change.
+ */
+export function expertAValideMalgreLesCriteres(conclusion: ConclusionData): boolean {
+  const message = typeof (conclusion as { expert_message?: unknown }).expert_message === "string"
+    ? ((conclusion as { expert_message?: string }).expert_message ?? "").trim()
+    : "";
+  return message.length > 0 && conclusion.verdict_decisionnel !== "ne_pas_signer";
+}
+
+/**
+ * Les motifs qui bloquent RÉELLEMENT la signature, une fois la décision de
+ * l'expert prise en compte.
+ *
+ * ⚠️ IMPORTÉE PAR `AvisSurLeDevis` POUR SON HARD BLOCK D'AFFICHAGE, jamais
+ * recopiée : si le composant gardait sa propre condition, le bandeau et la
+ * décision re-divergeraient au premier ajustement — l'incident du 13/05.
+ */
+export function motifsBloquants(
+  conclusion: ConclusionData,
+  criticalReasons: string[],
+): string[] {
+  return expertAValideMalgreLesCriteres(conclusion) ? [] : criticalReasons;
+}
+
+/**
  * @param criticalReasons Les `criteres_rouges` du scoring. Ils priment sur
  *        tout : une entreprise en liquidation ne devient pas verte parce que
- *        ses prix sont corrects.
+ *        ses prix sont corrects. **Sauf si un expert a relu et tranché
+ *        autrement** — cf. `motifsBloquants`.
  * @param alertes Les alertes du scoring. Seules les spécifiques comptent.
  * @param ancienneteAnnees Âge de l'entreprise, pour nommer le point fort dans
  *        le titre. Le produit le SAIT et ne le disait nulle part : mesuré,
@@ -157,8 +209,8 @@ export function decisionAffichee(
     ancienneteAnnees: typeof ancienneteAnnees === "number" && ancienneteAnnees >= 5 ? ancienneteAnnees : null,
   };
 
-  // 1. Un fait bloquant prime sur tout le reste.
-  if (criticalReasons.length > 0 || conclusion.verdict_decisionnel === "ne_pas_signer") {
+  // 1. Un fait bloquant prime sur tout le reste — sauf si un expert l'a levé.
+  if (motifsBloquants(conclusion, criticalReasons).length > 0 || conclusion.verdict_decisionnel === "ne_pas_signer") {
     return { decision: "ne_pas_signer", ton: "alert", ...base };
   }
 
