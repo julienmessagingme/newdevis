@@ -427,8 +427,17 @@ const jsonLd = {
       inset: 0;
       background-image: url("/images/hero-devis.webp");
       background-size: cover;
-      /* 62 % cadre le sujet dans la zone éclaircie du voile — ni sous le
-         texte à gauche, ni coupé par la carte à droite. */
+      /* 🔴 LE 62 % EST INERTE, ET C'EST MESURÉ — ne pas le régler en croyant
+         recadrer. La source est un PORTRAIT 896×1200 (ratio 0,75) posée dans
+         un hero en paysage : `cover` cale sur la LARGEUR, donc l'image occupe
+         exactement les 100 % et il n'y a aucun débord horizontal à faire
+         glisser. Pour que l'axe X reprenne un sens, il faudrait un hero de
+         plus de 1 928 px de haut à 1 440 px de large. Seul le `center`
+         vertical agit : il garde la bande source 28,5 %→71,5 %, c'est-à-dire
+         du front jusqu'au haut du devis tenu en main.
+         La valeur est conservée telle que le handoff la donne, pour le jour
+         où une source PAYSAGE arrivera (cf. `TODO.md` § Hero) — elle
+         redeviendra alors le cadrage prévu. */
       background-position: 62% center;
     }
     .vmd-hero-photo::after {

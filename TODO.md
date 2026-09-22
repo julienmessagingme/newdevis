@@ -826,3 +826,23 @@ dès 82 % à droite, donc le flou ne porte que sur la bande centrale, là où le
 sujet apparaît. Si cela gêne, demander au client une source d'au moins
 **1920 px de large**, cadrée en paysage — la photo actuelle est en portrait,
 et `cover` n'en montre qu'un tiers de la hauteur.
+
+🔴 **ET LE FORMAT PORTRAIT REND LE CADRAGE HORIZONTAL IMPOSSIBLE — mesuré sur
+le rendu de production (capture 1440×920, 2026-09-23).** `cover` cale sur la
+largeur, l'image occupe exactement les 100 %, il n'y a **aucun débord
+horizontal à faire glisser** : le `background-position: 62%` du handoff est
+**inerte**. Pour qu'il reprenne un sens, le hero devrait faire plus de
+**1 928 px de haut** à 1 440 de large. Le commentaire du code qui affirmait
+l'inverse a été corrigé.
+
+**Conséquence, et elle est visible** : le sujet tombe entre **36 % et 52 %** de
+la largeur, alors que le texte va jusqu'à **47,6 %** (la ligne « Entreprise
+vérifiée — … certifications RGE »). Les deux se recouvrent sur 11 points, et
+c'est le voile qui arbitre : à 36 % il est à ~0,95 d'opacité, à 52 % à ~0,32.
+**La moitié gauche du visage est donc volontairement noyée pour que le H1
+reste lisible** — ce n'est pas un défaut de réglage, c'est le prix du
+recouvrement. Éclaircir les arrêts du voile rendrait le titre illisible.
+La carte, elle, démarre à 756 px : elle affleure la main sans la couper.
+
+**Le seul vrai remède est la source paysage** ci-dessus, avec le sujet cadré à
+droite. Tant qu'elle n'existe pas, ne pas « régler » le voile ni le `62 %`.
