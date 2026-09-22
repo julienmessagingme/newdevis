@@ -18,6 +18,7 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConclusionIA } from "@/hooks/useConclusionIA";
 import AvisSurLeDevis from "./AvisSurLeDevis";
+import type { Portee } from "@/lib/analyse/porteeAnalyse";
 import LeviersNegociation from "./LeviersNegociation";
 import PreparezVotreRendezVous from "./PreparezVotreRendezVous";
 import PourquoiCetAvis from "./PourquoiCetAvis";
@@ -32,6 +33,12 @@ interface Props {
   criticalReasons?: string[];
   comparableCount?: number | null;
   totalCount?: number | null;
+  /**
+   * 2026-09-22 — sur quoi nous nous sommes prononcés (`porteeAnalyse`). Même
+   * règle que le détail poste par poste : le compte annoncé en tête doit s'y
+   * retrouver ligne à ligne, sinon on reconstruit la divergence qu'on corrige.
+   */
+  portee?: Portee | null;
   /** 2026-08-29 — seuil du test « financement » (≥ 5 000 € HT). */
   totalHt?: number | null;
   /**
@@ -54,6 +61,7 @@ export default function AvisEtPreparation({
   criticalReasons = [],
   comparableCount,
   totalCount,
+  portee = null,
   totalHt,
   provisoire = false,
   onVerdictReady,
@@ -107,6 +115,7 @@ export default function AvisEtPreparation({
           conclusion={conclusion}
           comparableCount={comparableCount}
           totalCount={totalCount}
+          portee={portee}
           criticalReasons={criticalReasons}
           provisoire={provisoire}
         />
@@ -125,6 +134,7 @@ export default function AvisEtPreparation({
         conclusion={conclusion}
         comparableCount={comparableCount}
         totalCount={totalCount}
+        portee={portee}
         criticalReasons={criticalReasons}
         provisoire={provisoire}
       />

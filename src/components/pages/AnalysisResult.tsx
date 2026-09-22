@@ -59,6 +59,7 @@ import {
 } from "@/components/analysis";
 import type { DevisSegment } from "@/components/analysis/MultiDevisBlock";
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
+import { porteeAnalyse, type GroupePortee } from "@/lib/analyse/porteeAnalyse";
 // V3.4.23 (2026-05-21) — Simplification UI : 2 blocs retirés pour ne garder que
 // le cœur du verdict (ConclusionIA + Entreprise + Postes collapsé). Imports
 // retirés en même temps pour éviter du code mort.
@@ -724,6 +725,32 @@ const AnalysisResult = () => {
     }
     return [];
   }, [analysis?.conclusion_ia, conclusionIaLive]);
+
+  // 🔴 2026-09-22 (retour Johan, devis JeanBERNARD) — SUR QUOI NOUS SOMMES-NOUS
+  // PRONONCÉS. Le hero annonçait « quelques clarifications » sans jamais
+  // pouvoir les nommer, et le détail montrait un poste vert sur dix : trois
+  // messages, un seul fait. La portée est calculée ici, avec la MÊME règle que
+  // le détail (`referenceOpposable`), pour que le « 1 des 10 » du titre se
+  // retrouve ligne à ligne plus bas.
+  //
+  // ⚠️ Le matériel compte des DEUX côtés : ces postes sont comparés (référence
+  // fabricant) ET affichés en tête du détail. Les omettre annoncerait une
+  // portée plus faible que ce que le lecteur voit — sur un devis de
+  // climatisation, c'est la majorité des lignes.
+  // ⚠️ `prix_unitaire_devis` est UNITAIRE (piège du 2026-09-15) : le montant de
+  // ligne se reconstitue avec la quantité.
+  const porteeAffichee = useMemo(
+    () =>
+      porteeAnalyse(
+        cachedN8NData as GroupePortee[] | undefined,
+        materielVerifie.length,
+        materielVerifie.reduce(
+          (s, m) => s + (Number(m.prix_unitaire_devis) || 0) * (Number(m.quantite) || 0),
+          0,
+        ),
+      ),
+    [cachedN8NData, materielVerifie],
+  );
 
   // V3.5.1 (2026-05-26) — Détection du flag incomplete_quote depuis conclusion_ia.
   // Quand set (devis résumé par lot type Créteil 49 700€ sans détail quantités/PU),
@@ -1563,6 +1590,7 @@ const AnalysisResult = () => {
               alertes={analysis.alertes || []}
               entrepriseName={entrepriseName}
               criticalReasons={criticalReasons}
+              portee={porteeAffichee}
               totalHt={totalHT}
               /* 2026-08-30 — tant que l'expert n'a pas tranché, la page ne
                  chiffre plus l'écart : le bandeau bleu disait « provisoire »
@@ -1646,7 +1674,13 @@ const AnalysisResult = () => {
             Une première version en faisait un bloc séparé au-dessus : « il ne
             faut pas créer 2 espaces alors qu'on répond à la même question ».
             Le prix d'un poste est UNE question. */}
+        {/* 2026-09-22 — cible du renvoi « Voir le détail poste par poste ↓ » du
+            hero. Le compte annoncé en tête (« 1 des 10 prestations ») se
+            vérifie ici, ligne à ligne : sans ce lien, le lecteur reçoit un
+            ratio qu'il ne peut pas contrôler. `scroll-mt` compense le header
+            collant, sinon l'ancre place le titre sous la barre. */}
         {visibleBlocks.includes("prix_marche") && !isHorsScopeBtp && !isIncompleteQuote && (
+          <div id="detail-postes" className="scroll-mt-24">
           <BlockPrixMarche
             materiel={materielVerifie}
             // 2026-09-15 — respecte la règle du 2026-08-30 : en attente de
@@ -1675,6 +1709,7 @@ const AnalysisResult = () => {
               setDeterministicSurvalueCount(survalueCount);
             }}
           />
+          </div>
         )}
 
         {/* ══════════════════════════════════════════════════════

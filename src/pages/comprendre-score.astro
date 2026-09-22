@@ -11,7 +11,7 @@ const analysisId = Astro.url.searchParams.get("analysisId");
 
 <BaseLayout
   title="Comprendre le score de fiabilité | VerifierMonDevis.fr"
-  description="Découvrez comment interpréter le score Feu Vert, Orange ou Rouge de votre devis artisan. Critères d'analyse, actions conseillées et explications."
+  description="Comment lire le verdict de votre devis : vert, gris, orange ou rouge. Ce que chaque couleur dit, ce qu'elle ne dit pas, et les actions conseillées."
   canonical="https://www.verifiermondevis.fr/comprendre-score"
   breadcrumbs={[
     { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
@@ -93,6 +93,17 @@ const analysisId = Astro.url.searchParams.get("analysisId");
             Ce score est une aide à la décision basée sur le devis transmis et des sources publiques.
             Il met en avant des indicateurs de vigilance, <strong class="text-foreground">sans jugement sur l'artisan</strong>.
           </p>
+          <!--
+            2026-09-22 — LA RÈGLE, DITE AVANT LES COULEURS.
+            Sans elle, le gris se lit comme un orange atténué. C'est exactement
+            l'inverse : la couleur ne porte QUE ce que nous avons trouvé sur le
+            devis. Ce que nous n'avons pas pu vérifier est écrit, et reste gris.
+          -->
+          <p class="mt-5 text-base text-muted-foreground max-w-2xl mx-auto border-t border-border pt-5">
+            La couleur porte <strong class="text-foreground">ce que nous avons trouvé</strong>, jamais ce que nous
+            n'avons pas pu vérifier. Quand notre référentiel ne couvre pas vos prestations, nous le disons
+            en gris — <strong class="text-foreground">un doute sur nous n'est pas un doute sur votre devis</strong>.
+          </p>
         </div>
 
         <!-- Score Cards -->
@@ -106,7 +117,7 @@ const analysisId = Astro.url.searchParams.get("analysisId");
                   &#x1F7E2; FEU VERT
                 </h2>
                 <p class="text-lg font-medium text-score-green">
-                  Rien de bloquant identifié
+                  Nous avons vérifié, nous n'avons rien trouvé
                 </p>
               </div>
             </div>
@@ -116,11 +127,15 @@ const analysisId = Astro.url.searchParams.get("analysisId");
                 <ul class="space-y-2">
                   <li class="flex items-start gap-2 text-foreground/80">
                     <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
-                    Le devis est globalement cohérent
+                    Nous avons pu comparer <strong>plus de la moitié du montant</strong> aux prix du marché
                   </li>
                   <li class="flex items-start gap-2 text-foreground/80">
                     <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
-                    Les informations essentielles sont présentes
+                    Aucun écart de prix, aucune clause litigieuse, aucun risque sur l'entreprise
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    Le vert porte sur <strong>ce que nous avons pu vérifier</strong> — le détail poste par poste vous dit exactement quoi
                   </li>
                 </ul>
               </div>
@@ -144,16 +159,23 @@ const analysisId = Astro.url.searchParams.get("analysisId");
             </div>
           </div>
 
-          <!-- FEU ORANGE -->
-          <div class="bg-score-orange-bg border-score-orange/30 border-2 rounded-2xl p-6 md:p-8">
+          <!--
+            GRIS — 2026-09-22.
+            Le quatrième état, et il manquait depuis toujours. « Nous ne savons
+            pas » sortait en ORANGE, comme « nous avons trouvé un écart » :
+            mesuré sur le stock, 28 analyses sur 149 portaient un titre d'alerte
+            sans pouvoir rien nommer. Un doute sur NOUS n'est pas un doute sur
+            LE DEVIS — il s'écrit, il ne se colore pas en alerte.
+          -->
+          <div class="bg-slate-50 border-slate-300/70 border-2 rounded-2xl p-6 md:p-8">
             <div class="flex items-start gap-4 mb-6">
-              <svg class="h-10 w-10 text-score-orange flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+              <svg class="h-10 w-10 text-slate-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
               <div>
-                <h2 class="text-xl md:text-2xl font-bold text-score-orange mb-1">
-                  &#x1F7E0; FEU ORANGE
+                <h2 class="text-xl md:text-2xl font-bold text-slate-700 mb-1">
+                  &#x26AA; GRIS
                 </h2>
-                <p class="text-lg font-medium text-score-orange">
-                  À clarifier avant de signer
+                <p class="text-lg font-medium text-slate-700">
+                  Nous n'avons pas pu vérifier les prix
                 </p>
               </div>
             </div>
@@ -163,7 +185,66 @@ const analysisId = Astro.url.searchParams.get("analysisId");
                 <ul class="space-y-2">
                   <li class="flex items-start gap-2 text-foreground/80">
                     <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
-                    Certains points sont incomplets ou à vérifier
+                    Vos prestations n'ont pas d'équivalent assez proche dans notre référentiel pour qu'un prix soit opposable
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    <strong>Ce n'est pas un signe que le prix est mauvais</strong> — c'est que nous ne pouvons pas l'affirmer
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    Le reste de l'analyse reste valable : entreprise, conditions de paiement, clauses
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h3 class="font-semibold text-foreground mb-3">Actions conseillées</h3>
+                <ul class="space-y-2">
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    Sur un montant qui compte pour vous, un second devis sur le même périmètre est le seul comparatif réel
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    Lisez le détail poste par poste : il vous dit exactement ce que nous avons pu comparer, et ce que nous n'avons pas pu
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    Appuyez-vous sur ce que nous avons vérifié : l'entreprise et les conditions de paiement
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- FEU ORANGE -->
+          <div class="bg-score-orange-bg border-score-orange/30 border-2 rounded-2xl p-6 md:p-8">
+            <div class="flex items-start gap-4 mb-6">
+              <svg class="h-10 w-10 text-score-orange flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+              <div>
+                <h2 class="text-xl md:text-2xl font-bold text-score-orange mb-1">
+                  &#x1F7E0; FEU ORANGE
+                </h2>
+                <p class="text-lg font-medium text-score-orange">
+                  Nous avons trouvé quelque chose, et nous le nommons
+                </p>
+              </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6">
+              <div>
+                <h3 class="font-semibold text-foreground mb-3">Ce que cela signifie</h3>
+                <ul class="space-y-2">
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    Un écart de prix chiffré poste par poste, ou un point précis à sécuriser (acompte, clause, assurance)
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    <strong>Nous ne mettons jamais d'orange sans pouvoir dire pourquoi</strong> — si nous n'avons rien trouvé, la couleur ne peut pas être orange
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    Ce n'est pas un motif de refus : c'est un motif de discussion
                   </li>
                 </ul>
               </div>
@@ -328,6 +409,11 @@ const analysisId = Astro.url.searchParams.get("analysisId");
               <p>
                 <strong class="text-score-orange">Critères majeurs</strong> (prix au-dessus du marché, acompte élevé, réputation faible…)
                 → génèrent des vigilances pouvant mener à un <strong class="text-score-orange">FEU ORANGE</strong>.
+              </p>
+              <p>
+                <strong class="text-slate-600">L'absence de référence</strong> n'est pas un critère : c'est une limite de notre
+                analyse. Elle ne dégrade jamais la couleur — elle donne un <strong class="text-slate-600">GRIS</strong>,
+                qui dit ce que nous n'avons pas pu comparer.
               </p>
               <p>
                 <strong class="text-score-green">Critères de confort</strong> (RGE, QUALIBAT, ancienneté…)

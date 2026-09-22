@@ -77,3 +77,6 @@ rapport-sourcage*.md
 # montants, entreprise. Le dépôt est public : même règle que l'étalon du 10/09
 # et que les feuilles de relecture.
 sauvegarde-conclusion-*.json
+
+# Aperçus générés par scripts/preview-*.mts (rendus de vérification, pas des sources)
+scripts/out/
