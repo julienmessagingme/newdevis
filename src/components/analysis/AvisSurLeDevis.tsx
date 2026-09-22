@@ -14,8 +14,10 @@
 
 import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 import type { Portee } from "@/lib/analyse/porteeAnalyse";
+import { porteeValorisable } from "@/lib/analyse/porteeAnalyse";
 import { decisionAffichee, titreDecision, motifsBloquants } from "@/lib/analyse/decisionAffichee";
-import { pointsVerifies } from "@/lib/analyse/preparationBuilder";
+import { pointsVerifiesDetail, type PointVerifie } from "@/lib/analyse/preparationBuilder";
+import { objetDeLigne } from "@/lib/analyse/materielReference";
 
 /**
  * Une parenthèse qui rouvre le montant de l'écart : « (environ 12 300 € d'écart
@@ -438,11 +440,15 @@ export default function AvisSurLeDevis({
   // de `verified.anciennete_annees` et doit être composée ici. Placée en
   // premier parce que c'est le fait le plus rassurant qu'on puisse établir
   // sur une entreprise — et celui qu'un particulier cherche en premier.
-  const verifies = [
+  // 🟢 2026-09-23 (validé Johan) — CHAQUE FAIT PORTE SON POIDS.
+  // L'ancienneté est toujours VERTE ici : `decisionAffichee` ne la renseigne
+  // qu'à partir de cinq ans (seuil du 23/09 — présenter « 2 ans » comme un
+  // argument serait de la réassurance fabriquée).
+  const verifies: PointVerifie[] = [
     ...(decision.ancienneteAnnees !== null
-      ? [`Établie depuis ${decision.ancienneteAnnees} ans`]
+      ? [{ libelle: `Établie depuis ${decision.ancienneteAnnees} ans`, ton: "vert" as const }]
       : []),
-    ...pointsVerifies(pointsOk, 3),
+    ...pointsVerifiesDetail(pointsOk, 3),
   ].slice(0, 4);
 
   // 🔴 2026-09-22 (retour Johan) — LE « X SUR Y » NE S'AFFICHE PLUS.
@@ -495,6 +501,24 @@ export default function AvisSurLeDevis({
    */
   const chiffreAffiche = /\d[\d\s  ]*\s*(€|%)/.test(`${title} ${bodyText ?? ""}`);
 
+  /**
+   * 🟢 2026-09-23 (validé Johan) — LA RUBRIQUE SE RETOURNE QUAND NOUS AVONS
+   * VRAIMENT COMPARÉ QUELQUE CHOSE.
+   *
+   * *« Comment gérer quand on vérifie partiellement les prix ? Il faut donner
+   * le maximum de ce qu'on peut donner, et transformer positivement cette
+   * rubrique pour valoriser notre travail de vérification. »*
+   *
+   * Au-dessus du socle mesuré (3 postes nommables ET 20 % du montant, cf.
+   * `porteeValorisable`), on dit d'abord ce qu'on a ÉTABLI — puis la réserve,
+   * qui reste vraie et n'est jamais supprimée.
+   *
+   * ⚠️ LA RÈGLE ET LES POSTES VIENNENT DE `portee`, jamais recalculés ici : la
+   * maquette du 23/09 les dérivait de son côté, et deux calculs pour une seule
+   * question finissent toujours par diverger.
+   */
+  const valorisable = reservePrix && porteeValorisable(portee);
+
   return (
     <HeroCard tone={tone}>
       <Title>{title}</Title>
@@ -519,17 +543,43 @@ export default function AvisSurLeDevis({
           {verifies.length > 0 && (
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
-                Vérifié
+                Ce que nous avons vérifié
               </p>
               {/* ⚠️ Le préfixe « L'entreprise est » n'est PAS répété à chaque
                   puce : sur trois points il occupait la moitié de la ligne et
                   noyait le fait. Les fragments de `simplifyPointOk` sont conçus
-                  pour suivre ce préfixe — on le supprime en capitalisant. */}
-              <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                  pour suivre ce préfixe — on le supprime en capitalisant.
+
+                  🟢 2026-09-23 — UNE LISTE VERTICALE, PLUS UNE GRILLE. Johan :
+                  *« actuellement tout est englobé dans un cadre de couleur, je
+                  verrais plutôt des bullet points avec une séparation entre le
+                  positif et le négatif »*. En ligne, les faits se lisaient comme
+                  une étiquette continue et la distinction vert/gris ne se voyait
+                  pas — c'est précisément elle qui porte l'information ici. */}
+              <ul className="mt-1.5 space-y-1">
                 {verifies.map((v, i) => (
-                  <li key={i} className="flex items-baseline gap-1.5 text-[14px] text-foreground/75">
-                    <span aria-hidden="true" className="text-emerald-600">✓</span>
-                    <span>{v.charAt(0).toUpperCase() + v.slice(1)}</span>
+                  <li
+                    key={i}
+                    className={`flex items-baseline gap-2 text-[14px] leading-relaxed ${
+                      v.ton === "vert" ? "text-foreground/80" : "text-foreground/60"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={v.ton === "vert" ? "font-bold text-emerald-600" : "text-foreground/35"}
+                    >
+                      {v.ton === "vert" ? "✓" : "•"}
+                    </span>
+                    <span>
+                      {v.libelle.charAt(0).toUpperCase() + v.libelle.slice(1)}
+                      {/* Le chiffre qui étaye, quand il existe. C'est la
+                          doctrine du 06/09 : on donne la note et le nombre
+                          d'avis, le lecteur juge — nous ne faisons que refuser
+                          d'en tirer un argument quand elle est moyenne. */}
+                      {v.detail && (
+                        <span className="text-foreground/50"> — {v.detail}</span>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -563,13 +613,86 @@ export default function AvisSurLeDevis({
               ambre : ne pas savoir n'est pas une alerte sur le devis. C'est
               l'invariant du 22/09 (« la couleur ne porte que ce qu'on a
               TROUVÉ »), rendu lisible d'un coup d'œil. */}
-          {reservePrix && (
+          {valorisable && portee && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700/80">
+                Ce que nous avons pu comparer
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {/* ⚠️ `objetDeLigne` EST OBLIGATOIRE ICI, et c'est le rendu qui
+                    l'a montré : les lignes de climatisation portent la fiche
+                    produit entière (« MURAL DAIKIN PERFERA BLUEVOLUTION R32
+                    FTXM20 Très haute performance énergétique A++ Unité… »).
+                    Affichées brutes, elles transforment une phrase qui valorise
+                    notre travail en mur de spécifications — le défaut exact
+                    corrigé le 15/09, à un autre endroit de la page. */}
+                {portee.postesCompares.slice(0, 3).map((p, i) => (
+                  <li
+                    key={i}
+                    className="flex items-baseline gap-2 text-[14px] leading-relaxed text-foreground/80"
+                  >
+                    <span aria-hidden="true" className="font-bold text-emerald-600">✓</span>
+                    <span>{objetDeLigne(p)}</span>
+                  </li>
+                ))}
+                {portee.postesCompares.length > 3 && (
+                  <li className="flex items-baseline gap-2 text-[14px] leading-relaxed text-foreground/60">
+                    <span aria-hidden="true" className="font-bold text-emerald-600">✓</span>
+                    <span>
+                      et {portee.postesCompares.length - 3} autre
+                      {portee.postesCompares.length - 3 > 1 ? "s" : ""} poste
+                      {portee.postesCompares.length - 3 > 1 ? "s" : ""}
+                    </span>
+                  </li>
+                )}
+              </ul>
+              {/* ⚠️ AUCUN RATIO — ni « 4 sur 9 », ni « 48 % ». Le 29/08 a mesuré
+                  que le taux de couverture se lit comme un aveu de faiblesse ;
+                  le 22/09 a retiré le « X sur Y » parce qu'il décrit notre
+                  mécanique et non le devis. On donne les postes, et le MONTANT
+                  COMPARÉ — un fait que le lecteur peut opposer.
+
+                  🔴 MAIS JAMAIS QUAND LA CARTE CHIFFRE DÉJÀ UN ÉCART, et c'est
+                  le filet du 23/09 qui l'a vu, pas la relecture : sur SMPAC la
+                  carte affichait « Environ 2 223 € à discuter » puis « Soit
+                  7 200 € confrontés à nos références » — deux nombres en euros
+                  à quelques centimètres, le second PLUS GRAND que le premier.
+                  Ils décrivent des choses différentes (un écart, une assiette),
+                  mais c'est au lecteur qu'il reviendrait de le démêler.
+                  ⚠️ La maquette validée le 23/09 les affichait tous les deux :
+                  c'est une divergence assumée, pas un oubli. Sur une carte qui
+                  chiffre, le montant actionnable est déjà là ; l'assiette
+                  comparée parle de NOTRE travail, et le 22/09 a tranché que
+                  notre mécanique ne prend pas cette place. Les postes nommés
+                  restent — c'est eux, la valorisation. */}
+              <p className="mt-2 text-[14px] leading-relaxed text-foreground/65">
+                {portee.montantCompare !== null && !chiffreAffiche && (
+                  <>
+                    Soit{" "}
+                    <strong className="font-semibold text-foreground/80">
+                      {Math.round(portee.montantCompare).toLocaleString("fr-FR")} €
+                    </strong>{" "}
+                    de votre devis confrontés à nos références.{" "}
+                  </>
+                )}
+                Sur les autres postes, nous n'avons pas de tarif à opposer — nous ne
+                nous prononçons pas.{" "}
+                <a
+                  href="#detail-postes"
+                  className="whitespace-nowrap font-medium text-foreground/75 underline decoration-foreground/25 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
+                >
+                  Voir le détail ↓
+                </a>
+              </p>
+            </div>
+          )}
+          {reservePrix && !valorisable && (
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
                 Ce que nous ne savons pas
               </p>
-              <p className="mt-1.5 flex items-baseline gap-1.5 text-[14px] leading-relaxed text-foreground/60">
-                <span aria-hidden="true" className="text-foreground/40">○</span>
+              <p className="mt-1.5 flex items-baseline gap-2 text-[14px] leading-relaxed text-foreground/60">
+                <span aria-hidden="true" className="text-foreground/35">○</span>
                 <span>
                   {chiffreAffiche
                     ? "Ce montant porte sur les postes que nous avons pu comparer. Pour les autres, nous n'avons pas de tarif de référence à opposer."

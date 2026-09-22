@@ -12,6 +12,7 @@ import {
   buildPreparationSections,
   extractArtisanFirstName,
   levierQuestion,
+  pointsVerifiesDetail,
 } from "./preparationBuilder";
 import type { ConclusionData } from "./conclusionTypes";
 
@@ -733,5 +734,83 @@ describe("preparationBuilder — garde-fous 2026-09-06", () => {
       [],
     );
     expect(JSON.stringify(assez)).toMatch(/bien notée/i);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🟢 2026-09-23 (validé Johan) — UN FAIT ÉTABLI N'EST PAS UN MÉRITE
+// ═══════════════════════════════════════════════════════════════════════
+
+describe("pointsVerifiesDetail — vert = argument, gris = simple fait", () => {
+  const ton = (pointsOk: string[]) =>
+    Object.fromEntries(pointsVerifiesDetail(pointsOk, 5).map((p) => [p.libelle, p.ton]));
+
+  it("une note ≥ 4,5 est un argument : vert, avec son chiffre", () => {
+    const [p] = pointsVerifiesDetail(["🟢 Bonne réputation en ligne : 4.8/5 (62 avis Google)"], 3);
+    expect(p.ton).toBe("vert");
+    expect(p.libelle).toBe("bien notée par ses clients");
+    expect(p.detail).toBe("4,8/5 sur 62 avis");
+  });
+
+  it("une note sous 4,5 reste AFFICHÉE, mais en gris — on ne la met pas en avant", () => {
+    // Mesuré sur 200 cartes : 18 sur 94 basculent ici (4,0 à 4,3/5). Aucune
+    // n'est masquée — le lecteur voit la note et juge lui-même. C'est la
+    // doctrine du 06/09 : on donne le chiffre sans en tirer un jugement.
+    const [p] = pointsVerifiesDetail(["✓ Réputation en ligne correcte : 4.3/5 (756 avis Google)"], 3);
+    expect(p.ton).toBe("gris");
+    expect(p.libelle).toBe("correctement notée par ses clients");
+    expect(p.detail).toBe("4,3/5 sur 756 avis");
+  });
+
+  it("« immatriculée et en activité » est gris — ce n'est pas un mérite", () => {
+    // Johan, 23/09 : toute entreprise qui facture légalement l'est. C'est un
+    // prérequis, pas un argument.
+    expect(ton(["✓ SIRET vérifié, entreprise active"])).toEqual({
+      "immatriculée et en activité": "gris",
+    });
+  });
+
+  it("une entreprise de 5 ans et plus, elle, est un argument : vert", () => {
+    // ⚠️ Le libellé doit porter « depuis » ou « ancien » pour entrer dans cette
+    // branche — « Entreprise établie : 12 ans d'existence », le libellé que
+    // `render.ts` écrit réellement, n'y entre PAS. Ce n'est pas un défaut de
+    // ce test : le hero compose l'ancienneté depuis `verified.anciennete_annees`
+    // précisément parce qu'elle n'est exploitable dans aucun `points_ok`
+    // (constat du 23/09, vérifié sur le stock).
+    expect(ton(["Entreprise active depuis 2014"])).toEqual({
+      "établie depuis longtemps": "vert",
+    });
+  });
+
+  it("les certifications vérifiées et les conditions de paiement restent vertes", () => {
+    expect(ton(["🟢 Certification RGE vérifiée dans les registres"])).toEqual({
+      "titulaire de certifications professionnelles vérifiées (RGE/Qualibat)": "vert",
+    });
+    expect(ton(["✓ Conditions de paiement claires : acompte 25 %"])).toEqual({
+      "claire sur ses conditions de paiement": "vert",
+    });
+  });
+
+  it("le seuil de dix avis TIENT toujours — témoin de non-régression", () => {
+    // Deux seuils distincts et cumulatifs : le NOMBRE d'avis dit si la moyenne
+    // veut dire quelque chose (06/09), la NOTE si elle est flatteuse (23/09).
+    // Un 5/5 sur un avis n'entre pas, même en gris.
+    expect(
+      pointsVerifiesDetail(
+        ["ℹ️ Note Google 5/5, mais sur 1 avis seulement — trop peu pour en tirer une conclusion."],
+        3,
+      ),
+    ).toEqual([]);
+  });
+
+  it("la phrase de la fiche reste grammaticale avec le libellé gris", () => {
+    // `rappelPourOuvrir` compose « L'entreprise est … » : un libellé mal
+    // choisi produirait « L'entreprise est d'une réputation correcte ».
+    const s = buildPreparationSections(
+      { verdict_global: "dans_la_norme" } as never,
+      ["✓ Réputation en ligne correcte : 4.1/5 (29 avis Google)"],
+      [],
+    );
+    expect(s.rappelPourOuvrir).toBe("L'entreprise est correctement notée par ses clients.");
   });
 });

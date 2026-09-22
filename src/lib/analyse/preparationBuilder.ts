@@ -603,15 +603,70 @@ function extractSeniorityYears(lower: string): number | null {
  * de trois ans présentée comme établie. Les recopier ailleurs, c'est les perdre.
  */
 export function pointsVerifies(pointsOk: string[], max = 3): string[] {
-  const parCle = new Map<string, string>();
+  return pointsVerifiesDetail(pointsOk, max).map((p) => p.libelle);
+}
+
+/**
+ * 🟢 2026-09-23 (validé Johan) — UN FAIT ÉTABLI N'EST PAS FORCÉMENT UN MÉRITE.
+ *
+ * *« Il faut y mettre de la couleur selon si c'est positif, neutre ou négatif.
+ * Ancienneté de 63 ans : vert. Mais si j'ai un avis Google à 5/5, je ne peux
+ * pas le mettre en avant. Immatriculée, c'est du gris — ce n'est pas un
+ * mérite. »*
+ *
+ * Tout était rendu dans le même cadre, avec la même coche verte : une
+ * entreprise simplement inscrite au registre paraissait aussi recommandable
+ * qu'une entreprise de soixante ans. C'est la même confusion que celle
+ * corrigée le 22/09 sur les couleurs du verdict — on affichait au même rang
+ * ce qui rassure et ce qui est seulement vrai.
+ *
+ *   · `vert` — un fait qui plaide POUR l'entreprise, et qu'on peut lui rappeler
+ *   · `gris` — un fait établi qui ne prouve que le minimum légal
+ *
+ * ⚠️ Le gris ne CACHE rien : le fait reste affiché, avec son chiffre. On
+ * refuse seulement de le présenter comme un argument. C'est la doctrine du
+ * 06/09 — « on donne le chiffre sans en tirer un jugement ».
+ */
+export type TonPointVerifie = "vert" | "gris";
+
+export interface PointVerifie {
+  /** Le fragment court, tel que la fiche l'emploie après « L'entreprise est… ». */
+  libelle: string;
+  /** Le chiffre qui l'étaye, quand il existe (« 4,8/5 sur 62 avis »). */
+  detail?: string;
+  ton: TonPointVerifie;
+}
+
+export function pointsVerifiesDetail(pointsOk: string[], max = 3): PointVerifie[] {
+  const parCle = new Map<string, PointVerifie>();
   for (const p of pointsOk ?? []) {
     const simp = simplifyPointOk(p);
-    if (simp && !parCle.has(simp.key)) parCle.set(simp.key, simp.short);
+    if (simp && !parCle.has(simp.key)) {
+      parCle.set(simp.key, { libelle: simp.short, detail: simp.detail, ton: simp.ton });
+    }
   }
   return [...parCle.values()].slice(0, max);
 }
 
-function simplifyPointOk(point: string): { key: string; short: string } | null {
+/**
+ * Note à partir de laquelle une réputation devient un ARGUMENT (décision
+ * Johan, 2026-09-23).
+ *
+ * ⚠️ C'EST UN SECOND SEUIL, IL NE REMPLACE PAS CELUI DE DIX AVIS. Les deux
+ * répondent à des questions différentes : le nombre d'avis dit si la moyenne
+ * VEUT DIRE quelque chose (06/09), la note dit si elle est FLATTEUSE. Un 5/5
+ * sur un avis reste écarté ; un 4,3/5 sur 756 avis est parfaitement fiable —
+ * il est simplement moyen, donc gris.
+ *
+ * Mesuré sur 200 cartes dédupliquées avant livraison : **94 affichent
+ * aujourd'hui « bien notée par ses clients », 76 le restent, 18 passent en
+ * gris** (4,0 à 4,3/5). Aucune n'est masquée.
+ */
+const NOTE_MIN_POUR_VALORISER = 4.5;
+
+function simplifyPointOk(
+  point: string,
+): { key: string; short: string; detail?: string; ton: TonPointVerifie } | null {
   if (NON_POSITIVE_MARKERS.test(point)) return null;
   if (NEGATION_PATTERN.test(point)) return null;
   const lower = point.toLowerCase();
@@ -623,7 +678,11 @@ function simplifyPointOk(point: string): { key: string; short: string } | null {
   // peuvent être revendiquées.
   if (lower.includes("rge") || lower.includes("qualib")) {
     if (/v[ée]rifi/.test(lower)) {
-      return { key: "cert", short: "titulaire de certifications professionnelles vérifiées (RGE/Qualibat)" };
+      return {
+        key: "cert",
+        short: "titulaire de certifications professionnelles vérifiées (RGE/Qualibat)",
+        ton: "vert",
+      };
     }
     return null; // certification seulement mentionnée → pas un fait à rappeler
   }
@@ -639,19 +698,34 @@ function simplifyPointOk(point: string): { key: string; short: string } | null {
     // s'il est absent, on s'abstient — on n'affirme pas sans savoir.
     const nbAvis = lower.match(/(\d+)\s*avis/);
     if (!nbAvis || parseInt(nbAvis[1], 10) < 10) return null;
-    return { key: "avis", short: "bien notée par ses clients" };
+    // 🟢 2026-09-23 — LA NOTE DÉCIDE DE LA COULEUR, le nombre d'avis décidait
+    // déjà de la présence. Sans note lisible on reste prudent : gris.
+    const note = lower.match(/([\d.,]+)\s*\/\s*5/);
+    const valeur = note ? parseFloat(note[1].replace(",", ".")) : null;
+    const detail = valeur !== null
+      ? `${String(note![1]).replace(".", ",")}/5 sur ${nbAvis[1]} avis`
+      : undefined;
+    if (valeur !== null && valeur >= NOTE_MIN_POUR_VALORISER) {
+      return { key: "avis", short: "bien notée par ses clients", detail, ton: "vert" };
+    }
+    return { key: "avis", short: "correctement notée par ses clients", detail, ton: "gris" };
   }
   if (lower.includes("ancien") || lower.includes("depuis")) {
     const n = extractSeniorityYears(lower);
-    if (n !== null && n >= 5) return { key: "anciennete", short: "établie depuis longtemps" };
+    if (n !== null && n >= 5) {
+      return { key: "anciennete", short: "établie depuis longtemps", ton: "vert" };
+    }
     if (n !== null && n < 3) return null; // entreprise jeune : rien à « rappeler »
-    return { key: "anciennete", short: "immatriculée et en activité" };
+    // 3 à 5 ans, ou durée illisible : le registre ne dit que l'existence.
+    return { key: "anciennete", short: "immatriculée et en activité", ton: "gris" };
   }
   if (lower.includes("siret") || lower.includes("actif")) {
-    return { key: "anciennete", short: "immatriculée et en activité" };
+    // « Immatriculée, ce n'est pas un mérite » (Johan) : toute entreprise qui
+    // facture légalement l'est. C'est un prérequis, pas un argument.
+    return { key: "anciennete", short: "immatriculée et en activité", ton: "gris" };
   }
   if (lower.includes("paiement") || lower.includes("acompte") || lower.includes("iban")) {
-    return { key: "paiement", short: "claire sur ses conditions de paiement" };
+    return { key: "paiement", short: "claire sur ses conditions de paiement", ton: "vert" };
   }
   return null;
 }

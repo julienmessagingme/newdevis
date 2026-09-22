@@ -749,6 +749,17 @@ const AnalysisResult = () => {
           (s, m) => s + (Number(m.prix_unitaire_devis) || 0) * (Number(m.quantite) || 0),
           0,
         ),
+        // ⚠️ `ligne` = le libellé DU DEVIS, jamais notre désignation catalogue
+        // (règle du 10/09 : « le titre d'une carte est la ligne du devis »).
+        // Triés par montant décroissant, comme les postes catalogue le sont
+        // dans `porteeAnalyse` : on nomme d'abord ce qui pèse.
+        [...materielVerifie]
+          .sort(
+            (a, b) =>
+              (Number(b.prix_unitaire_devis) || 0) * (Number(b.quantite) || 0) -
+              (Number(a.prix_unitaire_devis) || 0) * (Number(a.quantite) || 0),
+          )
+          .map((m) => String(m.ligne ?? m.designation ?? "")),
       ),
     [cachedN8NData, materielVerifie],
   );

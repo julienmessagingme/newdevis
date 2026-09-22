@@ -92,6 +92,12 @@ const CHOIX = [
   // sur un hard block, `AvisSurLeDevis` retourne tôt. Les leviers y sont
   // désormais rendus, les points d'attention non — à valider.
   { id: "b706085d-4161-4a5c-93d3-8a240855c74d", attendu: "🔴 ROUGE — entreprise RADIÉE (hard block)" },
+  // 🟢 2026-09-23 — LE SECOND ÉTAT DE LA RUBRIQUE RETOURNÉE : ici AUCUN écart
+  // n'est chiffré, donc le montant comparé s'affiche. Sur `8293f838` ci-dessus
+  // (48 %, 4 postes) la rubrique se retourne aussi, mais sans le montant : la
+  // carte chiffre déjà un écart, et deux nombres en euros ne cohabitent pas.
+  // Les deux cas côte à côte rendent cette règle jugeable à l'œil.
+  { id: "cfa75ddc-fb1b-4576-b5e0-e50b43a7db32", attendu: "🟠 ORANGE — rubrique RETOURNÉE, avec montant comparé" },
 ];
 
 const parse = (v: unknown): any => {
@@ -117,7 +123,26 @@ for (const choix of CHOIX) {
   const raw = parse(data.raw_text);
   const groupes = Array.isArray(raw?.n8n_price_data) ? raw.n8n_price_data : [];
   const materiel = Array.isArray((conclusion as any)?.materiel_verifie) ? (conclusion as any).materiel_verifie : [];
-  const portee = porteeAnalyse(groupes, materiel.length, 0);
+  // ⚠️ EXACTEMENT CE QUE `AnalysisResult` PASSE — montant et libellés compris.
+  // L'aperçu tronqué (`porteeAnalyse(groupes, materiel.length, 0)`) annonçait
+  // une portée plus faible que la production et ne pouvait pas montrer la
+  // rubrique retournée : il aurait fait approuver un rendu qui n'existe pas.
+  // C'est la leçon de `preview-review-email.ts` du 11/09.
+  const portee = porteeAnalyse(
+    groupes,
+    materiel.length,
+    materiel.reduce(
+      (s: number, m: any) => s + (Number(m.prix_unitaire_devis) || 0) * (Number(m.quantite) || 0),
+      0,
+    ),
+    [...materiel]
+      .sort(
+        (a: any, b: any) =>
+          (Number(b.prix_unitaire_devis) || 0) * (Number(b.quantite) || 0) -
+          (Number(a.prix_unitaire_devis) || 0) * (Number(a.quantite) || 0),
+      )
+      .map((m: any) => String(m?.ligne ?? m?.designation ?? "")),
+  );
 
   // Exactement ce que `AnalysisResult` construit (lignes 1588-1613).
   const criticalReasons: string[] = (() => {

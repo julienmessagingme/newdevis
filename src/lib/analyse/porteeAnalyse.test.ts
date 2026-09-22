@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   porteeAnalyse,
   porteeSuffisantePourAffirmer,
+  porteeValorisable,
   phrasePortee,
   PORTEE_MIN_POUR_AFFIRMER_PCT,
   type GroupePortee,
@@ -29,7 +30,7 @@ describe("porteeAnalyse — le compte du hero EST celui du détail", () => {
       { job_type_label: "Vide", devis_lines: [], devis_total_ht: 100, vectorial: { confidence: "high" } },
       g("high", 100, "Autre"),
     ]);
-    expect(p).toEqual({ compares: 1, total: 1, pctMontant: 100 });
+    expect(p).toMatchObject({ compares: 1, total: 1, pctMontant: 100 });
   });
 
   it("reproduit le cas JeanBERNARD : un poste opposable sur dix", () => {
@@ -131,5 +132,78 @@ describe("phrasePortee — un fait, en une ligne", () => {
 
   it("reste silencieuse sans portée", () => {
     expect(phrasePortee(null)).toBeNull();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🟢 2026-09-23 (validé Johan) — QUAND PEUT-ON VALORISER CE QU'ON A COMPARÉ ?
+// ═══════════════════════════════════════════════════════════════════════
+
+describe("porteeValorisable — dire ce qu'on a établi, pas seulement ce qu'on ignore", () => {
+  it("nomme les postes comparés et leur montant", () => {
+    const p = porteeAnalyse([
+      g("high", 600, "Tableau électrique neuf"),
+      g("high", 400, "Peinture plafond"),
+      g("low", 1000, "Divers"),
+    ])!;
+    expect(p.postesCompares).toEqual(["Tableau électrique neuf", "Peinture plafond"]);
+    expect(p.montantCompare).toBe(1000);
+  });
+
+  it("compte le matériel dans les postes NOMMÉS quand on lui donne ses libellés", () => {
+    // Sur un devis de climatisation, le matériel EST la majorité des lignes :
+    // l'omettre annoncerait une portée plus faible que ce que le détail montre.
+    const p = porteeAnalyse([g("low", 500, "Pose")], 2, 3000, ["Daikin FTXM42", "Unité extérieure"])!;
+    expect(p.postesCompares).toEqual(["Daikin FTXM42", "Unité extérieure"]);
+    expect(p.compares).toBe(2);
+  });
+
+  it("valorise à partir de 3 postes ET 20 % du montant", () => {
+    // 3 postes comparés sur 6, 30 % du montant : dans la zone.
+    const p = porteeAnalyse([
+      g("high", 100, "A"), g("high", 100, "B"), g("high", 100, "C"),
+      g("low", 300, "D"), g("low", 200, "E"), g("low", 200, "F"),
+    ])!;
+    expect(p.pctMontant).toBe(30);
+    expect(porteeValorisable(p)).toBe(true);
+  });
+
+  it("refuse UN SEUL poste, même s'il pèse lourd — le cas JeanBERNARD", () => {
+    // 21 % du montant, mais « nous avons comparé la prise de courant » n'est
+    // pas une phrase qui vaut la peine d'être lue. Le nombre de postes est le
+    // vrai discriminant : 61 des 91 cartes mesurées en ont 0, 1 ou 2.
+    const p = porteeAnalyse([g("high", 210, "Prise"), g("low", 790, "Reste")])!;
+    expect(p.pctMontant).toBe(21);
+    expect(porteeValorisable(p)).toBe(false);
+  });
+
+  it("refuse trois postes qui ne pèsent rien", () => {
+    const p = porteeAnalyse([
+      g("high", 30, "A"), g("high", 30, "B"), g("high", 30, "C"),
+      g("low", 910, "Gros œuvre"),
+    ])!;
+    expect(p.pctMontant).toBe(9);
+    expect(porteeValorisable(p)).toBe(false);
+  });
+
+  it("ne valorise PAS quand la portée suffit déjà à affirmer — témoin inverse", () => {
+    // Au-dessus de 50 %, le titre porte déjà la cohérence de l'ensemble : il
+    // n'y a rien à rattraper, et deux blocs diraient la même chose.
+    const p = porteeAnalyse([
+      g("high", 400, "A"), g("high", 400, "B"), g("high", 200, "C"),
+    ])!;
+    expect(porteeSuffisantePourAffirmer(p)).toBe(true);
+    expect(porteeValorisable(p)).toBe(false);
+  });
+
+  it("le seuil tombe dans un plateau : 20, 25 et 30 % donnent le même verdict", () => {
+    // Mesuré sur 91 cartes : 18, 17 et 17. Un seuil qu'on peut déplacer sans
+    // rien changer est un seuil qu'on ne peut pas « régler » pour se flatter.
+    const cas = porteeAnalyse([
+      g("high", 100, "A"), g("high", 100, "B"), g("high", 150, "C"),
+      g("low", 650, "D"),
+    ])!;
+    expect(cas.pctMontant).toBe(35); // au-dessus des trois valeurs testées
+    expect(porteeValorisable(cas)).toBe(true);
   });
 });

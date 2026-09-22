@@ -1381,9 +1381,15 @@ Le verdict distingue désormais ce que nous avons **établi**, ce qu'il faut **v
 
 | | intitulé | exemple |
 |---|---|---|
-| ✓ vert | **Vérifié** | Établie depuis 25 ans · Immatriculée et en activité · Claire sur ses conditions de paiement |
+| ✓ vert | **Ce que nous avons vérifié** | Établie depuis 25 ans · Bien notée par ses clients — 4,8/5 sur 62 avis · Claire sur ses conditions de paiement |
+| • gris | *(même liste)* | Immatriculée et en activité · Correctement notée par ses clients — 4,3/5 sur 756 avis |
 | ▸ ambre | **À vérifier avant de signer** | Note Google 3,6/5 (140 avis) — lisez les avis récents · attestation d'assurance à réclamer |
+| ✓ vert | **Ce que nous avons pu comparer** | Fondations semelle filante · Mur de soutènement · Étanchéité terrasse — soit 7 200 € confrontés à nos références |
 | ○ gris | **Ce que nous ne savons pas** | Nos références ne couvrent pas vos prestations : nous ne nous prononçons pas sur les prix |
+
+**Un fait établi n'est pas forcément un mérite (2026-09-23).** Dans la liste des points vérifiés, le vert distingue ce qui plaide pour l'entreprise de ce qui n'est que vrai : être immatriculée est un prérequis légal, pas un argument, et une note de 4,3/5 est fiable sans être flatteuse. **Le gris ne cache rien** — la note et le nombre d'avis restent affichés, le lecteur juge. Une note n'est mise en avant qu'à partir de **4,5/5 et de dix avis** : sous dix avis elle ne veut rien dire, sous 4,5 elle ne vend rien.
+
+**Quand nous avons comparé une partie des prix, nous le disons d'abord (2026-09-23).** Sur un devis où trois postes au moins sont comparés et représentent au moins 20 % du montant, la rubrique change de sens : elle nomme les postes confrontés à nos références — les plus lourds en tête — avant de rappeler que nous ne nous prononçons pas sur le reste. **La réserve n'est jamais supprimée**, et le montant comparé n'est cité que si la carte n'affiche pas déjà un écart à négocier : deux nombres en euros côte à côte se liraient comme deux faits distincts.
 
 Deux changements de fond l'accompagnent :
 

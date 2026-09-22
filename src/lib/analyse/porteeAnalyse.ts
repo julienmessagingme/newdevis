@@ -45,6 +45,19 @@ export interface Portee {
   total: number;
   /** Part du montant HT couverte, arrondie. `null` si aucun montant exploitable. */
   pctMontant: number | null;
+  /**
+   * Les postes comparés, NOMMÉS.
+   *
+   * 🟢 2026-09-23 — exposés pour que le hero puisse dire CE QUE nous avons
+   * comparé, et pas seulement combien. ⚠️ Ils sont calculés ICI parce que la
+   * règle d'opposabilité doit vivre une seule fois : la maquette du 23/09 les
+   * recalculait de son côté, et deux calculs pour une même question finissent
+   * par diverger (leçon de `motifNonChiffrable` le 15/09, de `memes-postes`
+   * le 17/09, de `groupes-chiffrables` le même jour).
+   */
+  postesCompares: string[];
+  /** Montant HT porté par ces postes. `null` si aucun montant exploitable. */
+  montantCompare: number | null;
 }
 
 /**
@@ -62,11 +75,15 @@ const LIBELLE_FOURRE_TOUT = "Autre";
  *        faible que ce que le détail montre — sur un devis de climatisation,
  *        c'est la majorité des lignes.
  * @param materielMontantHT Montant porté par ces postes, pour la part du montant.
+ * @param materielLibelles Leurs libellés, pour pouvoir les NOMMER. Optionnel :
+ *        sans eux le compte reste juste, seule la liste est plus courte —
+ *        `postesCompares` est un sous-ensemble de `compares`, jamais son égal.
  */
 export function porteeAnalyse(
   groupes: GroupePortee[] | null | undefined,
   materielCompares = 0,
   materielMontantHT = 0,
+  materielLibelles: string[] = [],
 ): Portee | null {
   const liste = Array.isArray(groupes) ? groupes : [];
 
@@ -89,11 +106,74 @@ export function porteeAnalyse(
   const montantCompare =
     opposables.reduce((s, g) => s + (Number(g?.devis_total_ht) || 0), 0) + materielMontantHT;
 
+  // 🟢 LES PLUS GROS POSTES D'ABORD. Vu sur le rendu du stock, pas dans les
+  // données : sur deux devis de villa, la liste s'ouvrait sur « Protection
+  // chantier » — le poste le plus léger du lot. Nommer d'abord ce qui pèse est
+  // ce qui donne sa valeur à la phrase ; l'ordre de la base est celui de
+  // l'extraction, il ne veut rien dire pour le lecteur.
+  const postesCompares = [
+    ...[...opposables]
+      .sort((a, b) => (Number(b?.devis_total_ht) || 0) - (Number(a?.devis_total_ht) || 0))
+      .map((g) => String(g?.job_type_label ?? "").trim()),
+    ...materielLibelles.map((l) => String(l ?? "").trim()),
+  ].filter((l) => l.length > 0);
+
   return {
     compares,
     total,
     pctMontant: montantTotal > 0 ? Math.round((montantCompare / montantTotal) * 100) : null,
+    postesCompares: [...new Set(postesCompares)],
+    montantCompare: montantTotal > 0 ? montantCompare : null,
   };
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────
+ * QUAND PEUT-ON RETOURNER LA RUBRIQUE ?
+ *
+ * 🟢 2026-09-23 (retour Johan) — *« Comment gérer quand on vérifie
+ * partiellement les prix ? Il faut donner le maximum de ce qu'on peut donner,
+ * et transformer positivement cette rubrique pour valoriser notre travail de
+ * vérification. »*
+ *
+ * La rubrique « Ce que nous ne savons pas » dit une chose vraie — mais sur un
+ * devis où nous avons comparé quatre postes sur neuf, elle est la SEULE à
+ * parler des prix, et elle ne parle que de notre ignorance. Au-dessus d'un
+ * certain socle, on dit d'abord ce qu'on a établi, puis la réserve.
+ *
+ * DEUX CONDITIONS, et les deux comptent :
+ *   · au moins trois postes NOMMABLES — « nous avons comparé la prise de
+ *     courant » n'est pas une phrase qui vaut la peine d'être lue ;
+ *   · au moins 20 % du montant — sinon on valorise une poignée d'accessoires
+ *     sur un devis dont l'essentiel nous échappe.
+ *
+ * 🟢 LE SEUIL TOMBE DANS UN PLATEAU, comme celui de 50 % ci-dessus. Mesuré sur
+ * les 91 cartes qui affichent aujourd'hui la rubrique : à trois postes, les
+ * valeurs 20 %, 22 %, 25 % et 30 % donnent **18, 17, 17 et 17 cartes**. Le
+ * déplacer ne change rien — c'est ce qui le rend défendable, et ce qui
+ * interdit de le « régler » pour valoriser davantage.
+ *
+ * ⚠️ LE NOMBRE DE POSTES EST LE VRAI DISCRIMINANT, pas le pourcentage : 61 des
+ * 91 cartes ont zéro, un ou deux postes comparés. Passer le plancher de 3 à 2
+ * ajoute six cartes mais rend le partage bien plus sensible au réglage du
+ * pourcentage (27 → 19 sur la même plage, contre 21 → 17). Mesuré, écarté.
+ */
+const POSTES_MIN_POUR_VALORISER = 3;
+const PCT_MIN_POUR_VALORISER = 20;
+
+/**
+ * Avons-nous assez comparé pour le DIRE, sans pour autant pouvoir affirmer que
+ * l'ensemble du devis est cohérent ?
+ *
+ * ⚠️ C'est l'entre-deux, et il n'existe que là : au-dessus de
+ * `PORTEE_MIN_POUR_AFFIRMER_PCT` le titre porte déjà la cohérence de
+ * l'ensemble, il n'y a rien à rattraper.
+ */
+export function porteeValorisable(portee: Portee | null): boolean {
+  if (!portee) return false;
+  if (porteeSuffisantePourAffirmer(portee)) return false;
+  if (portee.postesCompares.length < POSTES_MIN_POUR_VALORISER) return false;
+  return (portee.pctMontant ?? 0) >= PCT_MIN_POUR_VALORISER;
 }
 
 /**
