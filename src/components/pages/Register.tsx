@@ -247,7 +247,7 @@ const Register = ({ brand }: Props) => {
                   </li>
                 </ul>
                 <div className="mt-3 pt-3 border-t border-primary/10 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="text-amber-500" aria-hidden="true">★★★★★</span>
+                  <span className="text-amber-800" aria-hidden="true">★★★★★</span>
                   {/* 2026-09-13 — « +250 devis analysés » était écrit EN DUR et
                       périmé : la base en comptait 424. Une promesse chiffrée
                       périmée est un mensonge, et la règle du 08/09 impose la

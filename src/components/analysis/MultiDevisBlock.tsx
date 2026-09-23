@@ -102,12 +102,12 @@ const CARD_COLORS = [
 
 const DOT_COLORS = [
   "bg-blue-500",
-  "bg-emerald-500",
+  "bg-emerald-700",
   "bg-violet-500",
-  "bg-amber-500",
+  "bg-amber-700",
   "bg-rose-500",
-  "bg-cyan-500",
-  "bg-orange-500",
+  "bg-cyan-700",
+  "bg-orange-700",
   "bg-teal-500",
 ];
 
@@ -415,13 +415,13 @@ export function MultiDevisBlock({
           {globalMetrics.segments_orange > 0 && (
             <div className="p-2 rounded-lg bg-amber-50 border border-amber-200">
               <p className="text-lg font-bold text-amber-700">{globalMetrics.segments_orange}</p>
-              <p className="text-[10px] text-amber-600">À négocier</p>
+              <p className="text-[10px] text-amber-700">À négocier</p>
             </div>
           )}
           {globalMetrics.segments_rouge > 0 && (
             <div className="p-2 rounded-lg bg-red-50 border border-red-200">
               <p className="text-lg font-bold text-red-700">{globalMetrics.segments_rouge}</p>
-              <p className="text-[10px] text-red-600">À refuser</p>
+              <p className="text-[10px] text-red-700">À refuser</p>
             </div>
           )}
         </div>
@@ -430,7 +430,7 @@ export function MultiDevisBlock({
       {/* Alerte assurance décennale manquante */}
       {sansDecennale.length > 0 && (
         <div className="mb-4 flex items-start gap-2 px-3 py-3 rounded-xl bg-amber-50 border border-amber-200">
-          <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-4 w-4 text-amber-700 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-amber-800 leading-snug">
             <span className="font-semibold">Assurance décennale non mentionnée</span> pour&nbsp;:&nbsp;
             {sansDecennale.map(d => d.entreprise_nom).join(", ")}.
@@ -441,7 +441,7 @@ export function MultiDevisBlock({
 
       {/* Note pédagogique */}
       <div className="mb-4 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-blue-50 border border-blue-200">
-        <Building2 className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+        <Building2 className="h-4 w-4 text-blue-700 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-blue-800 leading-snug">
           Ce PDF regroupe plusieurs devis d'entreprises différentes.
           Chaque artisan est analysé <strong>indépendamment</strong> — le verdict de l'un n'influence pas les autres.

@@ -66,25 +66,25 @@ const PostSignatureValueSection = () => {
             
             <div className="grid sm:grid-cols-2 gap-4 mb-4">
               <div className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-score-green mt-0.5 flex-shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-score-green-foreground mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-muted-foreground">
                   Service optionnel, activé uniquement avec votre accord explicite
                 </p>
               </div>
               <div className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-score-green mt-0.5 flex-shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-score-green-foreground mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-muted-foreground">
                   Informations factuelles issues du devis ou de sources publiques
                 </p>
               </div>
               <div className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-score-green mt-0.5 flex-shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-score-green-foreground mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-muted-foreground">
                   Aucun jugement sur l'artisan ou l'exécution des travaux
                 </p>
               </div>
               <div className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-score-green mt-0.5 flex-shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-score-green-foreground mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-muted-foreground">
                   Désactivable à tout moment depuis votre espace
                 </p>

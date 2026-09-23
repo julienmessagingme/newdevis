@@ -91,7 +91,7 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
               {hasRisks && (
                 <div className="mb-4">
                   <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-score-orange" />
+                    <AlertTriangle className="h-4 w-4 text-score-orange-foreground" />
                     Risques naturels identifiés
                   </h3>
 
@@ -134,7 +134,7 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
                   <div className="p-3 bg-muted/30 rounded-lg border border-border">
                     {contextData.urbanisme.has_constraints ? (
                       <>
-                        <p className="text-sm text-score-orange font-medium mb-2">
+                        <p className="text-sm text-score-orange-foreground font-medium mb-2">
                           Des contraintes d'urbanisme peuvent s'appliquer
                         </p>
                         {contextData.urbanisme.documents && contextData.urbanisme.documents.length > 0 && (
@@ -180,7 +180,7 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
                   }`}>
                     {contextData.patrimoine.status === "possible" && (
                       <>
-                        <p className="text-sm text-score-orange font-medium mb-2">
+                        <p className="text-sm text-score-orange-foreground font-medium mb-2">
                           POSSIBLE — le chantier semble situé dans une zone de protection patrimoniale (monument historique / abords ou site patrimonial remarquable).
                         </p>
                         {contextData.patrimoine.types.length > 0 && (
@@ -214,7 +214,7 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
           {displayCase === "no_data" && (
             <div className="mb-4 p-4 bg-muted/30 rounded-lg border border-border">
               <div className="flex items-start gap-3">
-                <CheckCircle2 className="h-5 w-5 text-score-green mt-0.5 flex-shrink-0" />
+                <CheckCircle2 className="h-5 w-5 text-score-green-foreground mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-foreground mb-1">
                     Aucune contrainte particulière identifiée
@@ -231,7 +231,7 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
           {displayCase === "address_incomplete" && (
             <div className="mb-4 p-4 bg-score-orange-bg rounded-lg border border-score-orange/20">
               <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-score-orange mt-0.5 flex-shrink-0" />
+                <Info className="h-5 w-5 text-score-orange-foreground mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-foreground mb-1">
                     Adresse du chantier non exploitable
@@ -248,7 +248,7 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
           {/* Error message from API */}
           {contextData?.error && displayCase !== "address_incomplete" && (
             <div className="mb-4 p-3 bg-score-orange-bg rounded-lg border border-score-orange/20">
-              <p className="text-sm text-score-orange">
+              <p className="text-sm text-score-orange-foreground">
                 ℹ️ {contextData.error}
               </p>
             </div>

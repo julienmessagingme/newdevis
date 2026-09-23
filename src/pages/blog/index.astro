@@ -361,10 +361,16 @@ for (const cat of CATEGORIES) {
     --b-blue2:  #3b82f6;
     --b-sky:    #eff6ff;
     --b-amber:  #F97316;
-    --b-green:  #16a34a;
-    --b-rose:   #dc2626;
+    /* 2026-09-23 — contraste AA. `--b-amber` (#F97316) vaut 5,84:1 sur le
+       navy du hero, mais seulement 2,80:1 sur le BLANC des pastilles de
+       catégorie : 18 échecs mesurés sur cette seule page. Le changer
+       globalement casserait le hero — d'où un jeton distinct pour le texte
+       posé sur fond clair (orange-700, 5,18:1). */
+    --b-amber-ink: #C2410C;
+    --b-green:  #15803d;
+    --b-rose:   #b91c1c;
     --b-sand:   #f8fafc;
-    --b-gray:   #64748b;
+    --b-gray:   #475569;
     --b-border: #e2e8f0;
   }
 
@@ -547,7 +553,7 @@ for (const cat of CATEGORIES) {
     background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.14);
   }
   .badge-conseils       { color: var(--b-green); }
-  .badge-prix           { color: var(--b-amber); }
+  .badge-prix           { color: var(--b-amber-ink); }
   .badge-guides         { color: var(--b-blue); }
   .badge-reglementation { color: var(--b-rose); }
   .b-popular {

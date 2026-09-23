@@ -108,7 +108,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
            plutôt qu'un `amber-400` Tailwind sans rapport avec la palette. */}
       <div class="bg-primary text-primary-foreground">
         <div class="container px-4 py-3.5 flex items-start gap-3 max-w-4xl">
-          <svg class="h-5 w-5 flex-shrink-0 mt-0.5 text-score-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 8v5M12 17h.01" /></svg>
+          <svg class="h-5 w-5 flex-shrink-0 mt-0.5 text-score-orange-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 8v5M12 17h.01" /></svg>
           <p class="text-sm leading-relaxed">
             <strong>Ceci est un exemple.</strong> Le devis ci-dessous est fictif — nous l'avons écrit.
             Les fourchettes de prix, elles, sont nos <strong>vraies</strong> références,
@@ -123,7 +123,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
         <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mb-1.5">
           Devis de rénovation de salle de bains
         </h1>
-        <p class="text-sm text-slate-500 mb-8">
+        <p class="text-sm text-slate-600 mb-8">
           SARL BATI CONFORT · {LIGNES.length} postes · {eur(totalHT)} HT ·
           {eur(totalTTC)} TTC (TVA 10 %)
         </p>
@@ -132,7 +132,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
         <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-lecture">
           <div class="flex items-center gap-2.5 mb-4">
             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">À négocier</span>
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Notre lecture</span>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-600">Notre lecture</span>
           </div>
 
           <h2 id="t-lecture" class="text-xl sm:text-2xl font-semibold text-slate-900 leading-snug mb-3">
@@ -148,19 +148,19 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
                du 05/09). Les deux postes sont donc cités juste en dessous. */}
           <div class="grid gap-3 sm:grid-cols-3">
             <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
-              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Écart chiffré</p>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Écart chiffré</p>
               <p class="text-xl font-bold text-slate-900 tabular-nums">{eur(ecartTotal)}</p>
-              <p class="text-xs text-slate-500 mt-1">sur 2 postes nommés</p>
+              <p class="text-xs text-slate-600 mt-1">sur 2 postes nommés</p>
             </div>
             <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
-              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Comparé au marché</p>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Comparé au marché</p>
               <p class="text-xl font-bold text-slate-900 tabular-nums">{couverturePct} %</p>
-              <p class="text-xs text-slate-500 mt-1">du montant du devis</p>
+              <p class="text-xs text-slate-600 mt-1">du montant du devis</p>
             </div>
             <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
-              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Non vérifiable</p>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Non vérifiable</p>
               <p class="text-xl font-bold text-slate-900 tabular-nums">{eur(montantNonVerifiable)}</p>
-              <p class="text-xs text-slate-500 mt-1">{lignesNonVerifiables.length} postes sans référence</p>
+              <p class="text-xs text-slate-600 mt-1">{lignesNonVerifiables.length} postes sans référence</p>
             </div>
           </div>
         </section>
@@ -168,7 +168,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
         {/* ── 2. Vos leviers de négociation ─────────────────────────────── */}
         <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-leviers">
           <h2 id="t-leviers" class="text-lg font-semibold text-slate-900 mb-1">Vos leviers de négociation</h2>
-          <p class="text-sm text-slate-500 mb-5">Par ordre de puissance — commencez par le premier.</p>
+          <p class="text-sm text-slate-600 mb-5">Par ordre de puissance — commencez par le premier.</p>
 
           <ol class="space-y-4 list-none p-0 m-0">
             <li class="rounded-xl border border-rose-200 bg-rose-50/40 p-4">
@@ -214,7 +214,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
           {/* ⚠️ Aucun POURCENTAGE de marge ici : depuis le 11/09, seul un levier
                qui parle de PRIX peut en porter un. L'acompte et les clauses
                changent QUAND on paie et CE QU'on signe, pas le montant. */}
-          <p class="mt-4 text-xs text-slate-500 leading-relaxed">
+          <p class="mt-4 text-xs text-slate-600 leading-relaxed">
             Nous n'annonçons pas de pourcentage de remise : aucun de ces leviers ne fait
             baisser un prix par lui-même. Le seul montant que nous chiffrons est l'écart
             constaté sur les deux postes nommés.
@@ -224,7 +224,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
         {/* ── 3. Entreprise ─────────────────────────────────────────────── */}
         <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-entreprise">
           <h2 id="t-entreprise" class="text-lg font-semibold text-slate-900 mb-1">Entreprise &amp; fiabilité</h2>
-          <p class="text-sm text-slate-500 mb-5">SARL BATI CONFORT · SIREN 812 456 903</p>
+          <p class="text-sm text-slate-600 mb-5">SARL BATI CONFORT · SIREN 812 456 903</p>
 
           <dl class="grid gap-0 m-0">
             {[
@@ -237,7 +237,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
               <div class="flex items-center justify-between gap-4 py-3 border-t border-slate-100 first:border-t-0">
                 <div class="min-w-0">
                   <dt class="text-sm font-medium text-slate-900">{k}</dt>
-                  <dd class="text-xs text-slate-500 mt-0.5 m-0">{sous}</dd>
+                  <dd class="text-xs text-slate-600 mt-0.5 m-0">{sous}</dd>
                 </div>
                 <span class={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${
                   ton === 'green' ? 'bg-emerald-100 text-emerald-800'
@@ -248,7 +248,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
           </dl>
 
           {/* Règle du 06/09 : une note n'est pas une réputation sous 10 avis. */}
-          <p class="mt-4 text-xs text-slate-500 leading-relaxed">
+          <p class="mt-4 text-xs text-slate-600 leading-relaxed">
             Nous n'affichons aucune note client : cette entreprise en compte trop peu pour
             qu'une moyenne veuille dire quelque chose. Nous préférons ne rien en conclure.
           </p>
@@ -257,7 +257,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
         {/* ── 4. Clauses ───────────────────────────────────────────────── */}
         <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-clauses">
           <h2 id="t-clauses" class="text-lg font-semibold text-slate-900 mb-1">Clauses du devis</h2>
-          <p class="text-sm text-slate-500 mb-5">Citées mot pour mot — jamais reformulées.</p>
+          <p class="text-sm text-slate-600 mb-5">Citées mot pour mot — jamais reformulées.</p>
 
           <blockquote class="border-l-4 border-rose-500 bg-slate-50 rounded-r-lg px-4 py-3 italic text-sm text-slate-700 m-0">
             « Tout devis non signé dans les 15 jours sera facturé 90 € au titre de l'étude technique. »
@@ -281,14 +281,14 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
         {/* ── 5. Détail poste par poste ─────────────────────────────────── */}
         <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-5" aria-labelledby="t-postes">
           <h2 id="t-postes" class="text-lg font-semibold text-slate-900 mb-1">Le devis, poste par poste</h2>
-          <p class="text-sm text-slate-500 mb-5">
+          <p class="text-sm text-slate-600 mb-5">
             Chaque ligne comparée à notre référentiel de {CATALOGUE_TAILLE.toLocaleString('fr-FR')} prix.
           </p>
 
           <div class="overflow-x-auto overscroll-x-contain -mx-1 px-1">
             <table class="w-full text-sm min-w-[560px]">
               <thead>
-                <tr class="text-left text-xs uppercase tracking-wider text-slate-400 border-b border-slate-200">
+                <tr class="text-left text-xs uppercase tracking-wider text-slate-600 border-b border-slate-200">
                   <th class="py-2 pr-3 font-semibold">Poste</th>
                   <th class="py-2 px-3 font-semibold text-right">Devis</th>
                   <th class="py-2 px-3 font-semibold text-right">Marché</th>
@@ -303,22 +303,22 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
                     <tr class="border-b border-slate-100 align-top">
                       <td class="py-3 pr-3">
                         <div class="font-medium text-slate-900">{l.libelle}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">{l.detail}</div>
-                        <div class="text-xs text-slate-400 mt-0.5 tabular-nums">{l.qte} {l.unite} × {eur(l.pu)}</div>
+                        <div class="text-xs text-slate-600 mt-0.5">{l.detail}</div>
+                        <div class="text-xs text-slate-600 mt-0.5 tabular-nums">{l.qte} {l.unite} × {eur(l.pu)}</div>
                         {l.pourquoiPasDeRef && (
-                          <div class="text-xs text-slate-500 mt-1.5 italic">{l.pourquoiPasDeRef}</div>
+                          <div class="text-xs text-slate-600 mt-1.5 italic">{l.pourquoiPasDeRef}</div>
                         )}
                       </td>
                       <td class="py-3 px-3 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap">{eur(montant(l))}</td>
-                      <td class="py-3 px-3 text-right tabular-nums text-slate-500 whitespace-nowrap">
-                        {ref ? `${ref.min} à ${ref.max} €/${l.unite}` : <span class="text-slate-400">—</span>}
+                      <td class="py-3 px-3 text-right tabular-nums text-slate-600 whitespace-nowrap">
+                        {ref ? `${ref.min} à ${ref.max} €/${l.unite}` : <span class="text-slate-600">—</span>}
                       </td>
                       <td class="py-3 pl-3 text-right whitespace-nowrap">
                         {e > 0
                           ? <span class="font-bold text-rose-600 tabular-nums">+{eur(e)}</span>
                           : ref
                             ? <span class="text-xs font-semibold text-emerald-700">dans la norme</span>
-                            : <span class="text-xs font-semibold text-slate-500">non vérifiable</span>}
+                            : <span class="text-xs font-semibold text-slate-600">non vérifiable</span>}
                       </td>
                     </tr>
                   );
@@ -352,7 +352,7 @@ const titre = 'Exemple d\'analyse de devis — rénovation de salle de bains';
         {/* ── 6. Message copiable ──────────────────────────────────────── */}
         <section class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 mb-8" aria-labelledby="t-message">
           <h2 id="t-message" class="text-lg font-semibold text-slate-900 mb-1">Le message à envoyer</h2>
-          <p class="text-sm text-slate-500 mb-4">Généré à partir des leviers ci-dessus — prêt à copier.</p>
+          <p class="text-sm text-slate-600 mb-4">Généré à partir des leviers ci-dessus — prêt à copier.</p>
           {/* 2026-09-14 (retour Johan) — troisième bloc sombre aligné sur la
                marque. Il prend la navy DÉRIVÉE du token (cf. `.vmd-message`
                plus bas) : plus sombre que le bandeau du haut pour rester un
@@ -393,7 +393,7 @@ Bien cordialement,`}</div>
           <p class="text-xs text-primary-foreground/65 mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <span>Création de compte en 30 secondes, puis analyse immédiate — gratuit.</span>
             <span class="inline-flex items-center gap-1.5">
-              <svg class="h-3.5 w-3.5 text-score-green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              <svg class="h-3.5 w-3.5 text-score-green-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.6 2.6L16 9.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
               {ANALYSES_TOTAL.toLocaleString('fr-FR')} devis déjà analysés
             </span>
           </p>

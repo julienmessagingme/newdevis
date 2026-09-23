@@ -56,7 +56,7 @@ type HumanVerdict = {
 
 function getHumanVerdict(ivp: number | null): HumanVerdict {
   if (ivp === null) {
-    return { emoji: "⚪", label: "Impact non calculé", color: "text-slate-500", bg: "bg-slate-50", border: "border-slate-200" };
+    return { emoji: "⚪", label: "Impact non calculé", color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200" };
   }
   if (ivp >= 70) {
     return { emoji: "🟢", label: "Forte création de valeur", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" };
@@ -73,7 +73,7 @@ type ClassInfo = { label: string; color: string; bg: string; border: string };
 function getClassification(score: number): ClassInfo {
   if (score >= 70) return { label: "Fort",   color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" };
   if (score >= 40) return { label: "Modéré", color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200"  };
-  return             { label: "Faible",  color: "text-slate-500",   bg: "bg-slate-100",  border: "border-slate-200"  };
+  return             { label: "Faible",  color: "text-slate-600",   bg: "bg-slate-100",  border: "border-slate-200"  };
 }
 
 // ── Interprétations en langage naturel ──
@@ -188,8 +188,8 @@ function ScoreBlock({
       {/* Titre + pastille */}
       <div className="flex items-center justify-between mb-2">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{title}</p>
-          <p className="text-[10px] text-slate-400 leading-tight">{subtitle}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600">{title}</p>
+          <p className="text-[10px] text-slate-600 leading-tight">{subtitle}</p>
         </div>
         <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${cls.bg} ${cls.color} ${cls.border}`}>
           {cls.label}
@@ -198,7 +198,7 @@ function ScoreBlock({
       {/* Score */}
       <div className="flex items-end gap-1 mb-2">
         <span className={`text-3xl font-black tabular-nums leading-none ${textColor}`}>{value}</span>
-        <span className="text-xs text-slate-400 mb-0.5">/100</span>
+        <span className="text-xs text-slate-600 mb-0.5">/100</span>
       </div>
       {/* Barre */}
       <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mb-3">
@@ -208,7 +208,7 @@ function ScoreBlock({
         />
       </div>
       {/* Interprétation */}
-      <p className="text-xs text-slate-500 leading-relaxed">{interpretation}</p>
+      <p className="text-xs text-slate-600 leading-relaxed">{interpretation}</p>
     </div>
   );
 }
@@ -238,7 +238,7 @@ function BreakdownRow({
     <div className="flex items-center gap-2.5">
       {/* Libellé + icône info — largeur fixe pour l'alignement des barres */}
       <div className="flex items-start gap-1 w-48 shrink-0">
-        <span className="text-xs text-slate-500 leading-tight flex-1 min-w-0">{label}</span>
+        <span className="text-xs text-slate-600 leading-tight flex-1 min-w-0">{label}</span>
         {tooltip && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -247,7 +247,7 @@ function BreakdownRow({
                 aria-label={`En savoir plus : ${label}`}
                 className="flex-shrink-0 mt-0.5 outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded-sm"
               >
-                <Info className="h-3 w-3 text-slate-300 hover:text-slate-500 transition-colors cursor-help" />
+                <Info className="h-3 w-3 text-slate-300 hover:text-slate-600 transition-colors cursor-help" />
               </button>
             </TooltipTrigger>
             <TooltipContent
@@ -303,7 +303,7 @@ const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPe
               <h3 className="text-base font-bold text-slate-800 leading-tight">
                 Impact des travaux sur la valeur du bien
               </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">Indice Stratégique Immobilier™</p>
+              <p className="text-[11px] text-slate-600 mt-0.5">Indice Stratégique Immobilier™</p>
             </div>
           </div>
           <Tooltip>
@@ -313,7 +313,7 @@ const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPe
                 aria-label="En savoir plus sur cet indicateur"
                 className="outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded-sm flex-shrink-0 mt-0.5"
               >
-                <HelpCircle className="h-4 w-4 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" />
+                <HelpCircle className="h-4 w-4 text-slate-600 hover:text-slate-600 transition-colors cursor-pointer" />
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs text-xs leading-relaxed shadow-md" side="left">
@@ -332,7 +332,7 @@ const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPe
               <span className="text-base leading-none">{verdict.emoji}</span>
               <span className={`text-sm font-bold leading-tight ${verdict.color}`}>{verdict.label}</span>
             </div>
-            <p className="text-sm text-slate-500 leading-relaxed">
+            <p className="text-sm text-slate-600 leading-relaxed">
               Tous les travaux n'augmentent pas le prix de revente à hauteur du montant investi.
               Cet indicateur estime la part réellement valorisable.
             </p>
@@ -341,7 +341,7 @@ const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPe
           {/* ── LEVIERS CLÉS (toujours visible) ── */}
           {leviers.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600 mr-0.5">
                 Ce qui porte la valeur
               </span>
               {leviers.map((l) => (
@@ -394,7 +394,7 @@ const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPe
                   <button
                     type="button"
                     onClick={() => setShowBreakdown(!showBreakdown)}
-                    className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors"
+                    className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 transition-colors"
                   >
                     {showBreakdown
                       ? <ChevronUp   className="h-3.5 w-3.5" />
@@ -406,14 +406,14 @@ const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPe
                   {showBreakdown && (
                     <div className="pt-3 border-t border-slate-100 space-y-5">
                       {/* Phrase intro */}
-                      <p className="text-[11px] text-slate-400 italic">
+                      <p className="text-[11px] text-slate-600 italic">
                         Ces éléments expliquent pourquoi certains travaux créent plus de valeur que d'autres.
                       </p>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
                         {scores.breakdown_owner && (
                           <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2.5">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-2.5">
                               Propriétaire occupant
                             </p>
                             <div className="space-y-2.5">
@@ -430,7 +430,7 @@ const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPe
                         )}
                         {scores.breakdown_investor && (
                           <div className="mt-3 sm:mt-0">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2.5">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-2.5">
                               Investisseur locatif
                             </p>
                             <div className="space-y-2.5">
@@ -462,7 +462,7 @@ const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPe
                     { bold: "IPI ≥ 70", text: "Les travaux sont favorables à la location (loyer, attractivité, vacance)." },
                     { bold: "Leviers clés", text: "Les critères qui pèsent le plus dans le calcul de ces indices." },
                   ].map(({ bold, text }) => (
-                    <li key={bold} className="flex items-start gap-2 text-xs text-slate-500 leading-relaxed">
+                    <li key={bold} className="flex items-start gap-2 text-xs text-slate-600 leading-relaxed">
                       <span className="font-semibold text-slate-600 shrink-0">{bold} —</span>
                       <span>{text}</span>
                     </li>

@@ -846,3 +846,36 @@ La carte, elle, démarre à 756 px : elle affleure la main sans la couper.
 
 **Le seul vrai remède est la source paysage** ci-dessus, avec le sujet cadré à
 droite. Tant qu'elle n'existe pas, ne pas « régler » le voile ni le `62 %`.
+
+## Accessibilité — ce que la passe contraste du 2026-09-23 n'a PAS traité
+
+Le critère **1.4.3 (contraste)** est à zéro échec sur 19 pages publiques, vérifiable
+par [`scripts/banc-contraste.mjs`](scripts/banc-contraste.mjs). Le site reste
+**non conforme AA** : la conformité WCAG est tout-ou-rien par niveau, et trois
+autres critères échouent — mesurés le 23/09, non corrigés.
+
+- [ ] 🔴 **1.3.1 (niveau A) — structure.** Sauts de titres `h2 → h4` (« Navigation »)
+      sur `/exemple-analyse` et `/analyser-devis-travaux` ; et le **sélecteur
+      d'indicatif pays de `/inscription` n'a aucune étiquette**.
+- [ ] 🔴 **2.4.1 (niveau A) — contournement de blocs.** `/inscription` ne rend
+      **aucun landmark** : ni `<main>`, ni `<nav>`, ni `<footer>`, et pas de lien
+      d'évitement. C'est une page React `client:only`. Les pages Astro, elles,
+      ont leurs landmarks.
+- [ ] 🟠 **2.5.8 (niveau AA, WCAG 2.2) — taille des cibles.** 40 cibles sous
+      24 px sur les 4 pages mesurées, dont les **puces du carrousel du hero à
+      8 px**. Un `padding` suffit dans la plupart des cas (la zone tactile peut
+      dépasser le visuel).
+- [ ] 🟡 **Le cockpit GMC n'a jamais été mesuré.** Ses surfaces sont SOMBRES :
+      `text-slate-400` y vaut 5,71:1 et y est conforme. ⚠️ **Ne surtout pas y
+      appliquer les règles de la passe publique** — la mesure du 23/09 a montré
+      trois régressions de ce type, rattrapées une par une. Mesurer d'abord.
+- [ ] 🟡 **Décision produit — le CTA orange.** `#F97316` ne peut pas porter du
+      texte blanc à 4,5:1 (2,80). Il est passé en `#C2410C`. Alternative si le
+      rendu déplaît : garder l'orange de marque avec un **texte navy** (5,76:1).
+- [ ] 🟡 **Reste à trancher : jusqu'où viser.** Une déclaration de conformité
+      RGAA suppose d'auditer les ~50 critères, dont les 70 % que l'automatique
+      ne voit pas (ordre de lecture, pièges clavier, qualité des messages
+      d'erreur). ⚠️ Vérifier d'abord si l'European Accessibility Act s'applique
+      (services de commerce électronique depuis le 28/06/2025, **exemption
+      microentreprise** < 10 salariés et ≤ 2 M€) — c'est ce qui décide du
+      niveau d'effort, et ce n'est pas à moi de le trancher.

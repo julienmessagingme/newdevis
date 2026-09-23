@@ -39,7 +39,7 @@ const WhatYouGetSection = () => {
           <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-1">
             Ce que vous obtenez
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-600">
             Pas un comparateur de prix — un outil pour décider en toute connaissance de cause.
           </p>
         </div>
@@ -59,7 +59,7 @@ const WhatYouGetSection = () => {
                 <p className={`text-sm font-semibold mb-0.5 ${item.highlight ? "text-primary" : "text-slate-800"}`}>
                   {item.title}
                 </p>
-                <p className="text-xs text-slate-500 leading-relaxed">
+                <p className="text-xs text-slate-600 leading-relaxed">
                   {item.description}
                 </p>
               </div>

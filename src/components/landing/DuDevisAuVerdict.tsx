@@ -131,7 +131,7 @@ const DuDevisAuVerdict = () => {
           <div>
             <div className="vmd-scan relative rounded-2xl border border-border bg-card overflow-hidden card-shadow-lg">
               <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3 flex-wrap">
-                <span className="bg-[#F97316] text-white text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full">
+                <span className="bg-[#C2410C] text-white text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full">
                   À négocier
                 </span>
                 <span className="text-xs text-primary-foreground/75">

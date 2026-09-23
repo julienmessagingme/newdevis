@@ -116,7 +116,7 @@ const BlockArchitecte = ({ pointsOk, alertes, recommandations }: BlockArchitecte
               <ul className="space-y-2">
                 {info.specificPoints.slice(0, 3).map((point, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-score-green mt-0.5 flex-shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-score-green-foreground mt-0.5 flex-shrink-0" />
                     <span className="text-sm text-foreground">{point}</span>
                   </li>
                 ))}
@@ -130,7 +130,7 @@ const BlockArchitecte = ({ pointsOk, alertes, recommandations }: BlockArchitecte
               <ul className="space-y-2">
                 {info.specificAlertes.map((alerte, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-score-orange mt-0.5 flex-shrink-0" />
+                    <AlertCircle className="h-4 w-4 text-score-orange-foreground mt-0.5 flex-shrink-0" />
                     <span className="text-foreground">{alerte}</span>
                   </li>
                 ))}

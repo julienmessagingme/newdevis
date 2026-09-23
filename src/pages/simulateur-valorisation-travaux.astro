@@ -37,7 +37,7 @@ const jsonLd = {
       <section class="bg-gradient-to-b from-slate-900 to-slate-800 text-white py-12 sm:py-16">
         <div class="container max-w-2xl text-center">
           <a href="/valorisation-travaux-immobiliers"
-             class="inline-flex items-center gap-1.5 text-slate-400 hover:text-white mb-5 transition-colors text-xs">
+             class="inline-flex items-center gap-1.5 text-slate-600 hover:text-white mb-5 transition-colors text-xs">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
@@ -60,7 +60,7 @@ const jsonLd = {
           <!-- ── FORMULAIRE ── -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 mb-6">
 
-            <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">
+            <p class="text-[11px] font-bold uppercase tracking-widest text-slate-600 mb-4">
               Contexte du bien
             </p>
 
@@ -69,12 +69,12 @@ const jsonLd = {
               <div>
                 <label for="property-value" class="block text-sm font-semibold text-slate-700 mb-1.5">
                   Valeur estimée du bien (€)
-                  <span class="text-xs font-normal text-slate-400 ml-1">— recommandé</span>
+                  <span class="text-xs font-normal text-slate-600 ml-1">— recommandé</span>
                 </label>
                 <div class="relative">
                   <input id="property-value" type="number" inputmode="decimal" min="0" step="5000" placeholder="Ex. 220 000"
-                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
-                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">€</span>
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-slate-900 text-sm font-medium placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 text-xs pointer-events-none">€</span>
                 </div>
               </div>
               <div>
@@ -85,7 +85,7 @@ const jsonLd = {
                     <span>🏠</span><span>Revente</span>
                   </button>
                   <button id="btn-location" type="button"
-                    class="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-500 transition-all hover:border-slate-300">
+                    class="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-600 transition-all hover:border-slate-300">
                     <span>🔑</span><span>Location</span>
                   </button>
                 </div>
@@ -97,12 +97,12 @@ const jsonLd = {
               <div>
                 <label for="property-surface" class="block text-sm font-semibold text-slate-700 mb-1.5">
                   Surface actuelle (m²)
-                  <span class="text-xs font-normal text-slate-400 ml-1">— optionnel</span>
+                  <span class="text-xs font-normal text-slate-600 ml-1">— optionnel</span>
                 </label>
                 <div class="relative">
                   <input id="property-surface" type="number" inputmode="decimal" min="0" step="5" placeholder="Ex. 75"
-                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
-                  <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">m²</span>
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-slate-900 text-sm font-medium placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
+                  <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-600 text-xs pointer-events-none">m²</span>
                 </div>
               </div>
               <div>
@@ -116,7 +116,7 @@ const jsonLd = {
                     <option value="appartement">Appartement</option>
                     <option value="maison">Maison</option>
                   </select>
-                  <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
                   </svg>
                 </div>
@@ -128,22 +128,22 @@ const jsonLd = {
               <div>
                 <label for="property-zip" class="block text-sm font-semibold text-slate-700 mb-1.5">
                   Code postal
-                  <span class="text-xs font-normal text-slate-400 ml-1">— DVF</span>
+                  <span class="text-xs font-normal text-slate-600 ml-1">— DVF</span>
                 </label>
                 <input id="property-zip" type="text" maxlength="5" placeholder="Ex. 33000"
-                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-900 text-sm font-medium placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
               </div>
               <div>
                 <label for="commune-select" class="block text-sm font-semibold text-slate-700 mb-1.5">
                   Commune (DVF)
-                  <span id="commune-loading-label" class="hidden text-xs font-normal text-slate-400 ml-1">— chargement…</span>
+                  <span id="commune-loading-label" class="hidden text-xs font-normal text-slate-600 ml-1">— chargement…</span>
                 </label>
                 <div class="relative">
                   <select id="commune-select" disabled
                     class="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-8 py-2.5 text-slate-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer">
                     <option value="">— entrez un code postal —</option>
                   </select>
-                  <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
                   </svg>
                 </div>
@@ -159,7 +159,7 @@ const jsonLd = {
             </div>
 
             <!-- DVF statut (sous la commune) -->
-            <div id="dvf-loading" class="hidden mb-3 flex items-center gap-1.5 text-xs text-slate-400">
+            <div id="dvf-loading" class="hidden mb-3 flex items-center gap-1.5 text-xs text-slate-600">
               <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -172,7 +172,7 @@ const jsonLd = {
               </svg>
               <span id="dvf-status-text"></span>
             </div>
-            <div id="dvf-status-unavailable" class="hidden mb-3 text-xs text-slate-400 italic px-0.5">
+            <div id="dvf-status-unavailable" class="hidden mb-3 text-xs text-slate-600 italic px-0.5">
               <span id="dvf-unavail-text">Données DVF indisponibles pour cette commune.</span>
             </div>
 
@@ -183,7 +183,7 @@ const jsonLd = {
               </svg>
               <span id="rental-status-text"></span>
             </div>
-            <div id="rental-status-unavailable" class="hidden mb-3 text-xs text-slate-400 italic px-0.5">
+            <div id="rental-status-unavailable" class="hidden mb-3 text-xs text-slate-600 italic px-0.5">
               Aucune donnée locative disponible pour cette commune.
             </div>
 
@@ -194,25 +194,25 @@ const jsonLd = {
             <div id="rent-field" class="hidden mb-4">
               <label for="current-rent" class="block text-sm font-semibold text-slate-700 mb-1.5">
                 Loyer actuel (€/mois)
-                <span class="text-xs font-normal text-slate-400 ml-1">— requis pour l'analyse locative</span>
+                <span class="text-xs font-normal text-slate-600 ml-1">— requis pour l'analyse locative</span>
               </label>
               <div class="relative max-w-xs">
                 <input id="current-rent" type="number" inputmode="decimal" min="0" step="50" placeholder="Ex. 800"
-                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-16 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
-                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">€/mois</span>
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-16 text-slate-900 text-sm font-medium placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 text-xs pointer-events-none">€/mois</span>
               </div>
             </div>
 
             <!-- Séparateur -->
             <div class="border-t border-slate-100 mb-5"></div>
 
-            <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+            <p class="text-[11px] font-bold uppercase tracking-widest text-slate-600 mb-3">
               Postes de travaux
             </p>
 
             <div class="hidden sm:grid sm:grid-cols-[1fr_9rem_2.25rem] gap-2 mb-1.5 px-0.5">
-              <p class="text-xs text-slate-400">Type de travaux</p>
-              <p class="text-xs text-slate-400">Budget (€)</p>
+              <p class="text-xs text-slate-600">Type de travaux</p>
+              <p class="text-xs text-slate-600">Budget (€)</p>
               <p></p>
             </div>
 
@@ -226,7 +226,7 @@ const jsonLd = {
               Ajouter un poste
             </button>
 
-            <p id="form-error" class="hidden mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+            <p id="form-error" class="hidden mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
               <span id="form-error-text">Ajoutez au moins un poste de travaux avec un budget.</span>
             </p>
 
@@ -247,25 +247,25 @@ const jsonLd = {
             <!-- ── Synthèse ── -->
             <div class="p-6 sm:p-8">
 
-              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">
+              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-600 mb-4">
                 Synthèse financière
               </p>
 
               <!-- Bloc Synthèse locative (Location seulement) -->
               <div id="r-location-summary" class="hidden mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-3">Synthèse locative</p>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-700 mb-3">Synthèse locative</p>
                 <div class="grid grid-cols-3 gap-2 text-center">
                   <div class="bg-white rounded-lg p-2.5 border border-emerald-100">
                     <p id="r-ls-surplus-m" class="text-sm sm:text-base font-bold text-slate-900">—</p>
-                    <p class="text-[11px] text-slate-500 mt-0.5">Surplus/mois</p>
+                    <p class="text-[11px] text-slate-600 mt-0.5">Surplus/mois</p>
                   </div>
                   <div class="bg-white rounded-lg p-2.5 border border-emerald-100">
                     <p id="r-ls-surplus-a" class="text-sm sm:text-base font-bold text-slate-900">—</p>
-                    <p class="text-[11px] text-slate-500 mt-0.5">Surplus/an</p>
+                    <p class="text-[11px] text-slate-600 mt-0.5">Surplus/an</p>
                   </div>
                   <div class="bg-white rounded-lg p-2.5 border border-emerald-100">
                     <p id="r-ls-payback" class="text-sm sm:text-base font-bold text-slate-900">—</p>
-                    <p class="text-[11px] text-slate-500 mt-0.5">Amortissement</p>
+                    <p class="text-[11px] text-slate-600 mt-0.5">Amortissement</p>
                   </div>
                 </div>
               </div>
@@ -284,7 +284,7 @@ const jsonLd = {
                     <span class="text-sm text-slate-600">Revalorisation estimée</span>
                     <div class="flex items-baseline gap-2 flex-shrink-0">
                       <span id="r-delta-value" class="text-sm font-bold tabular-nums font-mono text-slate-900"></span>
-                      <span id="r-recovery-pct" class="text-xs text-slate-400"></span>
+                      <span id="r-recovery-pct" class="text-xs text-slate-600"></span>
                     </div>
                   </div>
                   <div id="r-new-value-row" class="hidden flex items-center justify-between py-3 gap-4 border-b border-slate-100">
@@ -302,22 +302,22 @@ const jsonLd = {
 
               <!-- Accordéon patrimonial (Location seulement) -->
               <details id="r-patrimoine-accord" class="hidden group mt-3 border border-slate-100 rounded-xl overflow-hidden">
-                <summary class="flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 cursor-pointer select-none list-none transition-colors">
-                  <svg class="h-3.5 w-3.5 text-slate-400 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <summary class="flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-slate-700 hover:bg-slate-50 cursor-pointer select-none list-none transition-colors">
+                  <svg class="h-3.5 w-3.5 text-slate-600 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
                   </svg>
                   Données patrimoniales (revente)
                 </summary>
                 <div class="px-4 pb-3 divide-y divide-slate-100 bg-slate-50/60">
                   <div class="flex justify-between py-2.5 gap-4">
-                    <span class="text-sm text-slate-500">Revalorisation estimée</span>
+                    <span class="text-sm text-slate-600">Revalorisation estimée</span>
                     <div class="flex flex-col items-end">
                       <span id="r-accord-delta" class="text-sm font-bold tabular-nums font-mono text-slate-700"></span>
-                      <span id="r-accord-pct"   class="text-xs text-slate-400"></span>
+                      <span id="r-accord-pct"   class="text-xs text-slate-600"></span>
                     </div>
                   </div>
                   <div id="r-accord-newval-row" class="hidden flex justify-between py-2.5 gap-4">
-                    <span class="text-sm text-slate-500">Valeur après travaux</span>
+                    <span class="text-sm text-slate-600">Valeur après travaux</span>
                     <span id="r-accord-newval" class="text-sm font-bold tabular-nums font-mono text-slate-700"></span>
                   </div>
                 </div>
@@ -328,46 +328,46 @@ const jsonLd = {
 
               <!-- DVF encadré (résultats) -->
               <div id="r-dvf-box" class="hidden mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 sm:p-4">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-3">Analyse marché DVF — données publiques</p>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-700 mb-3">Analyse marché DVF — données publiques</p>
                 <div class="space-y-2.5 sm:space-y-0 sm:grid sm:grid-cols-[1fr_auto] sm:gap-x-4 sm:gap-y-2 text-sm mb-3">
                   <div class="flex items-center justify-between sm:contents">
-                    <span class="text-slate-500">Prix marché <span id="r-dvf-type-label" class="text-xs font-normal text-slate-400"></span></span>
+                    <span class="text-slate-600">Prix marché <span id="r-dvf-type-label" class="text-xs font-normal text-slate-600"></span></span>
                     <span id="r-dvf-prix-m2" class="font-bold text-slate-900 tabular-nums font-mono"></span>
                   </div>
 
                   <div class="flex items-center justify-between sm:contents">
-                    <span class="text-slate-500">Fiabilité</span>
+                    <span class="text-slate-600">Fiabilité</span>
                     <div id="r-dvf-fiabilite" class="flex justify-end"></div>
                   </div>
 
                   <div class="flex items-center justify-between sm:contents">
-                    <span id="r-dvf-surface-label" class="text-slate-500">Surface totale</span>
+                    <span id="r-dvf-surface-label" class="text-slate-600">Surface totale</span>
                     <span id="r-dvf-surface-total" class="font-bold text-slate-900 tabular-nums font-mono"></span>
                   </div>
 
                   <div class="flex items-center justify-between sm:contents">
-                    <span id="r-dvf-theorique-label" class="text-slate-500 min-w-0">Valeur théorique</span>
+                    <span id="r-dvf-theorique-label" class="text-slate-600 min-w-0">Valeur théorique</span>
                     <span id="r-dvf-valeur-theorique" class="font-bold text-slate-900 tabular-nums font-mono text-right flex-shrink-0"></span>
                   </div>
 
                   <div class="flex items-center justify-between sm:contents">
-                    <span id="r-dvf-apres-label" class="text-slate-500 min-w-0">Valeur après travaux</span>
+                    <span id="r-dvf-apres-label" class="text-slate-600 min-w-0">Valeur après travaux</span>
                     <span id="r-dvf-valeur-apres" class="font-bold text-slate-900 tabular-nums font-mono text-right flex-shrink-0"></span>
                   </div>
 
                   <div class="flex items-center justify-between sm:contents">
-                    <span id="r-dvf-ecart-label" class="text-slate-500">Écart marché</span>
+                    <span id="r-dvf-ecart-label" class="text-slate-600">Écart marché</span>
                     <span id="r-dvf-ecart" class="font-bold tabular-nums font-mono text-right flex-shrink-0"></span>
                   </div>
                 </div>
                 <div id="r-dvf-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold"></div>
-                <p class="text-[10px] text-slate-400 mt-2">
+                <p class="text-[10px] text-slate-600 mt-2">
                   <span id="r-dvf-commune"></span> · <span id="r-dvf-source"></span>
                 </p>
               </div>
 
               <!-- DVF indisponible -->
-              <div id="r-dvf-unavailable" class="hidden mt-3 text-xs text-slate-400 italic">
+              <div id="r-dvf-unavailable" class="hidden mt-3 text-xs text-slate-600 italic">
                 Données DVF non disponibles pour cette commune (bientôt couvert).
               </div>
 
@@ -376,7 +376,7 @@ const jsonLd = {
             <!-- ── Impact locatif ── -->
             <div id="r-location-section" class="hidden border-t border-slate-200 bg-slate-50 p-6 sm:p-8">
 
-              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">
+              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-600 mb-4">
                 Impact locatif
               </p>
 
@@ -395,7 +395,7 @@ const jsonLd = {
                 <div class="flex items-start justify-between py-3 gap-4">
                   <div>
                     <p class="text-sm text-slate-600">Rendement brut après travaux</p>
-                    <p id="r-yield-hypothesis" class="text-xs text-slate-400 italic mt-0.5">Hypothèse : taux de capitalisation stable</p>
+                    <p id="r-yield-hypothesis" class="text-xs text-slate-600 italic mt-0.5">Hypothèse : taux de capitalisation stable</p>
                   </div>
                   <span id="r-yield-after" class="text-sm font-bold tabular-nums font-mono text-slate-900 flex-shrink-0"></span>
                 </div>
@@ -404,7 +404,7 @@ const jsonLd = {
                   <span id="r-new-rent" class="text-sm font-bold tabular-nums font-mono text-slate-900 flex-shrink-0"></span>
                 </div>
                 <div id="r-loyer-marche-row" class="hidden flex items-center justify-between py-3 gap-4">
-                  <span class="text-sm text-slate-500">Loyer estimé marché <span class="text-xs text-slate-400">(référence)</span></span>
+                  <span class="text-sm text-slate-600">Loyer estimé marché <span class="text-xs text-slate-600">(référence)</span></span>
                   <span id="r-loyer-marche" class="text-sm font-bold tabular-nums font-mono text-violet-700 flex-shrink-0"></span>
                 </div>
                 <div class="flex items-center justify-between py-3 gap-4">
@@ -421,23 +421,23 @@ const jsonLd = {
                 </div>
               </div>
 
-              <div id="r-location-missing" class="hidden mt-4 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500 italic">
+              <div id="r-location-missing" class="hidden mt-4 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 italic">
                 Renseignez le loyer actuel pour calculer l'impact locatif.
               </div>
-              <div id="r-location-note" class="hidden mt-3 text-xs text-slate-400 italic leading-relaxed"></div>
+              <div id="r-location-note" class="hidden mt-3 text-xs text-slate-600 italic leading-relaxed"></div>
 
             </div>
 
             <!-- ── Détail par poste ── -->
             <div class="border-t border-slate-200 p-6 sm:p-8">
-              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">Détail par poste</p>
+              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-600 mb-4">Détail par poste</p>
               <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                   <thead>
                     <tr class="border-b border-slate-200">
-                      <th class="text-left pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Travaux</th>
-                      <th class="text-right pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider pr-1">Budget</th>
-                      <th class="text-right pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Récup. est.</th>
+                      <th class="text-left pb-2 text-xs font-semibold text-slate-600 uppercase tracking-wider">Travaux</th>
+                      <th class="text-right pb-2 text-xs font-semibold text-slate-600 uppercase tracking-wider pr-1">Budget</th>
+                      <th class="text-right pb-2 text-xs font-semibold text-slate-600 uppercase tracking-wider">Récup. est.</th>
                     </tr>
                   </thead>
                   <tbody id="r-detail-tbody"></tbody>
@@ -454,7 +454,7 @@ const jsonLd = {
 
             <!-- ── Indice Stratégique Immobilier™ ── -->
             <div id="r-strategic-section" class="border-t border-slate-200 p-6 sm:p-8">
-              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">Indice Stratégique Immobilier™</p>
+              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-600 mb-4">Indice Stratégique Immobilier™</p>
               <SimulateurScoresApp client:only="react" />
             </div>
 
@@ -467,7 +467,7 @@ const jsonLd = {
                 </svg>
                 Analyser mon devis pour une estimation basée sur mes prix réels
               </a>
-              <p class="text-xs text-slate-400 italic leading-relaxed">
+              <p class="text-xs text-slate-600 italic leading-relaxed">
                 Les taux de récupération sont des ordres de grandeur issus d'observations du marché immobilier français.
                 Ils ne constituent pas une estimation professionnelle. Les résultats varient selon la localisation précise,
                 la qualité d'exécution, l'état initial du bien et les conditions du marché local.
@@ -482,7 +482,7 @@ const jsonLd = {
       <!-- ══ EXPLICATION ══ -->
       <section class="py-10 sm:py-12 border-t border-slate-200">
         <div class="container max-w-2xl">
-          <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Méthodologie</p>
+          <p class="text-[11px] font-bold uppercase tracking-widest text-slate-600 mb-3">Méthodologie</p>
           <p class="text-sm text-slate-600 leading-relaxed mb-3">
             Chaque poste est évalué via l'<strong>Indice Stratégique Immobilier™</strong> (IVP / IPI) calculé depuis
             notre référentiel de plus de 300 types de travaux. Les <strong>données DVF</strong> (actes notariés – data.gouv.fr)
@@ -503,7 +503,7 @@ const jsonLd = {
       <!-- Guides travaux -->
       <section class="py-8 px-4 bg-slate-50 border-t border-slate-100">
         <div class="max-w-3xl mx-auto">
-          <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Nos guides travaux</p>
+          <p class="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-4">Nos guides travaux</p>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
             <a href="/verifier-devis-travaux" class="flex items-center gap-2 p-3 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 transition-colors font-medium text-slate-800">
               <span>📋</span> Vérifier un devis travaux
@@ -629,8 +629,8 @@ const jsonLd = {
   // ── Jauge fiabilité DVF ──
   function renderFiabiliteHtml(fiab: { niveau: string; nb_ventes: number | null }): string {
     const CONFIGS: Record<string, { dots: number; color: string; label: string }> = {
-      tres_bonne:  { dots: 5, color: 'bg-emerald-600', label: 'Très bonne' },
-      bonne:       { dots: 4, color: 'bg-emerald-500', label: 'Bonne'      },
+      tres_bonne:  { dots: 5, color: 'bg-emerald-700', label: 'Très bonne' },
+      bonne:       { dots: 4, color: 'bg-emerald-700', label: 'Bonne'      },
       moyenne:     { dots: 3, color: 'bg-amber-400',   label: 'Correcte'   },
       faible:      { dots: 2, color: 'bg-orange-400',  label: 'Faible'     },
       tres_faible: { dots: 1, color: 'bg-red-400',     label: 'Très faible'},
@@ -667,17 +667,17 @@ const jsonLd = {
             <option value="">Type de travaux…</option>
             ${OPTIONS_HTML}
           </select>
-          <svg class="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <svg class="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
           </svg>
         </div>
         <div class="relative">
           <input type="number" inputmode="decimal" min="0" step="500" placeholder="0"
             class="budget-input w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 pr-6 text-slate-900 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
-          <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">€</span>
+          <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-600 text-xs pointer-events-none">€</span>
         </div>
         <button type="button"
-          class="delete-row-btn flex items-center justify-center h-9 w-9 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors" aria-label="Supprimer">
+          class="delete-row-btn flex items-center justify-center h-9 w-9 rounded-lg text-slate-300 hover:text-red-700 hover:bg-red-50 transition-colors" aria-label="Supprimer">
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -688,9 +688,9 @@ const jsonLd = {
         <div class="relative">
           <input type="number" inputmode="numeric" min="1" step="1" placeholder="Ex. 25"
             class="surface-input w-28 rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-1.5 pr-9 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors" />
-          <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">m²</span>
+          <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-600 text-xs pointer-events-none">m²</span>
         </div>
-        <p class="text-xs text-amber-600 italic">Requis pour l'impact locatif</p>
+        <p class="text-xs text-amber-700 italic">Requis pour l'impact locatif</p>
       </div>
     `;
 
@@ -746,7 +746,7 @@ const jsonLd = {
     const btnR = el<HTMLButtonElement>('btn-revente');
     const btnL = el<HTMLButtonElement>('btn-location');
     const active   = ['border-primary', 'bg-primary/5', 'text-primary'];
-    const inactive = ['border-slate-200', 'bg-slate-50', 'text-slate-500'];
+    const inactive = ['border-slate-200', 'bg-slate-50', 'text-slate-600'];
 
     if (obj === 'revente') {
       active.forEach(c   => btnR.classList.add(c));
@@ -1129,7 +1129,7 @@ const jsonLd = {
     el('r-detail-tbody').innerHTML = items.map(item => {
       const delta = Math.round(item.budget * weightedRate!);
       const surfaceTag = (SURFACE_TYPES.has(item.type) && item.surfaceAdded)
-        ? `<span class="ml-1 text-xs text-amber-600">(+${item.surfaceAdded}\u00a0m²)</span>` : '';
+        ? `<span class="ml-1 text-xs text-amber-700">(+${item.surfaceAdded}\u00a0m²)</span>` : '';
       return `
         <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
           <td class="py-2.5 pr-2 text-sm text-slate-700">${item.label}${surfaceTag}</td>

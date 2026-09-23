@@ -206,7 +206,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
           {/* ── BANNIÈRE STATUT JURIDIQUE À RISQUE (priorité 0) ────────────── */}
           {isLegalRisk && (
             <div className="mb-4 flex items-start gap-3 rounded-xl border-2 border-red-400 bg-red-50 px-4 py-4">
-              <Ban className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+              <Ban className="h-6 w-6 text-red-700 flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-red-800 text-sm">
                   ⛔ Situation juridique à risque
@@ -253,7 +253,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
               {siret && (
                 <p
                   className={`text-xs sm:text-sm font-mono ${
-                    siretNonVerifie ? "text-amber-600" : "text-muted-foreground"
+                    siretNonVerifie ? "text-amber-700" : "text-muted-foreground"
                   }`}
                 >
                   SIRET&nbsp;: {formatSiret(siret)}
@@ -263,7 +263,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                 </p>
               )}
               {!siret && (
-                <p className="text-xs sm:text-sm text-amber-600">
+                <p className="text-xs sm:text-sm text-amber-700">
                   SIRET non détecté sur le devis
                 </p>
               )}
@@ -288,7 +288,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                           {ancienneteAnnees < 1
                             ? "Moins d'un an d'existence"
                             : `${ancienneteAnnees} an${ancienneteAnnees > 1 ? "s" : ""} d'existence`}
-                          {dateCreation && <span className="text-amber-600/80 text-xs ml-1">(créée le {new Date(dateCreation).toLocaleDateString("fr-FR")})</span>}
+                          {dateCreation && <span className="text-amber-700/80 text-xs ml-1">(créée le {new Date(dateCreation).toLocaleDateString("fr-FR")})</span>}
                         </span>
                       </span>
                     ) : (
@@ -305,7 +305,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
             {/* Alerte entreprise jeune — affiché même si le bloc global est orange ou vert */}
             {ancienneteAnnees !== null && ancienneteAnnees < 3 && isImmatriculee === true && (
               <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
-                <span className="text-amber-500 text-base flex-shrink-0 mt-px">⚠️</span>
+                <span className="text-amber-700 text-base flex-shrink-0 mt-px">⚠️</span>
                 <div className="text-xs text-amber-800 leading-relaxed">
                   <span className="font-semibold block mb-0.5">
                     Entreprise de moins de 3 ans
@@ -317,7 +317,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
             )}
 
             {lookupStatus === "not_found" && siret && (
-              <p className="text-xs text-amber-600 mt-2">
+              <p className="text-xs text-amber-700 mt-2">
                 SIRET non trouvé dans les registres publics. Vous pouvez vérifier sur societe.com ou infogreffe.fr.
               </p>
             )}
@@ -370,8 +370,8 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                 {/* Avertissement données non récentes */}
                 {financialHealth.isStale && (
                   <div className="flex items-start gap-2 p-3 bg-score-orange-bg rounded-lg border border-score-orange/30">
-                    <AlertCircle className="h-4 w-4 text-score-orange flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-score-orange">
+                    <AlertCircle className="h-4 w-4 text-score-orange-foreground flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-score-orange-foreground">
                       Données non récentes (dernier exercice&nbsp;: {financialHealth.dernier_exercice_year})
                       — les indicateurs ci-dessous sont à interpréter avec prudence.
                     </p>
@@ -412,8 +412,8 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                                 ex.resultat_net === null
                                   ? "text-muted-foreground"
                                   : ex.resultat_net >= 0
-                                  ? "text-score-green"
-                                  : "text-score-red"
+                                  ? "text-score-green-foreground"
+                                  : "text-score-red-foreground"
                               }`}>
                                 {ex.resultat_net !== null ? formatCurrencyCompact(ex.resultat_net) : "—"}
                               </td>
@@ -452,10 +452,10 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                               value={`${r.taux_endettement.toFixed(0)} %`}
                               colorClass={
                                 r.taux_endettement > 200
-                                  ? "text-score-red"
+                                  ? "text-score-red-foreground"
                                   : r.taux_endettement > 100
-                                  ? "text-score-orange"
-                                  : "text-score-green"
+                                  ? "text-score-orange-foreground"
+                                  : "text-score-green-foreground"
                               }
                               hint="Dettes totales / Capitaux propres. Un taux > 100 % signale un endettement supérieur aux fonds propres."
                             />
@@ -464,7 +464,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                             <RatioCard
                               label="Ratio de liquidité"
                               value={`${r.ratio_liquidite.toFixed(0)} %`}
-                              colorClass={r.ratio_liquidite < 80 ? "text-score-orange" : "text-score-green"}
+                              colorClass={r.ratio_liquidite < 80 ? "text-score-orange-foreground" : "text-score-green-foreground"}
                               hint="Actif circulant / Passif à court terme. Un ratio < 80 % peut signaler des tensions de trésorerie."
                             />
                           )}
@@ -472,7 +472,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                             <RatioCard
                               label="Autonomie financière"
                               value={`${r.autonomie_financiere.toFixed(0)} %`}
-                              colorClass={r.autonomie_financiere > 30 ? "text-score-green" : "text-score-orange"}
+                              colorClass={r.autonomie_financiere > 30 ? "text-score-green-foreground" : "text-score-orange-foreground"}
                               hint="Capitaux propres / Total bilan. Un taux > 30 % indique une bonne indépendance financière."
                             />
                           )}
@@ -480,7 +480,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                             <RatioCard
                               label="Capacité de remboursement"
                               value={`${r.capacite_remboursement.toFixed(1)} ×`}
-                              colorClass={r.capacite_remboursement > 4 ? "text-score-orange" : "text-score-green"}
+                              colorClass={r.capacite_remboursement > 4 ? "text-score-orange-foreground" : "text-score-green-foreground"}
                               hint="Dettes financières / EBE. Un ratio > 4 peut indiquer une dette élevée par rapport à la capacité bénéficiaire."
                             />
                           )}
@@ -488,7 +488,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                             <RatioCard
                               label="Marge EBE"
                               value={`${r.marge_ebe.toFixed(1)} %`}
-                              colorClass={r.marge_ebe > 0 ? "text-score-green" : "text-score-red"}
+                              colorClass={r.marge_ebe > 0 ? "text-score-green-foreground" : "text-score-red-foreground"}
                               hint="EBE / Chiffre d'affaires. Mesure la rentabilité d'exploitation avant charges financières et amortissements."
                             />
                           )}
@@ -501,9 +501,9 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                 {/* Signaux ROUGE critiques */}
                 {financialHealth.rougeSignals.length > 0 && (
                   <div className="space-y-1 pt-1 border-t border-border/20">
-                    <p className="text-xs font-medium text-score-red mb-1.5">Signaux critiques</p>
+                    <p className="text-xs font-medium text-score-red-foreground mb-1.5">Signaux critiques</p>
                     {financialHealth.rougeSignals.map((signal, idx) => (
-                      <div key={idx} className="flex items-start gap-2 text-xs text-score-red">
+                      <div key={idx} className="flex items-start gap-2 text-xs text-score-red-foreground">
                         <span className="flex-shrink-0 mt-px">⚠️</span>
                         <span>
                           {signal === "endettement_critique" &&
@@ -525,7 +525,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                   <div className="space-y-1 pt-1 border-t border-border/20">
                     <p className="text-xs font-medium text-muted-foreground mb-1.5">Signaux à surveiller</p>
                     {financialHealth.orangeSignals.map((signal, idx) => (
-                      <div key={idx} className="flex items-start gap-2 text-xs text-score-orange">
+                      <div key={idx} className="flex items-start gap-2 text-xs text-score-orange-foreground">
                         <span className="flex-shrink-0 mt-px">•</span>
                         <span>
                           {signal === "endettement_eleve" &&
@@ -693,20 +693,20 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                 {ancienneteAnnees !== null && ancienneteAnnees >= 5 && info.reputation.reviews_count <= 50 && (() => {
                   const seuilAvis = Math.max(3, Math.min(10, Math.floor(ancienneteAnnees / 3)));
                   return info.reputation.reviews_count < seuilAvis ? (
-                    <p className="text-sm text-score-orange mt-2">
+                    <p className="text-sm text-score-orange-foreground mt-2">
                       ⚠️ Seulement {info.reputation.reviews_count} avis Google pour une entreprise de {ancienneteAnnees} ans — note statistiquement peu fiable. Demandez des références de chantiers récents.
                     </p>
                   ) : null;
                 })()}
                 {/* Alerte incohérence : beaucoup d'avis mais entreprise très jeune */}
                 {info.reputation.reviews_count > 500 && ancienneteAnnees !== null && ancienneteAnnees < 2 && (
-                  <p className="text-sm text-score-orange mt-2">
+                  <p className="text-sm text-score-orange-foreground mt-2">
                     ⚠️ Incohérence détectée&nbsp;: {info.reputation.reviews_count} avis Google pour une entreprise de moins de 2 ans. Ce volume inhabituel peut indiquer un transfert de compte, des avis achetés ou une confusion avec un autre établissement. Vérifiez l'historique sur Google Maps.
                   </p>
                 )}
                 {/* Message positif si note >= 4/5 ET suffisamment d'avis */}
                 {info.reputation.rating >= 4.0 && (ancienneteAnnees === null || ancienneteAnnees < 5 || info.reputation.reviews_count >= Math.max(3, Math.min(10, Math.floor((ancienneteAnnees ?? 0) / 3)))) && (
-                  <p className="text-sm text-score-green mt-2">
+                  <p className="text-sm text-score-green-foreground mt-2">
                     ✓ La note Google est au-dessus du seuil de confort habituellement observé.
                   </p>
                 )}

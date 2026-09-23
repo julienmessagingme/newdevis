@@ -44,8 +44,8 @@ const dateCourte = (iso: string) => {
 };
 
 const TON: Record<Materiel["zone"], { cadre: string; badge: string; libelle: string }> = {
-  normal:   { cadre: "border-border/60", badge: "bg-emerald-500/10 text-emerald-700", libelle: "Prix cohérent" },
-  mention:  { cadre: "border-amber-200",  badge: "bg-amber-500/10 text-amber-700",    libelle: "Un peu au-dessus" },
+  normal:   { cadre: "border-border/60", badge: "bg-emerald-700/10 text-emerald-700", libelle: "Prix cohérent" },
+  mention:  { cadre: "border-amber-200",  badge: "bg-amber-700/10 text-amber-700",    libelle: "Un peu au-dessus" },
   question: { cadre: "border-rose-200",   badge: "bg-rose-500/10 text-rose-700",      libelle: "À faire expliquer" },
 };
 

@@ -105,12 +105,12 @@ input[type='range']:focus::-webkit-slider-thumb {
     --secondary-foreground: 220 30% 25%;
 
     --muted: 220 15% 94%;
-    --muted-foreground: 220 15% 45%;
+    --muted-foreground: 220 15% 42%;
 
     --accent: 220 60% 95%;
     --accent-foreground: 220 70% 35%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 220 20% 88%;
@@ -128,7 +128,7 @@ input[type='range']:focus::-webkit-slider-thumb {
     --score-orange-bg: 32 95% 95%;
     --score-orange-foreground: 32 95% 30%;
     
-    --score-red: 0 72% 51%;
+    --score-red: 0 72% 48%;
     --score-red-bg: 0 72% 95%;
     --score-red-foreground: 0 72% 30%;
 

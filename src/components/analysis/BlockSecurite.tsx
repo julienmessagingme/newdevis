@@ -172,7 +172,7 @@ const BlockSecurite = ({
               {/* Mode de paiement */}
               <div className="p-3 bg-background/30 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Mode de paiement</p>
-                <p className={`font-medium ${info.paiement.especes ? "text-score-red" : "text-foreground"}`}>
+                <p className={`font-medium ${info.paiement.especes ? "text-score-red-foreground" : "text-foreground"}`}>
                   {info.paiement.modes.length > 0 ? info.paiement.modes.join(", ") : "Non disponible dans le devis"}
                 </p>
               </div>
@@ -182,8 +182,8 @@ const BlockSecurite = ({
                 <p className="text-xs text-muted-foreground mb-1">Acompte demandé</p>
                 <p className={`font-medium ${
                   info.paiement.acomptePourcentage === null ? "text-muted-foreground" :
-                  info.paiement.acomptePourcentage <= 30 ? "text-score-green" :
-                  info.paiement.acomptePourcentage <= 50 ? "text-score-orange" : "text-score-red"
+                  info.paiement.acomptePourcentage <= 30 ? "text-score-green-foreground" :
+                  info.paiement.acomptePourcentage <= 50 ? "text-score-orange-foreground" : "text-score-red-foreground"
                 }`}>
                   {info.paiement.acomptePourcentage !== null ? `${info.paiement.acomptePourcentage}%` : "Non disponible dans le devis"}
                 </p>
@@ -194,8 +194,8 @@ const BlockSecurite = ({
                 <p className="text-xs text-muted-foreground mb-1">Statut IBAN</p>
                 <p className={`font-medium ${
                   info.paiement.ibanValid === null ? "text-muted-foreground" :
-                  !info.paiement.ibanValid ? "text-score-red" :
-                  info.paiement.ibanFrance ? "text-score-green" : "text-score-orange"
+                  !info.paiement.ibanValid ? "text-score-red-foreground" :
+                  info.paiement.ibanFrance ? "text-score-green-foreground" : "text-score-orange-foreground"
                 }`}>
                   {info.paiement.ibanValid === null && "Aucun IBAN n'a été détecté dans le devis"}
                   {info.paiement.ibanValid === false && "IBAN non valide"}
@@ -208,7 +208,7 @@ const BlockSecurite = ({
             {/* Paiement intégral warning */}
             {info.paiement.paiementIntegralAvantTravaux && (
               <div className="mt-3 p-2 bg-score-red/10 rounded-lg border border-score-red/20">
-                <p className="text-sm text-score-red font-medium">
+                <p className="text-sm text-score-red-foreground font-medium">
                   ⚠️ Paiement intégral demandé avant le début des travaux
                 </p>
               </div>

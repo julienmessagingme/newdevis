@@ -177,7 +177,7 @@ const badgeColors: Record<string, string> = {
       <section class="bg-gradient-to-b from-cyan-950 to-slate-900 text-white py-16 sm:py-20">
         <div class="container max-w-4xl px-4">
 
-          <a href="/" class="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-8 transition-colors text-sm">
+          <a href="/" class="inline-flex items-center gap-2 text-slate-600 hover:text-white mb-8 transition-colors text-sm">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
@@ -203,7 +203,7 @@ const badgeColors: Record<string, string> = {
             les options non chiffrées et les prix d'appel, le budget réel finit
             presque toujours bien au-dessus du devis initial.
           </p>
-          <p class="text-sm text-slate-400 mb-8">
+          <p class="text-sm text-slate-600 mb-8">
             Ce guide vous donne les vrais chiffres du marché 2026 et les outils pour
             lire un devis piscine sans vous faire piéger.
           </p>
@@ -211,7 +211,7 @@ const badgeColors: Record<string, string> = {
           <div class="flex flex-col sm:flex-row gap-3">
             <a
               href="/nouvelle-analyse"
-              class="inline-flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+              class="inline-flex items-center justify-center gap-2 bg-cyan-700 hover:bg-cyan-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
@@ -238,7 +238,7 @@ const badgeColors: Record<string, string> = {
             ].map(stat => (
               <div class="text-center">
                 <div class="text-xl sm:text-2xl font-bold text-white mb-1">{stat.value}</div>
-                <div class="text-xs text-slate-400 leading-snug">{stat.label}</div>
+                <div class="text-xs text-slate-600 leading-snug">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -256,7 +256,7 @@ const badgeColors: Record<string, string> = {
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Prix moyen d'une piscine en 2026
             </h2>
-            <p class="text-slate-500 text-sm mb-6">
+            <p class="text-slate-600 text-sm mb-6">
               Fourchettes constatées sur des projets réels en France métropolitaine,
               hors Île-de-France (majorer de 15 à 25 % en zone parisienne).
             </p>
@@ -267,7 +267,7 @@ const badgeColors: Record<string, string> = {
                   <div class="flex items-center justify-between gap-4 p-5 bg-slate-50 border-b border-slate-200">
                     <div>
                       <h3 class="font-semibold text-slate-900">{p.type}</h3>
-                      <p class="text-xs text-slate-500 mt-0.5">Exemple : {p.taille}</p>
+                      <p class="text-xs text-slate-600 mt-0.5">Exemple : {p.taille}</p>
                     </div>
                     <span class={`flex-shrink-0 text-xs font-semibold px-3 py-1 rounded-full border ${badgeColors[p.badge]}`}>
                       {p.moy} en moyenne
@@ -276,12 +276,12 @@ const badgeColors: Record<string, string> = {
                   <div class="p-5">
                     <!-- Barre de prix -->
                     <div class="flex items-center gap-3 mb-4">
-                      <span class="text-xs text-slate-500 w-16 text-right flex-shrink-0">Min</span>
+                      <span class="text-xs text-slate-600 w-16 text-right flex-shrink-0">Min</span>
                       <div class="flex-1 relative h-3 bg-slate-100 rounded-full overflow-hidden">
                         <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-400 w-full rounded-full opacity-40"></div>
                         <div class="absolute left-[30%] top-[-3px] h-5 w-0.5 bg-slate-400"></div>
                       </div>
-                      <span class="text-xs text-slate-500 w-16 flex-shrink-0">Max</span>
+                      <span class="text-xs text-slate-600 w-16 flex-shrink-0">Max</span>
                     </div>
                     <div class="flex justify-between text-xs font-semibold text-slate-700 mb-4 px-[4.5rem]">
                       <span>{p.min}</span>
@@ -290,7 +290,7 @@ const badgeColors: Record<string, string> = {
                     </div>
                     <div class="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Avantages</p>
+                        <p class="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Avantages</p>
                         <ul class="space-y-1">
                           {p.avantages.map(a => (
                             <li class="flex items-start gap-1.5 text-slate-600">
@@ -303,11 +303,11 @@ const badgeColors: Record<string, string> = {
                         </ul>
                       </div>
                       <div>
-                        <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Limites</p>
+                        <p class="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Limites</p>
                         <ul class="space-y-1">
                           {p.inconvenients.map(i => (
                             <li class="flex items-start gap-1.5 text-slate-600">
-                              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-amber-700 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m12-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                               </svg>
                               <span class="text-xs">{i}</span>
@@ -334,7 +334,7 @@ const badgeColors: Record<string, string> = {
           <div class="my-10 bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-2xl p-6 text-center">
             <p class="text-base font-semibold text-slate-900 mb-1">Votre devis est dans ces fourchettes&nbsp;?</p>
             <p class="text-sm text-slate-600 mb-4">Déposez-le sur VerifierMonDevis.fr. L'outil compare chaque ligne aux prix de référence et détecte les postes manquants en 2 minutes.</p>
-            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-cyan-700 hover:bg-cyan-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
@@ -347,7 +347,7 @@ const badgeColors: Record<string, string> = {
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Exemple réel de devis piscine annoté
             </h2>
-            <p class="text-slate-500 text-sm mb-6">
+            <p class="text-slate-600 text-sm mb-6">
               Projet&nbsp;: piscine coque 8×4 m, terrain plat, région Rhône-Alpes (2025).
               Devis anonymisé issu d'un projet client.
             </p>
@@ -366,13 +366,13 @@ const badgeColors: Record<string, string> = {
                     <tr class={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                       <td class="px-4 py-3 text-slate-800 font-medium border-b border-slate-100">{row.poste}</td>
                       <td class="px-4 py-3 text-right text-slate-900 font-semibold border-b border-slate-100 tabular-nums">{row.ht}</td>
-                      <td class="px-4 py-3 text-slate-500 text-xs border-b border-slate-100">{row.notes}</td>
+                      <td class="px-4 py-3 text-slate-600 text-xs border-b border-slate-100">{row.notes}</td>
                     </tr>
                   ))}
                   <tr class="bg-cyan-50">
                     <td class="px-4 py-3 font-bold text-slate-900 rounded-bl-xl">Total HT</td>
                     <td class="px-4 py-3 text-right font-bold text-cyan-700 tabular-nums">31 950 €</td>
-                    <td class="px-4 py-3 text-xs text-slate-500 rounded-br-xl">TVA 10 % → <strong>35 145 € TTC</strong></td>
+                    <td class="px-4 py-3 text-xs text-slate-600 rounded-br-xl">TVA 10 % → <strong>35 145 € TTC</strong></td>
                   </tr>
                 </tbody>
               </table>
@@ -386,13 +386,13 @@ const badgeColors: Record<string, string> = {
                 <p class="text-emerald-800"><strong>Point fort de ce devis&nbsp;:</strong> tous les postes sont détaillés, le terrassement est chiffré séparément avec indication du volume. Les équipements de filtration précisent la marque et le modèle.</p>
               </div>
               <div class="flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-700 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                 </svg>
                 <p class="text-amber-800"><strong>Point d'attention&nbsp;:</strong> le volet roulant (3 400 €) est listé mais la pompe à chaleur n'apparaît pas. À cette latitude, une PAC est quasi indispensable — demander un chiffrage complémentaire (3 500 à 7 000 €).</p>
               </div>
               <div class="flex gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-700 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                 </svg>
                 <p class="text-red-800"><strong>Alerte&nbsp;:</strong> aucune mention de la clôture de sécurité (obligation légale). Poste à ajouter&nbsp;: 1 500 à 3 500 € selon le type (barrière rigide, alarme, abri). À budgéter et à intégrer dans la demande de permis si applicable.</p>
@@ -405,7 +405,7 @@ const badgeColors: Record<string, string> = {
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Pourquoi les prix d'une piscine varient autant&nbsp;?
             </h2>
-            <p class="text-slate-500 text-sm mb-6">
+            <p class="text-slate-600 text-sm mb-6">
               Un même projet de piscine peut avoir des devis allant du simple au triple.
               Voici les vrais facteurs d'écart.
             </p>
@@ -451,7 +451,7 @@ const badgeColors: Record<string, string> = {
               Uploadez votre PDF et obtenez une vérification complète&nbsp;: postes manquants,
               prix hors marché, points de vigilance. Gratuit, sans engagement.
             </p>
-            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-cyan-700 hover:bg-cyan-700 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
@@ -464,7 +464,7 @@ const badgeColors: Record<string, string> = {
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Les erreurs fréquentes dans un devis piscine
             </h2>
-            <p class="text-slate-500 text-sm mb-6">
+            <p class="text-slate-600 text-sm mb-6">
               Ce sont les causes des dépassements budgétaires les plus fréquents.
               Toutes s'anticipent à la lecture du devis, avant signature.
             </p>
@@ -474,7 +474,7 @@ const badgeColors: Record<string, string> = {
                 <div class={`flex gap-4 p-5 rounded-xl border ${e.niveau === 'red' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'}`}>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class={`h-5 w-5 flex-shrink-0 mt-0.5 ${e.niveau === 'red' ? 'text-red-500' : 'text-amber-500'}`}
+                    class={`h-5 w-5 flex-shrink-0 mt-0.5 ${e.niveau === 'red' ? 'text-red-700' : 'text-amber-700'}`}
                     fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
@@ -504,7 +504,7 @@ const badgeColors: Record<string, string> = {
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Comment analyser un devis piscine&nbsp;: la checklist
             </h2>
-            <p class="text-slate-500 text-sm mb-6">
+            <p class="text-slate-600 text-sm mb-6">
               Passez chaque point en revue avant de signer. Tout point négatif doit
               faire l'objet d'une clarification écrite avec l'artisan.
             </p>
@@ -514,7 +514,7 @@ const badgeColors: Record<string, string> = {
               <!-- À vérifier (vert) -->
               <div class="border border-emerald-200 bg-emerald-50 rounded-xl p-5">
                 <div class="flex items-center gap-2 mb-4">
-                  <div class="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <div class="w-7 h-7 rounded-full bg-emerald-700 flex items-center justify-center flex-shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                     </svg>
@@ -546,7 +546,7 @@ const badgeColors: Record<string, string> = {
                 <ul class="space-y-2">
                   {checklistAnalyse.filter(c => !c.ok).map(c => (
                     <li class="flex items-start gap-2 text-sm text-red-800">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-700 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
                       {c.item}
@@ -557,7 +557,7 @@ const badgeColors: Record<string, string> = {
 
             </div>
 
-            <p class="text-sm text-slate-500 mt-4 text-center">
+            <p class="text-sm text-slate-600 mt-4 text-center">
               Plusieurs points rouges&nbsp;? Demandez un devis rectificatif avant toute signature.
               Un professionnel sérieux répondra positivement à ces demandes.
             </p>
@@ -615,7 +615,7 @@ const badgeColors: Record<string, string> = {
                   <summary class="flex items-center justify-between gap-4 p-5 cursor-pointer list-none hover:bg-slate-50 transition-colors">
                     <span class="font-medium text-slate-900 text-sm sm:text-base">{faq.question}</span>
                     <svg
-                      class="h-5 w-5 text-slate-400 flex-shrink-0 transition-transform group-open:rotate-180"
+                      class="h-5 w-5 text-slate-600 flex-shrink-0 transition-transform group-open:rotate-180"
                       xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
                     >
                       <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
@@ -672,7 +672,7 @@ const badgeColors: Record<string, string> = {
               ].map(link => (
                 <a href={link.href} class="flex flex-col p-4 border border-slate-200 rounded-xl hover:border-cyan-300 hover:bg-cyan-50/30 transition-colors group">
                   <span class="text-sm font-semibold text-slate-900 group-hover:text-cyan-700 transition-colors mb-1">{link.label}</span>
-                  <span class="text-xs text-slate-500">{link.desc}</span>
+                  <span class="text-xs text-slate-600">{link.desc}</span>
                 </a>
               ))}
             </div>

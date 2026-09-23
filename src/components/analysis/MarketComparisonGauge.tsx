@@ -43,13 +43,13 @@ const MarketComparisonGauge = ({
   const getIcon = () => {
     switch (ecart) {
       case "inferieur":
-        return <TrendingDown className="h-4 w-4 text-score-green" />;
+        return <TrendingDown className="h-4 w-4 text-score-green-foreground" />;
       case "normal":
-        return <Minus className="h-4 w-4 text-score-green" />;
+        return <Minus className="h-4 w-4 text-score-green-foreground" />;
       case "elevé":
-        return <TrendingUp className="h-4 w-4 text-score-orange" />;
+        return <TrendingUp className="h-4 w-4 text-score-orange-foreground" />;
       case "tres_elevé":
-        return <TrendingUp className="h-4 w-4 text-score-red" />;
+        return <TrendingUp className="h-4 w-4 text-score-red-foreground" />;
       default:
         return null;
     }
@@ -91,9 +91,9 @@ const MarketComparisonGauge = ({
         <div className="flex items-center gap-1.5">
           {getIcon()}
           <span className={`text-sm font-medium ${
-            ecart === "inferieur" || ecart === "normal" ? "text-score-green" :
-            ecart === "elevé" ? "text-score-orange" :
-            ecart === "tres_elevé" ? "text-score-red" : "text-muted-foreground"
+            ecart === "inferieur" || ecart === "normal" ? "text-score-green-foreground" :
+            ecart === "elevé" ? "text-score-orange-foreground" :
+            ecart === "tres_elevé" ? "text-score-red-foreground" : "text-muted-foreground"
           }`}>
             {getLabel()}
           </span>
@@ -144,9 +144,9 @@ const MarketComparisonGauge = ({
             <div className="flex items-center justify-between text-xs mt-1">
               <span className="text-muted-foreground">Prix du devis :</span>
               <span className={`font-medium ${
-                ecart === "inferieur" || ecart === "normal" ? "text-score-green" :
-                ecart === "elevé" ? "text-score-orange" :
-                ecart === "tres_elevé" ? "text-score-red" : "text-foreground"
+                ecart === "inferieur" || ecart === "normal" ? "text-score-green-foreground" :
+                ecart === "elevé" ? "text-score-orange-foreground" :
+                ecart === "tres_elevé" ? "text-score-red-foreground" : "text-foreground"
               }`}>
                 {prixDevis.toLocaleString('fr-FR')} €
               </span>

@@ -3,6 +3,28 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
 
+/**
+ * Tons des cartes « Aides et subventions ».
+ *
+ * 🔴 CLASSES ÉCRITES EN TOUTES LETTRES, JAMAIS CONSTRUITES. Ce bloc utilisait
+ * `text-${a.couleur}-600`, avec deux conséquences :
+ *   1. Tailwind ne génère QUE les classes qu'il voit littéralement dans les
+ *      sources. Une classe construite n'existe que par accident, si le même
+ *      littéral traîne ailleurs dans le dépôt — une suppression sans rapport
+ *      la fait disparaître en silence.
+ *   2. Aucune recherche de texte ne peut la trouver : la passe de correction
+ *      de contraste du 23/09 est passée à côté, et ces deux cartes sont
+ *      restées en échec (emerald-600 à 3,58:1, amber-600 à 3,07:1) alors que
+ *      le reste du site était corrigé.
+ * Le 600 passe donc à 700 : 5,27:1 et 4,84:1 sur leurs fonds respectifs.
+ */
+const TONS = {
+  emerald: { carte: 'bg-emerald-50 border-emerald-100', titre: 'text-emerald-800', montant: 'text-emerald-700' },
+  blue:    { carte: 'bg-blue-50 border-blue-100',       titre: 'text-blue-800',    montant: 'text-blue-700' },
+  indigo:  { carte: 'bg-indigo-50 border-indigo-100',   titre: 'text-indigo-800',  montant: 'text-indigo-700' },
+  amber:   { carte: 'bg-amber-50 border-amber-100',     titre: 'text-amber-800',   montant: 'text-amber-700' },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 2026-09-08 — LES PRIX VIENNENT DU CATALOGUE, PLUS DE LA MAIN.
 //
@@ -120,7 +142,7 @@ const jsonLd = {
           </p>
           <div class="flex flex-col sm:flex-row gap-3 justify-center">
             <a href="/nouvelle-analyse"
-               class="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+               class="inline-flex items-center justify-center gap-2 bg-amber-700 hover:bg-amber-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
               🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
             </a>
             <a href="#tableau-prix"
@@ -165,7 +187,7 @@ const jsonLd = {
                 <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
                   <span class="text-2xl mb-2 block">{c.icone}</span>
                   <p class="font-semibold text-slate-900 text-sm">{c.titre}</p>
-                  <p class="text-xs text-slate-500 mt-0.5">{c.desc}</p>
+                  <p class="text-xs text-slate-600 mt-0.5">{c.desc}</p>
                 </div>
               ))}
             </div>
@@ -178,16 +200,16 @@ const jsonLd = {
               produire à la demande, et qui viennent du fichier généré. */}
           <div class="grid grid-cols-3 gap-4 mb-12">
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-amber-500 mb-1">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</p>
-              <p class="text-xs text-slate-500 leading-snug">devis analysés à ce jour</p>
+              <p class="text-2xl font-bold text-amber-700 mb-1">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-600 leading-snug">devis analysés à ce jour</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-amber-500 mb-1">{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</p>
-              <p class="text-xs text-slate-500 leading-snug">postes de référence comparés</p>
+              <p class="text-2xl font-bold text-amber-700 mb-1">{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-600 leading-snug">postes de référence comparés</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-amber-500 mb-1">2 min</p>
-              <p class="text-xs text-slate-500 leading-snug">pour comparer votre devis</p>
+              <p class="text-2xl font-bold text-amber-700 mb-1">2 min</p>
+              <p class="text-xs text-slate-600 leading-snug">pour comparer votre devis</p>
             </div>
           </div>
 
@@ -198,7 +220,7 @@ const jsonLd = {
                 celui d'en dessous, désormais tiré du référentiel, donne 3 900 à 9 100 € HT.
                 Deux chiffres pour la même chose sur la même page : c'est précisément ce qu'on
                 corrige. Il lit maintenant la même source, et dit ce que le prix couvre. */}
-            <p class="text-xs text-slate-400 mb-4 italic">
+            <p class="text-xs text-slate-600 mb-4 italic">
               Fourchettes hors taxes de notre référentiel de prix, pour les travaux eux-mêmes —
               hors électroménager, hors mobilier et hors charpente pour la toiture.
             </p>
@@ -217,13 +239,13 @@ const jsonLd = {
                     <tr class={`border-t border-slate-100 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                       <td class="px-4 py-3 font-semibold text-slate-800">
                         {r.libelle}
-                        <span class="block text-xs font-normal text-slate-400">
+                        <span class="block text-xs font-normal text-slate-600">
                           {r.unite === 'forfait' ? 'pour la pièce' : `par ${r.unite}`} · {r.note}
                         </span>
                       </td>
                       <td class="px-4 py-3 text-right font-semibold text-emerald-700">{r.min.toLocaleString('fr-FR')} €</td>
                       <td class="px-4 py-3 text-right font-bold text-slate-900">{r.moy.toLocaleString('fr-FR')} €</td>
-                      <td class="px-4 py-3 text-right font-semibold text-red-600">{r.max.toLocaleString('fr-FR')} €</td>
+                      <td class="px-4 py-3 text-right font-semibold text-red-700">{r.max.toLocaleString('fr-FR')} €</td>
                     </tr>
                   ))}
                 </tbody>
@@ -231,7 +253,7 @@ const jsonLd = {
             </div>
             <div class="rounded-xl border border-amber-100 bg-amber-50 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
               <p class="text-sm text-amber-800 font-medium">Votre devis est-il dans ces fourchettes ?</p>
-              <a href="/verifier-devis-travaux" class="shrink-0 inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
+              <a href="/verifier-devis-travaux" class="shrink-0 inline-flex items-center gap-1.5 bg-amber-700 hover:bg-amber-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
                 Vérifiez votre devis ici →
               </a>
             </div>
@@ -262,17 +284,17 @@ const jsonLd = {
                   {prixParType.map((row, i) => (
                     <tr class={`border-t border-slate-100 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-indigo-50/40 transition-colors`}>
                       <td class="px-4 py-3 font-medium text-slate-800">{row.type}</td>
-                      <td class="px-3 py-3 text-center text-slate-500 text-xs">{row.unite}</td>
+                      <td class="px-3 py-3 text-center text-slate-600 text-xs">{row.unite}</td>
                       <td class="px-3 py-3 text-right font-semibold text-emerald-700">{row.min.toLocaleString('fr-FR')} €</td>
                       <td class="px-3 py-3 text-right font-bold text-slate-900">{row.moy.toLocaleString('fr-FR')} €</td>
-                      <td class="px-3 py-3 text-right font-semibold text-red-600">{row.max.toLocaleString('fr-FR')} €</td>
-                      <td class="px-3 py-3 text-slate-400 text-xs hidden sm:table-cell">{row.note}</td>
+                      <td class="px-3 py-3 text-right font-semibold text-red-700">{row.max.toLocaleString('fr-FR')} €</td>
+                      <td class="px-3 py-3 text-slate-600 text-xs hidden sm:table-cell">{row.note}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <p class="text-xs text-slate-400 mt-2">
+            <p class="text-xs text-slate-600 mt-2">
               * Fourchettes <strong>hors taxes</strong>, France métropolitaine. Elles proviennent de
               notre référentiel de prix de {CATALOGUE_TAILLE.toLocaleString('fr-FR')} postes, celui-là même qui sert à
               analyser les devis — mis à jour le {referenceDatee}. Ajoutez la TVA applicable à votre
@@ -283,17 +305,17 @@ const jsonLd = {
 
           <!-- CTA intermédiaire -->
           <div class="my-12 rounded-2xl border border-amber-200 bg-amber-50 p-6 sm:p-8 text-center">
-            <p class="text-xs font-semibold uppercase tracking-widest text-amber-600 mb-2">🎯 Vous avez un doute sur votre devis ?</p>
+            <p class="text-xs font-semibold uppercase tracking-widest text-amber-700 mb-2">🎯 Vous avez un doute sur votre devis ?</p>
             <p class="text-lg font-bold text-slate-900 mb-2">Votre devis est-il dans ces fourchettes ?</p>
             <p class="text-sm text-slate-600 leading-relaxed mb-5 max-w-lg mx-auto">
               Importez votre devis PDF et notre outil le compare automatiquement avec ces prix du marché,
               poste par poste — en 2 minutes, gratuitement.
             </p>
             <a href="/nouvelle-analyse"
-               class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
+               class="inline-flex items-center gap-2 bg-amber-700 hover:bg-amber-600 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
               🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
             </a>
-            <p class="text-amber-600 text-xs mt-3">Compte gratuit en 30 secondes · Résultat immédiat · Sans carte bancaire</p>
+            <p class="text-amber-700 text-xs mt-3">Compte gratuit en 30 secondes · Résultat immédiat · Sans carte bancaire</p>
           </div>
 
           <!-- Prix par pièce -->
@@ -315,7 +337,7 @@ const jsonLd = {
                       { label: "Grande cuisine ouverte", prix: "25 000 – 50 000 €" },
                     ].map(c => (
                       <div class="text-center p-3 rounded-lg bg-slate-50 border border-slate-100">
-                        <p class="text-xs text-slate-500 mb-1">{c.label}</p>
+                        <p class="text-xs text-slate-600 mb-1">{c.label}</p>
                         <p class="font-bold text-slate-900 text-sm">{c.prix}</p>
                       </div>
                     ))}
@@ -341,7 +363,7 @@ const jsonLd = {
                       { label: "SDB premium + douche italienne", prix: "15 000 – 30 000 €" },
                     ].map(c => (
                       <div class="text-center p-3 rounded-lg bg-slate-50 border border-slate-100">
-                        <p class="text-xs text-slate-500 mb-1">{c.label}</p>
+                        <p class="text-xs text-slate-600 mb-1">{c.label}</p>
                         <p class="font-bold text-slate-900 text-sm">{c.prix}</p>
                       </div>
                     ))}
@@ -367,7 +389,7 @@ const jsonLd = {
                       { label: "Toiture + isolation (Sarking)", prix: "18 000 – 35 000 €" },
                     ].map(c => (
                       <div class="text-center p-3 rounded-lg bg-slate-50 border border-slate-100">
-                        <p class="text-xs text-slate-500 mb-1">{c.label}</p>
+                        <p class="text-xs text-slate-600 mb-1">{c.label}</p>
                         <p class="font-bold text-slate-900 text-sm">{c.prix}</p>
                       </div>
                     ))}
@@ -397,30 +419,30 @@ const jsonLd = {
                   nom: "MaPrimeRénov'",
                   montant: "Jusqu'à 70 % des travaux",
                   desc: "Pour l'isolation, le chauffage, la ventilation. Calculée selon vos revenus et le gain énergétique.",
-                  couleur: "emerald",
+                  ton: TONS.emerald,
                 },
                 {
                   nom: "CEE (Certificats d'Économies d'Énergie)",
                   montant: "Variable selon artisan",
                   desc: "Primes versées par les fournisseurs d'énergie pour les travaux d'efficacité énergétique. Cumulable avec MaPrimeRénov'.",
-                  couleur: "blue",
+                  ton: TONS.blue,
                 },
                 {
                   nom: "Éco-PTZ",
                   montant: "Jusqu'à 50 000 €",
                   desc: "Prêt à taux zéro pour financer des travaux de rénovation énergétique, remboursable sur 20 ans sans intérêt.",
-                  couleur: "indigo",
+                  ton: TONS.indigo,
                 },
                 {
                   nom: "TVA réduite à 5,5 % ou 10 %",
                   montant: "Sur le coût total des travaux",
                   desc: "Applicable pour les travaux de rénovation dans les résidences principales de plus de 2 ans. Vérifiez l'éligibilité avec votre artisan.",
-                  couleur: "amber",
+                  ton: TONS.amber,
                 },
               ].map(a => (
-                <div class={`rounded-xl border p-5 bg-${a.couleur}-50 border-${a.couleur}-100`}>
-                  <p class={`font-bold text-${a.couleur}-800 mb-1`}>{a.nom}</p>
-                  <p class={`text-sm font-semibold text-${a.couleur}-600 mb-2`}>{a.montant}</p>
+                <div class={`rounded-xl border p-5 ${a.ton.carte}`}>
+                  <p class={`font-bold ${a.ton.titre} mb-1`}>{a.nom}</p>
+                  <p class={`text-sm font-semibold ${a.ton.montant} mb-2`}>{a.montant}</p>
                   <p class="text-sm text-slate-600 leading-relaxed">{a.desc}</p>
                 </div>
               ))}
@@ -518,19 +540,19 @@ const jsonLd = {
                 <span class="text-2xl leading-none mt-0.5">📋</span>
                 <div>
                   <p class="font-semibold text-slate-800 text-sm leading-snug">Vérifier un devis travaux : méthode complète</p>
-                  <p class="text-xs text-slate-400 mt-0.5">Mentions légales, prix, score artisan — en 2 minutes</p>
+                  <p class="text-xs text-slate-600 mt-0.5">Mentions légales, prix, score artisan — en 2 minutes</p>
                 </div>
               </a>
               <a href="/choisir-artisan-travaux" class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
                 <span class="text-2xl leading-none mt-0.5">🔨</span>
                 <div>
                   <p class="font-semibold text-slate-800 text-sm leading-snug">Comment choisir un artisan fiable</p>
-                  <p class="text-xs text-slate-400 mt-0.5">6 vérifications essentielles, 8 signaux d'alerte</p>
+                  <p class="text-xs text-slate-600 mt-0.5">6 vérifications essentielles, 8 signaux d'alerte</p>
                 </div>
               </a>
             </div>
             <div class="p-5 rounded-xl bg-slate-50 border border-slate-100">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Articles de blog</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">Articles de blog</p>
               <ul class="space-y-2 text-sm">
                 <li>→ <a href="/blog/devis-travaux-anormalement-bas-faut-il-sen-mefier" class="text-indigo-600 hover:underline font-medium">Devis anormalement bas : faut-il s'en méfier ?</a></li>
                 <li>→ <a href="/blog/comment-negocier-devis-artisan-techniques-efficaces" class="text-indigo-600 hover:underline font-medium">Comment négocier un devis artisan : techniques efficaces</a></li>
@@ -547,7 +569,7 @@ const jsonLd = {
                 <details class="group rounded-xl border border-slate-200 bg-white overflow-hidden">
                   <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer font-medium text-slate-900 text-sm hover:bg-slate-50 transition-colors list-none">
                     {f.question}
-                    <span class="flex-shrink-0 text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                    <span class="flex-shrink-0 text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                   </summary>
                   <div class="px-5 pb-4 pt-1 text-sm text-slate-600 leading-relaxed border-t border-slate-100">
                     {f.answer}

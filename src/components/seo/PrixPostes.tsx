@@ -137,7 +137,7 @@ export function TablePostes({ postes }: { postes: PostePublieVue[] }) {
                 <td
                   className={
                     "py-3 pl-3 text-right font-bold whitespace-nowrap " +
-                    (p.ecart >= 3 ? "text-red-600" : p.ecart >= 1.8 ? "text-amber-600" : "")
+                    (p.ecart >= 3 ? "text-red-700" : p.ecart >= 1.8 ? "text-amber-700" : "")
                   }
                 >
                   ×{fmtEcart(p.ecart)}

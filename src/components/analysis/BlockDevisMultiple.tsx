@@ -175,12 +175,12 @@ const getPositionIcon = (position: PricePosition, className: string = "h-4 w-4")
   switch (position) {
     case "low":
     case "below":
-      return <TrendingDown className={`${className} text-blue-500`} />;
+      return <TrendingDown className={`${className} text-blue-700`} />;
     case "middle":
       return <Minus className={`${className} text-gray-500`} />;
     case "high":
     case "above":
-      return <TrendingUp className={`${className} text-amber-500`} />;
+      return <TrendingUp className={`${className} text-amber-700`} />;
     default:
       return <HelpCircle className={`${className} text-muted-foreground`} />;
   }
@@ -196,7 +196,7 @@ const getPositionColorClass = (position: PricePosition): string => {
       return "text-foreground";
     case "high":
     case "above":
-      return "text-amber-600";
+      return "text-amber-700";
     default:
       return "text-muted-foreground";
   }

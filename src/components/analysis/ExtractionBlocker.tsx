@@ -363,7 +363,7 @@ const ProgressStep = ({
         {status === "active" && <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />}
       </div>
       <span className={`text-sm ${
-        status === "done" ? "text-score-green font-medium" :
+        status === "done" ? "text-score-green-foreground font-medium" :
         status === "active" ? "text-foreground font-medium" :
         "text-muted-foreground"
       }`}>
@@ -391,7 +391,7 @@ export const ExtractionIncompleteWarning = ({ analysisId }: { analysisId: string
   return (
     <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
       <div className="flex items-start gap-2">
-        <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+        <AlertTriangle className="h-5 w-5 text-amber-700 mt-0.5" />
         <div>
           <p className="text-sm font-medium text-amber-800">
             Extraction incomplète détectée

@@ -41,7 +41,7 @@ export default function SimulateurAidesCard() {
         className="group flex flex-col border-2 border-emerald-200 rounded-2xl p-7 sm:p-8 hover:border-emerald-400 hover:shadow-xl transition-all bg-white w-full text-left"
       >
         <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mb-5 flex-shrink-0 group-hover:scale-110 transition-transform">
-          <svg className="h-7 w-7 text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+          <svg className="h-7 w-7 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
@@ -51,7 +51,7 @@ export default function SimulateurAidesCard() {
         <p className="text-sm text-slate-500 leading-relaxed flex-1">
           Estimez vos droits à MaPrimeRénov', CEE et Éco-PTZ selon votre profil en 1 minute.
         </p>
-        <span className="mt-6 inline-flex items-center justify-center gap-2 bg-emerald-600 group-hover:bg-emerald-700 text-white font-semibold px-5 py-3 rounded-xl transition-colors">
+        <span className="mt-6 inline-flex items-center justify-center gap-2 bg-emerald-700 group-hover:bg-emerald-800 text-white font-semibold px-5 py-3 rounded-xl transition-colors">
           Calculer mes aides
           <svg className="h-4 w-4 transition-transform group-hover:translate-x-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />

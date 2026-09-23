@@ -18,7 +18,7 @@ const HeroSection = () => {
               <span className="relative inline-block">
                 gratuitement
                 <svg className="absolute -bottom-1 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
-                  <path d="M2 10C50 4 150 4 198 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-score-green animate-underline-draw" strokeDasharray="200" strokeDashoffset="200" />
+                  <path d="M2 10C50 4 150 4 198 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-score-green-foreground animate-underline-draw" strokeDasharray="200" strokeDashoffset="200" />
                 </svg>
               </span>
             </h1>
@@ -45,15 +45,15 @@ const HeroSection = () => {
             {/* Trust indicators */}
             <div className="flex flex-col gap-2 sm:gap-4 sm:flex-row items-center justify-center lg:justify-start text-primary-foreground/70 text-xs sm:text-sm px-2">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-score-green flex-shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-score-green-foreground flex-shrink-0" />
                 <span>Analyse en 2 minutes</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-score-green flex-shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-score-green-foreground flex-shrink-0" />
                 <span>100% confidentiel</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-score-green flex-shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-score-green-foreground flex-shrink-0" />
                 <span>Suivi post-signature</span>
               </div>
             </div>
@@ -92,9 +92,9 @@ const HeroSection = () => {
                 style={{ animationDelay: '0.2s', animationFillMode: 'both' }}
               >
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" aria-hidden="true" />
+                  <AlertTriangle className="h-4 w-4 text-red-700 flex-shrink-0" aria-hidden="true" />
                   <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-wider text-red-600 font-semibold leading-none">
+                    <p className="text-[10px] uppercase tracking-wider text-red-700 font-semibold leading-none">
                       Drapeau rouge
                     </p>
                     <p className="text-sm font-bold text-foreground leading-tight mt-0.5">
@@ -117,7 +117,7 @@ const HeroSection = () => {
                   style={{ animationDelay: '0.4s', animationFillMode: 'both' }}
                 >
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-amber-600 flex-shrink-0" aria-hidden="true" />
+                    <TrendingUp className="h-4 w-4 text-amber-700 flex-shrink-0" aria-hidden="true" />
                     <div className="min-w-0">
                       <p className="text-[10px] uppercase tracking-wider text-amber-700 font-semibold leading-none">
                         Prix marché
@@ -141,7 +141,7 @@ const HeroSection = () => {
                 style={{ animationDelay: '0.6s', animationFillMode: 'both' }}
               >
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600 flex-shrink-0" aria-hidden="true" />
+                  <ShieldCheck className="h-4 w-4 text-emerald-700 flex-shrink-0" aria-hidden="true" />
                   <div className="min-w-0">
                     <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold leading-none">
                       Vérifié SIRENE

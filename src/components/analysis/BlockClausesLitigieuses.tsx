@@ -102,7 +102,7 @@ export default function BlockClausesLitigieuses({ clauses }: Props) {
               const itemCls = clause.gravite === "rouge"
                 ? "border-red-200 bg-white dark:bg-red-950/30 dark:border-red-900"
                 : "border-amber-200 bg-white dark:bg-amber-950/30 dark:border-amber-900";
-              const iconColor = clause.gravite === "rouge" ? "text-red-600" : "text-amber-600";
+              const iconColor = clause.gravite === "rouge" ? "text-red-700" : "text-amber-700";
 
               return (
                 <div key={idx} className={`rounded-xl border ${itemCls} p-3 sm:p-4`}>

@@ -32,10 +32,10 @@ const DEMARCHE_COLOR: Record<DemarcheItem["probable_demarche"], string> = {
 };
 
 const DEMARCHE_TEXT_COLOR: Record<DemarcheItem["probable_demarche"], string> = {
-  "DP probable": "text-score-orange",
-  "PC probable": "text-score-orange",
-  "DP ou PC probable": "text-score-orange",
-  "Aucune formalité probable": "text-score-green",
+  "DP probable": "text-score-orange-foreground",
+  "PC probable": "text-score-orange-foreground",
+  "DP ou PC probable": "text-score-orange-foreground",
+  "Aucune formalité probable": "text-score-green-foreground",
 };
 
 function DemarcheCard({ item }: { item: DemarcheItem }) {
@@ -176,7 +176,7 @@ export default function UrbanismeAssistant({
             Géoportail de l'Urbanisme (GPU)
             <ExternalLink className="h-3 w-3" />
           </a>
-          <p className="text-xs text-blue-500 dark:text-blue-500 mt-0.5">
+          <p className="text-xs text-blue-700 dark:text-blue-700 mt-0.5">
             PLU, zonage, secteurs protégés — source officielle IGN/MTES
           </p>
         </div>
@@ -185,7 +185,7 @@ export default function UrbanismeAssistant({
       {/* Patrimoine warning */}
       {isPatrimoine && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
-          <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <Info className="h-4 w-4 text-amber-700 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-amber-800 dark:text-amber-300">
             Ce chantier est situé à proximité d'un patrimoine protégé (monument historique / site remarquable). L'accord préalable de l'Architecte des Bâtiments de France (ABF) est probablement requis pour les travaux extérieurs.
           </p>

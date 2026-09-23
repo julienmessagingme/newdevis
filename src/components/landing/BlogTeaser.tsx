@@ -37,7 +37,7 @@ export default function BlogTeaser() {
   return (
     <div className="mt-6 pt-5 border-t border-slate-100">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-600">
           📚 Nos derniers conseils
         </p>
         <a
@@ -59,7 +59,7 @@ export default function BlogTeaser() {
                   {post.title}
                 </p>
                 {post.category && (
-                  <span className="text-[11px] text-slate-400 mt-0.5">{post.category}</span>
+                  <span className="text-[11px] text-slate-600 mt-0.5">{post.category}</span>
                 )}
               </div>
               {post.reading_time && (

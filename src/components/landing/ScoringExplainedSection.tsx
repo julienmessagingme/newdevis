@@ -4,7 +4,7 @@ const scoringLevels = [{
   color: "score-green",
   bgColor: "bg-score-green-bg",
   borderColor: "border-score-green/30",
-  textColor: "text-score-green",
+  textColor: "text-score-green-foreground",
   icon: CheckCircle2,
   description: "Devis conforme, entreprise saine, risques faibles",
   recommendation: "Vous pouvez signer en confiance"
@@ -13,7 +13,7 @@ const scoringLevels = [{
   color: "score-orange",
   bgColor: "bg-score-orange-bg",
   borderColor: "border-score-orange/30",
-  textColor: "text-score-orange",
+  textColor: "text-score-orange-foreground",
   icon: AlertCircle,
   description: "Éléments manquants ou risques modérés",
   recommendation: "Demandez des précisions avant de signer"
@@ -22,7 +22,7 @@ const scoringLevels = [{
   color: "score-red",
   bgColor: "bg-score-red-bg",
   borderColor: "border-score-red/30",
-  textColor: "text-score-red",
+  textColor: "text-score-red-foreground",
   icon: XCircle,
   description: "Risques élevés (juridiques, financiers ou techniques)",
   recommendation: "Nous vous déconseillons de signer"

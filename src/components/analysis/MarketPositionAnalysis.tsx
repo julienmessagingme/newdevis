@@ -42,10 +42,10 @@ function computePosition(
     return {
       category: "below_market",
       label: "En dessous du marché",
-      color: "text-score-orange",
+      color: "text-score-orange-foreground",
       bgColor: "bg-score-orange/10",
       borderColor: "border-score-orange/30",
-      icon: <TrendingDown className="h-5 w-5 text-score-orange" />,
+      icon: <TrendingDown className="h-5 w-5 text-score-orange-foreground" />,
     };
   }
 
@@ -54,10 +54,10 @@ function computePosition(
     return {
       category: "well_positioned",
       label: "Bien positionné",
-      color: "text-score-green",
+      color: "text-score-green-foreground",
       bgColor: "bg-score-green/10",
       borderColor: "border-score-green/30",
-      icon: <Minus className="h-5 w-5 text-score-green" />,
+      icon: <Minus className="h-5 w-5 text-score-green-foreground" />,
     };
   }
 
@@ -66,10 +66,10 @@ function computePosition(
     return {
       category: "above_average",
       label: "Au-dessus de la moyenne",
-      color: "text-score-orange",
+      color: "text-score-orange-foreground",
       bgColor: "bg-score-orange/10",
       borderColor: "border-score-orange/30",
-      icon: <TrendingUp className="h-5 w-5 text-score-orange" />,
+      icon: <TrendingUp className="h-5 w-5 text-score-orange-foreground" />,
     };
   }
 
@@ -77,10 +77,10 @@ function computePosition(
   return {
     category: "above_market",
     label: "Au-dessus du marché",
-    color: "text-score-red",
+    color: "text-score-red-foreground",
     bgColor: "bg-score-red/10",
     borderColor: "border-score-red/30",
-    icon: <TrendingUp className="h-5 w-5 text-score-red" />,
+    icon: <TrendingUp className="h-5 w-5 text-score-red-foreground" />,
   };
 }
 
@@ -191,15 +191,15 @@ const PositionGauge = ({
       {/* Légendes des prix */}
       <div className="flex justify-between mt-8 text-xs">
         <div className="text-left">
-          <span className="block font-medium text-score-green">Min marché</span>
+          <span className="block font-medium text-score-green-foreground">Min marché</span>
           <span className="text-muted-foreground">{formatPrice(total_min_ht)}</span>
         </div>
         <div className="text-center">
-          <span className="block font-medium text-score-orange">Moyenne marché</span>
+          <span className="block font-medium text-score-orange-foreground">Moyenne marché</span>
           <span className="text-muted-foreground">{formatPrice(total_avg_ht)}</span>
         </div>
         <div className="text-right">
-          <span className="block font-medium text-score-red">Max marché</span>
+          <span className="block font-medium text-score-red-foreground">Max marché</span>
           <span className="text-muted-foreground">{formatPrice(total_max_ht)}</span>
         </div>
       </div>

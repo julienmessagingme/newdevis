@@ -178,7 +178,7 @@ const checklistRefuse = [
           <div class="flex flex-col sm:flex-row gap-3 justify-center mb-5">
             <a
               href="/nouvelle-analyse"
-              class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+              class="inline-flex items-center justify-center gap-2 bg-orange-700 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
@@ -193,7 +193,7 @@ const checklistRefuse = [
             </a>
           </div>
 
-          <p class="text-xs text-slate-400">
+          <p class="text-xs text-slate-600">
             Document confidentiel • Hébergement France • Résultat en 2 minutes
           </p>
         </div>
@@ -207,7 +207,7 @@ const checklistRefuse = [
           <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
             Ce que l'analyse détecte
           </h2>
-          <p class="text-sm sm:text-base text-slate-500 text-center mb-8 max-w-2xl mx-auto">
+          <p class="text-sm sm:text-base text-slate-600 text-center mb-8 max-w-2xl mx-auto">
             Quatre dimensions analysées automatiquement sur chaque devis travaux, en moins de 2 minutes.
           </p>
 
@@ -257,7 +257,7 @@ const checklistRefuse = [
           <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
             Exemple d'analyse
           </h2>
-          <p class="text-sm sm:text-base text-slate-500 text-center mb-8 max-w-2xl mx-auto">
+          <p class="text-sm sm:text-base text-slate-600 text-center mb-8 max-w-2xl mx-auto">
             Voici à quoi ressemble une analyse IA complète sur un devis réel — ici une rénovation
             salle de bain.
           </p>
@@ -277,12 +277,12 @@ const checklistRefuse = [
 
             <!-- Detected items -->
             <div class="px-5 py-6 space-y-3 bg-white">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">
                 Ce que l'IA a détecté
               </p>
 
               <div class="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
-                <span class="text-red-500 font-bold flex-shrink-0">✗</span>
+                <span class="text-red-700 font-bold flex-shrink-0">✗</span>
                 <div class="min-w-0">
                   <p class="text-sm font-semibold text-red-900 mb-0.5">Carrelage sol +32 % vs marché</p>
                   <p class="text-xs text-red-700">{Math.round(carrelage.max * 1.32)} €/m² facturé pour un carrelage standard 30×30 — notre référentiel donne {carrelage.min}-{carrelage.max} € HT/m² pour cette gamme.</p>
@@ -290,7 +290,7 @@ const checklistRefuse = [
               </div>
 
               <div class="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
-                <span class="text-red-500 font-bold flex-shrink-0">✗</span>
+                <span class="text-red-700 font-bold flex-shrink-0">✗</span>
                 <div class="min-w-0">
                   <p class="text-sm font-semibold text-red-900 mb-0.5">Acompte excessif demandé (50 %)</p>
                   <p class="text-xs text-red-700">Seuil acceptable : 30 % maximum. Un acompte de 50 % avant démarrage est un signal de difficulté de trésorerie.</p>
@@ -298,7 +298,7 @@ const checklistRefuse = [
               </div>
 
               <div class="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
-                <span class="text-amber-600 font-bold flex-shrink-0">⚠</span>
+                <span class="text-amber-700 font-bold flex-shrink-0">⚠</span>
                 <div class="min-w-0">
                   <p class="text-sm font-semibold text-amber-900 mb-0.5">Ligne plomberie imprécise</p>
                   <p class="text-xs text-amber-700">"Mise en place plomberie complète — 2 800 €" : aucun détail sur les équipements, marques, métrés. À faire détailler.</p>
@@ -306,7 +306,7 @@ const checklistRefuse = [
               </div>
 
               <div class="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
-                <span class="text-amber-600 font-bold flex-shrink-0">⚠</span>
+                <span class="text-amber-700 font-bold flex-shrink-0">⚠</span>
                 <div class="min-w-0">
                   <p class="text-sm font-semibold text-amber-900 mb-0.5">Entreprise récemment créée</p>
                   <p class="text-xs text-amber-700">SIRET actif depuis 8 mois — peu de recul sur la fiabilité financière. Demandez des références récentes.</p>
@@ -319,13 +319,13 @@ const checklistRefuse = [
               <p class="text-sm text-indigo-900">
                 <strong>Conclusion :</strong> potentiel de surcoût à renégocier estimé. Demandez à l'artisan de justifier chaque point ci-dessus avant signature.
               </p>
-              <a href="/nouvelle-analyse" class="shrink-0 inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
+              <a href="/nouvelle-analyse" class="shrink-0 inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
                 Analyser mon devis →
               </a>
             </div>
           </div>
 
-          <p class="text-xs text-slate-500 text-center mt-4 italic">
+          <p class="text-xs text-slate-600 text-center mt-4 italic">
             Exemple représentatif. Les chiffres et conclusions varient selon votre devis réel.
           </p>
         </div>
@@ -339,7 +339,7 @@ const checklistRefuse = [
           <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
             Comment ça marche
           </h2>
-          <p class="text-sm sm:text-base text-slate-500 text-center mb-10 max-w-2xl mx-auto">
+          <p class="text-sm sm:text-base text-slate-600 text-center mb-10 max-w-2xl mx-auto">
             Trois étapes simples pour obtenir une analyse complète, en moins de 2 minutes.
           </p>
 
@@ -362,7 +362,7 @@ const checklistRefuse = [
               },
             ].map(step => (
               <div class="relative flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                <div class="w-12 h-12 rounded-full bg-orange-500 text-white font-bold text-lg flex items-center justify-center mb-4">
+                <div class="w-12 h-12 rounded-full bg-orange-700 text-white font-bold text-lg flex items-center justify-center mb-4">
                   {step.num}
                 </div>
                 <h3 class="font-semibold text-slate-900 text-base mb-2">{step.title}</h3>
@@ -374,7 +374,7 @@ const checklistRefuse = [
           <div class="mt-8 text-center">
             <a
               href="/nouvelle-analyse"
-              class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+              class="inline-flex items-center justify-center gap-2 bg-orange-700 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
@@ -393,7 +393,7 @@ const checklistRefuse = [
           <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3 text-center">
             Questions fréquentes
           </h2>
-          <p class="text-sm sm:text-base text-slate-500 text-center mb-8">
+          <p class="text-sm sm:text-base text-slate-600 text-center mb-8">
             Tout ce que vous devez savoir avant d'analyser votre devis.
           </p>
 
@@ -403,7 +403,7 @@ const checklistRefuse = [
                 <summary class="flex items-center justify-between gap-4 p-5 cursor-pointer list-none hover:bg-slate-50 transition-colors">
                   <span class="font-medium text-slate-900 text-sm sm:text-base">{faq.question}</span>
                   <svg
-                    class="h-5 w-5 text-slate-400 flex-shrink-0 transition-transform group-open:rotate-180"
+                    class="h-5 w-5 text-slate-600 flex-shrink-0 transition-transform group-open:rotate-180"
                     xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
@@ -430,7 +430,7 @@ const checklistRefuse = [
         <div class="container max-w-3xl px-4 mx-auto">
 
           <div class="text-center mb-10">
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 mb-2">
               Guide complet
             </p>
             <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
@@ -462,7 +462,7 @@ const checklistRefuse = [
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Les 5 points essentiels à vérifier sur un devis
             </h2>
-            <p class="text-slate-500 text-sm mb-6">
+            <p class="text-slate-600 text-sm mb-6">
               Ces 5 éléments sont présents sur tout devis conforme. Leur absence ou leur imprécision
               est un signal d'alerte immédiat.
             </p>
@@ -472,7 +472,7 @@ const checklistRefuse = [
               <!-- Point 1 -->
               <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
-                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">1</div>
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-800 font-bold text-base flex items-center justify-center">1</div>
                   <div class="min-w-0">
                     <h3 class="font-semibold text-slate-900 mb-2">Le détail des prestations</h3>
                     <p class="text-sm text-slate-600 leading-relaxed mb-3">
@@ -482,7 +482,7 @@ const checklistRefuse = [
                       <em>"fourniture et pose mitigeur thermostatique Grohe Grohtherm 800, ref. 34567"</em>
                       est acceptable.
                     </p>
-                    <p class="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                    <p class="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
                       <strong>À vérifier&nbsp;:</strong> les travaux préparatoires sont-ils inclus&nbsp;?
                       L'évacuation des déchets, la protection des sols&nbsp;? Ces postes représentent souvent
                       5 à 10 % du total et sont fréquemment omis pour afficher un prix d'appel plus bas.
@@ -494,7 +494,7 @@ const checklistRefuse = [
               <!-- Point 2 -->
               <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
-                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">2</div>
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-800 font-bold text-base flex items-center justify-center">2</div>
                   <div class="min-w-0">
                     <h3 class="font-semibold text-slate-900 mb-2">Les quantités précises</h3>
                     <p class="text-sm text-slate-600 leading-relaxed mb-3">
@@ -503,7 +503,7 @@ const checklistRefuse = [
                       est cohérent avec la surface réelle de votre chantier, et l'artisan peut facturer
                       des suppléments a posteriori.
                     </p>
-                    <p class="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                    <p class="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
                       <strong>Astuce&nbsp;:</strong> mesurez vous-même vos surfaces avant de recevoir
                       les devis. Si un artisan indique 65 m² de carrelage pour une pièce que vous avez
                       mesurée à 48 m², demandez-lui d'expliquer l'écart (perte de coupe, surface
@@ -516,7 +516,7 @@ const checklistRefuse = [
               <!-- Point 3 -->
               <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
-                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">3</div>
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-800 font-bold text-base flex items-center justify-center">3</div>
                   <div class="min-w-0">
                     <h3 class="font-semibold text-slate-900 mb-2">Les prix unitaires</h3>
                     <p class="text-sm text-slate-600 leading-relaxed mb-3">
@@ -525,7 +525,7 @@ const checklistRefuse = [
                       carrelage et un autre 120 €/m² — la différence doit s'expliquer par la qualité,
                       la complexité ou les matériaux fournis.
                     </p>
-                    <p class="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                    <p class="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
                       <strong>Référence&nbsp;:</strong> les fourchettes de prix marché pour 911+ types
                       de travaux sont accessibles directement via VerifierMonDevis.fr.
                     </p>
@@ -536,7 +536,7 @@ const checklistRefuse = [
               <!-- Point 4 -->
               <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
-                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">4</div>
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-800 font-bold text-base flex items-center justify-center">4</div>
                   <div class="min-w-0">
                     <h3 class="font-semibold text-slate-900 mb-2">La TVA applicable</h3>
                     <p class="text-sm text-slate-600 leading-relaxed mb-3">
@@ -561,13 +561,13 @@ const checklistRefuse = [
                             <tr class="border border-slate-200">
                               <td class="px-3 py-2 text-slate-600">{row.type}</td>
                               <td class="px-3 py-2 text-center font-semibold text-slate-900">{row.tva}</td>
-                              <td class="px-3 py-2 text-slate-500">{row.cond}</td>
+                              <td class="px-3 py-2 text-slate-600">{row.cond}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                    <p class="text-xs text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    <p class="text-xs text-slate-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
                       <strong>Attention&nbsp;:</strong> certains artisans appliquent la TVA à 20 % sur des
                       travaux éligibles à 5,5 % ou 10 %. Sur un chantier de 20 000 €, l'écart représente
                       jusqu'à 2 900 € de surfacturation. Vérifiez systématiquement.
@@ -579,7 +579,7 @@ const checklistRefuse = [
               <!-- Point 5 -->
               <div class="border border-slate-200 rounded-xl p-5 bg-white">
                 <div class="flex items-start gap-4">
-                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">5</div>
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-800 font-bold text-base flex items-center justify-center">5</div>
                   <div class="min-w-0">
                     <h3 class="font-semibold text-slate-900 mb-2">Les conditions de paiement</h3>
                     <p class="text-sm text-slate-600 leading-relaxed mb-3">
@@ -588,7 +588,7 @@ const checklistRefuse = [
                       minimum 5 à 10 %). Le solde est votre seul levier en cas de malfaçon&nbsp;: ne
                       le versez jamais avant la réception sans réserves.
                     </p>
-                    <p class="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                    <p class="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                       <strong>Signal d'alarme&nbsp;:</strong> un acompte supérieur à 50 % est interdit
                       pour les travaux à domicile (loi Hoguet). C'est souvent le signe d'un artisan
                       en difficulté de trésorerie — risque élevé d'abandon de chantier.
@@ -604,7 +604,7 @@ const checklistRefuse = [
           <div class="my-10 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-6 text-center">
             <p class="text-base font-semibold text-slate-900 mb-1">Vous avez un devis en main&nbsp;?</p>
             <p class="text-sm text-slate-600 mb-4">Déposez-le sur VerifierMonDevis.fr. En 2 minutes, vous obtenez une analyse complète des 5 points ci-dessus, plus la comparaison aux prix du marché.</p>
-            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-700 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
@@ -617,7 +617,7 @@ const checklistRefuse = [
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Les erreurs fréquentes dans un devis de travaux
             </h2>
-            <p class="text-slate-500 text-sm mb-6">
+            <p class="text-slate-600 text-sm mb-6">
               Certaines formulations ou pratiques reviennent régulièrement dans les devis problématiques.
               Apprenez à les reconnaître.
             </p>
@@ -625,7 +625,7 @@ const checklistRefuse = [
             <div class="space-y-4">
 
               <div class="flex gap-4 p-5 bg-red-50 border border-red-100 rounded-xl">
-                <div class="flex-shrink-0 text-red-500 mt-0.5">
+                <div class="flex-shrink-0 text-red-700 mt-0.5">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
@@ -642,7 +642,7 @@ const checklistRefuse = [
               </div>
 
               <div class="flex gap-4 p-5 bg-red-50 border border-red-100 rounded-xl">
-                <div class="flex-shrink-0 text-red-500 mt-0.5">
+                <div class="flex-shrink-0 text-red-700 mt-0.5">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
@@ -659,7 +659,7 @@ const checklistRefuse = [
               </div>
 
               <div class="flex gap-4 p-5 bg-amber-50 border border-amber-100 rounded-xl">
-                <div class="flex-shrink-0 text-amber-600 mt-0.5">
+                <div class="flex-shrink-0 text-amber-700 mt-0.5">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
@@ -676,7 +676,7 @@ const checklistRefuse = [
               </div>
 
               <div class="flex gap-4 p-5 bg-amber-50 border border-amber-100 rounded-xl">
-                <div class="flex-shrink-0 text-amber-600 mt-0.5">
+                <div class="flex-shrink-0 text-amber-700 mt-0.5">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
@@ -699,13 +699,13 @@ const checklistRefuse = [
             <div class="mt-6 p-4 bg-white border border-slate-200 rounded-xl">
               <p class="text-sm font-medium text-slate-700 mb-3">Pour aller plus loin&nbsp;:</p>
               <div class="space-y-2">
-                <a href="/blog/comment-reperer-devis-gonfle-7-signes" class="flex items-center gap-2 text-sm text-orange-600 hover:underline">
+                <a href="/blog/comment-reperer-devis-gonfle-7-signes" class="flex items-center gap-2 text-sm text-orange-800 hover:underline">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                   </svg>
                   Comment repérer un devis gonflé&nbsp;: 7 signes qui ne trompent pas
                 </a>
-                <a href="/blog/devis-travaux-mentions-obligatoires-oubliees" class="flex items-center gap-2 text-sm text-orange-600 hover:underline">
+                <a href="/blog/devis-travaux-mentions-obligatoires-oubliees" class="flex items-center gap-2 text-sm text-orange-800 hover:underline">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                   </svg>
@@ -720,7 +720,7 @@ const checklistRefuse = [
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Comment savoir si un devis est trop cher&nbsp;?
             </h2>
-            <p class="text-slate-500 text-sm mb-6">
+            <p class="text-slate-600 text-sm mb-6">
               La question que tout le monde se pose, et à laquelle peu de particuliers ont accès
               à une réponse fiable.
             </p>
@@ -771,7 +771,7 @@ const checklistRefuse = [
               <p class="text-sm text-slate-700 leading-relaxed">
                 <strong>Besoin d'une simple vérification rapide&nbsp;?</strong> Si vous voulez
                 seulement contrôler les mentions obligatoires et un score global de fiabilité,
-                consultez notre <a href="/verifier-devis-travaux" class="text-orange-600 hover:underline font-medium">outil de vérification rapide d'un devis travaux</a>.
+                consultez notre <a href="/verifier-devis-travaux" class="text-orange-800 hover:underline font-medium">outil de vérification rapide d'un devis travaux</a>.
                 Cette page-ci est dédiée à l'<em>analyse approfondie</em>&nbsp;: décomposition ligne
                 par ligne, comparaison fine au marché, points précis à négocier.
               </p>
@@ -815,7 +815,7 @@ const checklistRefuse = [
               Déposez votre PDF et obtenez en 2 minutes&nbsp;: score de fiabilité, vérification entreprise
               et comparaison aux prix du marché.
             </p>
-            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-700 hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
@@ -828,7 +828,7 @@ const checklistRefuse = [
             <h2 class="text-2xl font-bold text-slate-900 mb-2">
               Faut-il signer ou refuser&nbsp;? La checklist de décision
             </h2>
-            <p class="text-slate-500 text-sm mb-6">
+            <p class="text-slate-600 text-sm mb-6">
               Utilisez ces deux listes comme filtre final avant de prendre votre décision.
             </p>
 
@@ -869,7 +869,7 @@ const checklistRefuse = [
                 <ul class="space-y-2">
                   {checklistRefuse.map(item => (
                     <li class="flex items-start gap-2 text-sm text-red-800">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-700 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
                       {item}
@@ -880,7 +880,7 @@ const checklistRefuse = [
 
             </div>
 
-            <p class="text-sm text-slate-500 mt-4 text-center">
+            <p class="text-sm text-slate-600 mt-4 text-center">
               Un ou plusieurs points de la colonne rouge&nbsp;? Revenez vers l'artisan pour clarification
               avant toute signature. Un artisan sérieux répondra volontiers.
             </p>
@@ -890,7 +890,7 @@ const checklistRefuse = [
           <div class="my-10 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-6 text-center">
             <p class="text-base font-semibold text-slate-900 mb-1">Besoin d'un deuxième avis&nbsp;?</p>
             <p class="text-sm text-slate-600 mb-4">VerifierMonDevis.fr analyse votre devis sur l'ensemble des points de cette checklist et vous produit un rapport complet en 2 minutes.</p>
-            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-700 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
@@ -941,7 +941,7 @@ const checklistRefuse = [
               ].map(link => (
                 <a href={link.href} class="flex flex-col p-4 border border-slate-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/30 transition-colors group bg-white">
                   <span class="text-sm font-semibold text-slate-900 group-hover:text-orange-700 transition-colors mb-1">{link.label}</span>
-                  <span class="text-xs text-slate-500">{link.desc}</span>
+                  <span class="text-xs text-slate-600">{link.desc}</span>
                 </a>
               ))}
             </div>

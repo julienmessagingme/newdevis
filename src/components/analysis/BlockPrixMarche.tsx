@@ -95,19 +95,19 @@ const PRIX_NON_VERIFIABLE_TIP =
 
 const verdictColor = (verdict: string | null): string => {
   if (!verdict) return "text-muted-foreground";
-  if (verdict === "Comparaison indicative") return "text-amber-600";
+  if (verdict === "Comparaison indicative") return "text-amber-700";
   if (verdict === "Bien placé" || verdict === "Inférieur à la moyenne") return "text-green-600";
   if (verdict === "Dans la norme") return "text-blue-600";
-  if (verdict === "Légèrement élevé") return "text-amber-600";
-  return "text-red-600";
+  if (verdict === "Légèrement élevé") return "text-amber-700";
+  return "text-red-700";
 };
 
 const verdictBg = (verdict: string | null): string => {
   if (!verdict) return "";
-  if (verdict === "Comparaison indicative") return "bg-amber-500/10";
+  if (verdict === "Comparaison indicative") return "bg-amber-700/10";
   if (verdict === "Bien placé" || verdict === "Inférieur à la moyenne") return "bg-green-500/10";
   if (verdict === "Dans la norme") return "bg-blue-500/10";
-  if (verdict === "Légèrement élevé") return "bg-amber-500/10";
+  if (verdict === "Légèrement élevé") return "bg-amber-700/10";
   return "bg-red-500/10";
 };
 
@@ -180,7 +180,7 @@ const AssignmentCard = ({ row, onDrop, onQuantityChange }: AssignmentCardProps) 
         <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           <h3 className="font-semibold text-foreground text-xs sm:text-sm truncate">{row.jobTypeLabel}</h3>
           {row.prices.length === 0 && (
-            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium text-amber-600 bg-amber-500/10 whitespace-nowrap">
+            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium text-amber-700 bg-amber-700/10 whitespace-nowrap">
               {row.jobTypeLabel === "Autre" ? "Non catégorisé" : "Hors catalogue"}
             </span>
           )}
@@ -372,8 +372,8 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
         <div className="border-t border-border/50 p-4 space-y-4">
           {/* Forfait warning banner */}
           {row.isForfait && afficheMarche && (
-            <div className="flex items-start gap-2 p-3 bg-amber-500/8 border border-amber-500/25 rounded-lg">
-              <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 p-3 bg-amber-700/8 border border-amber-500/25 rounded-lg">
+              <Info className="h-4 w-4 text-amber-700 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-700 dark:text-amber-400 leading-snug">
                 <strong>Ce prix correspond à un forfait global.</strong>{" "}
                 La comparaison au marché est moins fiable — les fourchettes ci-dessous sont fournies à titre indicatif uniquement.

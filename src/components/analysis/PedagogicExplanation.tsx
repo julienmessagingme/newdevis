@@ -18,13 +18,13 @@ const PedagogicExplanation = ({ type, title, children, className = "" }: Pedagog
         return {
           bg: "bg-score-green-bg/50",
           border: "border-score-green/20",
-          icon: <CheckCircle2 className="h-5 w-5 text-score-green flex-shrink-0" />,
+          icon: <CheckCircle2 className="h-5 w-5 text-score-green-foreground flex-shrink-0" />,
         };
       case "vigilance":
         return {
           bg: "bg-score-orange-bg/50",
           border: "border-score-orange/20",
-          icon: <AlertCircle className="h-5 w-5 text-score-orange flex-shrink-0" />,
+          icon: <AlertCircle className="h-5 w-5 text-score-orange-foreground flex-shrink-0" />,
         };
       case "tip":
         return {

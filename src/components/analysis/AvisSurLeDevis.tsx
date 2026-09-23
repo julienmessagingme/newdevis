@@ -258,7 +258,7 @@ export default function AvisSurLeDevis({
             <ul className="mt-1.5 space-y-1">
               {pointsAttention.map((p, i) => (
                 <li key={i} className="flex items-baseline gap-1.5 text-[14px] leading-relaxed text-foreground/75">
-                  <span aria-hidden="true" className="text-amber-600">▸</span>
+                  <span aria-hidden="true" className="text-amber-700">▸</span>
                   <span>{p}</span>
                 </li>
               ))}
@@ -566,7 +566,7 @@ export default function AvisSurLeDevis({
                   >
                     <span
                       aria-hidden="true"
-                      className={v.ton === "vert" ? "font-bold text-emerald-600" : "text-foreground/35"}
+                      className={v.ton === "vert" ? "font-bold text-emerald-700" : "text-foreground/35"}
                     >
                       {v.ton === "vert" ? "✓" : "•"}
                     </span>
@@ -596,7 +596,7 @@ export default function AvisSurLeDevis({
               <ul className="mt-1.5 space-y-1">
                 {pointsAttention.map((p, i) => (
                   <li key={i} className="flex items-baseline gap-1.5 text-[14px] leading-relaxed text-foreground/75">
-                    <span aria-hidden="true" className="text-amber-600">▸</span>
+                    <span aria-hidden="true" className="text-amber-700">▸</span>
                     <span>{p}</span>
                   </li>
                 ))}
@@ -631,13 +631,13 @@ export default function AvisSurLeDevis({
                     key={i}
                     className="flex items-baseline gap-2 text-[14px] leading-relaxed text-foreground/80"
                   >
-                    <span aria-hidden="true" className="font-bold text-emerald-600">✓</span>
+                    <span aria-hidden="true" className="font-bold text-emerald-700">✓</span>
                     <span>{objetDeLigne(p)}</span>
                   </li>
                 ))}
                 {portee.postesCompares.length > 3 && (
                   <li className="flex items-baseline gap-2 text-[14px] leading-relaxed text-foreground/60">
-                    <span aria-hidden="true" className="font-bold text-emerald-600">✓</span>
+                    <span aria-hidden="true" className="font-bold text-emerald-700">✓</span>
                     <span>
                       et {portee.postesCompares.length - 3} autre
                       {portee.postesCompares.length - 3 > 1 ? "s" : ""} poste

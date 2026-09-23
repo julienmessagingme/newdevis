@@ -61,7 +61,7 @@ const BlockDevis = ({ pointsOk, alertes }: BlockDevisProps) => {
             {info.detailMoDoeuvre !== null && (
               <div className="p-3 bg-background/30 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Détail main d'œuvre</p>
-                <p className={`font-medium ${info.detailMoDoeuvre ? "text-score-green" : "text-score-orange"}`}>
+                <p className={`font-medium ${info.detailMoDoeuvre ? "text-score-green-foreground" : "text-score-orange-foreground"}`}>
                   {info.detailMoDoeuvre ? "Détaillé" : "Non détaillé"}
                 </p>
               </div>
@@ -71,7 +71,7 @@ const BlockDevis = ({ pointsOk, alertes }: BlockDevisProps) => {
             {info.detailMateriaux !== null && (
               <div className="p-3 bg-background/30 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Détail matériaux</p>
-                <p className={`font-medium ${info.detailMateriaux ? "text-score-green" : "text-score-orange"}`}>
+                <p className={`font-medium ${info.detailMateriaux ? "text-score-green-foreground" : "text-score-orange-foreground"}`}>
                   {info.detailMateriaux ? "Détaillé" : "Non détaillé"}
                 </p>
               </div>
@@ -90,8 +90,8 @@ const BlockDevis = ({ pointsOk, alertes }: BlockDevisProps) => {
               <div className="p-3 bg-background/30 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Acompte demandé</p>
                 <p className={`font-medium ${
-                  info.acomptePourcentage <= 30 ? "text-score-green" :
-                  info.acomptePourcentage <= 50 ? "text-score-orange" : "text-score-red"
+                  info.acomptePourcentage <= 30 ? "text-score-green-foreground" :
+                  info.acomptePourcentage <= 50 ? "text-score-orange-foreground" : "text-score-red-foreground"
                 }`}>
                   {info.acomptePourcentage}%
                 </p>

@@ -90,7 +90,7 @@ const jsonLd = {
           </p>
           <div class="flex flex-col sm:flex-row gap-3 justify-center">
             <a href="/nouvelle-analyse"
-               class="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+               class="inline-flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
               🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
             </a>
             <a href="#signaux-alerte"
@@ -148,7 +148,7 @@ const jsonLd = {
                 { ok: true,  label: "Acompte ≤ 30 % du montant total" },
               ].map(item => (
                 <li class="flex items-start gap-3 text-sm text-slate-700">
-                  <span class="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
+                  <span class="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
                   {item.label}
                 </li>
               ))}
@@ -167,7 +167,7 @@ const jsonLd = {
                 { label: "Demande d'acompte supérieure à 30 % ou paiement en espèces" },
               ].map(item => (
                 <li class="flex items-start gap-3 text-sm text-slate-700">
-                  <span class="flex-shrink-0 text-red-500 font-bold mt-0.5">✗</span>
+                  <span class="flex-shrink-0 text-red-700 font-bold mt-0.5">✗</span>
                   {item.label}
                 </li>
               ))}
@@ -183,16 +183,16 @@ const jsonLd = {
           <!-- Preuves sociales -->
           <div class="grid grid-cols-3 gap-4 mb-12">
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-emerald-600 mb-1">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</p>
-              <p class="text-xs text-slate-500 leading-snug">devis analysés à ce jour</p>
+              <p class="text-2xl font-bold text-emerald-700 mb-1">{ANALYSES_TOTAL.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-600 leading-snug">devis analysés à ce jour</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-emerald-600 mb-1">{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</p>
-              <p class="text-xs text-slate-500 leading-snug">postes de référence comparés</p>
+              <p class="text-2xl font-bold text-emerald-700 mb-1">{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</p>
+              <p class="text-xs text-slate-600 leading-snug">postes de référence comparés</p>
             </div>
             <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <p class="text-2xl font-bold text-emerald-600 mb-1">2 min</p>
-              <p class="text-xs text-slate-500 leading-snug">pour vérifier votre artisan</p>
+              <p class="text-2xl font-bold text-emerald-700 mb-1">2 min</p>
+              <p class="text-xs text-slate-600 leading-snug">pour vérifier votre artisan</p>
             </div>
           </div>
 
@@ -440,7 +440,7 @@ const jsonLd = {
                     <tr class={`border-t border-slate-100 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                       <td class="px-4 py-3 font-medium text-slate-800">{r.obligation}</td>
                       <td class="px-4 py-3 text-slate-600">{r.detail}</td>
-                      <td class="px-4 py-3 text-red-600 text-xs hidden sm:table-cell">{r.sanction}</td>
+                      <td class="px-4 py-3 text-red-700 text-xs hidden sm:table-cell">{r.sanction}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -458,10 +458,10 @@ const jsonLd = {
           </section>
 
           <!-- CTA intermédiaire -->
-          <div class="my-12 bg-emerald-600 rounded-2xl p-6 sm:p-8 text-white text-center">
-            <p class="text-xs font-semibold uppercase tracking-widest text-emerald-200 mb-2">🎯 Vous avez un doute sur votre artisan ?</p>
+          <div class="my-12 bg-emerald-700 rounded-2xl p-6 sm:p-8 text-white text-center">
+            <p class="text-xs font-semibold uppercase tracking-widest text-emerald-50 mb-2">🎯 Vous avez un doute sur votre artisan ?</p>
             <p class="text-xl font-bold mb-3">Vérifiez son devis avant de signer</p>
-            <p class="text-emerald-100 text-sm mb-6 max-w-lg mx-auto">
+            <p class="text-emerald-50 text-sm mb-6 max-w-lg mx-auto">
               Notre outil vérifie automatiquement le SIRET, les assurances, les avis
               et compare vos prix avec le marché — en 2 minutes, gratuitement.
             </p>
@@ -469,7 +469,7 @@ const jsonLd = {
                class="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
               🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
             </a>
-            <p class="text-emerald-200 text-xs mt-3">Compte gratuit en 30 secondes · Résultat immédiat · Sans carte bancaire</p>
+            <p class="text-emerald-50 text-xs mt-3">Compte gratuit en 30 secondes · Résultat immédiat · Sans carte bancaire</p>
           </div>
 
           <!-- À lire aussi — maillage interne piliers + blog -->
@@ -480,26 +480,26 @@ const jsonLd = {
                 <span class="text-2xl leading-none mt-0.5">📋</span>
                 <div>
                   <p class="font-semibold text-slate-800 text-sm leading-snug">Vérifier un devis travaux : méthode complète</p>
-                  <p class="text-xs text-slate-400 mt-0.5">Erreurs, prix réels et pièges à éviter — en 2 minutes</p>
+                  <p class="text-xs text-slate-600 mt-0.5">Erreurs, prix réels et pièges à éviter — en 2 minutes</p>
                 </div>
               </a>
               <a href="/prix-travaux-maison" class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
                 <span class="text-2xl leading-none mt-0.5">💰</span>
                 <div>
                   <p class="font-semibold text-slate-800 text-sm leading-snug">Prix des travaux maison : budget réel 2026</p>
-                  <p class="text-xs text-slate-400 mt-0.5">Fourchettes cuisine, SDB, toiture, isolation</p>
+                  <p class="text-xs text-slate-600 mt-0.5">Fourchettes cuisine, SDB, toiture, isolation</p>
                 </div>
               </a>
               <a href="/comparer-devis-travaux" class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
                 <span class="text-2xl leading-none mt-0.5">📊</span>
                 <div>
                   <p class="font-semibold text-slate-800 text-sm leading-snug">Comparer plusieurs devis travaux</p>
-                  <p class="text-xs text-slate-400 mt-0.5">Méthode 7 critères + analyse IA gratuite</p>
+                  <p class="text-xs text-slate-600 mt-0.5">Méthode 7 critères + analyse IA gratuite</p>
                 </div>
               </a>
             </div>
             <div class="p-5 rounded-xl bg-slate-50 border border-slate-100">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Articles de blog</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">Articles de blog</p>
               <ul class="space-y-2 text-sm">
                 <li>→ <a href="/blog/devis-travaux-anormalement-bas-faut-il-sen-mefier" class="text-indigo-600 hover:underline font-medium">Devis anormalement bas : faut-il s'en méfier ?</a></li>
                 <li>→ <a href="/blog/comment-negocier-devis-artisan-techniques-efficaces" class="text-indigo-600 hover:underline font-medium">Comment négocier un devis artisan : techniques efficaces</a></li>
@@ -516,7 +516,7 @@ const jsonLd = {
                 <details class="group rounded-xl border border-slate-200 bg-white overflow-hidden">
                   <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer font-medium text-slate-900 text-sm hover:bg-slate-50 transition-colors list-none">
                     {f.question}
-                    <span class="flex-shrink-0 text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                    <span class="flex-shrink-0 text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                   </summary>
                   <div class="px-5 pb-4 pt-1 text-sm text-slate-600 leading-relaxed border-t border-slate-100">
                     {f.answer}
@@ -534,7 +534,7 @@ const jsonLd = {
         <div class="container max-w-2xl mx-auto text-center">
           <p class="text-xs font-semibold uppercase tracking-widest text-emerald-300 mb-3">🚀 Passez à l'action</p>
           <p class="text-2xl sm:text-3xl font-bold text-white mb-3">Ne prenez pas de risque avec votre artisan</p>
-          <p class="text-emerald-100 mb-8 leading-relaxed max-w-lg mx-auto">
+          <p class="text-emerald-50 mb-8 leading-relaxed max-w-lg mx-auto">
             Avant de signer, vérifiez que votre artisan est fiable et que ses prix sont dans le marché.
             Notre outil vérifie SIRET, assurances et prix — en 2 minutes, gratuitement.
           </p>

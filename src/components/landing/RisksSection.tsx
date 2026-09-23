@@ -49,7 +49,7 @@ const RisksSection = () => {
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   <div className="w-12 h-12 bg-score-red-bg rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <risk.icon className="h-6 w-6 text-score-red" />
+                    <risk.icon className="h-6 w-6 text-score-red-foreground" />
                   </div>
                 </div>
                 <div className="flex-1">

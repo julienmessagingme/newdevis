@@ -217,8 +217,8 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
 
   const getProviderBadgeColor = (provider: string) => {
     switch (provider) {
-      case "pdf_text": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-      case "textract": return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+      case "pdf_text": return "bg-emerald-700/20 text-emerald-400 border-emerald-500/30";
+      case "textract": return "bg-amber-700/20 text-amber-400 border-amber-500/30";
       case "gemini_ai": return "bg-violet-500/20 text-violet-400 border-violet-500/30";
       default: return "bg-muted text-muted-foreground";
     }
@@ -262,7 +262,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                 <ChevronDown className={`h-3 w-3 transition-transform ${expandedSections.ocr ? '' : '-rotate-90'}`} />
                 <Zap className="h-3 w-3" />
                 1️⃣ DEBUG OCR
-                {debugData.force_textract && <Badge className="text-[10px] bg-amber-500/20 text-amber-400">FORCED</Badge>}
+                {debugData.force_textract && <Badge className="text-[10px] bg-amber-700/20 text-amber-400">FORCED</Badge>}
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-muted/30 rounded p-3">
@@ -284,7 +284,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                   </div>
                   <div>
                     <p className="text-muted-foreground">cache_hit</p>
-                    <Badge variant="outline" className={`mt-1 text-[10px] ${debugData.cache_hit ? "bg-emerald-500/20 text-emerald-400" : "bg-muted"}`}>
+                    <Badge variant="outline" className={`mt-1 text-[10px] ${debugData.cache_hit ? "bg-emerald-700/20 text-emerald-400" : "bg-muted"}`}>
                       {debugData.cache_hit ? "true" : "false"}
                     </Badge>
                   </div>
@@ -311,7 +311,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                   </div>
                   <div>
                     <p className="text-muted-foreground">contains_table_signals</p>
-                    <Badge variant="outline" className={`mt-1 text-[10px] ${debugData.contains_table_signals ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"}`}>
+                    <Badge variant="outline" className={`mt-1 text-[10px] ${debugData.contains_table_signals ? "bg-emerald-700/20 text-emerald-400" : "bg-amber-700/20 text-amber-400"}`}>
                       {debugData.contains_table_signals ? "true" : "false"}
                     </Badge>
                   </div>
@@ -333,7 +333,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                   {textractDebug.textract_warning && <AlertTriangle className="h-3 w-3 text-amber-400" />}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-2">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-amber-500/10 rounded p-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-amber-700/10 rounded p-3">
                     <div>
                       <p className="text-muted-foreground">textract_mode</p>
                       <p className="font-mono text-foreground mt-1 text-[10px]">{textractDebug.textract_mode}</p>
@@ -414,7 +414,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
             {/* Section 3: qty_ref Debug - CRITICAL */}
             {qtyRefDebug && (
               <Collapsible open={expandedSections.qtyRef} onOpenChange={() => toggleSection('qtyRef')}>
-                <CollapsibleTrigger className="flex items-center gap-2 w-full text-left text-xs font-medium text-emerald-300 hover:text-emerald-200">
+                <CollapsibleTrigger className="flex items-center gap-2 w-full text-left text-xs font-medium text-emerald-300 hover:text-emerald-50">
                   <ChevronDown className={`h-3 w-3 transition-transform ${expandedSections.qtyRef ? '' : '-rotate-90'}`} />
                   <Target className="h-3 w-3" />
                   3️⃣ DEBUG QTY_REF
@@ -425,11 +425,11 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                   )}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-2">
-                  <div className={`rounded p-3 ${qtyRefDebug.qty_ref_detected ? "bg-emerald-500/10" : "bg-red-500/10"}`}>
+                  <div className={`rounded p-3 ${qtyRefDebug.qty_ref_detected ? "bg-emerald-700/10" : "bg-red-500/10"}`}>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                       <div>
                         <p className="text-muted-foreground">qty_ref_detected</p>
-                        <Badge variant="outline" className={`mt-1 text-[10px] ${qtyRefDebug.qty_ref_detected ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
+                        <Badge variant="outline" className={`mt-1 text-[10px] ${qtyRefDebug.qty_ref_detected ? "bg-emerald-700/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
                           {qtyRefDebug.qty_ref_detected ? "true" : "false"}
                         </Badge>
                       </div>
@@ -460,8 +460,8 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                           <div>
                             <p className="text-muted-foreground">job_type_confidence</p>
                             <Badge variant="outline" className={`mt-1 text-[10px] ${
-                              qtyRefDebug.job_type_confidence === "high" ? "bg-emerald-500/20 text-emerald-400" :
-                              qtyRefDebug.job_type_confidence === "medium" ? "bg-amber-500/20 text-amber-400" :
+                              qtyRefDebug.job_type_confidence === "high" ? "bg-emerald-700/20 text-emerald-400" :
+                              qtyRefDebug.job_type_confidence === "medium" ? "bg-amber-700/20 text-amber-400" :
                               "bg-muted text-muted-foreground"
                             }`}>
                               {qtyRefDebug.job_type_confidence || "-"}
@@ -478,7 +478,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                     </div>
 
                     {qtyRefDebug.qty_ref_selection_rule && (
-                      <div className="mt-3 p-2 bg-emerald-500/10 rounded">
+                      <div className="mt-3 p-2 bg-emerald-700/10 rounded">
                         <p className="text-[10px] text-muted-foreground">qty_ref_selection_rule</p>
                         <p className="text-xs text-emerald-400 font-mono">{qtyRefDebug.qty_ref_selection_rule}</p>
                       </div>

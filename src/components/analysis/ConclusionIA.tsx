@@ -35,7 +35,7 @@ const DECISION_CONFIG = {
     sublabel: "Les prix sont cohérents avec le marché",
   },
   signer_avec_negociation: {
-    bg:       "bg-orange-500  dark:bg-orange-600",
+    bg:       "bg-orange-700  dark:bg-orange-600",
     border:   "border-orange-600 dark:border-orange-500",
     text:     "text-white",
     icon:     "🟠",
@@ -110,7 +110,7 @@ function ConclusionLoader({ isGenerating, error, onRetry }: {
 
       {error && (
         <div className="mt-4 flex items-center gap-2">
-          <p className="text-xs text-red-600 dark:text-red-400 flex-1">{error}</p>
+          <p className="text-xs text-red-700 dark:text-red-400 flex-1">{error}</p>
           <Button onClick={onRetry} size="sm" variant="outline" className="h-7 text-xs px-2 flex-shrink-0">
             Réessayer
           </Button>
@@ -759,7 +759,7 @@ export function ConclusionIA({
       />
 
       {error && (
-        <p className="text-xs text-red-600 dark:text-red-400 mt-3">{error}</p>
+        <p className="text-xs text-red-700 dark:text-red-400 mt-3">{error}</p>
       )}
     </div>
   );

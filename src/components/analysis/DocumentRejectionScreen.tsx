@@ -37,7 +37,7 @@ const DocumentRejectionScreen = ({
     switch (type) {
       case "facture":
         return {
-          icon: <FileWarning className="h-10 w-10 text-score-orange" />,
+          icon: <FileWarning className="h-10 w-10 text-score-orange-foreground" />,
           iconBg: "bg-score-orange/10",
           title: "Document non analysable",
           mainMessage: (

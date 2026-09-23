@@ -217,7 +217,7 @@ function StepFeedback({
         <p className="text-base font-semibold text-slate-900">
           Cette analyse vous a-t-elle aidé ?
         </p>
-        <p className="text-xs text-slate-400 mt-0.5">30 secondes — aucune obligation</p>
+        <p className="text-xs text-slate-600 mt-0.5">30 secondes — aucune obligation</p>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -285,17 +285,17 @@ function StepFeedback({
           rows={2}
           maxLength={TEXT_MAX}
           className={`w-full resize-none rounded-xl border bg-slate-50 px-3 py-2
-                     text-sm text-slate-700 placeholder:text-slate-400
+                     text-sm text-slate-700 placeholder:text-slate-600
                      focus:outline-none focus:ring-2 focus:ring-primary/30
                      ${textTooShort ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-primary/40"}`}
         />
         {text.length > 0 && (
-          <span className="absolute bottom-2 right-3 text-[10px] text-slate-400">
+          <span className="absolute bottom-2 right-3 text-[10px] text-slate-600">
             {text.length}/{TEXT_MAX}
           </span>
         )}
         {textTooShort && (
-          <p className="text-[11px] text-red-600 mt-1">
+          <p className="text-[11px] text-red-700 mt-1">
             Précise un peu, ça nous aide à corriger.
           </p>
         )}
@@ -347,13 +347,13 @@ function StepReward({
             <p className="text-lg font-bold text-slate-900">
               Merci pour votre retour 🙏
             </p>
-            <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+            <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">
               Petit cadeau : on vous ouvre l'accès à{" "}
               <strong className="text-slate-700">GérerMonChantier</strong>,
               notre outil pour piloter la suite — paiements, planning, alertes —
               dans le prolongement de votre analyse de devis.
             </p>
-            <p className="text-xs text-slate-400 mt-2">Gratuit, sans carte bancaire</p>
+            <p className="text-xs text-slate-600 mt-2">Gratuit, sans carte bancaire</p>
           </div>
 
           <div>
@@ -368,7 +368,7 @@ function StepReward({
 
           <button
             onClick={onSkip}
-            className="text-xs text-slate-400 hover:text-slate-600 transition-colors touch-manipulation"
+            className="text-xs text-slate-600 hover:text-slate-600 transition-colors touch-manipulation"
           >
             Non merci, plus tard
           </button>
@@ -397,21 +397,21 @@ function StepDone({
         {rewardActivated ? (
           <>
             <p className="text-base font-bold text-slate-900">🎁 Accès débloqué !</p>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-slate-600 mt-1">
               Votre accès GérerMonChantier est maintenant actif.
             </p>
           </>
         ) : choice === "positive" ? (
           <>
             <p className="text-base font-bold text-slate-900">Merci 🙏</p>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-slate-600 mt-1">
               Votre retour nous aide vraiment à améliorer l'outil.
             </p>
           </>
         ) : choice === "neutral" ? (
           <>
             <p className="text-base font-bold text-slate-900">Merci pour votre retour</p>
-            <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+            <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">
               On note vos remarques et on continue d'améliorer l'analyse.
               N'hésitez pas à nous écrire si quelque chose n'a pas été clair.
             </p>
@@ -419,7 +419,7 @@ function StepDone({
         ) : (
           <>
             <p className="text-base font-bold text-slate-900">Désolé que ça n'ait pas répondu à vos attentes</p>
-            <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+            <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">
               Votre retour honnête nous aide vraiment à progresser. Si vous avez
               30 secondes, écrivez-nous à <a className="underline" href="mailto:hello@verifiermondevis.fr">hello@verifiermondevis.fr</a> —
               on lit chaque message.
@@ -546,7 +546,7 @@ function StepCredit({
       </p>
       {/* ⚠️ NE PAS écrire « anonyme » : la réponse est enregistrée avec le
           compte et l'analyse. On dit ce qui est vrai et suffisant. */}
-      <p className="mt-2 text-[12px] text-slate-400 leading-relaxed">
+      <p className="mt-2 text-[12px] text-slate-600 leading-relaxed">
         Votre réponse ne déclenche aucun appel ni aucun e-mail, et n'est transmise à personne.
       </p>
     </div>
@@ -791,7 +791,7 @@ export function useFeedback(opts: UseFeedbackOptions = {}) {
           <button
             onClick={close}
             aria-label="Fermer"
-            className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors touch-manipulation"
+            className="absolute top-4 right-4 text-slate-600 hover:text-slate-700 transition-colors touch-manipulation"
           >
             <X className="h-4 w-4" />
           </button>

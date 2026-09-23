@@ -9,12 +9,12 @@ const DisclaimerSection = () => {
       {/* ── Version compacte ─────────────────────────────────── */}
       <div className="py-3 border-t border-slate-100 bg-transparent">
         <div className="container max-w-4xl flex items-center justify-center gap-2 flex-wrap">
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-600">
             ℹ️ Analyse indicative — ne remplace pas un avis professionnel.
           </span>
           <button
             onClick={() => setOpen(true)}
-            className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600 transition-colors"
+            className="text-xs text-slate-600 underline underline-offset-2 hover:text-slate-600 transition-colors"
           >
             En savoir plus
           </button>
@@ -35,10 +35,10 @@ const DisclaimerSection = () => {
                 onClick={() => setOpen(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
               >
-                <X className="h-4 w-4 text-slate-500" />
+                <X className="h-4 w-4 text-slate-600" />
               </button>
             </div>
-            <div className="px-6 py-5 text-sm text-slate-500 space-y-3 max-h-[70vh] overflow-y-auto">
+            <div className="px-6 py-5 text-sm text-slate-600 space-y-3 max-h-[70vh] overflow-y-auto">
               <p>
                 L'analyse fournie par VerifierMonDevis.fr est <strong className="text-slate-700">automatisée</strong> et repose sur :
               </p>

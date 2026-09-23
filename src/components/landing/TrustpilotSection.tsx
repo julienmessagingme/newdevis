@@ -287,11 +287,11 @@ function ReviewCard({ review, active }: { review: typeof REVIEWS[0]; active: boo
         {/* Auteur */}
         <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
           <div className="w-8 h-8 rounded-full bg-[#00b67a] flex items-center justify-center shrink-0">
-            <span className="text-white text-xs font-bold">{review.initials}</span>
+            <span className="text-slate-900 text-xs font-bold">{review.initials}</span>
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-900 truncate">{review.author}</p>
-            <p className="text-xs text-gray-400">{review.date}</p>
+            <p className="text-xs text-gray-500">{review.date}</p>
           </div>
           <div className="ml-auto shrink-0">
             <TrustpilotLogo className="h-4 w-auto opacity-40" />
@@ -369,7 +369,7 @@ export default function TrustpilotSection() {
           </div>
 
           <a href={TRUSTPILOT_REVIEW_URL} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-[#00b67a] hover:bg-[#00a369] text-white font-semibold text-sm px-5 py-3 rounded-xl shadow-sm transition-colors shrink-0">
+            className="inline-flex items-center gap-2 bg-[#00b67a] hover:bg-[#00a369] text-slate-900 font-semibold text-sm px-5 py-3 rounded-xl shadow-sm transition-colors shrink-0">
             <Star className="h-4 w-4 fill-white" />
             Donnez votre avis
             <ExternalLink className="h-3.5 w-3.5 opacity-75" />

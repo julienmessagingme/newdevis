@@ -45,7 +45,7 @@ function FormaliteBadge({ formalite }: { formalite: Formalite }) {
   switch (formalite) {
     case "Aucune":
       return (
-        <Badge className="bg-score-green/10 text-score-green border-score-green/30 gap-1.5">
+        <Badge className="bg-score-green/10 text-score-green-foreground border-score-green/30 gap-1.5">
           <CheckCircle2 className="h-3.5 w-3.5" />
           Aucune formalité
         </Badge>
@@ -59,7 +59,7 @@ function FormaliteBadge({ formalite }: { formalite: Formalite }) {
       );
     case "Permis":
       return (
-        <Badge className="bg-score-orange/10 text-score-orange border-score-orange/30 gap-1.5">
+        <Badge className="bg-score-orange/10 text-score-orange-foreground border-score-orange/30 gap-1.5">
           <Building2 className="h-3.5 w-3.5" />
           Permis de construire
         </Badge>
@@ -427,8 +427,8 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                   {/* Warnings */}
                   {result.warnings && result.warnings.length > 0 && (
                     <div className="flex items-start gap-2 p-3 bg-score-orange/5 border border-score-orange/20 rounded-lg">
-                      <AlertTriangle className="h-4 w-4 text-score-orange flex-shrink-0 mt-0.5" />
-                      <div className="text-sm text-score-orange">
+                      <AlertTriangle className="h-4 w-4 text-score-orange-foreground flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-score-orange-foreground">
                         {result.warnings.map((w, i) => (
                           <p key={i}>{w}</p>
                         ))}

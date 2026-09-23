@@ -109,7 +109,7 @@ const AdaptedAnalysisBanner = ({ mode, className = "" }: AdaptedAnalysisBannerPr
           <ul className="space-y-2">
             {content.analysisScope.map((item, index) => (
               <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                <span className="text-score-green mt-0.5">✓</span>
+                <span className="text-score-green-foreground mt-0.5">✓</span>
                 {item}
               </li>
             ))}

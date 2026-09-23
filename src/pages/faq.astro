@@ -115,13 +115,20 @@ const faqs = [
           </a>
         </div>
 
+        {/* Les « | » sont des séparateurs PUREMENT DÉCORATIFS : ils ne portent
+            aucune information et n'ont aucune fonction, donc ils relèvent de
+            l'exception « décoration » de WCAG 1.4.3 et n'ont pas de seuil de
+            contraste à tenir (ils sont à 1,26:1, et les foncer alourdirait la
+            ligne sans rien apporter). On l'explicite avec `aria-hidden` :
+            un lecteur d'écran n'a pas à énoncer « barre verticale » entre
+            chaque lien. */}
         <div class="mt-6 flex flex-wrap justify-center gap-4 text-sm">
           <a href="/comprendre-score" class="text-primary hover:underline">Comprendre le scoring</a>
-          <span class="text-border">|</span>
+          <span class="text-border" aria-hidden="true">|</span>
           <a href="/qui-sommes-nous" class="text-primary hover:underline">Qui sommes-nous</a>
-          <span class="text-border">|</span>
+          <span class="text-border" aria-hidden="true">|</span>
           <a href="/blog" class="text-primary hover:underline">Lire notre blog</a>
-          <span class="text-border">|</span>
+          <span class="text-border" aria-hidden="true">|</span>
           <a href="/contact" class="text-primary hover:underline">Nous contacter</a>
         </div>
 
