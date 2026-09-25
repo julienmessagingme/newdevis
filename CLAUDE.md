@@ -1914,6 +1914,38 @@ Quatre cartes photo en portrait 3/4 remplacent les quatre cartes emoji sur fond 
 - **Photos converties en WebP** (47 · 21 · 46 · 17 Ko, deux venaient en AVIF), `loading="lazy"`, `width`/`height` réels pour réserver la place. ⚠️ **Pas de `srcset`** malgré le handoff : sur des sources de 417 px de haut, une seconde résolution n'apporterait rien — ce serait du bruit qui donne l'illusion d'une optimisation.
 - **Vérifié dans le navigateur** : 1280 (4 colonnes, grille 1160 px, cartes 274×365 au ratio exact, cadrage artisan `50% 20%`), 745 (2 colonnes), 375 (1 colonne, lien visible sans survol, **zéro débordement horizontal**). Survol mesuré : zoom 1,06×, texte remonté de 26 px, lien à l'opacité 1.
 
+### 🔴 LE CTA MOBILE ÉTAIT INCLICABLE — RECOUVERT PAR LE BANDEAU COOKIES (2026-09-25, retour expert UX puis mesure)
+
+Régression introduite par la refonte « poignée de main » le matin même, et **invisible sur une capture** : un bandeau `position: fixed` ne figure dans aucun rectangle de mise en page.
+
+| mesuré en production, 390×844 | avant la refonte | après | corrigé |
+|---|---:|---:|---:|
+| CTA principal | y = 402 | **y = 758** | **y = 536** |
+| bandeau cookies commence à | y = 767 | y = 602 | y = 602 |
+| recouvrement | aucun | **53 px sur 53** | **aucun** |
+
+- 🔴 **LE CONTRÔLE QUI TRANCHE EST `elementFromPoint`, PAS UN RECTANGLE.** Au centre du bouton, le DOM renvoyait **« Accepter »** du bandeau cookies : sur mobile, **le bouton principal du site n'était pas cliquable tant que les cookies n'étaient pas traités**. Toute vérification de CTA doit interroger ce qui est réellement au-dessus, pas seulement comparer des coordonnées.
+- **Le budget est une contrainte dure, et il se calcule** : 844 − 65 (header) − **242 (bandeau cookies)** = **537 px** pour la photo, le badge, le H1, le lede ET le bouton. Le bandeau occupe **29 % de l'écran** à la première visite de chaque page.
+- 🟢 **TROIS LEVIERS, MESURÉS ENSEMBLE** : encart verdict retiré (−56 px, demande Johan — « ça n'apporte rien »), photo **300 → 170 px** (−130), espacements resserrés (−36 : padding du hero 40→24, badge 22→16, H1 18→12, lede 26→18). Total **−222 px** pour un déficit de 165.
+- ⚠️ **LA SOURCE MOBILE EST RECADRÉE, PAS SEULEMENT RÉTRÉCIE.** Raccourcir l'ancienne bande de 600 px **coupait la tête des deux hommes** — vu à l'œil, pas supposé. Nouvelle bande **780×340** (extrait 350→690 de la source) : les trois visages ET la poignée de main y sont, et le fichier tombe de **45 à 26 Ko**.
+- 🟡 **LE CTA SECONDAIRE RESTE SOUS LE BANDEAU** (y ≈ 601-654) et la micro-copie aussi. Assumé : le budget de 537 px ne permet pas les deux, et c'est le bouton principal qui compte.
+
+**Lighthouse mobile, trois passes sur la production** — le LCP est la métrique que la décision du 23/09 protégeait, et la photo l'**améliore** :
+
+| | avant (23/09) | après |
+|---|---:|---:|
+| **LCP** | 4,6-4,8 s | **2,5-2,6 s** |
+| score | 79-80 | 68-71 |
+| TBT | non mesuré | 1 000-1 560 ms |
+
+- 🔴 **LE SCORE BAISSE À CAUSE DU TBT, ET CE N'EST PAS CE CHANGEMENT** : il a **retiré** du JS (le carrousel). Témoin sur `/analyser-devis-travaux`, page non modifiée : **TBT 490 ms** déjà, score 76. Sur l'accueil le document consomme 1 968 ms de CPU contre 1 478 sur le témoin — l'écart, ce sont les îles React (ticker social, bandeau cookies). ⚠️ **Il n'existe aucune mesure « avant » avec le même outil** : on peut affirmer que ce changement ne peut pas avoir créé le TBT, pas qu'il n'a pas bougé.
+
+**Couleurs, même compteur avant/après sur la production** : desktop **13 → 8**, mobile **10 → 7**. Disparus avec le carrousel : le brun, le rouge, le vert et le quasi-noir des pastilles de verdict.
+
+🔴 **« CRÉATION DE COMPTE EN 30 SECONDES » → « COMPTE GRATUIT, EN UN CLIC AVEC GOOGLE » (décision Johan).** L'ancienne phrase était **vraie** et posée le 07/09 sur la règle « on assume le mur, on ne le déguise pas ». Elle soulevait pourtant trois objections sans y répondre (« je vais devoir donner des données », « ça va être long », « que font-ils de mon mail »). **Mesuré le 13/09** : 43 % seulement de ceux qui atteignent `/inscription` créent un compte, et **ceux qui partent ne prennent pas Google, pourtant à un clic** (19 inscriptions Google contre 4 par formulaire). La ligne porte désormais la RÉPONSE au lieu de l'objection — et reste vraie, c'est le chemin de 83 % des inscrits. ⚠️ **Ne jamais retirer la mention du compte** : ce serait redevenir faux.
+
+**Vérifié : 663 tests, 168 textes / 0 échec WCAG, build propre, aucun débordement horizontal de 390 à 1920 px.**
+
 ### Hero d'accueil — photo « poignée de main », et le carrousel retiré (2026-09-25, handoff validé)
 
 Une relecture UX (25 ans de métier, sollicitée par Johan) a fait cinq reproches au hero du 14/09. **Trois sont vérifiés par la mesure, deux méritaient d'être nuancés**, et le handoff qui a suivi refond la moitié droite : photo cadrée à 58 %, carrousel supprimé, petit encart verdict. Variante **G** du handoff.

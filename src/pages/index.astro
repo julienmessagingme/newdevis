@@ -200,7 +200,7 @@ const jsonLd = {
             <img
               class="vh-photo"
               src="/images/hero-poignee-mobile.webp"
-              width="780" height="600"
+              width="780" height="340"
               fetchpriority="high"
               decoding="async"
               alt="Un couple serre la main de son artisan devant une maison en rénovation"
@@ -218,38 +218,6 @@ const jsonLd = {
               aurait seulement un bord net au lieu d'un fondu. */}
           <span class="vh-photo-veil" aria-hidden="true"></span>
 
-          {/* ── Encart verdict ──────────────────────────────────────────
-              🔴 LE LIBELLÉ N'EST PAS CELUI DU HANDOFF, ET C'EST DÉLIBÉRÉ.
-              Il proposait « VERDICT · 11 POSTES SUR 11 » / « Vous pouvez
-              signer. » — deux formulations que le produit s'interdit :
-              • le « X sur Y » a été RETIRÉ de l'écran d'analyse le 22/09
-                sur décision de Johan (« si le devis comporte 50 lignes et
-                que nous en avons comparé 37, l'utilisateur n'a pas besoin
-                de le savoir »). L'afficher en hero annoncerait un écran
-                qui n'existe plus.
-              • « vous pouvez signer » figure dans la liste noire de
-                `sanitizeLLMText` : c'est une phrase que nous refusons de
-                laisser écrire à Gemini. Le vrai titre vert du produit est
-                « Ce devis nous paraît cohérent. » (`decisionAffichee.ts`,
-                branche portée > 50 %, ce que dit la 3e ligne).
-              ⚠️ ET LE MOT « EXEMPLE » EST OBLIGATOIRE : le carrousel
-              portait la légende « Exemple illustratif ». En le supprimant
-              on supprimait aussi le seul endroit qui disait que la sortie
-              montrée est fabriquée.
-              ⚠️ PAS `aria-hidden` (le handoff le demandait) : la carte
-              produit était lisible au lecteur d'écran, et c'est la seule
-              preuve du hero maintenant. Portant le mot « Exemple », elle
-              est honnête à la lecture comme à l'écoute. */}
-          <aside class="vh-verdict">
-            <span class="vh-verdict-ic" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#14803c" /><path d="M7 12l3 3 7-7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            </span>
-            <span class="vh-verdict-txt">
-              <span class="vh-verdict-k">Exemple de verdict</span>
-              <span class="vh-verdict-v">Ce devis nous paraît cohérent.</span>
-              <span class="vh-verdict-s">Prix dans le marché · entreprise saine</span>
-            </span>
-          </aside>
         </div>
 
         <div class="container vmd-hero-grid">
@@ -290,7 +258,22 @@ const jsonLd = {
               <a href="/exemple-analyse" class="vh-btn vh-btn-ghost">Voir un exemple d'analyse</a>
             </div>
 
-            <p class="vh-micro">Création de compte en 30 secondes, puis analyse immédiate — gratuit.</p>
+            {/* 🔴 CETTE LIGNE DIT LE MUR, ELLE NE LE DÉGUISE PAS — règle du
+                07/09. L'ancienne version (« Analyse immédiate · Compte gratuit
+                pour le détail complet ») était FAUSSE : `/nouvelle-analyse`
+                redirige vers `/inscription` sans compte.
+                ⚠️ CE QUI CHANGE LE 25/09, ET POURQUOI. « Création de compte en
+                30 secondes » était vrai mais soulevait trois objections sans y
+                répondre (« je vais devoir donner des données », « ça va être
+                long », « que font-ils de mon mail »). Mesuré le 13/09 : 43 %
+                seulement de ceux qui atteignent `/inscription` créent un
+                compte, et **ceux qui partent ne prennent pas Google, qui est
+                pourtant à un clic** (19 inscriptions Google contre 4 par
+                formulaire). La ligne porte donc désormais la RÉPONSE au lieu de
+                l'objection — et reste vraie : c'est le chemin qu'emploient
+                déjà 83 % des inscrits. **Ne pas retirer la mention du compte** :
+                ce serait redevenir faux. */}
+            <p class="vh-micro">Compte gratuit, en un clic avec Google.</p>
           </div>
 
           {/* ── Zone basse : les preuves ──────────────────────────────── */}
@@ -354,12 +337,26 @@ const jsonLd = {
      remonte de 40 px — DÉBORDAIT et se posait par-dessus le badge
      « 461 devis analysés » du bloc suivant. En laissant le conteneur
      s'adapter, l'encart fait partie du flux et pousse le texte sous lui. */
+  /* 🔴 170 px ET PAS 300, ET C'EST UNE MESURE, PAS UN GOÛT (2026-09-25).
+     Le bandeau cookies occupe les 242 px du bas de l'écran sur mobile — soit
+     29 % de la hauteur, sur la première visite de chaque page. Avec la photo
+     à 300 px, le CTA tombait à y=758 et `elementFromPoint` en son centre
+     renvoyait le bouton « Accepter » du bandeau : **le bouton principal du
+     site n'était pas cliquable tant que les cookies n'étaient pas traités.**
+     Budget réel avant le bandeau : 844 − 65 (header) − 242 = 537 px pour la
+     photo, le badge, le H1, le lede ET le bouton. ⚠️ Toute reprise du hero
+     doit re-mesurer ce recouvrement, pas seulement regarder une capture —
+     un bandeau `position: fixed` n'apparaît pas dans les rectangles.
+     ⚠️ La source mobile est RECADRÉE pour cette hauteur (780×340, bande
+     350→690 de la source) : les trois visages ET la poignée de main y sont.
+     Un simple `height` plus court sur l'ancienne bande de 600 px coupait
+     la tête des deux hommes — vérifié à l'œil, pas supposé. */
   .vh-photo-wrap { position: relative; }
-  .vh-photo { display: block; width: 100%; height: 300px; object-fit: cover; object-position: center 40%; }
+  .vh-photo { display: block; width: 100%; height: 170px; object-fit: cover; object-position: center 45%; }
   /* Le fondu vers le bas ramène la photo dans le dégradé de marque. Il est
      en ALPHA, jamais en aplat : une couleur figée trancherait au raccord. */
   .vh-photo-veil {
-    position: absolute; top: 0; left: 0; right: 0; height: 300px; pointer-events: none;
+    position: absolute; top: 0; left: 0; right: 0; height: 170px; pointer-events: none;
     background: linear-gradient(180deg, rgba(0,0,0,.10) 0%, transparent 28%),
                 linear-gradient(180deg, transparent 45%, hsl(220 62% 28%) 100%);
   }
@@ -392,55 +389,13 @@ const jsonLd = {
      raisonne sur un cadre de 1 500 px où 58 % valent justement ~870. */
   @media (min-width: 1024px) { .vh-photo-wrap { width: min(58%, 900px); } }
 
-  /* ── Encart verdict ───────────────────────────────────────────────── */
-  .vh-verdict {
-    position: relative; z-index: 3;
-    display: flex; align-items: center; gap: 14px;
-    margin: -40px 20px 0; padding: 16px 18px;
-    background: #fff; border-radius: 16px;
-    box-shadow: 0 24px 50px rgba(4, 20, 58, .35);
-  }
-  .vh-verdict-ic {
-    flex: none; display: grid; place-items: center;
-    width: 44px; height: 44px; border-radius: 12px; background: #e4f8ec;
-  }
-  .vh-verdict-txt { display: block; min-width: 0; }
-  /* ⚠️ Couleurs de texte reprises de la carte produit (#5a6883), pas du
-     handoff (#7C8AA3 / #5A6675) : le premier tombe à 3,5:1 sur blanc à
-     11 px, donc sous le seuil WCAG 1.4.3 que la passe du 23/09 a ramené à
-     zéro échec sur tout le site. On ne rouvre pas une dette qu'on vient de
-     solder pour un écart de teinte invisible. */
-  .vh-verdict-k { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #5a6883; }
-  .vh-verdict-v { display: block; margin-top: 3px; font-size: 1rem; font-weight: 700; color: hsl(var(--primary)); }
-  .vh-verdict-s { display: block; margin-top: 2px; font-size: .78rem; color: #5a6883; }
-
-  @media (min-width: 768px) and (max-width: 1023px) {
-    /* Tablette : la photo ne fait plus que 50 %, l'encart s'y superposerait
-       au texte. Le handoff le masque — on le suit. */
-    .vh-verdict { display: none; }
-  }
-  @media (min-width: 1024px) {
-    /* 🔴 « bottom: 48px » DU HANDOFF SUPPOSE UN HERO DE 760 px ; le nôtre en
-       fait 1 009 (quatre preuves, la signature, le lien). Mesuré à
-       1440 × 900 : la carte tombait à y = 902, donc ENTIÈREMENT sous la
-       ligne de flottaison — et c'est précisément l'« après rassurant » que
-       ce chantier existe pour montrer.
-       Le `max()` garde les 48 px quand le hero tient dans l'écran, et
-       remonte la carte juste ce qu'il faut sinon : 100 % = hauteur de la
-       section, 213 px = header (65) + carte (~124) + marge (24). */
-    .vh-verdict {
-      position: absolute; right: 48px; width: 330px; margin: 0; padding: 18px 20px;
-      bottom: max(48px, calc(100% - 100vh + 213px));
-    }
-  }
-
   /* ── Grille du texte ──────────────────────────────────────────────── */
   .vmd-hero-grid {
     position: relative; z-index: 2;
     display: grid;
     grid-template-areas: "top" "bottom";
     gap: 28px;
-    padding: 40px 1rem 48px;
+    padding: 24px 1rem 48px;
   }
   .vh-top { grid-area: top; }
   .vh-bottom { grid-area: bottom; }
@@ -481,7 +436,7 @@ const jsonLd = {
     font-size: 11.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
     color: rgba(255,255,255,.72);
     border: 1px solid rgba(255,255,255,.2); border-radius: 999px;
-    padding: 7px 14px; margin: 0 0 22px;
+    padding: 7px 14px; margin: 0 0 16px;
   }
   .vh-eyebrow b { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }
   .vh-sep { width: 1px; height: 12px; background: rgba(255,255,255,.26); }
@@ -489,14 +444,14 @@ const jsonLd = {
   .vh-title {
     font-size: clamp(1.95rem, 5.4vw, 3.4rem);
     line-height: 1.05; letter-spacing: -.03em; font-weight: 700;
-    color: #fff; margin: 0 0 18px; text-wrap: balance;
+    color: #fff; margin: 0 0 12px; text-wrap: balance;
   }
   .vh-mark { position: relative; white-space: nowrap; }
   .vh-mark svg { position: absolute; left: 0; bottom: -.13em; width: 100%; height: .18em; overflow: visible; }
 
   .vh-lede {
     font-size: clamp(1rem, 1.3vw, 1.125rem); line-height: 1.55;
-    color: rgba(255,255,255,.82); max-width: 33rem; margin: 0 0 26px;
+    color: rgba(255,255,255,.82); max-width: 33rem; margin: 0 0 18px;
   }
 
   .vh-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
