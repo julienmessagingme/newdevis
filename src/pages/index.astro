@@ -122,7 +122,6 @@ const jsonLd = {
   description={`Analysez votre devis travaux : surcoût poste par poste sur ${CATALOGUE_TAILLE} références de prix, entreprise vérifiée (radiation, santé financière), clauses abusives détectées. Sans commission d'artisan.`}
   canonical="https://www.verifiermondevis.fr/"
   jsonLd={jsonLd}
-  preloadImage={{ href: '/images/hero-devis.webp', media: '(min-width: 1024px)' }}
 >
   <div class="min-h-screen flex flex-col">
     <AstroHeader />
@@ -149,11 +148,110 @@ const jsonLd = {
           Le carrousel est donc placé juste après le bouton sur mobile, via
           des zones de grille — c'est là que la preuve doit tomber.
 
-          ⚠️ CONTENU RENDU EN HTML AU BUILD. Le JavaScript ne sert QU'À
-          faire tourner les cartes : les quatre sont dans le document. Ne
-          jamais déplacer ce bloc dans une île `client:only` — le H1 et le
-          texte disparaîtraient du HTML servi (règle du 07/09). */}
-      <section class="hero-gradient vmd-hero vmd-hero-photo">
+          ⚠️ CONTENU RENDU EN HTML AU BUILD, sans aucune île `client:only` —
+          le H1 et le texte disparaîtraient du HTML servi (règle du 07/09).
+
+          ══ RÉVISION 2026-09-25 — PHOTO « POIGNÉE DE MAIN » (handoff validé)
+
+          🔴 LE CARROUSEL EST SUPPRIMÉ, ET CE N'EST PAS GRATUIT. Il tournait
+          tout seul — mesuré : le contenu du premier écran changeait en 5 s
+          sans aucune interaction, ce qui fait perdre sa ligne au lecteur de
+          la colonne fixe. C'est le reproche le plus solide de la relecture
+          UX du 25/09, et il ne se corrige qu'en retirant le mouvement.
+          ⚠️ MAIS on y perd la carte « Ce qu'on ne dit pas », documentée le
+          14/09 comme « le seul actif qu'un concurrent ne peut pas imiter ».
+          La perte est BORNÉE, pas nulle : la sortie du produit reste montrée
+          un écran plus bas (`DuDevisAuVerdict`) et en entier sur
+          `/exemple-analyse`, où pointe le bouton secondaire.
+
+          ⚠️ ET LE HERO DU 14/09 A COÏNCIDÉ AVEC UN DOUBLEMENT DE LA
+          CONVERSION (3,9 % → 7,7 %, parcours réel même-visiteur). Non
+          attribuable — 31 conversions de chaque côté, et le trafic s'est
+          effondré d'un facteur 5 le 19/09 — mais à savoir avant de conclure
+          que ce remplacement est un progrès. À remesurer.
+
+          🔴 LA PHOTO EST UN `<img>`, PLUS UNE `background-image`, et le
+          preload a été RETIRÉ. Le preload du 23/09 existait parce que
+          l'image vivait dans le CSS : elle n'était découverte qu'après
+          l'analyse de la feuille de style. Un `<img fetchpriority="high"`
+          placé en tête de `<main>` est découvert par le pré-parseur avant
+          même le CSS — le preload n'avancerait rien et interdirait le
+          `<picture>` (deux cadrages, donc deux fichiers, qu'un seul
+          `preloadImage` ne sait pas décrire). */}
+      <section class="hero-gradient vmd-hero vmd-hero-poignee">
+
+        {/* ⚠️ DEUX CADRAGES, DONC `<picture>` ET NON `srcset` : le desktop
+            reçoit le PORTRAIT d'origine (896×1200, il occupe une colonne
+            haute), le mobile une BANDE 780×600 recadrée à 40 % de la
+            hauteur — les trois visages et la poignée de main y sont, ce
+            qu'un simple redimensionnement ne garantit pas. `srcset` suppose
+            la même image à deux résolutions ; ce n'est pas le cas ici.
+            ⚠️ 45 Ko sur mobile contre 118 en desktop : le mobile est déjà à
+            4,8 s de LCP (mesuré le 23/09), lui envoyer le portrait entier
+            aurait coûté 73 Ko pour un bandeau de 300 px de haut. */}
+        <div class="vh-photo-wrap">
+          <picture>
+            {/* ⚠️ LA BASCULE EST À 768, PAS 1024, ET C'EST MESURÉ : dès 768 px
+                la photo passe en COLONNE (450×1005 à 900 px de large). Servir
+                la bande 780×600 dans une fente portrait l'agrandit d'un
+                facteur 1,7 en hauteur et la recadre au mauvais endroit —
+                vérifié à l'écran avant correction. */}
+            <source media="(min-width: 768px)" srcset="/images/hero-poignee.webp" width="896" height="1200" />
+            <img
+              class="vh-photo"
+              src="/images/hero-poignee-mobile.webp"
+              width="780" height="600"
+              fetchpriority="high"
+              decoding="async"
+              alt="Un couple serre la main de son artisan devant une maison en rénovation"
+            />
+          </picture>
+          {/* 🔴 LA PHOTO EST MASQUÉE, PAS RECOUVERTE D'UN APLAT. Le handoff
+              donne un voile `#0B2A6B` — un hexadécimal qui n'est PAS notre
+              token (`--hero-gradient` va de #1B4498 à #1A3366) et qui se
+              verrait comme une bande d'une autre couleur au raccord. Le
+              `mask-image` rend le bord gauche TRANSPARENT : c'est le vrai
+              dégradé de marque qui apparaît dessous, donc le raccord est
+              exact par construction et le reste juste si le token change.
+              ⚠️ Si le navigateur ignore le masque, il ne se passe rien de
+              grave : la photo n'atteint jamais la colonne de texte, elle
+              aurait seulement un bord net au lieu d'un fondu. */}
+          <span class="vh-photo-veil" aria-hidden="true"></span>
+
+          {/* ── Encart verdict ──────────────────────────────────────────
+              🔴 LE LIBELLÉ N'EST PAS CELUI DU HANDOFF, ET C'EST DÉLIBÉRÉ.
+              Il proposait « VERDICT · 11 POSTES SUR 11 » / « Vous pouvez
+              signer. » — deux formulations que le produit s'interdit :
+              • le « X sur Y » a été RETIRÉ de l'écran d'analyse le 22/09
+                sur décision de Johan (« si le devis comporte 50 lignes et
+                que nous en avons comparé 37, l'utilisateur n'a pas besoin
+                de le savoir »). L'afficher en hero annoncerait un écran
+                qui n'existe plus.
+              • « vous pouvez signer » figure dans la liste noire de
+                `sanitizeLLMText` : c'est une phrase que nous refusons de
+                laisser écrire à Gemini. Le vrai titre vert du produit est
+                « Ce devis nous paraît cohérent. » (`decisionAffichee.ts`,
+                branche portée > 50 %, ce que dit la 3e ligne).
+              ⚠️ ET LE MOT « EXEMPLE » EST OBLIGATOIRE : le carrousel
+              portait la légende « Exemple illustratif ». En le supprimant
+              on supprimait aussi le seul endroit qui disait que la sortie
+              montrée est fabriquée.
+              ⚠️ PAS `aria-hidden` (le handoff le demandait) : la carte
+              produit était lisible au lecteur d'écran, et c'est la seule
+              preuve du hero maintenant. Portant le mot « Exemple », elle
+              est honnête à la lecture comme à l'écoute. */}
+          <aside class="vh-verdict">
+            <span class="vh-verdict-ic" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#14803c" /><path d="M7 12l3 3 7-7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </span>
+            <span class="vh-verdict-txt">
+              <span class="vh-verdict-k">Exemple de verdict</span>
+              <span class="vh-verdict-v">Ce devis nous paraît cohérent.</span>
+              <span class="vh-verdict-s">Prix dans le marché · entreprise saine</span>
+            </span>
+          </aside>
+        </div>
+
         <div class="container vmd-hero-grid">
 
           {/* ── Zone haute : la thèse ─────────────────────────────────── */}
@@ -193,159 +291,6 @@ const jsonLd = {
             </div>
 
             <p class="vh-micro">Création de compte en 30 secondes, puis analyse immédiate — gratuit.</p>
-          </div>
-
-          {/* ── Zone scène : nos écrans de sortie ─────────────────────── */}
-          <div class="vh-stage" id="apercu">
-            <div class="vh-tabs" role="tablist" aria-label="Ce que contient une analyse">
-              <button type="button" class="vh-tab" role="tab" aria-selected="true" aria-controls="vh-p0" id="vh-t0" data-go="0">Prix</button>
-              <button type="button" class="vh-tab" role="tab" aria-selected="false" aria-controls="vh-p1" id="vh-t1" data-go="1" tabindex="-1">Entreprise</button>
-              <button type="button" class="vh-tab" role="tab" aria-selected="false" aria-controls="vh-p2" id="vh-t2" data-go="2" tabindex="-1">Clauses</button>
-              <button type="button" class="vh-tab" role="tab" aria-selected="false" aria-controls="vh-p3" id="vh-t3" data-go="3" tabindex="-1">Ce qu'on ne dit pas</button>
-            </div>
-
-            <div class="vh-rail vh-run" id="vh-rail" aria-hidden="true"><i></i></div>
-
-            <div class="vh-deck">
-
-              {/* 1 · PRIX — les fourchettes viennent du RÉFÉRENTIEL, jamais
-                   écrites à la main : si le catalogue bouge, l'exemple ne
-                   devient pas faux (même règle que DuDevisAuVerdict). */}
-              <article class="vh-card" data-active="true" role="tabpanel" id="vh-p0" aria-labelledby="vh-t0">
-                <div class="vh-card-head">
-                  <span class="vh-kicker">Verdict · rénovation salle de bains</span>
-                  <span class="vh-pill vh-orange">À négocier</span>
-                </div>
-                <p class="vh-verdict">Deux postes dépassent les fourchettes du marché.</p>
-                <p class="vh-because">Le reste du devis est cohérent. Nous ne chiffrons que ce que nous pouvons nommer.</p>
-
-                <div class="vh-row">
-                  <div class="vh-row-main">
-                    <div class="vh-row-label">{poste('cloison_placo').libelle}</div>
-                    <div class="vh-row-sub">22 m² · 128 €/m² — marché {poste('cloison_placo').min} à {poste('cloison_placo').max} €/m²</div>
-                  </div>
-                  <div class="vh-row-val vh-up">+&thinsp;726&nbsp;€</div>
-                </div>
-                <div class="vh-row">
-                  <div class="vh-row-main">
-                    <div class="vh-row-label">{poste('carrelage_fourni_pose').libelle}</div>
-                    <div class="vh-row-sub">14 m² · 118 €/m² — marché {poste('carrelage_fourni_pose').min} à {poste('carrelage_fourni_pose').max} €/m²</div>
-                  </div>
-                  <div class="vh-row-val vh-up">+&thinsp;336&nbsp;€</div>
-                </div>
-                <div class="vh-row">
-                  <div class="vh-row-main">
-                    <div class="vh-row-label">{poste('peinture_murs_plafonds').libelle}</div>
-                    <div class="vh-row-sub">38 m² · 42 €/m² — marché {poste('peinture_murs_plafonds').min} à {poste('peinture_murs_plafonds').max} €/m²</div>
-                  </div>
-                  <div class="vh-row-val vh-ok">dans la norme</div>
-                </div>
-
-                <div class="vh-total">
-                  <span>Écart chiffré sur les postes nommés</span>
-                  <b>1&thinsp;062&nbsp;€</b>
-                </div>
-              </article>
-
-              {/* 2 · ENTREPRISE */}
-              <article class="vh-card" role="tabpanel" id="vh-p1" aria-labelledby="vh-t1" hidden>
-                <div class="vh-card-head">
-                  <span class="vh-kicker">Entreprise · SIREN 812 456 903</span>
-                  <span class="vh-pill vh-green">Active</span>
-                </div>
-                <p class="vh-verdict">SARL BATI CONFORT</p>
-                <p class="vh-because">Vérifiée dans les registres publics au moment de l'analyse.</p>
-
-                <div class="vh-kv">
-                  <div class="vh-kv-k">État administratif<i>Aucune procédure collective</i></div>
-                  <span class="vh-pill vh-green">Active</span>
-                </div>
-                <div class="vh-kv">
-                  <div class="vh-kv-k">Immatriculation<i>9 ans d'ancienneté</i></div>
-                  <span class="vh-pill vh-green">Solide</span>
-                </div>
-                <div class="vh-kv">
-                  <div class="vh-kv-k">Certification RGE<i>QualiBat 7131 — valide jusqu'au 31/12/2026</i></div>
-                  <span class="vh-pill vh-green">Vérifiée</span>
-                </div>
-                <div class="vh-kv">
-                  <div class="vh-kv-k">Assurance décennale<i>Non mentionnée sur le devis</i></div>
-                  <span class="vh-pill vh-amber">À réclamer</span>
-                </div>
-                <div class="vh-kv">
-                  <div class="vh-kv-k">Comptes annuels<i>Non accessibles publiquement</i></div>
-                  <span class="vh-pill vh-slate">Sans avis</span>
-                </div>
-              </article>
-
-              {/* 3 · CLAUSES */}
-              <article class="vh-card" role="tabpanel" id="vh-p2" aria-labelledby="vh-t2" hidden>
-                <div class="vh-card-head">
-                  <span class="vh-kicker">Clauses · 2 détectées</span>
-                  <span class="vh-pill vh-red">1 illégale</span>
-                </div>
-                <p class="vh-verdict">Deux clauses à faire retirer avant signature.</p>
-                <p class="vh-because">Citées mot pour mot depuis le devis — jamais reformulées.</p>
-
-                <p class="vh-quote">« Tout devis non signé dans les 15 jours sera facturé 90 € au titre de l'étude technique. »</p>
-                <p class="vh-note vh-note-gap">
-                  <b>Illégale sans accord préalable écrit</b> — article L.111-1 du Code de la
-                  consommation. Un devis est gratuit, sauf si son coût vous a été annoncé avant.
-                </p>
-
-                <p class="vh-quote vh-quote-amber">« Acompte de 50 % à la commande, solde à la livraison du matériel. »</p>
-                <p class="vh-note">
-                  <b>Au-dessus de l'usage</b> — 30 % est la pratique courante. Ça ne change pas
-                  le prix, seulement le moment où vous payez : demandez un échelonnement.
-                </p>
-              </article>
-
-              {/* 4 · CE QU'ON NE DIT PAS — la carte qui nous distingue.
-                   Aucun concurrent n'écrit qu'il ne sait pas. */}
-              <article class="vh-card" role="tabpanel" id="vh-p3" aria-labelledby="vh-t3" hidden>
-                <div class="vh-card-head">
-                  <span class="vh-kicker">Honnêteté · 3 postes sur 11</span>
-                  <span class="vh-pill vh-slate">Prix non vérifiable</span>
-                </div>
-                <p class="vh-verdict">Sur trois postes, nous ne pouvons pas nous prononcer.</p>
-                <p class="vh-because">Ni bon marché, ni cher : nous n'avons aucune référence que nous puissions opposer à l'artisan.</p>
-
-                <div class="vh-row">
-                  <div class="vh-row-main">
-                    <div class="vh-row-label">Meuble vasque sur mesure, chêne massif</div>
-                    <div class="vh-row-sub">1 u · 2 450 € — aucun tarif de référence</div>
-                  </div>
-                  <div class="vh-row-val">—</div>
-                </div>
-                <div class="vh-row">
-                  <div class="vh-row-main">
-                    <div class="vh-row-label">Reprise d'étanchéité sous receveur</div>
-                    <div class="vh-row-sub">forfait · 680 € — périmètre propre au chantier</div>
-                  </div>
-                  <div class="vh-row-val">—</div>
-                </div>
-                <div class="vh-row">
-                  <div class="vh-row-main">
-                    <div class="vh-row-label">Évacuation en déchetterie agréée</div>
-                    <div class="vh-row-sub">forfait · 210 € — varie avec la distance</div>
-                  </div>
-                  <div class="vh-row-val">—</div>
-                </div>
-
-                <p class="vh-note vh-note-top">
-                  <b>Un second devis est le seul comparatif réel sur ces postes.</b>
-                  Nous préférons le dire plutôt que d'inventer une fourchette que vous
-                  iriez défendre devant un artisan.
-                </p>
-              </article>
-
-            </div>
-
-            {/* ⚠️ Cette légende dit ce qui est VRAI : l'exemple est fabriqué.
-                Les fourchettes, elles, viennent du référentiel. Ne pas écrire
-                « sortie réelle de l'outil » tant que le devis d'exemple n'est
-                pas passé dans le pipeline. */}
-            <p class="vh-cap">Exemple illustratif — fourchettes issues de notre référentiel de {CATALOGUE_TAILLE.toLocaleString('fr-FR')} prix.</p>
           </div>
 
           {/* ── Zone basse : les preuves ──────────────────────────────── */}
@@ -397,92 +342,139 @@ const jsonLd = {
      retiré sur retour Johan. Le fond reste le dégradé de marque, net. */
   .vmd-hero { position: relative; overflow: hidden; }
 
-  /* ── Fond photo du hero (design validé 2026-09-23) ───────────────────
-     Une photo réelle remplace le dégradé uni, avec un voile navy en sept
-     arrêts : opaque à gauche pour que le texte reste lisible, presque
-     transparent au centre pour révéler le sujet, refermé à droite derrière
-     la carte.
+  /* ── Photo « poignée de main » (handoff validé 2026-09-25, variante G) ─
+     Le fond photo du 23/09 était une `background-image` pleine largeur sous
+     un voile navy. Il est remplacé par une photo CADRÉE sur la moitié droite,
+     et par une vraie balise `<img>` — ce qui permet deux cadrages (`<picture>`)
+     et un `alt` pour le lecteur d'écran, impossibles avec un fond CSS. */
 
-     🔴 RIEN N'EST TÉLÉCHARGÉ SOUS 1024 px, ET C'EST UNE DÉCISION DE VITESSE,
-     PAS DE GOÛT. Mesuré avant ce chantier (Lighthouse, mobile 4G bridée) :
-     **score 80, LCP 4,6 s** — déjà au-dessus du seuil « bon » de 2,5 s.
-     Poser une image de plus sur ce chemin aurait aggravé la seule page que
-     voient neuf visiteurs sur dix. Le handoff l'autorise explicitement
-     (« repasser à un fond navy uni si la photo écrase trop le texte en
-     mobile — à arbitrer selon rendu réel »).
-
-     ⚠️ LA MÉDIA QUERY EST CE QUI GARANTIT LE ZÉRO OCTET. Un `<img>` masqué
-     par `hidden lg:block` reste téléchargé par certains navigateurs ; une
-     `background-image` déclarée à l'intérieur d'un `@media` non satisfait
-     n'est JAMAIS demandée. Le `<link rel="preload">` du head porte le même
-     `media`, donc il ne se déclenche pas non plus.
-
-     ⚠️ Le dégradé de marque (`.hero-gradient`) RESTE sous la photo : c'est
-     lui qu'on voit sur mobile, et il sert de fond pendant que la photo
-     charge sur desktop — donc aucun aplat noir, aucun saut. */
-  @media (min-width: 1024px) {
-    .vmd-hero-photo::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background-image: url("/images/hero-devis.webp");
-      background-size: cover;
-      /* 🔴 LE 62 % EST INERTE, ET C'EST MESURÉ — ne pas le régler en croyant
-         recadrer. La source est un PORTRAIT 896×1200 (ratio 0,75) posée dans
-         un hero en paysage : `cover` cale sur la LARGEUR, donc l'image occupe
-         exactement les 100 % et il n'y a aucun débord horizontal à faire
-         glisser. Pour que l'axe X reprenne un sens, il faudrait un hero de
-         plus de 1 928 px de haut à 1 440 px de large. Seul le `center`
-         vertical agit : il garde la bande source 28,5 %→71,5 %, c'est-à-dire
-         du front jusqu'au haut du devis tenu en main.
-         La valeur est conservée telle que le handoff la donne, pour le jour
-         où une source PAYSAGE arrivera (cf. `TODO.md` § Hero) — elle
-         redeviendra alors le cadrage prévu. */
-      background-position: 62% center;
-    }
-    .vmd-hero-photo::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(180deg, rgba(0, 0, 0, .15), transparent 30%),
-        linear-gradient(92deg,
-          #0B2A6B 0%, #0B2A6B 34%,
-          rgba(11, 42, 107, .75) 44%,
-          rgba(11, 42, 107, .18) 58%,
-          rgba(11, 42, 107, .12) 70%,
-          rgba(11, 42, 107, .5) 82%,
-          rgba(11, 42, 107, .7) 100%);
-    }
-    /* Les deux pseudo-éléments sont décoratifs et sortent du flux : le
-       contenu doit repasser devant. */
-    .vmd-hero-photo > .vmd-hero-grid { position: relative; z-index: 2; }
+  /* ── MOBILE : bandeau en tête, avant le texte ─────────────────────── */
+  /* 🔴 LA HAUTEUR EST SUR L'IMAGE, PAS SUR LE CONTENEUR, et ça se voit à
+     l'écran. Avec `height: 300px` sur le conteneur, l'encart verdict — qui
+     remonte de 40 px — DÉBORDAIT et se posait par-dessus le badge
+     « 461 devis analysés » du bloc suivant. En laissant le conteneur
+     s'adapter, l'encart fait partie du flux et pousse le texte sous lui. */
+  .vh-photo-wrap { position: relative; }
+  .vh-photo { display: block; width: 100%; height: 300px; object-fit: cover; object-position: center 40%; }
+  /* Le fondu vers le bas ramène la photo dans le dégradé de marque. Il est
+     en ALPHA, jamais en aplat : une couleur figée trancherait au raccord. */
+  .vh-photo-veil {
+    position: absolute; top: 0; left: 0; right: 0; height: 300px; pointer-events: none;
+    background: linear-gradient(180deg, rgba(0,0,0,.10) 0%, transparent 28%),
+                linear-gradient(180deg, transparent 45%, hsl(220 62% 28%) 100%);
   }
 
-  /* Zones de grille : sur mobile la scène passe AVANT les preuves —
-     l'ancienne colonne visuelle était `hidden lg:block`, le mobile
-     n'avait aucune image. */
+  /* ── TABLETTE ET DESKTOP : la photo occupe la colonne de droite ────── */
+  @media (min-width: 768px) {
+    .vh-photo-wrap { position: absolute; top: 0; right: 0; bottom: 0; width: 50%; }
+    .vh-photo { height: 100%; }
+    .vh-photo-veil { inset: 0; height: auto; }
+    /* 🔴 MASQUE, PAS APLAT. Le handoff peint un voile `#0B2A6B` sur le bord
+       gauche de la photo ; or ce n'est pas notre navy (`--hero-gradient` va
+       de #1B4498 à #1A3366), et l'écart se verrait comme une bande d'une
+       autre couleur au raccord. En rendant le bord TRANSPARENT, c'est le
+       vrai dégradé de marque qui apparaît dessous : raccord exact par
+       construction, et toujours juste si le token change un jour. */
+    .vh-photo {
+      -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.45) 14%, #000 30%);
+      mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.45) 14%, #000 30%);
+    }
+    .vh-photo-veil {
+      background: linear-gradient(0deg, rgba(4,20,58,.35), transparent 30%);
+    }
+  }
+  /* 🔴 LA PHOTO EST PLAFONNÉE À SA LARGEUR NATIVE, et ce plafond règle deux
+     choses mesurées. (1) QUALITÉ : la source fait 896 px ; à 1920 px de
+     viewport, 58 % en réclamaient 1 114, soit un agrandissement de 1,24×.
+     À 900 px elle est servie à sa définition réelle. (2) MISE EN PAGE : sans
+     le plafond, la colonne de texte tombait à 462 px à 1920 px et LES DEUX
+     BOUTONS PASSAIENT L'UN SOUS L'AUTRE. Écart assumé avec le handoff, qui
+     raisonne sur un cadre de 1 500 px où 58 % valent justement ~870. */
+  @media (min-width: 1024px) { .vh-photo-wrap { width: min(58%, 900px); } }
+
+  /* ── Encart verdict ───────────────────────────────────────────────── */
+  .vh-verdict {
+    position: relative; z-index: 3;
+    display: flex; align-items: center; gap: 14px;
+    margin: -40px 20px 0; padding: 16px 18px;
+    background: #fff; border-radius: 16px;
+    box-shadow: 0 24px 50px rgba(4, 20, 58, .35);
+  }
+  .vh-verdict-ic {
+    flex: none; display: grid; place-items: center;
+    width: 44px; height: 44px; border-radius: 12px; background: #e4f8ec;
+  }
+  .vh-verdict-txt { display: block; min-width: 0; }
+  /* ⚠️ Couleurs de texte reprises de la carte produit (#5a6883), pas du
+     handoff (#7C8AA3 / #5A6675) : le premier tombe à 3,5:1 sur blanc à
+     11 px, donc sous le seuil WCAG 1.4.3 que la passe du 23/09 a ramené à
+     zéro échec sur tout le site. On ne rouvre pas une dette qu'on vient de
+     solder pour un écart de teinte invisible. */
+  .vh-verdict-k { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #5a6883; }
+  .vh-verdict-v { display: block; margin-top: 3px; font-size: 1rem; font-weight: 700; color: hsl(var(--primary)); }
+  .vh-verdict-s { display: block; margin-top: 2px; font-size: .78rem; color: #5a6883; }
+
+  @media (min-width: 768px) and (max-width: 1023px) {
+    /* Tablette : la photo ne fait plus que 50 %, l'encart s'y superposerait
+       au texte. Le handoff le masque — on le suit. */
+    .vh-verdict { display: none; }
+  }
+  @media (min-width: 1024px) {
+    /* 🔴 « bottom: 48px » DU HANDOFF SUPPOSE UN HERO DE 760 px ; le nôtre en
+       fait 1 009 (quatre preuves, la signature, le lien). Mesuré à
+       1440 × 900 : la carte tombait à y = 902, donc ENTIÈREMENT sous la
+       ligne de flottaison — et c'est précisément l'« après rassurant » que
+       ce chantier existe pour montrer.
+       Le `max()` garde les 48 px quand le hero tient dans l'écran, et
+       remonte la carte juste ce qu'il faut sinon : 100 % = hauteur de la
+       section, 213 px = header (65) + carte (~124) + marge (24). */
+    .vh-verdict {
+      position: absolute; right: 48px; width: 330px; margin: 0; padding: 18px 20px;
+      bottom: max(48px, calc(100% - 100vh + 213px));
+    }
+  }
+
+  /* ── Grille du texte ──────────────────────────────────────────────── */
   .vmd-hero-grid {
-    position: relative;
+    position: relative; z-index: 2;
     display: grid;
-    grid-template-areas: "top" "stage" "bottom";
+    grid-template-areas: "top" "bottom";
     gap: 28px;
     padding: 40px 1rem 48px;
   }
   .vh-top { grid-area: top; }
-  .vh-stage { grid-area: stage; min-width: 0; }
   .vh-bottom { grid-area: bottom; }
 
-  @media (min-width: 1024px) {
-    .vmd-hero-grid {
-      grid-template-areas: "top stage" "bottom stage";
-      grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
-      column-gap: 60px; row-gap: 26px;
-      align-content: center;
-      padding: 72px 1.5rem 80px;
-    }
-    .vh-stage { align-self: center; }
+  /* 🔴 LE TEXTE EST BORNÉ PAR LE BORD DE LA PHOTO, PAS PAR UNE LARGEUR FIXE.
+     La photo est positionnée en % du VIEWPORT, le texte vit dans
+     `.container` qui est centré et plafonné : les deux ne parlent pas la
+     même unité. `50vw`/`42vw` moins la gouttière donne la place réellement
+     disponible à toutes les largeurs, sans connaître la géométrie du
+     conteneur.
+     ⚠️ PREMIÈRE VERSION : une colonne fantôme de 58vw dans la grille. Elle
+     ne chevauchait rien, mais elle rognait la colonne de texte à 489 px —
+     et les DEUX BOUTONS PASSAIENT L'UN SOUS L'AUTRE (500 px à eux deux).
+     Vu à l'écran, invisible au build. */
+  /* ⚠️ `(100vw - 100%) / 2` EST LE DÉCALAGE GAUCHE DU CONTENEUR, et l'oublier
+     est l'erreur que la mesure a attrapée : `.container` est CENTRÉ, donc sa
+     marge gauche grandit avec l'écran. Une borne écrite « 42vw − gouttière »
+     marchait à 1440 et faisait DÉBORDER le texte sous la photo à 1920 (texte
+     jusqu'à 880 px, photo à partir de 806). Ici `100%` se résout sur la
+     largeur du conteneur, donc la formule reste juste à toute largeur sans
+     avoir à connaître son plafond. */
+  @media (min-width: 768px) {
+    .vmd-hero-grid { row-gap: 26px; align-content: center; padding: 64px 1.5rem 72px; }
+    .vh-top, .vh-bottom { max-width: min(440px, calc(50vw - (100vw - 100%) / 2 - 24px)); }
   }
+  @media (min-width: 1024px) {
+    .vmd-hero-grid { padding: 72px 1.5rem 80px; }
+    /* Le bord gauche de la photo suit le même plafond que la photo elle-même :
+       `max(42vw, 100vw - 900px)`. Les deux règles doivent bouger ensemble. */
+    .vh-top, .vh-bottom {
+      max-width: min(560px, calc(max(42vw, 100vw - 900px) - (100vw - 100%) / 2 - 24px));
+    }
+  }
+
 
   .vh-eyebrow {
     display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -525,76 +517,6 @@ const jsonLd = {
 
   .vh-micro { font-size: .85rem; color: rgba(255,255,255,.68); margin: 0; }
 
-  /* ── Carrousel ───────────────────────────────────────────────────── */
-  .vh-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
-  .vh-tab {
-    font-size: .8rem; font-weight: 500; min-height: 44px; /* cible tactile WCAG */
-    background: transparent; border: 0; cursor: pointer;
-    color: rgba(255,255,255,.6); padding: 8px 12px; border-radius: 8px;
-    transition: color .15s ease, background-color .15s ease;
-  }
-  .vh-tab:hover { color: #fff; background: rgba(255,255,255,.08); }
-  .vh-tab[aria-selected="true"] { color: hsl(var(--primary)); background: #fff; font-weight: 700; }
-  .vh-tab:focus-visible { outline: 2px solid hsl(var(--score-orange)); outline-offset: 2px; }
-
-  .vh-rail { height: 2px; background: rgba(255,255,255,.16); border-radius: 2px; overflow: hidden; margin-bottom: 14px; }
-  .vh-rail i { display: block; height: 100%; width: 0; background: hsl(var(--score-orange)); }
-  .vh-rail.vh-run i { animation: vh-fill 5.4s linear forwards; }
-  @keyframes vh-fill { from { width: 0 } to { width: 100% } }
-
-  /* Les cartes se superposent dans une seule cellule : la hauteur du bloc
-     est celle de la plus haute, donc aucun saut au changement d'onglet. */
-  .vh-deck { display: grid; }
-  .vh-card {
-    grid-area: 1 / 1;
-    background: #f7f8fb; color: #0e1b33;
-    border-radius: 16px; padding: 18px;
-    box-shadow: 0 22px 50px -18px rgba(5,16,40,.6);
-    opacity: 0; transform: translateY(10px); pointer-events: none;
-    transition: opacity .4s ease, transform .4s ease;
-  }
-  .vh-card[data-active="true"] { opacity: 1; transform: none; pointer-events: auto; }
-  @media (min-width: 480px) { .vh-card { padding: 22px; } }
-
-  .vh-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 13px; flex-wrap: wrap; }
-  .vh-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #5a6883; }
-  .vh-verdict { font-size: 1.08rem; font-weight: 700; letter-spacing: -.012em; margin: 0 0 4px; }
-  .vh-because { font-size: .86rem; color: #5a6883; margin: 0 0 15px; line-height: 1.5; }
-
-  .vh-pill { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700; letter-spacing: .02em; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
-  .vh-green { background: #e4f8ec; color: #14803c; }
-  .vh-amber { background: #fef0df; color: #a85803; }
-  .vh-orange { background: #fef0df; color: #a85803; }
-  .vh-red { background: #fbe6e6; color: #a31818; }
-  .vh-slate { background: #e9edf5; color: #44526e; }
-
-  .vh-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 11px 0; border-top: 1px solid #e2e7f0; }
-  .vh-row:first-of-type { border-top: 0; }
-  .vh-row-main { min-width: 0; }
-  .vh-row-label { font-size: .865rem; font-weight: 500; }
-  .vh-row-sub { font-size: 11.5px; color: #5a6883; margin-top: 3px; font-variant-numeric: tabular-nums; }
-  .vh-row-val { font-size: .88rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .vh-up { color: hsl(var(--score-red)); }
-  .vh-ok { color: #14803c; font-weight: 600; font-size: .8rem; }
-
-  .vh-total { margin-top: 13px; padding-top: 13px; border-top: 2px solid #0e1b33; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .vh-total span { font-size: .79rem; font-weight: 600; color: #5a6883; }
-  .vh-total b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
-
-  .vh-quote { font-size: .845rem; line-height: 1.5; font-style: italic; background: #fff; border-left: 3px solid hsl(var(--score-red)); padding: 10px 13px; border-radius: 0 8px 8px 0; margin: 0 0 8px; }
-  .vh-quote-amber { border-left-color: hsl(var(--score-orange)); }
-  .vh-note { font-size: .8rem; color: #5a6883; line-height: 1.5; margin: 0; }
-  .vh-note b { color: #0e1b33; }
-  .vh-note-gap { margin-bottom: 15px; }
-  .vh-note-top { margin-top: 15px; }
-
-  .vh-kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid #e2e7f0; }
-  .vh-kv:first-of-type { border-top: 0; }
-  .vh-kv-k { font-size: .865rem; min-width: 0; }
-  .vh-kv-k i { display: block; font-style: normal; font-size: 11.5px; color: #5a6883; margin-top: 2px; }
-
-  .vh-cap { margin-top: 13px; font-size: .78rem; color: rgba(255,255,255,.58); }
-
   /* ── Preuves ─────────────────────────────────────────────────────── */
   .vh-proofs { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 12px; }
   .vh-proofs li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; align-items: start; }
@@ -614,69 +536,10 @@ const jsonLd = {
   .vh-more a:hover { color: #fff; }
 
   @media (prefers-reduced-motion: reduce) {
-    .vh-rail.vh-run i { animation: none; width: 100%; }
-    .vh-card, .vh-btn { transition: none; }
+    .vh-btn { transition: none; }
   }
 </style>
 
-<script>
-  // Rotation des cartes du hero. Le CONTENU est déjà dans le HTML : ce script
-  // ne fait que changer laquelle est visible. Si le JS ne charge pas, la
-  // première carte reste affichée et le reste du document est intact.
-  (() => {
-    const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.vh-tab'));
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('.vh-card'));
-    const rail = document.getElementById('vh-rail');
-    const stage = document.querySelector<HTMLElement>('.vh-stage');
-    if (tabs.length === 0 || cards.length === 0 || !rail || !stage) return;
-
-    const calme = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let i = 0;
-    let minuteur: number | null = null;
-
-    const montrer = (n: number) => {
-      i = (n + cards.length) % cards.length;
-      cards.forEach((c, k) => {
-        const actif = k === i;
-        c.toggleAttribute('hidden', !actif);
-        c.setAttribute('data-active', actif ? 'true' : 'false');
-      });
-      tabs.forEach((t, k) => {
-        t.setAttribute('aria-selected', k === i ? 'true' : 'false');
-        t.tabIndex = k === i ? 0 : -1;
-      });
-      // Retirer puis remettre la classe force le navigateur à rejouer
-      // l'animation de la barre de progression.
-      rail.classList.remove('vh-run');
-      void rail.offsetWidth;
-      if (!calme) rail.classList.add('vh-run');
-    };
-
-    const stop = () => { if (minuteur !== null) { clearInterval(minuteur); minuteur = null; } };
-    const jouer = () => { if (calme) return; stop(); minuteur = window.setInterval(() => montrer(i + 1), 5400); };
-
-    tabs.forEach((t) => t.addEventListener('click', () => { montrer(Number(t.dataset.go)); jouer(); }));
-
-    // Le carrousel ne doit jamais bouger sous les yeux de quelqu'un qui lit.
-    stage.addEventListener('mouseenter', stop);
-    stage.addEventListener('mouseleave', jouer);
-    stage.addEventListener('focusin', stop);
-    stage.addEventListener('focusout', jouer);
-    document.addEventListener('visibilitychange', () => (document.hidden ? stop() : jouer()));
-
-    document.querySelector('.vh-tabs')?.addEventListener('keydown', (e) => {
-      const ev = e as KeyboardEvent;
-      if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
-      ev.preventDefault();
-      montrer(i + (ev.key === 'ArrowRight' ? 1 : -1));
-      tabs[i].focus();
-      jouer();
-    });
-
-    montrer(0);
-    jouer();
-  })();
-</script>
 
       <!-- Social proof — widget temps réel sous le Hero pour booster
            le taux de conversion home → /nouvelle-analyse (mesure GA4 16% en juin,
