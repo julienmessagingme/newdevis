@@ -33,7 +33,6 @@ import { CATALOGUE_TAILLE, ANALYSES_TOTAL, poste } from '@/lib/prix/reference';
 // `prerender = false`, et le runtime serverless n'embarque pas `src/`.
 import { CARTES_OBSERVATOIRE } from '@/lib/observatoire/cartesAccueil';
 import SimulateurAidesCard from '@/components/homepage/SimulateurAidesCard';
-import SocialProofTicker from '@/components/homepage/SocialProofTicker';
 
 /**
  * Les quatre guides de la section « Nos guides travaux » (design 2026-09-23).
@@ -435,10 +434,25 @@ const jsonLd = {
 </style>
 
 
-      <!-- Social proof — widget temps réel sous le Hero pour booster
-           le taux de conversion home → /nouvelle-analyse (mesure GA4 16% en juin,
-           cible 25% après ajout). Données via /api/social-proof (anonymisé, cache 60s). -->
-      <SocialProofTicker client:visible />
+      {/* 🔴 LE WIDGET « SOCIAL PROOF » EST SUPPRIMÉ (2026-09-25, demande Johan :
+          « ce bandeau apparaît vide juste en dessous du bandeau hero »).
+
+          IL NE MONTRAIT PLUS RIEN DEPUIS SEPT MOIS. Son squelette de chargement
+          s'affiche tant que `recent` est vide — et `/api/social-proof` filtre
+          les analyses sans `work_type`. Mesuré en base : **2 analyses sur 472**
+          en portent un, et **la dernière date du 12 février 2026**. L'API
+          répondait bien `200 {"total_count":472,"recent":[]}` : un rectangle
+          gris pulsant occupait donc la place sous le hero de la page la plus
+          vue du site, en permanence.
+
+          ⚠️ LA LEÇON EST SUR LE SQUELETTE, PAS SUR LE WIDGET. « Pas encore de
+          données » et « il n'y en aura jamais » rendaient le MÊME écran : un
+          état de chargement qui ne peut pas aboutir est indiscernable d'un
+          chargement lent, donc personne ne le signale. Tout squelette doit
+          avoir une sortie — soit un état vide explicite, soit ne rien rendre.
+
+          Pour le rétablir : réparer d'abord `work_type` à l'extraction
+          (`TODO.md`), le composant et la route sont dans l'historique git. */}
 
       {/* Deux ancres, deux usages — et elles restent sur des div VIDES, jamais
           sur la section : le header collant recouvrirait le titre. Piège déjà

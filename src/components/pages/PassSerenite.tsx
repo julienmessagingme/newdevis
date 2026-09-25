@@ -124,9 +124,22 @@ const PassSerenite = () => {
             <Shield className="h-4 w-4" />
             Pass Sérénité
           </div>
-          <h1 className="text-3xl sm:text-5xl font-bold text-foreground mb-6 leading-tight">
+          {/* 🔴 <h2> ET NON <h1> — la page en portait DEUX, tous deux visibles
+              (WCAG 1.3.1, et deux fois la même promesse pour le lecteur).
+
+              C'EST LE TITRE STATIQUE QUI GARDE LE H1, et le sens de l'arbitrage
+              tient en une ligne : ce composant est monté en `client:only`, donc
+              **son titre est absent du HTML servi** — Google ne voit que celui
+              de `pass-serenite.astro` (règle du 07/09). Mettre le H1 ici
+              laisserait la page sans aucun titre de niveau 1 à l'indexation.
+
+              ⚠️ Le rendu ne change pas : les classes portent la taille et la
+              graisse, et le reset Tailwind neutralise le style natif des
+              titres. Le `<style>` d'Astro est scopé à `.ps-seo-inner`, donc il
+              ne peut pas atteindre ce composant. */}
+          <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-6 leading-tight">
             Analysez tous vos devis<br className="hidden sm:block" /> en toute sérénité
-          </h1>
+          </h2>
           <p className="text-lg sm:text-xl text-muted-foreground mb-4 max-w-2xl mx-auto">
             Ne laissez plus aucun devis sans vérification. Le Pass Sérénité vous donne un accès illimité à l'analyse de devis.
           </p>

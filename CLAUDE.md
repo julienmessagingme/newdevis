@@ -1943,6 +1943,16 @@ Le hero ne porte plus que **le titre, le bouton et la micro-copie**. Les quatre 
 - 🟡 **UN VRAI DÉFAUT TROUVÉ AU PASSAGE, NON CORRIGÉ ICI** : `/pass-serenite` porte **deux `<h1>` visibles** (le bloc SEO statique et le hero de l'île React). Préexistant, sans rapport avec ce chantier — le mêler à un commit de hero rendrait la révocation plus difficile (`TODO.md`).
 - 🟡 **ET UN RISQUE LATENT** : ce préchargement de police à hash figé 404erait **en silence** en production le jour où `@fontsource/dm-sans` est mis à jour. La police se chargerait quand même via le CSS, mais le gain du preload disparaîtrait sans aucun signal (`TODO.md`).
 
+### 🔴 UN SQUELETTE DE CHARGEMENT QUI NE POUVAIT PAS ABOUTIR — SEPT MOIS SOUS LE HERO (2026-09-25, retour Johan)
+
+*« Ce bandeau apparaît vide juste en dessous du bandeau hero, supprime-le. »* C'était le widget « social proof » (`SocialProofTicker`), bloqué sur son **squelette de chargement** : un rectangle gris pulsant de 128 px, en permanence, sur la page la plus vue du site.
+
+- 🔴 **LE DÉFAUT TIENT DANS UN `||`.** `if (!data || data.recent.length === 0)` rend le squelette — donc la même chose pour **« les données n'arrivent pas ENCORE »** et **« il n'y en aura JAMAIS »**. La première situation est transitoire, la seconde définitive, et elles étaient indiscernables à l'écran. Personne ne l'a signalé pendant sept mois parce qu'un rectangle gris qui pulse **ressemble toujours à un chargement lent**.
+  ⚠️ **RÈGLE QUI EN SORT : tout état de chargement doit avoir une SORTIE** — un état vide explicite, ou ne rien rendre du tout. Ne jamais confondre « vide » et « en attente » dans la même condition.
+- **La cause de fond, mesurée en base** : l'API filtre les analyses sans `work_type`, et **2 analyses sur 472** en portent un — la dernière datant du **12 février 2026**. La route répondait pourtant `200 {"total_count":472,"recent":[]}` : **un 200 ne dit pas qu'il y a quelque chose dedans.**
+- ⚠️ **ET LE CHAMP ÉTAIT DÉJÀ DOCUMENTÉ COMME MORT** : le 08/09, en écartant la détection de devis apparentés par métier, ce fichier notait *« `work_type` et `domain` sont vides ou constants sur le stock »*. Le constat existait ; personne n'avait fait le lien avec ce widget. **Un champ noté mort quelque part doit faire vérifier tout ce qui en dépend** (`TODO.md`).
+- **Le composant ET sa route sont supprimés**, pas seulement décrochés : du code mort qui a l'air vivant est précisément ce que ce projet combat. L'historique git permet de le rétablir — mais il faudra d'abord réparer `work_type`.
+
 ### 🔴 « 100 % GRATUIT POUR LES PARTICULIERS » ÉTAIT À 1,21:1 — ET MON BANC ANNONÇAIT 0 ÉCHEC (2026-09-25, capture de Johan)
 
 Régression causée par **ma propre passe de contraste du 23/09** : elle a remplacé `text-score-green` par `text-score-green-foreground` partout — or ce jeton (25 % de luminosité) est fait pour du texte **sur blanc**. Dans `CTASection`, le fond est le dégradé navy. Mesuré en compositant toute la chaîne des fonds : **1,21:1**, quasi illisible.
