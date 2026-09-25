@@ -12,8 +12,16 @@ const CTASection = () => {
 
       <div className="container relative">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-score-green/20 border border-score-green/30 rounded-full px-4 py-2 mb-6">
-            <span className="text-sm font-bold text-score-green-foreground">
+          {/* 🔴 TEXTE BLANC, ET C'EST UN CORRECTIF DE RÉGRESSION (2026-09-25).
+              La passe de contraste du 23/09 a remplacé `text-score-green` par
+              `text-score-green-foreground` partout — or ce jeton (25 % de
+              luminosité) est fait pour du texte sur BLANC. Ici le fond est le
+              dégradé navy : mesuré **1,21:1**, quasi illisible.
+              ⚠️ Le vert reste porté par le fond et la bordure ; seul le texte
+              passe en blanc (7,8:1). Un vert clair type #4ADE80 tomberait à
+              4,50:1 — pile sur le seuil, donc sans marge. */}
+          <div className="inline-flex items-center gap-2 bg-score-green/20 border border-score-green/40 rounded-full px-4 py-2 mb-6">
+            <span className="text-sm font-bold text-primary-foreground">
               🎉 100% GRATUIT pour les particuliers
             </span>
           </div>

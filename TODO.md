@@ -6,6 +6,16 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ---
 
+## 🟡 Deux défauts trouvés en contrôlant le site après la refonte du hero (2026-09-25)
+
+Aucun des deux ne vient de ce chantier ; ils sont sortis du contrôle de non-régression et **ne sont pas mêlés à son commit** — un correctif de page sans rapport rendrait la révocation plus difficile.
+
+- 🔴 **`/pass-serenite` porte DEUX `<h1>` VISIBLES.** Le bloc SEO statique (`pass-serenite.astro`, l. 38) et le hero de l'île React (`PassSerenite.tsx`, l. 127) affichent tous deux un titre de niveau 1, et **les deux sont rendus à l'écran** (vérifié : `.ps-seo` n'est pas masqué). C'est un échec WCAG 1.3.1 et une ambiguïté pour Google — et pour le lecteur, la même promesse écrite deux fois. **Décider lequel garde le H1** : le statique sert le référencement, celui de l'île sert le visiteur. Le second peut passer en `<p>` avec le même style sans rien changer visuellement.
+- 🟡 **LE PRÉCHARGEMENT DE POLICE PORTE UN HASH FIGÉ.** `BaseLayout.astro` l. 105 déclare `/_astro/dm-sans-latin-400-normal.CW0RaeGs.woff2` **en dur**. Aujourd'hui le fichier existe et répond 200 en production (vérifié, 14 200 octets). ⚠️ Mais le jour où `@fontsource/dm-sans` est mis à jour, le hash change et **le preload 404e en silence** : la police se chargera quand même via le CSS, seul le gain du preload disparaît — sans aucun signal. À dériver du build plutôt qu'à écrire à la main.
+  ⚠️ **Ce 404 existe DÉJÀ en dev** (Vite ne sert pas les assets hachés) : il a fait passer 36 pages en rouge dans mon premier contrôle. Un symptôme local n'est pas un défaut de production — le vérifier avant de conclure.
+
+---
+
 ## 🟡 Suites de la refonte du verdict affiché (2026-09-22)
 
 Le hero porte désormais la DÉCISION (signer / négocier / ne pas signer) et non plus notre niveau de certitude (cf. `CLAUDE.md` § Verdict expert, entrées du 22/09). Résidus côté SERVEUR, non traités parce qu'ils ne se voient plus à l'écran — mais ils restent dans la donnée :

@@ -31,9 +31,26 @@
  * catalogue bouge, l'exemple ne devient pas faux.
  */
 
-import { AlertTriangle } from "lucide-react";
-import { poste, CATALOGUE_TAILLE } from "@/lib/prix/reference";
+import { AlertTriangle, Check } from "lucide-react";
+import { poste, CATALOGUE_TAILLE, ANALYSES_TOTAL } from "@/lib/prix/reference";
 
+/**
+ * 🔴 FUSION DU 2026-09-25 (décision Johan) — CETTE SECTION ABSORBE LES PREUVES
+ * DU HERO, qui n'en porte plus aucune.
+ *
+ * LA RAISON EST MESURÉE, pas esthétique : les trois mêmes vérifications étaient
+ * énoncées TROIS FOIS sur la page — dans les quatre preuves du hero, réécrites
+ * à l'étape 2, puis DÉMONTRÉES par la carte d'exemple. Seule la carte prouve ;
+ * les deux autres annonçaient. On garde donc la démonstration et on enrichit
+ * l'étape 2 du vocabulaire précis qui vivait dans le hero.
+ *
+ * ⚠️ TOUT CE QUI DESCEND DOIT ATTERRIR, SINON C'EST UNE PERTE. Trois éléments
+ * n'ont pas d'équivalent dans la carte et vivent désormais dans `preuves` :
+ * le compteur d'analyses, la relecture humaine, et surtout la signature « sans
+ * commission / sans revente de lead » — documentée le 07/09 comme la seule
+ * promesse qu'un comparateur ne peut pas copier. **Ne jamais la laisser
+ * disparaître d'une refonte.**
+ */
 const etapes = [
   {
     titre: "Vous déposez votre devis",
@@ -41,12 +58,22 @@ const etapes = [
   },
   {
     titre: "On compare trois choses",
-    detail: `Le prix poste par poste sur ${CATALOGUE_TAILLE.toLocaleString("fr-FR")} références, l'entreprise dans les registres officiels, et les clauses du devis.`,
+    // ⚠️ Le vocabulaire précis vient des preuves du hero : sans lui, « marché »,
+    // « surcoût », « radiation » et « RGE » disparaîtraient de la page — mesuré
+    // 10/12 mots-clés survivants avant cet enrichissement, 12/12 après.
+    detail: `Le surcoût poste par poste face à ${CATALOGUE_TAILLE.toLocaleString("fr-FR")} références de prix du marché, l'entreprise dans les registres officiels (radiation, procédure collective, santé financière, certification RGE), et les clauses abusives du devis.`,
   },
   {
     titre: "Vous décidez",
     detail: "Signer, négocier ou refuser — avec les phrases exactes à envoyer à votre artisan.",
   },
+];
+
+/** Ce que la carte ne démontre pas — et qu'on ne peut donc pas se contenter de montrer. */
+const preuves = [
+  { fort: `${ANALYSES_TOTAL.toLocaleString("fr-FR")} devis analysés`, suite: "" },
+  { fort: "Relu par un expert", suite: "— tant qu'il n'a pas tranché, aucun montant n'est affiché" },
+  { fort: "Sans commission d'artisan. Sans revente de lead.", suite: "" },
 ];
 
 const carrelage = poste("carrelage_fourni_pose");
@@ -194,9 +221,49 @@ const DuDevisAuVerdict = () => {
             <p className="text-[11px] text-muted-foreground text-center mt-2.5">
               Exemple illustratif — les fourchettes affichées sont celles de notre référentiel.
             </p>
+
+            {/* 2026-09-25 — le lien vers la démo quitte le hero et se pose ICI,
+                sous la carte dont il est le prolongement naturel.
+                ⚠️ LE LIBELLÉ NE DIT PAS « RÉELLE », ET C'EST DÉLIBÉRÉ : le devis
+                de la page démo est FICTIF, nous l'avons écrit. Publier l'analyse
+                d'un vrai client est exclu — un devis appartient aussi à
+                l'artisan qui l'a émis, tiers qui n'a jamais consenti (précédent
+                du 10/09). Les fourchettes et les règles, elles, sont vraies. */}
+            <p className="text-center mt-2">
+              <a
+                href="/exemple-analyse"
+                className="text-[13px] text-primary underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Voir un exemple d'analyse complet
+              </a>
+            </p>
           </div>
 
         </div>
+
+        {/* ── Ce que la carte ne montre pas ──────────────────────────────
+            Ces trois faits n'ont aucun équivalent dans l'exemple : on ne peut
+            donc pas se contenter de les démontrer, il faut les dire. */}
+        <ul className="mx-auto mt-12 flex max-w-5xl flex-col gap-3 border-t border-border pt-7 text-[13px] text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-9 sm:gap-y-3">
+          {preuves.map((p) => (
+            <li key={p.fort} className="flex items-start gap-2">
+              <Check className="mt-px h-4 w-4 flex-shrink-0 text-score-green-foreground" aria-hidden="true" />
+              <span>
+                <strong className="font-semibold text-foreground">{p.fort}</strong>
+                {p.suite ? ` ${p.suite}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <p className="mt-5 text-center text-[12px]">
+          <a
+            href="/comprendre-score"
+            className="text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            Voir en détail ce qui est analysé
+          </a>
+        </p>
       </div>
     </section>
   );

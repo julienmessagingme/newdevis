@@ -1914,6 +1914,45 @@ Quatre cartes photo en portrait 3/4 remplacent les quatre cartes emoji sur fond 
 - **Photos converties en WebP** (47 · 21 · 46 · 17 Ko, deux venaient en AVIF), `loading="lazy"`, `width`/`height` réels pour réserver la place. ⚠️ **Pas de `srcset`** malgré le handoff : sur des sources de 417 px de haut, une seconde résolution n'apporterait rien — ce serait du bruit qui donne l'illusion d'une optimisation.
 - **Vérifié dans le navigateur** : 1280 (4 colonnes, grille 1160 px, cartes 274×365 au ratio exact, cadrage artisan `50% 20%`), 745 (2 colonnes), 375 (1 colonne, lien visible sans survol, **zéro débordement horizontal**). Survol mesuré : zoom 1,06×, texte remonté de 26 px, lien à l'opacité 1.
 
+### Hero épuré + fusion des arguments (2026-09-25, décision Johan)
+
+Le hero ne porte plus que **le titre, le bouton et la micro-copie**. Les quatre preuves, le badge des compteurs et la signature descendent dans `DuDevisAuVerdict`.
+
+| mesuré | avant | après |
+|---|---:|---:|
+| mots dans le hero | 47 | **6** |
+| hauteur du hero (desktop) | 896 px | **423 px** |
+| CTA mobile 390×844 | y = 536 | **y = 369** |
+| CTA mobile 360×740 | — | y = 369 (bandeau à 482) |
+
+- 🔴 **LA RAISON EST MESURÉE, PAS ESTHÉTIQUE : LA RÉPÉTITION ÉTAIT TRIPLE.** Les trois mêmes vérifications — prix sur le référentiel, entreprise aux registres, clauses — étaient énoncées dans les preuves du hero, **réécrites** à l'étape 2 de « Du devis au verdict », puis **démontrées** par la carte d'exemple. Seule la carte prouve ; les deux autres annonçaient. On garde la démonstration.
+- 🔴 **CE QUI DESCEND DOIT ATTERRIR, SINON C'EST UNE PERTE.** Trois faits n'ont aucun équivalent dans la carte et vivent désormais dans un bandeau sous la section : le compteur d'analyses, la relecture humaine, et **« Sans commission d'artisan. Sans revente de lead. »** — documentée le 07/09 comme la seule promesse qu'un comparateur ne peut pas copier (décision Johan : elle ne disparaît pas). Le lien vers `/exemple-analyse` quitte le hero et se pose sous la carte, dont il est le prolongement.
+- ⚠️ **LE LIBELLÉ RESTE « Savoir si je peux signer » (décision Johan).** Il nomme le BÉNÉFICE du visiteur ; « Analyser votre devis » nommerait notre tâche. C'est la raison pour laquelle il avait été écrit ainsi le 14/09.
+- 🟢 **DEUX MOTS-CLÉS AURAIENT DISPARU, ET LA MESURE LES A RATTRAPÉS** : « marché » et « surcoût » ne vivaient que dans les preuves du hero — mesuré **10/12 mots-clés survivants** sur la maquette. L'étape 2 les reprend, ainsi que « radiation », « procédure collective », « santé financière », « RGE » et « clauses abusives » : **12/12**.
+
+🔴 **CE HERO N'EST INTERPRÉTABLE QU'AVEC LA MESURE DE SCROLL, ET C'EST POURQUOI ELLE EST LIVRÉE DANS LE MÊME COMMIT.** Il parie que le visiteur descend jusqu'aux arguments, et **nous n'avions aucune donnée là-dessus**. Le « 90 % des visiteurs ne voient qu'une page » du 14/09 dit qu'ils ne **naviguent** pas, pas qu'ils ne **scrollent** pas — les confondre serait la faute d'indicateur la plus fréquente de ce projet. Sans les jalons, une baisse de conversion serait indiscernable entre « le hero convertit moins » et « personne n'atteint les arguments ».
+
+- **Trois jalons** `accueil_scroll_25/50/75` dans l'allowlist de `/api/track/event`. ⚠️ **Un jalon au plus par jour et par navigateur** (dédup `sessionStorage`) : sinon un seul lecteur qui monte et redescend gonfle le dénominateur. `keepalive: true` — le visiteur franchit souvent un jalon **puis** clique, et la navigation tuerait la requête.
+- ⚠️ **Le garde `vmd_internal` est lu EN PREMIER** : sans lui nos propres visites entrent dans la mesure, exactement comme GA4 compte nos 84 vues d'admin (13/09).
+- 🔴 **VÉRIFIÉ JUSQU'À LA BASE, ET LE PREMIER TEST ÉTAIT FAUX.** Il annonçait « 3 jalons envoyés » et **0 ligne écrite** : `HeadlessChrome` est dans le filtre anti-robots de la route, qui répond **204 aussi bien quand elle accepte que quand elle refuse**. Un statut ne prouve donc rien — c'est le piège du 13/09 avec `curl`, à l'identique. Avec un vrai user-agent : **3 lignes en base**, aucun doublon, aucune donnée personnelle dans le corps. ⚠️ **Les lignes de test ont été supprimées** : une mesure de décision ne doit pas porter mes propres essais (règle du 14/09).
+- ⚠️ **AUCUN A/B N'EXISTE DANS LE PROJET** : la comparaison sera séquentielle, donc fragile — le trafic a été divisé par 5 le 19/09 et sa composition a changé (fin de la campagne Meta, et les visiteurs Facebook ne lancent pas d'analyse). **Le doublement 3,9 % → 7,7 % attribué au hero du 14/09 est très probablement surestimé pour la même raison.**
+
+**Contrôle de non-régression du SITE, pas seulement de l'accueil** ([`scripts/out/_site-check.mjs`](scripts/out/_site-check.mjs), 18 pages × 2 tailles) : HTTP 200 partout, un seul H1, aucun débordement horizontal, aucune erreur JS interne. **663 tests, build propre, 0 échec WCAG.**
+
+- 🔴 **DEUX FAUX POSITIFS ONT FAILLI FAIRE CONCLURE À 36 PAGES CASSÉES**, et aucun n'était un défaut du site. (1) Un **404 sur toutes les pages** : le préchargement de police de `BaseLayout` porte un nom de fichier **haché en dur** que le serveur de dev ne sert pas — vérifié en production, il répond **200 / 14 200 octets**. (2) Un **504 « Outdated Optimize Dep »** sur six pages : cache de pré-bundle Vite périmé après mes éditions, disparu au redémarrage du serveur. **Avant de conclure à une régression, vérifier si le symptôme existe aussi en production.**
+- 🟡 **UN VRAI DÉFAUT TROUVÉ AU PASSAGE, NON CORRIGÉ ICI** : `/pass-serenite` porte **deux `<h1>` visibles** (le bloc SEO statique et le hero de l'île React). Préexistant, sans rapport avec ce chantier — le mêler à un commit de hero rendrait la révocation plus difficile (`TODO.md`).
+- 🟡 **ET UN RISQUE LATENT** : ce préchargement de police à hash figé 404erait **en silence** en production le jour où `@fontsource/dm-sans` est mis à jour. La police se chargerait quand même via le CSS, mais le gain du preload disparaîtrait sans aucun signal (`TODO.md`).
+
+### 🔴 « 100 % GRATUIT POUR LES PARTICULIERS » ÉTAIT À 1,21:1 — ET MON BANC ANNONÇAIT 0 ÉCHEC (2026-09-25, capture de Johan)
+
+Régression causée par **ma propre passe de contraste du 23/09** : elle a remplacé `text-score-green` par `text-score-green-foreground` partout — or ce jeton (25 % de luminosité) est fait pour du texte **sur blanc**. Dans `CTASection`, le fond est le dégradé navy. Mesuré en compositant toute la chaîne des fonds : **1,21:1**, quasi illisible.
+
+- 🔴 **LE BANC AVAIT DEUX TROUS, ET LE SECOND EST LE PLUS GRAVE.** (1) Il résolvait le dégradé de marque par `querySelector('.hero-gradient')` — donc **le PREMIER du document** : `CTASection`, qui porte la même classe en bas de page, retombait dans « fond indéterminé ». (2) **Le compteur d'indéterminés existait mais n'était PAS AFFICHÉ.** C'est ce qui a permis d'annoncer « 0 échec / 168 textes » sur une page portant un texte à 1,21:1. ⚠️ **Un texte non mesuré n'est pas un texte conforme : il doit se voir dans le rapport.** La règle « aucune exemption silencieuse » avait été appliquée à `aria-hidden` et pas à celui-là.
+- 🟢 **ET LE BANC CORRIGÉ A TROUVÉ 7 AUTRES ÉCHECS QU'IL NE VOYAIT PAS** : les compteurs des cartes Observatoire de l'accueil, `#8391AE` à **3,73:1** sur navy — antérieurs à mes changements. Corrigés en `#B8C2D9`, le gris du handoff déjà employé juste au-dessus : **6,6:1**.
+- **Le correctif du badge est le texte en BLANC** (7,8:1), le vert restant porté par le fond et la bordure. ⚠️ Un vert clair type `#4ADE80` donnerait **4,50:1** — pile sur le seuil, donc sans marge.
+- ⚠️ **LE BANC SAIT DÉSORMAIS LIRE LES SECTIONS NAVY** (`obs-section`, `guides-section`) en prenant l'arrêt **le plus clair** du dégradé, c'est-à-dire le pire cas pour du texte clair. Les indéterminés de l'accueil passent de 41 à 7 — les 7 restants sont les cartes photo des guides, dont le voile descend à `rgba(6,11,24,.92)` (16:1 par construction, documenté le 23/09).
+- 🔴 **ET J'AI REFAIT DEUX FOIS LE MÊME PIÈGE D'ÉCHAPPEMENT DANS LA JOURNÉE** : une regex écrite dans un littéral gabarit envoyé au navigateur y arrive **sans ses `\d`** (`[\d.]+` devient `[d.]+`), donc elle ne matche jamais — la sonde a rendu `NaN` partout en ayant l'air de mesurer. **Ne pas écrire de regex dans du code envoyé au navigateur** : un découpage caractère par caractère fait le travail sans échappement.
+
 ### 🔴 LE CTA MOBILE ÉTAIT INCLICABLE — RECOUVERT PAR LE BANDEAU COOKIES (2026-09-25, retour expert UX puis mesure)
 
 Régression introduite par la refonte « poignée de main » le matin même, et **invisible sur une capture** : un bandeau `position: fixed` ne figure dans aucun rectangle de mise en page.

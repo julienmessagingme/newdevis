@@ -65,8 +65,25 @@ const HARNAIS = `(() => {
   const ratio = (a, b) => { const L1 = lum(a), L2 = lum(b); return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05); };
   const mix = (fg, bg) => ({ r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a), a: 1 });
 
-  const NAVY = { r: 11, g: 42, b: 107, a: 1 };            // voile opaque du hero
-  const hero = document.querySelector('.vmd-hero-photo') || document.querySelector('.hero-gradient');
+  // 🔴 LE DÉGRADÉ DE MARQUE EST RECONNU PARTOUT, PAS SEULEMENT SUR LE PREMIER
+  // HERO (correctif du 25/09). Avant, la résolution prenait le PREMIER
+  // .hero-gradient du document : toute autre section portant la même classe
+  // (CTASection en bas de l'accueil) retombait dans « indéterminé », donc ses
+  // textes n'étaient JAMAIS testés. C'est ainsi que « 100 % GRATUIT pour les
+  // particuliers » est resté à 1,21:1 pendant deux jours en annonçant 0 échec.
+  const NAVY = { r: 27, g: 60, b: 127, a: 1 };            // médiane de --hero-gradient
+  // Les sections Observatoire et Guides sont des dégradés RADIAUX navy dont on
+  // connaît la borne : on prend l'arrêt le plus CLAIR (28,47,82), c'est-à-dire
+  // le pire cas pour du texte clair. Sans ça, 23 textes de l'accueil restaient
+  // « non mesurés » — donc invisibles au compteur d'échecs.
+  const NAVY_SECTION = { r: 28, g: 47, b: 82, a: 1 };
+  const estDegradeDeMarque = (el) =>
+    el.classList && (el.classList.contains('hero-gradient') ||
+                     el.classList.contains('vmd-hero-photo') ||
+                     el.classList.contains('vmd-hero-poignee'));
+  const estSectionNavy = (el) =>
+    el.classList && (el.classList.contains('obs-section') ||
+                     el.classList.contains('guides-section'));
   const EMOJI = /[\\u{1F300}-\\u{1FAFF}\\u{1F004}\\u{2700}-\\u{27BF}\\u{FE0F}]/u;
 
   function fond(el) {
@@ -74,7 +91,8 @@ const HARNAIS = `(() => {
     while (n && n.nodeType === 1) {
       const s = getComputedStyle(n), col = parse(s.backgroundColor);
       if (s.backgroundImage && s.backgroundImage !== 'none') {
-        if (n === hero) return { c: NAVY };
+        if (estDegradeDeMarque(n)) return { c: acc ? mix(acc, NAVY) : NAVY };
+        if (estSectionNavy(n)) return { c: acc ? mix(acc, NAVY_SECTION) : NAVY_SECTION };
         return { indet: true };
       }
       if (col && col.a > 0) { acc = acc ? mix(acc, col) : col; if (acc.a >= 0.999) return { c: acc }; }
@@ -195,7 +213,8 @@ try {
   await envoyer("Runtime.enable");
 
   const parPaire = new Map();
-  let totalTestes = 0, totalEchecs = 0, totalExemptes = 0, totalDeco = 0;
+  let totalTestes = 0, totalEchecs = 0, totalExemptes = 0, totalDeco = 0, totalIndet = 0;
+  const indetParPage = [];
   const decoMasques = [];
 
   console.log(`┌─ Banc de contraste — ${base}\n│`);
@@ -219,6 +238,8 @@ try {
       const p = parPaire.get(k); p.n++; p.pages.add(url);
     }
     totalEchecs += retenus.length;
+    totalIndet += r.indetermines;
+    if (r.indetermines) indetParPage.push({ url, n: r.indetermines });
     const etat = retenus.length === 0 ? "🟢" : "🔴";
     console.log(`│ ${etat} ${url.padEnd(42)} ${String(retenus.length).padStart(3)} échec(s) / ${r.testes} textes`);
   }
@@ -226,7 +247,16 @@ try {
   console.log("│\n├─ Textes analysés          : " + totalTestes);
   console.log("├─ Exemptés (logotype)      : " + totalExemptes);
   console.log("├─ Décoration déclarée      : " + totalDeco + "  (aria-hidden), dont " + decoMasques.length + " sous le seuil");
+  // 🔴 CE COMPTEUR EXISTAIT MAIS N'ÉTAIT PAS AFFICHÉ, et c'est ce qui a permis
+  // d'annoncer « 0 échec » sur une page portant un texte à 1,21:1 (25/09).
+  // Un texte non mesuré n'est pas un texte conforme : il doit se voir.
+  console.log("├─ NON MESURÉS (fond indéterminé) : " + totalIndet + (totalIndet ? "  ⚠️ ce ne sont PAS des succès" : ""));
   console.log("└─ ÉCHECS 1.4.3 (AA)        : " + totalEchecs);
+
+  if (indetParPage.length) {
+    console.log("\nFonds indéterminés — le banc ne sait pas sur quoi ce texte est posé :");
+    for (const d of indetParPage.slice(0, 12)) console.log("  " + String(d.n).padStart(3) + " texte(s) — " + d.url);
+  }
 
   if (decoMasques.length) {
     // On les NOMME : « décoratif » doit rester une décision relue, jamais un

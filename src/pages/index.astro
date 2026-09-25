@@ -222,91 +222,64 @@ const jsonLd = {
 
         <div class="container vmd-hero-grid">
 
-          {/* ── Zone haute : la thèse ─────────────────────────────────── */}
-          <div class="vh-top">
-            <p class="vh-eyebrow">
-              <b>{ANALYSES_TOTAL.toLocaleString('fr-FR')}</b> devis analysés
-              <span class="vh-sep" aria-hidden="true"></span>
-              <b>{CATALOGUE_TAILLE.toLocaleString('fr-FR')}</b> références de prix
-            </p>
+          {/* ══ HERO ÉPURÉ — 2026-09-25, décision Johan ══════════════════════
 
+              CE QU'IL RESTE : le titre, le bouton, la micro-copie. Rien d'autre.
+              Mesuré : le hero passe de **47 à 6 mots**, sa hauteur de 896 à
+              ~490 px, et le CTA de 55 % à 41 % de l'écran en desktop.
+
+              🔴 CE QUI A ÉTÉ DÉPLACÉ, PAS SUPPRIMÉ — et la distinction est
+              tout. Le badge des compteurs, les quatre preuves et la signature
+              « sans commission / sans revente de lead » vivent désormais dans
+              `DuDevisAuVerdict`, un écran plus bas. **Rien n'est perdu** : la
+              raison du déplacement est que les trois mêmes vérifications
+              étaient dites TROIS FOIS (hero → étape 2 → carte d'exemple), et
+              que seule la carte les PROUVE. Les deux autres annonçaient.
+
+              ⚠️ LE LIBELLÉ DU BOUTON RESTE « Savoir si je peux signer »
+              (décision Johan). Il nomme le BÉNÉFICE du visiteur ; « Analyser
+              votre devis » nommerait notre tâche. C'est déjà la raison pour
+              laquelle il avait été écrit ainsi le 14/09.
+
+              🔴 CE HERO N'EST INTERPRÉTABLE QU'AVEC LA MESURE DE SCROLL. Il
+              parie que le visiteur descend jusqu'aux arguments — et nous
+              n'avions AUCUNE donnée là-dessus. Le « 90 % ne voient qu'une
+              page » du 14/09 dit qu'ils ne NAVIGUENT pas, pas qu'ils ne
+              scrollent pas. Les jalons `accueil_scroll_25/50/75` sont posés en
+              même temps que ce changement : sans eux, une baisse de conversion
+              ne pourrait pas être attribuée.
+              ⚠️ Et il n'existe AUCUN A/B dans le projet : la comparaison sera
+              séquentielle, donc fragile — le trafic a été divisé par 5 le
+              19/09 et sa composition a changé (fin de la campagne Meta). */}
+          <div class="vh-top">
             <h1 class="vh-title">
               Votre devis est-il trop cher…<br />
               ou <span class="vh-mark">risqué&nbsp;?<svg viewBox="0 0 200 10" fill="none" aria-hidden="true"><path d="M2 7C48 3 108 2 198 5" stroke="currentColor" class="text-score-green-foreground" stroke-width="4.5" stroke-linecap="round" /></svg></span>
             </h1>
-
-            <p class="vh-lede">
-              Chaque ligne comparée au marché, l'entreprise vérifiée dans les registres,
-              les clauses passées au crible. Vous repartez avec un verdict — et les
-              arguments exacts pour négocier.
-            </p>
 
             <div class="vh-actions">
               <a href="/nouvelle-analyse" class="vh-btn vh-btn-primary">
                 Savoir si je peux signer
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </a>
-              {/* 2026-09-14 — pointe vers /exemple-analyse, une VRAIE page
-                  (première version : une ancre vers le bas de l'accueil,
-                  jugée insuffisante par Johan — il voulait une page démo).
-                  ⚠️ LE LIBELLÉ NE DIT PAS « RÉELLE », ET C'EST DÉLIBÉRÉ.
-                  Le devis de la page démo est FICTIF — nous l'avons écrit.
-                  Publier l'analyse d'un vrai client est exclu : un devis
-                  appartient aussi à l'artisan qui l'a émis, tiers qui n'a
-                  jamais consenti (précédent du 10/09). Les fourchettes et les
-                  règles, elles, sont les vraies. */}
-              <a href="/exemple-analyse" class="vh-btn vh-btn-ghost">Voir un exemple d'analyse</a>
             </div>
 
             {/* 🔴 CETTE LIGNE DIT LE MUR, ELLE NE LE DÉGUISE PAS — règle du
                 07/09. L'ancienne version (« Analyse immédiate · Compte gratuit
                 pour le détail complet ») était FAUSSE : `/nouvelle-analyse`
                 redirige vers `/inscription` sans compte.
-                ⚠️ CE QUI CHANGE LE 25/09, ET POURQUOI. « Création de compte en
-                30 secondes » était vrai mais soulevait trois objections sans y
-                répondre (« je vais devoir donner des données », « ça va être
+                ⚠️ CE QUI A CHANGÉ LE 25/09, ET POURQUOI. « Création de compte
+                en 30 secondes » était vrai mais soulevait trois objections sans
+                y répondre (« je vais devoir donner des données », « ça va être
                 long », « que font-ils de mon mail »). Mesuré le 13/09 : 43 %
                 seulement de ceux qui atteignent `/inscription` créent un
                 compte, et **ceux qui partent ne prennent pas Google, qui est
                 pourtant à un clic** (19 inscriptions Google contre 4 par
-                formulaire). La ligne porte donc désormais la RÉPONSE au lieu de
+                formulaire). La ligne porte donc la RÉPONSE au lieu de
                 l'objection — et reste vraie : c'est le chemin qu'emploient
                 déjà 83 % des inscrits. **Ne pas retirer la mention du compte** :
                 ce serait redevenir faux. */}
             <p class="vh-micro">Compte gratuit, en un clic avec Google.</p>
-          </div>
-
-          {/* ── Zone basse : les preuves ──────────────────────────────── */}
-          <div class="vh-bottom">
-            <ul class="vh-proofs">
-              <li>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#4ADE80" /><path d="M7 12l3 3 7-7" stroke="#0B2A6B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                <p><b>Surcoût chiffré, poste par poste</b> <span>— contre {CATALOGUE_TAILLE.toLocaleString('fr-FR')} références de prix sourcées</span></p>
-              </li>
-              <li>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#4ADE80" /><path d="M7 12l3 3 7-7" stroke="#0B2A6B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                <p><b>Entreprise vérifiée</b> <span>— radiation, procédure collective, santé financière, certifications RGE contrôlées dans les registres</span></p>
-              </li>
-              <li>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#4ADE80" /><path d="M7 12l3 3 7-7" stroke="#0B2A6B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                <p><b>Clauses abusives détectées</b> <span>— acompte excessif, IBAN suspect, rétractation refusée</span></p>
-              </li>
-              {/* La relecture humaine tenait dans un encadré de quatre lignes.
-                  Elle reste — en une ligne, au même niveau que le reste. */}
-              <li>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#4ADE80" /><path d="M7 12l3 3 7-7" stroke="#0B2A6B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                <p><b>Relu par un expert</b> <span>— et tant qu'il n'a pas tranché, aucun montant n'est affiché</span></p>
-              </li>
-            </ul>
-
-            {/* La ligne signature : seule promesse que les comparateurs et les
-                plateformes de mise en relation ne peuvent pas copier — ils
-                vivent de la commission ou de la revente de lead. */}
-            <p class="vh-pledge">Sans commission d'artisan. <b>Sans revente de lead.</b></p>
-
-            <p class="vh-more">
-              <a href="/comprendre-score">Voir en détail ce qui est analysé</a>
-            </p>
           </div>
 
         </div>
@@ -393,12 +366,11 @@ const jsonLd = {
   .vmd-hero-grid {
     position: relative; z-index: 2;
     display: grid;
-    grid-template-areas: "top" "bottom";
+    grid-template-areas: "top";
     gap: 28px;
     padding: 24px 1rem 48px;
   }
   .vh-top { grid-area: top; }
-  .vh-bottom { grid-area: bottom; }
 
   /* 🔴 LE TEXTE EST BORNÉ PAR LE BORD DE LA PHOTO, PAS PAR UNE LARGEUR FIXE.
      La photo est positionnée en % du VIEWPORT, le texte vit dans
@@ -419,27 +391,17 @@ const jsonLd = {
      avoir à connaître son plafond. */
   @media (min-width: 768px) {
     .vmd-hero-grid { row-gap: 26px; align-content: center; padding: 64px 1.5rem 72px; }
-    .vh-top, .vh-bottom { max-width: min(440px, calc(50vw - (100vw - 100%) / 2 - 24px)); }
+    .vh-top { max-width: min(440px, calc(50vw - (100vw - 100%) / 2 - 24px)); }
   }
   @media (min-width: 1024px) {
     .vmd-hero-grid { padding: 72px 1.5rem 80px; }
     /* Le bord gauche de la photo suit le même plafond que la photo elle-même :
        `max(42vw, 100vw - 900px)`. Les deux règles doivent bouger ensemble. */
-    .vh-top, .vh-bottom {
+    .vh-top {
       max-width: min(560px, calc(max(42vw, 100vw - 900px) - (100vw - 100%) / 2 - 24px));
     }
   }
 
-
-  .vh-eyebrow {
-    display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    font-size: 11.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
-    color: rgba(255,255,255,.72);
-    border: 1px solid rgba(255,255,255,.2); border-radius: 999px;
-    padding: 7px 14px; margin: 0 0 16px;
-  }
-  .vh-eyebrow b { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .vh-sep { width: 1px; height: 12px; background: rgba(255,255,255,.26); }
 
   .vh-title {
     font-size: clamp(1.95rem, 5.4vw, 3.4rem);
@@ -448,11 +410,6 @@ const jsonLd = {
   }
   .vh-mark { position: relative; white-space: nowrap; }
   .vh-mark svg { position: absolute; left: 0; bottom: -.13em; width: 100%; height: .18em; overflow: visible; }
-
-  .vh-lede {
-    font-size: clamp(1rem, 1.3vw, 1.125rem); line-height: 1.55;
-    color: rgba(255,255,255,.82); max-width: 33rem; margin: 0 0 18px;
-  }
 
   .vh-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
   .vh-btn {
@@ -463,8 +420,6 @@ const jsonLd = {
   }
   .vh-btn-primary { background: #fff; color: hsl(var(--primary)); }
   .vh-btn-primary:hover { transform: translateY(-1px); background: #f2f6ff; }
-  .vh-btn-ghost { color: #fff; border-color: rgba(255,255,255,.32); font-weight: 500; }
-  .vh-btn-ghost:hover { border-color: rgba(255,255,255,.66); background: rgba(255,255,255,.07); }
   .vh-btn:focus-visible { outline: 3px solid hsl(var(--score-orange)); outline-offset: 3px; }
   /* Sur mobile les deux boutons prennent toute la largeur : une cible de
      48 px pleine largeur vaut mieux que deux boutons serrés. */
@@ -472,23 +427,7 @@ const jsonLd = {
 
   .vh-micro { font-size: .85rem; color: rgba(255,255,255,.68); margin: 0; }
 
-  /* ── Preuves ─────────────────────────────────────────────────────── */
-  .vh-proofs { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 12px; }
-  .vh-proofs li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; align-items: start; }
-  .vh-proofs svg { margin-top: 3px; }
-  .vh-proofs p { margin: 0; font-size: .93rem; line-height: 1.45; }
-  .vh-proofs b { color: #fff; font-weight: 700; }
-  .vh-proofs span { color: rgba(255,255,255,.66); }
 
-  .vh-pledge {
-    border-top: 1px solid rgba(255,255,255,.16); padding-top: 16px; margin: 0;
-    font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: rgba(255,255,255,.62);
-  }
-  .vh-pledge b { color: #fff; font-weight: 700; }
-
-  .vh-more { margin: 14px 0 0; font-size: .78rem; }
-  .vh-more a { color: rgba(255,255,255,.72); text-decoration: underline; text-underline-offset: 2px; }
-  .vh-more a:hover { color: #fff; }
 
   @media (prefers-reduced-motion: reduce) {
     .vh-btn { transition: none; }
@@ -681,7 +620,13 @@ const jsonLd = {
                 class="rounded-[14px] border border-white/10 bg-white/[0.04] px-5 pb-[18px] pt-5 backdrop-blur-[6px] transition-colors duration-200 hover:border-[rgba(230,180,90,.4)]"
               >
                 <p class="mb-1.5 text-[14.5px] font-semibold text-white">{carte.titre}</p>
-                <p class="text-xs text-[#8391AE]">{carte.compteur}</p>
+                {/* ⚠️ #B8C2D9 ET NON #8391AE : mesuré 3,73:1 sur le navy de la
+                    section, donc sous le seuil WCAG. Le banc ne le voyait pas —
+                    il classait tout dégradé radial en « fond indéterminé » et
+                    ne testait pas ces textes (corrigé le 25/09). #B8C2D9 est le
+                    gris du handoff Observatoire, déjà employé juste au-dessus,
+                    et donne 6,6:1. */}
+                <p class="text-xs text-[#B8C2D9]">{carte.compteur}</p>
               </a>
             ))}
             <a
@@ -771,3 +716,72 @@ const jsonLd = {
     <AstroFooter />
   </div>
 </BaseLayout>
+
+<script>
+  /**
+   * 🔴 PROFONDEUR DE SCROLL SUR L'ACCUEIL — 2026-09-25.
+   *
+   * POURQUOI MAINTENANT. Le hero épuré du même jour déplace tous les arguments
+   * SOUS la ligne de flottaison. Toute l'idée repose sur l'hypothèse que le
+   * visiteur descend — et nous n'avions aucune donnée là-dessus. Le « 90 % des
+   * visiteurs ne voient qu'une page » du 14/09 dit qu'ils ne NAVIGUENT pas, pas
+   * qu'ils ne scrollent pas ; confondre les deux serait la faute d'indicateur
+   * la plus fréquente de ce projet.
+   *
+   * ⚠️ SANS CETTE MESURE, LE TEST NE DIRAIT RIEN : une baisse de conversion
+   * serait indiscernable entre « le hero convertit moins » et « personne
+   * n'atteint les arguments ».
+   *
+   * RGPD : aucun cookie, aucune donnée personnelle. La route `/api/track/event`
+   * applique le même régime que `site_visits` — empreinte serveur rotative
+   * quotidienne, ni IP ni user-agent conservés.
+   */
+  (() => {
+    // ⚠️ Le garde interne d'abord : sans lui nos propres visites gonflent le
+    // dénominateur, exactement comme GA4 compte nos 84 vues d'admin (13/09).
+    try {
+      if (localStorage.getItem('vmd_internal') === '1') return;
+    } catch { /* stockage refusé : on mesure quand même */ }
+
+    const JALONS = [25, 50, 75];
+    // ⚠️ Un jalon au plus PAR JOUR et par navigateur : sinon un seul lecteur
+    // qui monte et redescend envoie dix fois le même événement et le taux
+    // devient un artefact de son comportement de lecture.
+    const cle = 'vmd_scroll_' + new Date().toISOString().slice(0, 10);
+    let deja: number[] = [];
+    try { deja = JSON.parse(sessionStorage.getItem(cle) || '[]'); } catch { /* ignoré */ }
+
+    const envoyer = (pct: number) => {
+      deja.push(pct);
+      try { sessionStorage.setItem(cle, JSON.stringify(deja)); } catch { /* ignoré */ }
+      // `keepalive` : l'événement survit à la navigation qui suit souvent le
+      // franchissement d'un jalon (le visiteur descend PUIS clique).
+      fetch('/api/track/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'accueil_scroll_' + pct }),
+        keepalive: true,
+      }).catch(() => { /* une mesure ne casse jamais une page */ });
+    };
+
+    let enAttente = false;
+    const regarder = () => {
+      if (enAttente) return;
+      enAttente = true;
+      requestAnimationFrame(() => {
+        enAttente = false;
+        const h = document.documentElement.scrollHeight - window.innerHeight;
+        if (h <= 0) return;
+        const pct = (window.scrollY / h) * 100;
+        for (const j of JALONS) {
+          if (pct >= j && !deja.includes(j)) envoyer(j);
+        }
+        if (deja.length === JALONS.length) window.removeEventListener('scroll', regarder);
+      });
+    };
+
+    window.addEventListener('scroll', regarder, { passive: true });
+    // Un écran très haut peut déjà dépasser 25 % sans le moindre geste.
+    regarder();
+  })();
+</script>

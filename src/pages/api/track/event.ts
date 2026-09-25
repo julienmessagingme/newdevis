@@ -51,6 +51,21 @@ const EVENEMENTS_AUTORISES = new Set([
   // devant les champs », donc impossible de savoir s'il faut toucher aux
   // champs. Mesuré le 13/09 : 51 arrivées, 22 comptes créés.
   "inscription_formulaire_commence",
+  // 🔴 2026-09-25 — PROFONDEUR DE SCROLL SUR L'ACCUEIL, et c'est la condition
+  // du hero épuré, pas un ornement. Ce hero déplace les arguments SOUS la
+  // ligne de flottaison : toute l'idée repose sur l'hypothèse que le visiteur
+  // descend. Or nous n'avons AUCUNE mesure de ça. Le « 90 % des visiteurs ne
+  // voient qu'une page » du 14/09 dit qu'ils ne NAVIGUENT pas — pas qu'ils ne
+  // scrollent pas ; le confondre serait la faute d'indicateur la plus
+  // fréquente de ce projet.
+  // Sans ces trois jalons, une baisse de conversion serait ININTERPRÉTABLE :
+  // on ne saurait pas distinguer « le hero convertit moins » de « personne
+  // n'arrive jusqu'aux arguments ».
+  // ⚠️ Un seuil par visiteur et par jour au plus (dédup côté navigateur) :
+  // sinon un seul lecteur qui monte et descend gonfle le dénominateur.
+  "accueil_scroll_25",
+  "accueil_scroll_50",
+  "accueil_scroll_75",
 ]);
 
 async function empreinteDuJour(ip: string, ua: string): Promise<string> {
