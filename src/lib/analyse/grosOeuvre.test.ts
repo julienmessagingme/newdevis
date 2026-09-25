@@ -1,5 +1,75 @@
 import { describe, it, expect } from "vitest";
-import { estGrosOeuvre, ligneEstGrosOeuvre, motifGrosOeuvre } from "./grosOeuvre";
+import { estGrosOeuvre, ligneEstGrosOeuvre, motifGrosOeuvre, ouvrageHorsBatiment } from "./grosOeuvre";
+
+// ── 5e faux positif (2026-09-25, retour Johan) ───────────────────────────────
+// « on parle de mettre un mur de soutènement pour créer une place de parking,
+//   ça ne remet pas en cause la résidence principale ».
+describe("gros œuvre — un ouvrage extérieur n'est pas un bâtiment", () => {
+  // ⚠️ La LIGNE reste du gros œuvre : c'est volontaire. Les quatre gardes de
+  // ligne ont raison, une fondation ferraillée EST du gros œuvre. Ce qu'elles
+  // ne peuvent pas voir, c'est ce qu'elle construit.
+  it("la ligne litigieuse reste du gros œuvre, prise isolément", () => {
+    expect(
+      ligneEstGrosOeuvre("Fondation 10m³, ferraillage en 15*35 et fer tor de 12 en attente pour mur en agglo"),
+    ).toBe(true);
+  });
+
+  it("… mais le devis M.OSTER ne déclenche plus le conseil DO", () => {
+    const lignes = [
+      { libelle: "Mise en place d'une mini pelle + carburant.", categorie: "Mur de soutènement" },
+      { libelle: "Fondation 10m³, ferraillage en 15*35 et fer tor de 12", categorie: "Mur de soutènement" },
+      { libelle: "Fourniture et pose de pavés gris", categorie: "Aménagement place de parking" },
+    ];
+    expect(ouvrageHorsBatiment(lignes)).toBe(true);
+    expect(estGrosOeuvre(lignes)).toBe(false);
+    expect(motifGrosOeuvre(lignes)).toBeNull();
+  });
+
+  it("une clôture a des fondations et n'est toujours pas un bâtiment", () => {
+    const lignes = [{ libelle: "Réalisation d'une fondation armée sur 17 ml", categorie: "clôture" }];
+    expect(estGrosOeuvre(lignes)).toBe(false);
+  });
+
+  // ⚠️ LE TÉMOIN QUI COMPTE : un mur de soutènement qui retient les terres sous
+  // la maison relève, LUI, de la DO. Sans lui, « écarter tout soutènement »
+  // passerait le test précédent.
+  it("un soutènement qui touche la maison déclenche toujours le conseil", () => {
+    const lignes = [
+      { libelle: "Fondation armée", categorie: "Mur de soutènement" },
+      // ⚠️ « reprise … de la dalle de la maison » ne déclencherait RIEN :
+      // `OBJET_PORTEUR` contient « dalle béton », jamais « dalle » seul (une
+      // dalle peut être une terrasse ou de la moquette). Première version de ce
+      // test écrite ainsi — c'était le test qui avait tort, pas le code.
+      { libelle: "Reprise en sous-œuvre des fondations de la maison" },
+    ];
+    expect(ouvrageHorsBatiment(lignes)).toBe(false);
+    expect(estGrosOeuvre(lignes)).toBe(true);
+  });
+
+  // Cas réel du corpus : devis mixte clôture + extension → le conseil reste.
+  it("un devis mixte clôture + extension garde le conseil", () => {
+    const lignes = [
+      { libelle: "Pose de la clôture", categorie: "travaux de clôture" },
+      { libelle: "Fouille en rigole pour semelle de fondations", categorie: "travaux de l'extension existante" },
+    ];
+    expect(estGrosOeuvre(lignes)).toBe(true);
+  });
+
+  // La garde ne doit JAMAIS se déclencher sans marqueur d'ouvrage extérieur :
+  // sinon elle éteindrait le levier sur tout le corpus en silence.
+  it("sans ouvrage extérieur nommé, la garde reste inerte", () => {
+    expect(ouvrageHorsBatiment([{ libelle: "Ouverture d'un mur porteur HEB 240" }])).toBe(false);
+    expect(ouvrageHorsBatiment([{ libelle: "Coulage des fondations en béton armé" }])).toBe(false);
+    expect(ouvrageHorsBatiment([])).toBe(false);
+  });
+
+  // ⚠️ `categorie` ne doit PAS entrer dans l'évaluation de la LIGNE : une
+  // catégorie « Gros œuvre » ferait basculer tout un lot d'un coup.
+  it("la catégorie ne rend pas une ligne anodine structurelle", () => {
+    expect(ligneEstGrosOeuvre("Nettoyage du chantier")).toBe(false);
+    expect(estGrosOeuvre([{ libelle: "Nettoyage du chantier", categorie: "Gros oeuvre" }])).toBe(false);
+  });
+});
 
 describe("gros œuvre — faux positifs à ne plus jamais déclencher", () => {
   // Retour Johan 2026-09-03, devis SOLTANI : le conseil DO se déclenchait sur

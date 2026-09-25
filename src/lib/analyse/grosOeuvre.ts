@@ -149,13 +149,68 @@ const SUPPORT_RE =
 const ACTION_SUR_STRUCTURE_RE =
   /\b(reprise|ouverture|percer\s+(?:un\s+)?mur\s+porteur|d[ée]pose|d[ée]molition|renfort|renforcement|cr[ée]ation|remplacement|r[ée]fection|abattre|d[ée]molir)\b/i;
 
+/**
+ * 2026-09-25 (5e faux positif, cas « Mur de soutènement / Aménagement place de
+ * parking », signalé par Johan) — UNE LIGNE PEUT ÊTRE DU GROS ŒUVRE SANS QU'IL
+ * Y AIT LE MOINDRE BÂTIMENT.
+ *
+ * « Fondation 10 m³, ferraillage en 15*35 et fer tor de 12 en attente pour mur
+ * en agglo » est du gros œuvre au sens strict, et les quatre gardes de LIGNE
+ * ci-dessus la laissent passer **à juste titre**. Ce qu'elles ne peuvent pas
+ * voir, c'est ce que cette fondation construit : un mur de soutènement pour une
+ * place de parking. Or l'obligation de dommages-ouvrage (art. L242-1 du code
+ * des assurances) porte sur les travaux de **construction de BÂTIMENT**. Une
+ * clôture, un mur de soutènement autonome, une allée, un parking n'en sont pas
+ * — et ils ont tous des fondations.
+ *
+ * La garde est donc au niveau DEVIS, pas au niveau ligne : si tout le document
+ * décrit un ouvrage extérieur autonome et que **rien** n'y nomme un bâtiment,
+ * le conseil ne part pas.
+ *
+ * ⚠️ UN MUR DE SOUTÈNEMENT QUI RETIENT LES TERRES SOUS LA MAISON RELÈVERAIT,
+ * LUI, DE LA DO. On accepte de le rater : un tel devis nomme presque toujours
+ * la maison, et à défaut la règle du 03/09 tranche — sur ce levier, rater un
+ * cas limite coûte moins cher qu'en inventer un.
+ */
+const OUVRAGE_EXTERIEUR_RE =
+  /\b(cl[ôo]tures?|portails?|portillons?|grillages?|soutènement|sout[èe]nement|par[- ]?king|all[ée]es?\s+carrossables?|voiries?|enrob[ée]s?|pav[ée]s?\s+autobloquants?|bordurettes?|murets?\s+de\s+jardin)\b/i;
+
+/**
+ * Ce qui prouve qu'un BÂTIMENT est concerné. ⚠️ Volontairement large : c'est le
+ * garde-fou du garde-fou — au moindre doute sur la présence d'un bâtiment, on
+ * laisse le conseil partir. L'asymétrie est voulue.
+ */
+const MARQUEUR_BATIMENT_RE =
+  /\b(maisons?|habitations?|logements?|villas?|pavillons?|immeubles?|appartements?|[ée]tages?|combles?|toitures?|charpentes?|planchers?|murs?\s+porteurs?|murs?\s+de\s+refend|extensions?|sur[ée]l[ée]vations?|garages?|v[ée]randas?|fa[çc]ades?|pignons?|dalle\s+de\s+la\s+maison|gros\s*[- ]?\s*[oœ]uvre)\b/i;
+
 export interface LigneTravaux {
   description?: string | null;
   libelle?: string | null;
+  /** ⚠️ Lue UNIQUEMENT par la garde de niveau devis : c'est là que vit le nom
+   *  de l'ouvrage (« Mur de soutènement », « clôture »), jamais dans le libellé
+   *  de la ligne. Elle n'entre PAS dans `texteLigne` — une catégorie « Gros
+   *  œuvre » y ferait basculer toutes les lignes du lot d'un coup. */
+  categorie?: string | null;
 }
 
 function texteLigne(l: LigneTravaux): string {
   return `${l?.description ?? ""} ${l?.libelle ?? ""}`;
+}
+
+/** Tout le document : libellés, catégories et contexte réunis. */
+function texteDevis(lignes: LigneTravaux[], contexte: string): string {
+  const l = Array.isArray(lignes) ? lignes : [];
+  return `${l.map((x) => `${texteLigne(x)} ${x?.categorie ?? ""}`).join(" ")} ${contexte}`;
+}
+
+/**
+ * Le devis ne décrit-il QUE des ouvrages extérieurs, sans aucun bâtiment ?
+ * Exportée pour être mesurable : c'est elle qui décide de taire le conseil.
+ */
+export function ouvrageHorsBatiment(lignes: LigneTravaux[], contexte = ""): boolean {
+  const t = texteDevis(lignes, contexte);
+  if (!OUVRAGE_EXTERIEUR_RE.test(t)) return false;
+  return !MARQUEUR_BATIMENT_RE.test(t);
 }
 
 /** Une ligne engage-t-elle la structure ? */
@@ -192,6 +247,8 @@ export function motifGrosOeuvre(
   contexte = "",
 ): string | null {
   const liste = Array.isArray(lignes) ? lignes : [];
+  // 5e faux positif (25/09) : aucun bâtiment, donc aucun motif à nommer.
+  if (ouvrageHorsBatiment(liste, contexte)) return null;
   const hit = liste.map(texteLigne).find(ligneEstGrosOeuvre);
   if (hit) {
     const propre = hit.replace(/\s+/g, " ").trim();
@@ -205,5 +262,8 @@ export function motifGrosOeuvre(
 /** Le devis relève-t-il du gros œuvre ? */
 export function estGrosOeuvre(lignes: LigneTravaux[], contexte = ""): boolean {
   const liste = Array.isArray(lignes) ? lignes : [];
+  // 5e faux positif (25/09) : un ouvrage extérieur autonome n'est pas un
+  // bâtiment, quelles que soient ses fondations.
+  if (ouvrageHorsBatiment(liste, contexte)) return false;
   return liste.map(texteLigne).some(ligneEstGrosOeuvre) || ligneEstGrosOeuvre(contexte);
 }
