@@ -26,10 +26,8 @@
  *    rajouté trois à 400 px du bouton.
  */
 import {
-  ANALYSES_TOTAL,
   ECART_MEDIAN_EUROS,
   PART_DECONSEILLES_PCT,
-  DECISIONS_RENDUES,
   montantAnalyseCourt,
 } from '@/lib/prix/reference';
 
@@ -46,8 +44,12 @@ const nb = (n: number) => n.toLocaleString('fr-FR').replace(/ | /g, ' ');
 // généré depuis la base — c'est la règle du 08/09 (« une promesse chiffrée
 // périmée est un mensonge »), et la raison pour laquelle les sept compteurs de
 // l'Observatoire étaient tous faux avant le 23/09.
+// ⚠️ PAS DE COMPTEUR « N DEVIS ANALYSÉS » ICI (retiré le 25/09, retour Johan :
+// « redondant, on l'indique en dessous »). `DuDevisAuVerdict` le porte déjà
+// dans ses preuves, un écran plus bas. Deux fois le même nombre sur une même
+// page ne le rend pas plus crédible — il occupe juste la place d'un fait
+// qu'on ne dit nulle part ailleurs.
 const CHIFFRES = [
-  { valeur: nb(ANALYSES_TOTAL), unite: '', libelle: 'devis analysés depuis le lancement' },
   { valeur: montantAnalyseCourt(), unite: '', libelle: 'de travaux passés au crible' },
   { valeur: nb(ECART_MEDIAN_EUROS), unite: ' €', libelle: "d'écart médian, sur les devis où nous en trouvons un" },
   { valeur: String(PART_DECONSEILLES_PCT), unite: ' %', libelle: 'de devis que nous déconseillons de signer en l’état' },
@@ -65,19 +67,21 @@ const CHIFFRES = [
       ))}
     </div>
 
-    {/* ⚠️ LE DÉNOMINATEUR EST OBLIGATOIRE : sans lui un pourcentage n'existe
-        pas (règle du 13/09, où le sondage n'avait pas de compteur d'affichages).
-        Et il est plus petit que le nombre de devis — la conclusion naît à la
-        première visite, donc une analyse jamais ouverte n'a rien dit.
+    {/* 🔴 LA VERSION D'ORIGINE CITAIT SON DÉNOMINATEUR — « le pourcentage porte
+        sur les 212 devis déjà passés au verdict » — ET ELLE ÉTAIT
+        INCOMPRÉHENSIBLE (retour Johan, 25/09). Le chiffre était juste, mais il
+        décrivait NOTRE mécanique : la conclusion naît à la première visite,
+        donc une analyse jamais ouverte n'a rien dit. Le lecteur l'ignore et n'a
+        aucune raison de s'y intéresser. C'est le défaut du 13/09 — « le message
+        décrivait notre mécanique en prétendant décrire le devis ».
 
-        ⚠️ LE BIAIS DE SÉLECTION EST DIT, PAS TU. Les 24 % portent sur les devis
-        qu'on nous SOUMET : quelqu'un qui dépose un devis a souvent déjà un
-        doute. Laisser entendre qu'un devis sur quatre est mauvais en France
-        serait une affirmation que nous ne pouvons pas soutenir. */}
+        ⚠️ CE QUI RESTE EST CE QUI LE CONCERNE, et c'est ce qui compte : « les
+        devis qui nous sont soumis ». Sans ces quatre mots, les 24 % se
+        liraient comme une affirmation sur les devis EN FRANCE — que nous ne
+        pouvons pas soutenir, puisque quelqu'un qui dépose un devis a souvent
+        déjà un doute. Ne pas les retirer en abrégeant davantage. */}
     <p class="ba-note">
-      Chiffres recalculés chaque semaine à partir de nos analyses réelles.
-      Le pourcentage porte sur les {nb(DECISIONS_RENDUES)} devis déjà passés au verdict —
-      des devis que leurs propriétaires nous ont soumis, souvent parce qu’ils avaient déjà un doute.
+      Chiffres recalculés chaque semaine à partir des devis qui nous sont soumis.
     </p>
   </div>
 </section>
@@ -89,19 +93,18 @@ const CHIFFRES = [
     padding: 26px 0 22px;
   }
 
-  /* Mobile d'abord : 2 colonnes. À 4 de front sur 375 px, « 1 340 € » passerait
-     à la ligne au milieu du nombre. */
-  .ba-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px 0;
-  }
+  /* Mobile d'abord : UNE colonne. Les trois libellés font jusqu'à 50
+     caractères ; à 375 px répartis en trois, ils tomberaient à un mot par
+     ligne. Le séparateur passe donc en trait HAUT — une bordure gauche ne veut
+     rien dire sur des blocs empilés. */
+  .ba-grid { display: grid; grid-template-columns: minmax(0, 1fr); }
   .ba-cell {
-    padding: 0 16px;
-    border-left: 1px solid #DFD9CC;
+    padding: 14px 0;
+    border-top: 1px solid #DFD9CC;
     min-width: 0; /* sinon un nombre long gonfle sa colonne — grid blowout */
   }
-  .ba-cell:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .ba-cell:first-child { border-top: 0; padding-top: 0; }
+  .ba-cell:last-child { padding-bottom: 0; }
 
   .ba-n {
     font-size: 25px;
@@ -131,11 +134,13 @@ const CHIFFRES = [
 
   @media (min-width: 768px) {
     .ba-band { padding: 28px 0 24px; }
-    .ba-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
-    .ba-cell { padding: 0 26px; border-left: 1px solid #DFD9CC; }
-    .ba-cell:first-child { border-left: 0; padding-left: 0; }
-    .ba-cell:nth-child(odd) { border-left: 1px solid #DFD9CC; padding-left: 26px; }
+    .ba-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    /* On repasse du trait HAUT au trait GAUCHE : côte à côte, c'est lui qui
+       sépare. Les deux règles mobiles sont explicitement annulées, sinon la
+       bordure du haut survit et dessine un trait au-dessus des trois. */
+    .ba-cell { padding: 0 26px; border-top: 0; border-left: 1px solid #DFD9CC; }
     .ba-cell:first-child { padding-left: 0; border-left: 0; }
+    .ba-cell:last-child { padding-bottom: 0; }
     .ba-n { font-size: 27px; }
   }
 </style>
