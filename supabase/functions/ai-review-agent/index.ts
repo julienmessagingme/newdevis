@@ -105,11 +105,20 @@ async function processOne(a: Record<string, any>, supabase: ReturnType<typeof cr
     }
   }
 
+  // Les lignes ET les totaux alimentent le contrôle arithmétique déterministe
+  // (cf. `controleArithmetique`). ⚠️ Le relecteur ne recevait AUCUN total :
+  // il recalculait depuis le PDF sans point d'ancrage, et a fini par accuser
+  // d'une erreur de calcul un devis dont l'addition était juste (25/09).
+  // L'ordre `extracted` puis `extracted_data` reprend celui du seuil ci-dessus.
+  const extrait = ((raw.extracted as any) ?? (raw.extracted_data as any) ?? {}) as Record<string, any>;
+
   const instruction = buildReviewInstruction({
     conclusion: ci,
     scoring,
     priceData,
     hasPdf: Boolean(pdfUrl),
+    travaux: Array.isArray(extrait.travaux) ? extrait.travaux : [],
+    totaux: extrait.totaux ?? null,
   });
 
   const t0 = Date.now();

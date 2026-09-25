@@ -19,6 +19,121 @@ export interface ReviewPromptInput {
   priceData: Array<Record<string, any>>;
   /** Le PDF source est-il joint à la requête ? */
   hasPdf: boolean;
+  /** Lignes extraites du devis (`extracted.travaux`) — pour le contrôle arithmétique. */
+  travaux?: Array<Record<string, any>>;
+  /** Bloc `extracted.totaux` — HT, TVA, TTC, taux. */
+  totaux?: Record<string, any> | null;
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CONTRÔLE ARITHMÉTIQUE — LE FAIT EST CALCULÉ ICI, PAS DEMANDÉ AU MODÈLE.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * 🔴 L'INCIDENT QUI L'A FAIT ÉCRIRE (2026-09-25, devis « noreco peinture2 »).
+ * Le relecteur a annoncé une « erreur de calcul critique — la somme des lignes
+ * (12 480 €) ne correspond pas au sous-total HT (11 345,45 €) », conclu que
+ * « l'analyse doit être entièrement refaite », et proposé d'écrire au client que
+ * son total « devrait être de 13 728 € TTC » — soit **1 248 € DE PLUS** que ce
+ * que l'artisan facture, sur un devis parfaitement juste.
+ *
+ * Or 12 480 ÷ 11 345,45 = **1,100000**. Les 40 €/m² sont un prix TTC, les lignes
+ * sont en TTC, et le devis recalcule le HT à rebours — pratique courante sur une
+ * rénovation destinée à un particulier, qui raisonne en TTC. **C'est le piège
+ * HT/TTC**, déjà payé deux fois par ce projet (vertical clim le 15/09, sourcing
+ * clôture alu le 17/09 : « les prendre pour équivalentes gonflait la fourchette
+ * de 20 % »). Il s'était seulement déplacé dans le raisonnement de l'agent.
+ *
+ * 🔴 ON NE FILTRE PAS SON TEXTE APRÈS COUP, ON LUI DONNE LE FAIT AVANT.
+ * Une liste noire de formulations ne peut pas être complète — c'est la leçon du
+ * 16/09 (`sanitizeLLMText` bloquait « globalement cohérent », le modèle écrivait
+ * « présente un prix cohérent »). Ici le fait est **déterministe** : on le
+ * calcule et on le lui énonce. Même doctrine — « on a cessé de soustraire
+ * l'affirmation, on ne la produit plus ».
+ *
+ * ⚠️ LE MODÈLE NE RECEVAIT AUCUN TOTAL, ET C'EST LA CAUSE RACINE. Il recalculait
+ * depuis le PDF sans point d'ancrage, alors que notre extraction avait bon
+ * (`{ ht: 11345.45, tva: 1134.55, ttc: 12480, taux_tva: 10 }`).
+ */
+export interface ControleArithmetique {
+  verdict: "coherent" | "lignes_en_ttc" | "ecart_reel" | "non_testable";
+  sommeLignes: number | null;
+  ht: number | null;
+  tauxDeduitPct: number | null;
+  phrase: string;
+}
+
+/**
+ * Les taux qu'un devis de bâtiment français peut porter.
+ * ⚠️ `0` couvre la franchise en base (art. 293 B du CGI), où HT = TTC — sans lui
+ * un devis d'auto-entrepreneur ressortirait en « écart réel ».
+ * ⚠️ 5,5 % (rénovation énergétique) et 10 % (rénovation courante) sont les deux
+ * qui produisent ce piège en pratique.
+ */
+const TAUX_TVA_USUELS = [0, 0.021, 0.055, 0.085, 0.10, 0.20];
+/** Le devis arrondit au centime, et l'extraction aussi : 0,2 % absorbe le bruit. */
+const TOLERANCE_RELATIVE = 0.002;
+
+export function controleArithmetique(
+  travaux?: Array<Record<string, any>>,
+  totaux?: Record<string, any> | null,
+): ControleArithmetique {
+  const lignes = Array.isArray(travaux) ? travaux : [];
+  const somme = lignes.reduce(
+    (s, l) => s + (Number(l?.montant ?? l?.prix_total ?? l?.montant_ht ?? 0) || 0),
+    0,
+  );
+  const ht = Number(totaux?.ht ?? 0) || 0;
+  const eur = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Sans les deux membres, on ne se prononce PAS — et on le dit. Se taire
+  // laisserait le modèle libre de conclure ce qu'il veut, ce qui est l'inverse
+  // du but.
+  if (!(somme > 0) || !(ht > 0)) {
+    return {
+      verdict: "non_testable", sommeLignes: somme || null, ht: ht || null, tauxDeduitPct: null,
+      phrase:
+        "Les lignes ou les totaux n'ont pas pu être extraits de façon exploitable. " +
+        "Tu ne peux donc PAS te prononcer sur la cohérence arithmétique du devis : n'annonce aucune erreur de calcul.",
+    };
+  }
+
+  const rapport = somme / ht;
+
+  if (Math.abs(rapport - 1) <= TOLERANCE_RELATIVE) {
+    return {
+      verdict: "coherent", sommeLignes: somme, ht, tauxDeduitPct: 0,
+      phrase:
+        `La somme des lignes (${eur(somme)} €) correspond au sous-total HT (${eur(ht)} €). ` +
+        "L'addition du devis est donc JUSTE : n'annonce aucune erreur de calcul.",
+    };
+  }
+
+  for (const t of TAUX_TVA_USUELS) {
+    if (t > 0 && Math.abs(rapport - (1 + t)) <= TOLERANCE_RELATIVE) {
+      const pct = (t * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+      return {
+        verdict: "lignes_en_ttc", sommeLignes: somme, ht, tauxDeduitPct: t * 100,
+        phrase:
+          `La somme des lignes (${eur(somme)} €) vaut EXACTEMENT le sous-total HT ` +
+          `(${eur(ht)} €) majoré de la TVA à ${pct} %. Les montants des lignes sont donc ` +
+          "affichés TTC — pratique courante sur un devis destiné à un particulier, qui " +
+          "raisonne en TTC. L'addition du devis est JUSTE : n'annonce aucune erreur de " +
+          `calcul. ⚠️ Et les prix unitaires des lignes sont eux aussi TTC : divise-les par ` +
+          `${(1 + t).toLocaleString("fr-FR")} avant toute comparaison à une fourchette de marché HT.`,
+      };
+    }
+  }
+
+  const ecart = somme - ht;
+  return {
+    verdict: "ecart_reel", sommeLignes: somme, ht, tauxDeduitPct: null,
+    phrase:
+      `La somme des lignes (${eur(somme)} €) ne correspond ni au sous-total HT ` +
+      `(${eur(ht)} €), ni à ce HT majoré d'un taux de TVA usuel (5,5 · 10 · 20 %). ` +
+      `Écart : ${eur(ecart)} €. Tu PEUX signaler ce point — cite les deux montants, ` +
+      "et demande la clarification plutôt que d'affirmer un total de remplacement.",
+  };
 }
 
 /** Résumé des matchs catalogue : c'est là que se voient les faux positifs. */
@@ -34,8 +149,9 @@ export function buildGroupsSummary(priceData: Array<Record<string, any>>): strin
 }
 
 export function buildReviewInstruction(input: ReviewPromptInput): string {
-  const { conclusion: ci, scoring, priceData, hasPdf } = input;
+  const { conclusion: ci, scoring, priceData, hasPdf, travaux, totaux } = input;
   const groupsSummary = buildGroupsSummary(priceData);
+  const arith = controleArithmetique(travaux, totaux);
 
   return `Tu es un expert en chiffrage de travaux BTP en France, relecteur indépendant chez VerifierMonDevis.
 Une analyse automatique de devis a été signalée pour revue humaine. RELIS-LA de façon INDÉPENDANTE.
@@ -46,8 +162,19 @@ LECTURE DU PIPELINE AUTOMATIQUE (à challenger, pas à recopier) :
 - Anomalies retenues : ${JSON.stringify(ci?.anomalies ?? [])?.slice(0, 800)}
 - Critères rouges : ${JSON.stringify(scoring.criteres_rouges ?? [])}
 - Critères oranges : ${JSON.stringify(scoring.criteres_oranges ?? [])?.slice(0, 500)}
+- Totaux du devis : ${JSON.stringify(totaux ?? null)}
 - Matchs catalogue (avec confiance) :
 ${groupsSummary || "(aucun)"}
+
+CONTRÔLE ARITHMÉTIQUE — DÉJÀ FAIT PAR NOUS, DE FAÇON DÉTERMINISTE. NE LE REFAIS PAS.
+${arith.phrase}
+🔴 Un relecteur a déjà annoncé une « erreur de calcul critique » sur un devis
+dont l'addition était juste : la somme des lignes valait le HT majoré de 10 %,
+donc les lignes étaient en TTC. Il a proposé d'écrire au client que son total
+« devrait être » 1 248 € DE PLUS que ce que l'artisan facturait. Accuser un
+artisan d'une faute d'addition qu'il n'a pas commise est la pire chose que nous
+puissions faire. Tiens-toi à la ligne ci-dessus, elle est calculée, pas devinée.
+🔴 Et tu ne proposes JAMAIS au client un total SUPÉRIEUR à celui de son devis.
 
 TA MISSION :
 1. ${hasPdf

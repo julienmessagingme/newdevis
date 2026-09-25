@@ -73,6 +73,8 @@ jobs:
       #   siren-luhn, repli-personne  — identification entreprise (13/09)
       #   incomplete-quote, recap-lines, supply-only, inline-quantities,
       #   country, company-status, market-matcher* — extraction et rapprochement
+      #   controleArithmetique (15)   — le relecteur IA a accusé un devis juste
+      #                                 d'une erreur de calcul (piège HT/TTC, 25/09)
       #
       # ⚠️ `set -e` + boucle : un seul échec fait échouer l'étape. Ne pas
       # remplacer par un `|| true` « le temps de stabiliser » — c'est ainsi
@@ -84,7 +86,8 @@ jobs:
             src/lib/analyse/verdictEngine.test.ts \
             src/lib/auth/advancedPlanningAccess.test.ts \
             src/lib/chantier/planningUtils.subphases.test.ts \
-            supabase/functions/analyze-quote/*.test.ts
+            supabase/functions/analyze-quote/*.test.ts \
+            supabase/functions/ai-review-agent/*.test.ts
           do
             echo "──────── $f"
             npx tsx "$f"
