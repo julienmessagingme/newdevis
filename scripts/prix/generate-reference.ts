@@ -31,6 +31,9 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { porteeAnalyse } from "../../src/lib/analyse/porteeAnalyse";
+import { decisionAffichee } from "../../src/lib/analyse/decisionAffichee";
+import type { ConclusionData } from "../../src/lib/analyse/conclusionTypes";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..");
@@ -151,6 +154,149 @@ function bornes(r: Ligne): { min: number; moy: number; max: number; unite: strin
   };
 }
 
+/**
+ * Les quatre chiffres du bandeau d'activité de l'accueil.
+ *
+ * 🔴 LE PLUS IMPORTANT : LA PART DE DEVIS DÉCONSEILLÉS SE CALCULE SUR LA
+ * DÉCISION AFFICHÉE, JAMAIS SUR `verdict_global`. Depuis le 22/09 la page suit
+ * `decisionAffichee.ts`, qui ne dit pas la même chose que le moteur —
+ * **divergence voulue** (l'écran de revue et les KPI lisent le moteur, le client
+ * lit la décision). Mesuré le 25/09 : le moteur rend 17 % de `a_risque`, la page
+ * affiche **24 %** de « ne pas signer ». Publier le chiffre du moteur
+ * annoncerait au public une proportion que nos propres pages ne produisent pas.
+ *
+ * ⚠️ TROIS AUTRES PIÈGES, TOUS MESURÉS AVANT D'ÊTRE ÉCRITS ICI :
+ *
+ * 1. **Un même PDF redéposé crée plusieurs analyses** (règle du 07/09). Sans
+ *    déduplication par `user_id|file_name` : 494 lignes pour 423 documents,
+ *    soit 17 % de gonflement. Et en ne gardant que les analyses abouties, il
+ *    reste **409 devis réellement analysés**. `analysesTotal` portait 494 —
+ *    il comptait donc aussi 21 analyses en ERREUR comme des « devis analysés ».
+ *
+ * 2. **L'écart publié est celui que la page AFFICHE**, pas `surcout_global`.
+ *    Sous 300 € ou sans poste nommé, aucun montant ne sort (règles du 30/08 et
+ *    du 05/09) — c'est exactement ce que rend `montantANegocier`.
+ *
+ * 3. **Le cumul de montant est faussé par un devis en FCFA classé `FR`** (14 M€
+ *    à lui seul, noté au TODO). D'où le plafond de plausibilité — et il tombe
+ *    dans un PLATEAU : de 1 M€ à 5 M€ le cumul vaut **6,88 M€ sur 381 devis**,
+ *    un seul écarté. Le déplacer ne change rien, c'est ce qui le rend
+ *    défendable.
+ */
+const PLAFOND_DEVIS_PLAUSIBLE = 1_000_000;
+
+async function mesurerActivite(supabase: ReturnType<typeof createClient>): Promise<{
+  devisAnalyses: number;
+  montantAnalyseEuros: number;
+  ecartMedianEuros: number;
+  partDeconseillesPct: number;
+  decisionsRendues: number;
+}> {
+  const parse = (v: unknown): any => {
+    if (!v) return null;
+    if (typeof v === "object") return v;
+    try { return JSON.parse(v as string); } catch { return null; }
+  };
+
+  // PostgREST plafonne les retours : sans pagination on mesurerait sur le
+  // premier millier de lignes en croyant tout lire.
+  const lignes: any[] = [];
+  for (let de = 0; ; de += 500) {
+    const { data, error } = await supabase
+      .from("analyses")
+      .select("user_id, file_name, status, conclusion_ia, raw_text, score, alertes")
+      .order("created_at", { ascending: false })
+      .range(de, de + 499);
+    if (error) {
+      console.error("❌ Lecture des analyses impossible :", error.message);
+      process.exit(1);
+    }
+    lignes.push(...(data ?? []));
+    if (!data || data.length < 500) break;
+  }
+
+  const vus = new Set<string>();
+  const docs = lignes.filter((a) => {
+    if (a.status !== "completed") return false;
+    const cle = `${a.user_id}|${a.file_name}`;
+    if (vus.has(cle)) return false;
+    vus.add(cle);
+    return true;
+  });
+
+  let montantTotal = 0;
+  let deconseilles = 0;
+  let decisions = 0;
+  const ecarts: number[] = [];
+
+  for (const a of docs) {
+    const raw = parse(a.raw_text);
+    const ht = Number(raw?.extracted?.totaux?.ht ?? raw?.extracted_data?.totaux?.ht ?? 0);
+    if (ht > 0 && ht < PLAFOND_DEVIS_PLAUSIBLE) montantTotal += ht;
+
+    const conclusion = parse(a.conclusion_ia) as ConclusionData | null;
+    if (!conclusion) continue; // La conclusion naît à la 1re visite : une analyse
+    decisions++;               // jamais ouverte n'a rien dit, elle ne compte pas.
+
+    // ⚠️ EXACTEMENT CE QUE `AnalysisResult` ASSEMBLE, matériel compris. Une
+    // portée tronquée annoncerait une couverture plus faible que la production
+    // et ferait basculer des décisions (leçon de `preview-avis-unifie`, 23/09).
+    const groupes = Array.isArray(raw?.n8n_price_data) ? raw.n8n_price_data : [];
+    const materiel = Array.isArray((conclusion as any)?.materiel_verifie)
+      ? (conclusion as any).materiel_verifie
+      : [];
+    const valeur = (m: any) => (Number(m?.prix_unitaire_devis) || 0) * (Number(m?.quantite) || 0);
+    const portee = porteeAnalyse(
+      groupes,
+      materiel.length,
+      materiel.reduce((s: number, m: any) => s + valeur(m), 0),
+      [...materiel].sort((x: any, y: any) => valeur(y) - valeur(x))
+        .map((m: any) => String(m?.ligne ?? m?.designation ?? "")),
+    );
+    const sc = parse(a.score) ?? {};
+    const rouges = Array.isArray(sc?.criteres_rouges) ? sc.criteres_rouges : [];
+    const criticalReasons: string[] = rouges.length > 0 ? rouges : (raw?.scoring?.criteres_rouges ?? []);
+
+    const d = decisionAffichee(
+      conclusion,
+      portee,
+      criticalReasons,
+      a.alertes ?? [],
+      raw?.verified?.anciennete_annees ?? null,
+    );
+    if (d.decision === "ne_pas_signer") deconseilles++;
+    if (d.montantANegocier !== null) ecarts.push(d.montantANegocier);
+  }
+
+  const mediane = (t: number[]) => {
+    if (!t.length) return 0;
+    const s = [...t].sort((x, y) => x - y);
+    return s[Math.floor(s.length / 2)];
+  };
+
+  // Un bandeau qui afficherait « 0 » ou « — » est pire que pas de bandeau :
+  // on casse le build, comme pour un poste de prix manquant.
+  if (!docs.length || !decisions) {
+    console.error("❌ Aucune analyse exploitable — le bandeau d'activité serait vide.");
+    process.exit(1);
+  }
+
+  console.log(
+    `\n   activité : ${docs.length} devis analysés · ` +
+      `${(montantTotal / 1e6).toFixed(2)} M€ · ` +
+      `écart médian ${Math.round(mediane(ecarts))} € sur ${ecarts.length} devis chiffrés · ` +
+      `${Math.round((deconseilles / decisions) * 100)} % déconseillés sur ${decisions} décisions`,
+  );
+
+  return {
+    devisAnalyses: docs.length,
+    montantAnalyseEuros: Math.round(montantTotal),
+    ecartMedianEuros: Math.round(mediane(ecarts)),
+    partDeconseillesPct: Math.round((deconseilles / decisions) * 100),
+    decisionsRendues: decisions,
+  };
+}
+
 async function main(): Promise<void> {
   console.log("💶 Génération de la référence de prix depuis market_prices\n");
 
@@ -216,13 +362,7 @@ async function main(): Promise<void> {
   // « +100 devis analysés chaque mois » : c'était vrai en mars-avril (124 puis
   // 104), plus en juillet-août (22 puis 29). Un CUMUL ne se périme pas dans le
   // mauvais sens, contrairement à un rythme mensuel.
-  const { count: analyses, error: errAnalyses } = await supabase
-    .from("analyses")
-    .select("id", { count: "exact", head: true });
-  if (errAnalyses) {
-    console.error("❌ Comptage des analyses impossible :", errAnalyses.message);
-    process.exit(1);
-  }
+  const activite = await mesurerActivite(supabase);
 
   if (!existsSync(SORTIE)) mkdirSync(SORTIE, { recursive: true });
   const sortie = {
@@ -230,10 +370,14 @@ async function main(): Promise<void> {
     source: "market_prices",
     tva: "HT",
     catalogueTaille: count ?? 0,
-    analysesTotal: analyses ?? 0,
+    analysesTotal: activite.devisAnalyses,
+    montantAnalyseEuros: activite.montantAnalyseEuros,
+    ecartMedianEuros: activite.ecartMedianEuros,
+    partDeconseillesPct: activite.partDeconseillesPct,
+    decisionsRendues: activite.decisionsRendues,
     postes,
   };
-  console.log(`\n   catalogue : ${count} entrées · analyses réalisées : ${analyses}`);
+  console.log(`\n   catalogue : ${count} entrées · devis analysés : ${activite.devisAnalyses}`);
   writeFileSync(join(SORTIE, "reference.json"), JSON.stringify(sortie, null, 2) + "\n", "utf-8");
 
   console.log(`\n✓ ${Object.keys(postes).length} postes écrits dans src/data/prix/reference.json`);

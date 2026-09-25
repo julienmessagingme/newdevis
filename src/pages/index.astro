@@ -17,6 +17,10 @@ import BlogTeaser from '@/components/landing/BlogTeaser';
 // Sans directive client : le composant n'a ni état ni gestionnaire, donc HTML
 // rendu au build et zéro JS envoyé.
 import DuDevisAuVerdict from '@/components/landing/DuDevisAuVerdict';
+// Bandeau d'activité sous le hero — remplace le widget « social proof » supprimé
+// le 25/09. Rendu au BUILD, sans directive client : zéro JS, donc zéro squelette
+// de chargement possible. Cf. l'en-tête du composant.
+import BandeauActivite from '@/components/landing/BandeauActivite.astro';
 // 2026-09-10 — la taille du catalogue est une PROMESSE CHIFFRÉE affichée au
 // public : elle était écrite en dur ici (919) et se périmait à chaque migration
 // du catalogue. Elle vient désormais de la source unique, régénérée depuis
@@ -452,7 +456,15 @@ const jsonLd = {
           avoir une sortie — soit un état vide explicite, soit ne rien rendre.
 
           Pour le rétablir : réparer d'abord `work_type` à l'extraction
-          (`TODO.md`), le composant et la route sont dans l'historique git. */}
+          (`TODO.md`), le composant et la route sont dans l'historique git.
+
+          🟢 REMPLACÉ LE 25/09 PAR `BandeauActivite` (variante A, décision
+          Johan) : même intention — prouver que l'outil tourne — mais sur des
+          AGRÉGATS. Pas de flux individuel (ré-identification), pas de « EN
+          DIRECT » (2,6 devis/jour, la ligne du haut dirait « il y a 7 h »), et
+          surtout AUCUN appel réseau : les chiffres sont lus au build. Le
+          squelette qu'on vient de supprimer ne peut pas revenir. */}
+      <BandeauActivite />
 
       {/* Deux ancres, deux usages — et elles restent sur des div VIDES, jamais
           sur la section : le header collant recouvrirait le titre. Piège déjà

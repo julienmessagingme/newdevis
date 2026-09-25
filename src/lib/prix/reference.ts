@@ -59,6 +59,46 @@ export const CATALOGUE_TAILLE: number = donnees.catalogueTaille ?? 0;
 export const ANALYSES_TOTAL: number = donnees.analysesTotal ?? 0;
 
 /**
+ * Les trois autres chiffres du bandeau d'activité de l'accueil.
+ *
+ * 🔴 `PART_DECONSEILLES_PCT` VIENT DE LA DÉCISION AFFICHÉE, PAS DE
+ * `verdict_global`. Depuis le 22/09 la page suit `decisionAffichee.ts` et le
+ * moteur dit autre chose — divergence VOULUE. Mesuré le 25/09 : moteur 17 % de
+ * `a_risque`, page **24 %** de « ne pas signer ». Publier le chiffre du moteur
+ * annoncerait une proportion que nos propres pages ne produisent pas.
+ *
+ * ⚠️ `ECART_MEDIAN_EUROS` est la médiane des montants **RÉELLEMENT AFFICHÉS**
+ * (poste nommé ET ≥ 300 €), pas de `surcout_global` — sinon on publierait un
+ * chiffre que le lecteur ne verrait sur aucune page.
+ *
+ * ⚠️ `DECISIONS_RENDUES` est le dénominateur du pourcentage, et il est plus
+ * petit que `ANALYSES_TOTAL` : la conclusion naît à la première visite, donc une
+ * analyse jamais ouverte n'a rien dit. Le bandeau DOIT afficher ce dénominateur,
+ * sans quoi le pourcentage n'existe pas (règle du 13/09).
+ *
+ * ⚠️ `MONTANT_ANALYSE_EUROS` écarte les devis au-dessus d'un million : un devis
+ * camerounais libellé en FCFA et classé `FR` pèse 14 M€ à lui seul. Le plafond
+ * tombe dans un plateau (1 M€ à 5 M€ → même cumul), c'est ce qui le rend
+ * défendable.
+ */
+export const MONTANT_ANALYSE_EUROS: number = donnees.montantAnalyseEuros ?? 0;
+export const ECART_MEDIAN_EUROS: number = donnees.ecartMedianEuros ?? 0;
+export const PART_DECONSEILLES_PCT: number = donnees.partDeconseillesPct ?? 0;
+export const DECISIONS_RENDUES: number = donnees.decisionsRendues ?? 0;
+
+/**
+ * « 6,8 M€ » — le cumul, arrondi vers le BAS au dixième de million.
+ *
+ * Arrondir vers le bas est délibéré : une promesse chiffrée qui se périme doit
+ * se périmer du bon côté. Sous le million, on n'affiche pas de décimale fausse.
+ */
+export function montantAnalyseCourt(): string {
+  const m = MONTANT_ANALYSE_EUROS;
+  if (m >= 1e6) return `${(Math.floor(m / 1e5) / 10).toLocaleString("fr-FR")} M€`;
+  return `${Math.floor(m / 1e3).toLocaleString("fr-FR")} k€`;
+}
+
+/**
  * Un poste de référence.
  *
  * Lève si la clé est inconnue, volontairement : une page qui demande un poste

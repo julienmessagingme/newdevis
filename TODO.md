@@ -918,6 +918,16 @@ Gabon, Congo, Tchad, Centrafrique, Guinée-Bissau) puis le **Maghreb** et
 l'**océan Indien** suffit à déclencher le bypass `is_foreign_quote` **qui existe
 déjà** et fonctionne pour la Belgique. Aucun chemin nouveau à écrire.
 
+🔴 **DEPUIS LE 25/09, CE DEVIS CONTAMINE UN CHIFFRE PUBLIC — l'enjeu a changé de
+nature.** Le bandeau d'activité de l'accueil annonce le cumul des montants
+analysés : **sans garde il afficherait 20,9 M€ au lieu de 6,8 M€**, ce seul devis
+pesant 14 M€. Un plafond de plausibilité l'écarte (`PLAFOND_DEVIS_PLAUSIBLE`
+dans `generate-reference.ts`), et il tombe dans un plateau confortable — mais
+**c'est une rustine sur la conséquence, pas sur la cause**. Tant que
+`is_foreign_quote` reste faux sur ce document, tout nouvel agrégat de montants
+devra penser à s'en protéger. Corriger `ADDRESS_KEYWORDS` rendrait le plafond
+inutile.
+
 🔴 **NE JAMAIS CONVERTIR POUR ANALYSER QUAND MÊME.** Le réflexe est de se dire
 « on convertit en euros et on compare ». **Non** : le catalogue est un
 référentiel de prix **français** — main-d'œuvre française, matériaux français,

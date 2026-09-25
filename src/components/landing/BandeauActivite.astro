@@ -1,0 +1,141 @@
+---
+/**
+ * Bandeau d'activité — sous le hero de l'accueil.
+ *
+ * 2026-09-25 (variante A, décision Johan). Remplace le widget « social proof »
+ * supprimé le même jour, qui affichait un squelette de chargement depuis sept
+ * mois. Ce bandeau répond à la même intention — prouver que l'outil tourne —
+ * sans aucun de ses trois coûts :
+ *
+ * 🔴 IL NE PRÉTEND PAS ÊTRE « EN DIRECT ». Mesuré le 25/09 : 2,6 devis par jour,
+ *    et la ligne la plus récente aurait affiché « il y a 7 h ». Une pastille
+ *    verte pulsée aurait décrit notre envie d'avoir du flux, pas le flux.
+ *
+ * 🔴 IL NE PERMET AUCUNE RÉ-IDENTIFICATION. Le 10/09, un employé de
+ *    l'entreprise émettrice a retrouvé l'analyse de son propre devis et laissé
+ *    un avis négatif trois minutes après le dépôt. Un flux « métier + verdict +
+ *    âge » rend cela possible ; un agrégat, non.
+ *
+ * 🔴 IL NE DÉPEND PAS DU DÉBIT. « 409 devis analysés » reste vrai un jour creux.
+ *    Et il ne fait AUCUN appel réseau — les chiffres sont lus au build depuis
+ *    `reference.json`, régénéré chaque lundi. Le squelette qu'on vient de
+ *    supprimer ne peut donc pas revenir : il n'y a rien à charger.
+ *
+ * ⚠️ DEUX COULEURS SEULEMENT (navy + gris). Le retour UX du 25/09 pointait la
+ *    fatigue visuelle ; un bandeau à pastilles vert/ambre/rouge en aurait
+ *    rajouté trois à 400 px du bouton.
+ */
+import {
+  ANALYSES_TOTAL,
+  ECART_MEDIAN_EUROS,
+  PART_DECONSEILLES_PCT,
+  DECISIONS_RENDUES,
+  montantAnalyseCourt,
+} from '@/lib/prix/reference';
+
+/**
+ * ⚠️ L'ESPACE FINE DE `toLocaleString('fr-FR')` EST ILLISIBLE À CETTE TAILLE.
+ * Le séparateur de milliers français est un U+202F (espace fine insécable) :
+ * à 12 px de corps il passe, à 27 px en gras « 1 340 » se lit « 1340 ».
+ * Vu au rendu, invisible au build et invisible dans `innerText`. On le remplace
+ * par une insécable normale (U+00A0), qui reste insécable et se voit.
+ */
+const nb = (n: number) => n.toLocaleString('fr-FR').replace(/ | /g, ' ');
+
+// ⚠️ AUCUN CHIFFRE N'EST ÉCRIT ICI. Ils viennent tous de `reference.json`,
+// généré depuis la base — c'est la règle du 08/09 (« une promesse chiffrée
+// périmée est un mensonge »), et la raison pour laquelle les sept compteurs de
+// l'Observatoire étaient tous faux avant le 23/09.
+const CHIFFRES = [
+  { valeur: nb(ANALYSES_TOTAL), unite: '', libelle: 'devis analysés depuis le lancement' },
+  { valeur: montantAnalyseCourt(), unite: '', libelle: 'de travaux passés au crible' },
+  { valeur: nb(ECART_MEDIAN_EUROS), unite: ' €', libelle: "d'écart médian, sur les devis où nous en trouvons un" },
+  { valeur: String(PART_DECONSEILLES_PCT), unite: ' %', libelle: 'de devis que nous déconseillons de signer en l’état' },
+];
+---
+
+<section class="ba-band" aria-label="Notre activité en chiffres">
+  <div class="container">
+    <div class="ba-grid">
+      {CHIFFRES.map(({ valeur, unite, libelle }) => (
+        <div class="ba-cell">
+          <p class="ba-n">{valeur}<span class="ba-u">{unite}</span></p>
+          <p class="ba-l">{libelle}</p>
+        </div>
+      ))}
+    </div>
+
+    {/* ⚠️ LE DÉNOMINATEUR EST OBLIGATOIRE : sans lui un pourcentage n'existe
+        pas (règle du 13/09, où le sondage n'avait pas de compteur d'affichages).
+        Et il est plus petit que le nombre de devis — la conclusion naît à la
+        première visite, donc une analyse jamais ouverte n'a rien dit.
+
+        ⚠️ LE BIAIS DE SÉLECTION EST DIT, PAS TU. Les 24 % portent sur les devis
+        qu'on nous SOUMET : quelqu'un qui dépose un devis a souvent déjà un
+        doute. Laisser entendre qu'un devis sur quatre est mauvais en France
+        serait une affirmation que nous ne pouvons pas soutenir. */}
+    <p class="ba-note">
+      Chiffres recalculés chaque semaine à partir de nos analyses réelles.
+      Le pourcentage porte sur les {nb(DECISIONS_RENDUES)} devis déjà passés au verdict —
+      des devis que leurs propriétaires nous ont soumis, souvent parce qu’ils avaient déjà un doute.
+    </p>
+  </div>
+</section>
+
+<style>
+  .ba-band {
+    background: #F7F5F0;
+    border-bottom: 1px solid #E6E1D6;
+    padding: 26px 0 22px;
+  }
+
+  /* Mobile d'abord : 2 colonnes. À 4 de front sur 375 px, « 1 340 € » passerait
+     à la ligne au milieu du nombre. */
+  .ba-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 0;
+  }
+  .ba-cell {
+    padding: 0 16px;
+    border-left: 1px solid #DFD9CC;
+    min-width: 0; /* sinon un nombre long gonfle sa colonne — grid blowout */
+  }
+  .ba-cell:nth-child(odd) { border-left: 0; padding-left: 0; }
+
+  .ba-n {
+    font-size: 25px;
+    font-weight: 700;
+    color: #1B3C7F;          /* navy de marque, ~9:1 sur le crème */
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+  }
+  .ba-u { font-size: 15px; font-weight: 600; }
+
+  .ba-l {
+    font-size: 12.5px;
+    line-height: 1.35;
+    color: #4E576B;          /* ≈ 6,9:1 sur le crème — au-dessus du seuil AA */
+    margin-top: 6px;
+    text-wrap: balance;
+  }
+
+  .ba-note {
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: #63604F;          /* ≈ 5,7:1 — le gris chaud du handoff échouait AA */
+    margin-top: 18px;
+    max-width: 62ch;
+  }
+
+  @media (min-width: 768px) {
+    .ba-band { padding: 28px 0 24px; }
+    .ba-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+    .ba-cell { padding: 0 26px; border-left: 1px solid #DFD9CC; }
+    .ba-cell:first-child { border-left: 0; padding-left: 0; }
+    .ba-cell:nth-child(odd) { border-left: 1px solid #DFD9CC; padding-left: 26px; }
+    .ba-cell:first-child { padding-left: 0; border-left: 0; }
+    .ba-n { font-size: 27px; }
+  }
+</style>
