@@ -912,66 +912,28 @@ autres critères échouent — mesurés le 23/09, non corrigés.
       microentreprise** < 10 salariés et ≤ 2 M€) — c'est ce qui décide du
       niveau d'effort, et ce n'est pas à moi de le trancher.
 
-## 🔴 Devis hors zone euro non détecté — la garde cherchait le bon signal au mauvais endroit (2026-09-25)
+## ✅ Devis hors zone euro — CORRIGÉ le 2026-09-26, et le diagnostic ci-dessous était FAUX
 
-Trouvé en vérifiant les chiffres d'un post LinkedIn, pas par une alerte : un
-devis annonçait **14 032 808 € HT**, soit 67 % du cumul de tout le corpus.
+🔴 **Ce que cette fiche affirmait le 25/09 est inexact** : « ADDRESS_KEYWORDS ne
+couvre aujourd'hui que l'Europe ». **Cameroun, Douala, Yaoundé, Sénégal, Côte
+d'Ivoire, Maroc, Algérie, Tunisie, Madagascar et Maurice y sont depuis le
+27/08.** Le devis camerounais sortait en `FR` parce qu'il a été **déposé le
+16 juin, deux mois avant la garde** — il n'avait jamais été réanalysé.
 
-- **`Devis Cloture.pdf`** · analyse `4e5b8c15-4474-44c5-9f78-2462a940a1b8`
-- **BAO CONSTRUCTION**, adresse « Cameroun, Bangangté », IBAN à 22 chiffres sans
-  code pays, téléphone à 9 chiffres, TVA 0 %, HT = TTC
-- Le Cameroun est en **franc CFA d'Afrique centrale (XAF)**, à parité **FIXE**
-  avec l'euro depuis 1999 : **1 € = 655,957 XAF**. Donc **14 032 808 XAF =
-  21 393 € HT**, sans aucune incertitude de change.
-- Sorti avec `country_code: "FR"`, `is_foreign_quote: false`.
+✅ **Réparé** : `country_code` et `is_foreign_quote` recalculés avec la vraie
+fonction, conclusion vidée pour régénération, 42 lignes de travaux conservées.
 
-🔴 **LA GARDE DEVISE EXISTE DEPUIS LE 27/08 ET N'A PAS ÉCHOUÉ — ELLE N'A PAS VU.**
-`CURRENCY_KEYWORDS` ([`country.ts`](supabase/functions/analyze-quote/country.ts))
-cherche les **SIGLES** (`FCFA`, `XAF`, `XOF`, `francs CFA`) dans l'adresse **et
-les libellés des lignes**. Sur ce devis, l'adresse porte le **NOM DU PAYS** et
-**les libellés des lignes sont vides**. Deux signaux différents : la garde
-attendait la devise, le document ne donne que le pays.
+🔴 **Et la vraie trouvaille est ailleurs — une mine désamorcée** : le motif de
+la roupie mauricienne contenait `\bmur\b`. Mesuré sur 410 documents, il
+classait **87 devis français (21 %) en « Maurice »**. Il n'avait jamais fait de
+dégât uniquement parce que l'extracteur primaire ne passait pas les lignes du
+devis à la garde — donc la détection de devise était **morte à moitié**. Les
+deux sont corrigés ensemble (90 → 3 étrangers). Détail dans CLAUDE.md.
 
-🟢 **LE CORRECTIF EST PETIT** : `ADDRESS_KEYWORDS` ne couvre aujourd'hui que
-l'Europe (BE, LU, CH, DE, ES, IT, GB, NL). Y ajouter les pays de la **zone franc
-CFA** (Cameroun, Sénégal, Côte d'Ivoire, Mali, Burkina, Bénin, Togo, Niger,
-Gabon, Congo, Tchad, Centrafrique, Guinée-Bissau) puis le **Maghreb** et
-l'**océan Indien** suffit à déclencher le bypass `is_foreign_quote` **qui existe
-déjà** et fonctionne pour la Belgique. Aucun chemin nouveau à écrire.
+⚠️ **Reste ouvert — Nouvelle-Calédonie et Polynésie** : territoires français
+(SIRET valide, `country_code: "FR"` est JUSTE) dont les montants sont en franc
+Pacifique. Aucune détection par pays ne les couvrira. Aucun cas dans le corpus.
 
-🔴 **DEPUIS LE 25/09, CE DEVIS CONTAMINE UN CHIFFRE PUBLIC — l'enjeu a changé de
-nature.** Le bandeau d'activité de l'accueil annonce le cumul des montants
-analysés : **sans garde il afficherait 20,9 M€ au lieu de 6,8 M€**, ce seul devis
-pesant 14 M€. Un plafond de plausibilité l'écarte (`PLAFOND_DEVIS_PLAUSIBLE`
-dans `generate-reference.ts`), et il tombe dans un plateau confortable — mais
-**c'est une rustine sur la conséquence, pas sur la cause**. Tant que
-`is_foreign_quote` reste faux sur ce document, tout nouvel agrégat de montants
-devra penser à s'en protéger. Corriger `ADDRESS_KEYWORDS` rendrait le plafond
-inutile.
-
-🔴 **NE JAMAIS CONVERTIR POUR ANALYSER QUAND MÊME.** Le réflexe est de se dire
-« on convertit en euros et on compare ». **Non** : le catalogue est un
-référentiel de prix **français** — main-d'œuvre française, matériaux français,
-marché français. Un devis camerounais comparé à nos fourchettes n'a aucun sens
-*même après une conversion parfaite*. La bonne réponse est celle déjà retenue
-pour la Belgique (V3.4.14) : on vérifie la structure et la sécurité du paiement,
-**on ne se prononce pas sur les prix**.
-
-⚠️ **LE PIÈGE DOM-TOM EST DÉJÀ DOCUMENTÉ LIGNE 50 — et il a un jumeau inverse.**
-Ne jamais ajouter « Réunion », « Guadeloupe », « Martinique », « Guyane »,
-« Mayotte » : ce sont des adresses **françaises**. Mais **la Nouvelle-Calédonie
-et la Polynésie sont le cas symétrique** : territoires français (SIRET valide,
-registre français, `country_code: "FR"` est JUSTE) dont les montants sont en
-**franc Pacifique (XPF)**, hors zone euro. Un devis de Nouméa serait donc lu en
-euros sans qu'aucun signal pays ne se déclenche. Non mesuré — aucun cas dans le
-corpus à ce jour, mais la détection par pays ne le couvrira jamais.
-
-**Effet mesuré** : **1 devis sur 407** (0,2 %) — volume faible, dégât total.
-L'analyse rendue à ce client comparait ses lignes au catalogue **français**, donc
-elle était entièrement fausse. Et le défaut a aussi faussé **nos propres chiffres
-publics** : le cumul du corpus annonçait 20,9 M€ au lieu de **6,87 M€**, ce qui
-serait parti dans un post LinkedIn sans la vérification.
-
-⚠️ **Et l'autre moitié du corpus a été contrôlée** : ce devis est le **seul** en
-devise étrangère. Les deux « DEVIS BRELET » à 59 602 € avec TVA 0 % sont un même
-devis redéposé — franchise de TVA, montant plausible, rien d'anormal.
+⚠️ **Ne jamais convertir pour analyser quand même** : le catalogue est un
+référentiel **français**. Un devis camerounais comparé à nos fourchettes n'a
+aucun sens même après une conversion parfaite.

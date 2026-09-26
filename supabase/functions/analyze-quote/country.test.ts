@@ -63,5 +63,42 @@ const belgique = detectQuoteCountry({
 });
 check("Belgique (IBAN BE) → étranger BE", belgique.country_code, "BE");
 
+// ── 🔴 LA MINE « MUR » (2026-09-26) ─────────────────────────────────────────
+// `MUR` est le code ISO de la roupie mauricienne ET le mot le plus courant d'un
+// devis français. Le motif contenait `\bmur\b` : mesuré sur 410 documents,
+// brancher les lignes en l'état classait **87 devis français (21 %) en
+// « Maurice »** et supprimait toute leur analyse de prix. Il n'avait jamais fait
+// de dégât uniquement parce que l'extracteur ne passait pas les lignes.
+//
+// ⚠️ Ces cas sont des LIBELLÉS RÉELS de devis de maçonnerie et de peinture.
+const murFrancais = detectQuoteCountry({
+  entreprise: { nom: "SARL RENOV", adresse: "12 rue des Lilas, 69003 Lyon" },
+  totaux: { ht: 8400, taux_tva: 10 },
+  travaux: [
+    { description: "Démolition mur porteur et pose IPN" },
+    { description: "Enduit sur mur extérieur, 45 m²" },
+    { description: "Peinture murs et plafonds" },
+  ],
+});
+check("« mur » dans les lignes → reste FRANÇAIS", murFrancais.is_foreign, false);
+check("  et aucun signal de devise", murFrancais.signals.currency_match, null);
+
+// Témoin inverse : la devise mauricienne reste détectable quand c'est vraiment
+// elle. Sans ce test, « supprimer MUR partout » passerait le test ci-dessus.
+const roupie = detectQuoteCountry({
+  entreprise: { nom: "BUILD LTD", adresse: "Port-Louis" },
+  totaux: { ht: 450000, taux_tva: 15 },
+  travaux: [{ description: "Fondation — 120 000 roupies mauriciennes" }],
+});
+check("« roupies mauriciennes » → étranger MU", roupie.country_code, "MU");
+
+// Et le code ISO seul ne compte QUE s'il est en capitales devant un montant.
+const codeIso = detectQuoteCountry({
+  entreprise: { nom: "BUILD LTD", adresse: "Quatre Bornes" },
+  totaux: { ht: 450000, taux_tva: 15 },
+  travaux: [{ description: "Total travaux MUR 450000" }],
+});
+check("« MUR 450000 » → devise reconnue", codeIso.signals.currency_match, "MU");
+
 console.log(`\n${passed} passés, ${failed} échoués`);
 if (failed > 0) process.exit(1);

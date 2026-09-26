@@ -935,6 +935,18 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
       : reconciliation.confiance_globale;
 
   // 9. R4 KEPT — Détection pays
+  //
+  // 🔴 `travaux` EST PASSÉ DEPUIS LE 2026-09-26, ET IL NE L'ÉTAIT PAS.
+  // La garde devise du 27/08 annonce scanner « adresse + libellés des lignes »
+  // (cf. country.ts) — mais l'extracteur primaire ne lui donnait que l'adresse.
+  // Un devis dont le mot « FCFA » n'apparaît que dans ses lignes n'était donc
+  // jamais détecté : la moitié de la garde était morte.
+  //
+  // ⚠️ ON NE POUVAIT PAS BRANCHER SANS DÉSAMORCER D'ABORD : le motif de la
+  // roupie mauricienne contenait `\bmur\b`. Mesuré sur 410 documents, le
+  // brancher en l'état aurait classé **87 devis français (21 %) en « Maurice »**
+  // et supprimé leur analyse de prix. Après correctif : **90 → 3 étrangers**,
+  // et plus aucun motif de devise ne se déclenche sur le stock.
   const country = detectQuoteCountry({
     entreprise: {
       iban: parsed.entreprise?.iban ?? null,
@@ -944,6 +956,7 @@ export async function extractDataFromDocumentV2(input: ExtractV2Input): Promise<
     totaux: {
       taux_tva: parsed.totaux?.taux_tva ?? null,
     },
+    travaux: Array.isArray(parsed.travaux) ? parsed.travaux : [],
   });
 
   // 10. Construction ExtractedData (legacy compat conclusion.ts)

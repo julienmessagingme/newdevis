@@ -82,7 +82,21 @@ const CURRENCY_KEYWORDS: Array<{ code: Exclude<CountryCode, "FR">; rx: RegExp }>
   { code: "TN", rx: /\b(dinars?\s+tunisiens?|tnd)\b/i },
   { code: "DZ", rx: /\b(dinars?\s+alg[ée]riens?|dzd)\b/i },
   { code: "MG", rx: /\b(ariary|mga)\b/i },
-  { code: "MU", rx: /\b(roupies?\s+mauriciennes?|mur)\b/i },
+  // 🔴 « MUR » EST LE CODE ISO DE LA ROUPIE MAURICIENNE — ET LE MOT LE PLUS
+  // COURANT D'UN DEVIS FRANÇAIS. Mesuré le 2026-09-26 sur 410 documents : en
+  // scannant les libellés des lignes, `\bmur\b` classait **87 devis français
+  // sur 410 (21 %)** en « Maurice », ce qui aurait déclenché le bypass étranger
+  // et supprimé toute l'analyse de prix. Le motif n'a jamais fait de dégât
+  // seulement parce que l'extracteur primaire ne lui passait pas les lignes —
+  // c'était une mine, pas une garde.
+  // ⚠️ NE JAMAIS REMETTRE UN CODE ISO DE TROIS LETTRES SEUL : il faut qu'il ne
+  // puisse pas être un mot français. `mur`, `mad`, `dh` sont dans ce cas.
+  { code: "MU", rx: /\broupies?\s+mauriciennes?\b/i },
+  // ⚠️ CELUI-CI EST VOLONTAIREMENT SENSIBLE À LA CASSE (pas de drapeau `i`) et
+  // exige un montant derrière : « MUR 12 500 » est une devise, « Mur 25 m² »
+  // est une cloison. Les deux formes vivent dans deux entrées séparées parce
+  // qu'une seule regex ne peut pas être à la fois sensible et insensible.
+  { code: "MU", rx: /\bMUR\b(?=\s*[\d.,])/ },
   { code: "CH", rx: /\bchf\b/i },
   { code: "GB", rx: /\bgbp\b|£/i },
 ];
