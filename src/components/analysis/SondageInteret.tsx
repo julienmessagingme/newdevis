@@ -73,7 +73,7 @@ interface Props {
  *
  * ⚠️ ET LA PHRASE SUIVANTE RESTE OBLIGATOIRE. « Partenaire » ne doit jamais
  * pouvoir se lire comme « on va vendre votre dossier » — c'est exactement ce
- * que la page d'accueil promet de ne pas faire (« sans revente de lead »).
+ * que la page d'accueil promet de ne pas faire (« nous ne vendons pas vos données »).
  * D'où l'ordre : d'abord l'intention, puis la garantie que rien ne part.
  *
  * Une seule constante partagée plutôt que deux formulations jumelles : elles

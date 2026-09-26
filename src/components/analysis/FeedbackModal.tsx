@@ -99,11 +99,39 @@ export interface UseFeedbackOptions {
  * qu'après un avis positif. C'est un échange délibéré et RÉVERSIBLE : remettre
  * `false` ci-dessous restaure l'ancien comportement à l'identique.
  *
- * ⚠️ Le seuil de 5 000 € HT est celui de l'ancien emplacement : en dessous, la
+ * ⚠️ Le seuil de 5 000 € HT était celui de l'ancien emplacement : en dessous, la
  * question de financement n'a pas de sens, et la satisfaction reprend la main.
+ *
+ * 🟢 2026-09-24 (décision Johan) — SEUIL ABAISSÉ À 3 000 € HT, ET LE GAIN EST
+ * PETIT : IL FAUT LE DIRE AVANT DE L'ESPÉRER.
+ *
+ * Mesuré sur les 103 analyses des 90 derniers jours qui portent un montant ET
+ * des leviers (les seules où la modale peut s'ouvrir) — médiane 8 772 € HT :
+ *
+ *     ≥ 5 000 € : 64 devis (62 %)
+ *     ≥ 3 000 € : 72 devis (70 %)   →   +8 devis sur 90 jours, soit +13 %
+ *
+ * Le rythme d'affichage RÉELLEMENT journalisé depuis le déménagement du 16/09
+ * est de 1,0 à 1,5/jour : l'échéance du 16/12 amènera donc de l'ordre de 100 à
+ * 150 observations, et ce seuil en ajoute une dizaine. Il ne rend pas le test
+ * puissant — il ne prétend pas l'être.
+ *
+ * 🔴 CE QUE ÇA CHANGE POUR LE VERDICT DU 16/12, ET C'EST LE VRAI SUJET. Le
+ * critère « 15 % de réponses » demanderait ~200 observations pour être mesuré à
+ * ±5 points : il ne sera PAS atteignable. Le critère qui le sera est celui que
+ * Johan avait posé d'origine (2026-08-29) : **aucun intérêt au bout de trois
+ * mois = piste abandonnée**. C'est un binaire, et 120 observations suffisent
+ * largement à le trancher (0 sur 120 borne l'appétence à moins de 2,5 %).
+ * État au 24/09 : 44 affichages, 1 réponse, et **zéro « je cherche une
+ * solution »**.
+ *
+ * ⚠️ NE PAS descendre plus bas pour « avoir du volume ». Les deux devis du
+ * 23/09 qui manquent le seuil sont à 2 400 € et 2 417 € : sous 3 000 €, on
+ * poserait une question de financement sur des chantiers qu'on paie
+ * comptant — on mesurerait notre propre insistance, pas un besoin.
  */
 const REMPLACEMENT_CREDIT = true;
-const CREDIT_MONTANT_MIN_HT = 5000;
+const CREDIT_MONTANT_MIN_HT = 3000;
 
 // ─── Tracking helper ──────────────────────────────────────────────────────────
 
@@ -536,7 +564,7 @@ function StepCredit({
           DEUX PHRASES EST LA GARDE : l'intention d'abord, la garantie ensuite.
           Inversées, « partenaires » resterait seul en tête et se lirait comme
           une revente de dossier — ce que la page d'accueil promet de ne pas
-          faire (« sans revente de lead »). */}
+          faire (« nous ne vendons pas vos données »). */}
       <p className="mt-4 text-[12.5px] text-slate-600 leading-relaxed">
         <span className="font-semibold text-slate-800">Pourquoi cette question&nbsp;?</span>{" "}
         Nous cherchons à estimer si le financement est un frein réel sur des chantiers de ce

@@ -36,6 +36,9 @@ export interface InterestTestKpi {
   clics: number;
   clics_hors_periode: number;
   reponses: { interesse: number; deja_equipe: number; non: number };
+  /** Réponses venues de la page de remerciement de l'e-mail J+15 — affichées,
+   *  jamais comptées dans le taux (elles n'ont pas de dénominateur). */
+  reponses_relance?: { total: number; interesse: number; deja_equipe: number; non: number };
   eligibles: number;
   affichages: number;
   affichages_hors_periode: number;
@@ -132,6 +135,22 @@ function TestCard({ k }: { k: InterestTestKpi }) {
         </div>
 
         <p className={`mt-4 text-sm font-medium ${verdict.cls}`}>{verdict.label}</p>
+
+        {/* 2026-09-24 — HORS DÉCISION, PAS HORS MÉMOIRE. La question est aussi
+            posée sur la page de remerciement de l'e-mail J+15. Ces réponses
+            n'ont pas de dénominateur (les affichages journalisés ne comptent
+            que la modale), donc elles ne peuvent pas entrer dans le taux — les
+            y mettre le ferait monter sans qu'une personne de plus ait vu la
+            question. Elles sont affichées à part parce qu'elles restent des
+            avis réels, et de la population la plus engagée du corpus. */}
+        {(k.reponses_relance?.total ?? 0) > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            + {k.reponses_relance!.total} réponse{k.reponses_relance!.total > 1 ? "s" : ""} via l'e-mail J+15
+            {" "}({k.reponses_relance!.interesse} intéressé{k.reponses_relance!.interesse > 1 ? "s" : ""} ·{" "}
+            {k.reponses_relance!.deja_equipe} déjà financé · {k.reponses_relance!.non} sans emprunt) —
+            hors du taux, faute de dénominateur comparable.
+          </p>
+        )}
 
         {k.derniers_clics.length > 0 && (
           <div className="mt-4 border-t pt-3">

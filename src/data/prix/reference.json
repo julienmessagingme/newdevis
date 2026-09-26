@@ -1,13 +1,13 @@
 {
-  "genereLe": "2026-09-25T16:33:54.906Z",
+  "genereLe": "2026-09-26T08:05:19.207Z",
   "source": "market_prices",
   "tva": "HT",
   "catalogueTaille": 926,
-  "analysesTotal": 409,
-  "montantAnalyseEuros": 6893862,
-  "ecartMedianEuros": 1340,
+  "analysesTotal": 410,
+  "montantAnalyseEuros": 6897362,
+  "ecartMedianEuros": 1536,
   "partDeconseillesPct": 24,
-  "decisionsRendues": 212,
+  "decisionsRendues": 213,
   "postes": {
     "peinture_murs_plafonds": {
       "libelle": "Peinture murs et plafonds",

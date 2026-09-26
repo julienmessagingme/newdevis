@@ -59,7 +59,44 @@ const TESTS = {
   },
 } as const;
 const TEST_DAYS = 90;
-const CREDIT_MIN_HT = 5000;
+
+/**
+ * 🔴 2026-09-24 — LE SEUIL DE MONTANT EST DATÉ, COMME `mesureDepuis`.
+ *
+ * Il est passé de 5 000 à 3 000 € HT le 24/09. Le garder en constante unique
+ * ferait compter comme « éligibles » des devis de 3 000-5 000 € déposés AVANT
+ * ce jour-là — à qui la question n'a jamais été posée. Le dénominateur
+ * grossirait rétroactivement et `taux_clic` baisserait sans qu'aucune personne
+ * réelle ait été ajoutée.
+ *
+ * C'est exactement la doctrine de `mesureDepuis` appliquée au seuil : un
+ * compteur ne mélange pas deux régimes. ⚠️ En ajouter un nouveau ici se fait en
+ * APPENDANT une ligne, jamais en modifiant la dernière.
+ */
+const CREDIT_SEUILS = [
+  { depuis: "1970-01-01T00:00:00.000Z", minHt: 5000 },
+  { depuis: "2026-09-24T00:00:00.000Z", minHt: 3000 },
+] as const;
+
+function seuilCreditAu(isoCreation: string): number {
+  let seuil: number = CREDIT_SEUILS[0].minHt;
+  for (const s of CREDIT_SEUILS) if (isoCreation >= s.depuis) seuil = s.minHt;
+  return seuil;
+}
+
+/**
+ * 🔴 2026-09-24 — SEULE LA MODALE DÉCIDE.
+ *
+ * La question de financement est aussi posée sur la page de remerciement de
+ * l'e-mail J+15 (`source = 'relance_j15'`). Ces réponses sont PRÉCIEUSES mais
+ * elles n'ont pas de dénominateur : les affichages journalisés
+ * (`sondage_credit_vu`) ne comptent que la modale. Les inclure ferait monter le
+ * taux sans qu'une personne de plus ait vu la question — et dans le sens
+ * flatteur, celui qui fait garder une piste morte.
+ *
+ * Elles sont donc comptées À PART (`reponses_relance`), jamais dans `clics`.
+ */
+const SOURCE_DECISIVE = "analyse";
 
 type Topic = keyof typeof TESTS;
 
@@ -79,7 +116,7 @@ export const GET: APIRoute = async ({ request }) => {
   const oldestStart = TESTS.dommages_ouvrage.start;
 
   const [clicksRes, analysesRes] = await Promise.all([
-    supabase.from("lead_interest").select("topic, analysis_id, user_id, montant_ht, reponse, created_at").order("created_at", { ascending: false }),
+    supabase.from("lead_interest").select("topic, analysis_id, user_id, montant_ht, reponse, source, created_at").order("created_at", { ascending: false }),
     supabase
       .from("analyses")
       .select("id, created_at, user_id, conclusion_ia, raw_text")
@@ -122,7 +159,7 @@ export const GET: APIRoute = async ({ request }) => {
         const raw = typeof a.raw_text === "string" ? JSON.parse(a.raw_text) : a.raw_text;
         ht = Number(raw?.extracted?.totaux?.ht ?? raw?.extracted_data?.totaux?.ht ?? 0);
       } catch { /* montant inconnu → non éligible */ }
-      if (ht >= CREDIT_MIN_HT) {
+      if (ht >= seuilCreditAu(String(a.created_at))) {
         eligibles.credit++;
         if (a.user_id) exposes.credit.add(a.user_id);
       }
@@ -156,7 +193,11 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   const tests = (Object.keys(TESTS) as Topic[]).map((topic) => {
-    const toutes = clicks.filter((c) => c.topic === topic);
+    // ⚠️ `source` est NULL sur rien aujourd'hui (colonne NOT NULL DEFAULT
+    // 'analyse', 2026-09-24) — le `?? SOURCE_DECISIVE` protège seulement d'un
+    // cache de schéma périmé, il ne doit pas devenir un fourre-tout.
+    const toutes = clicks.filter((c) => c.topic === topic && (c.source ?? SOURCE_DECISIVE) === SOURCE_DECISIVE);
+    const relance = clicks.filter((c) => c.topic === topic && c.source === "relance_j15");
     // ⚠️ Le NUMÉRATEUR est borné comme le DÉNOMINATEUR — sinon le taux
     // rapporterait des réponses de l'ancien emplacement aux affichages du
     // nouveau, et il serait faux dans le sens flatteur.
@@ -186,6 +227,15 @@ export const GET: APIRoute = async ({ request }) => {
       clics: mine.length,
       clics_hors_periode: toutes.length - mine.length,
       reponses,
+      // Hors décision ne veut pas dire hors mémoire : les réponses venues de la
+      // page de remerciement de l'e-mail J+15 sont affichées, jamais comptées
+      // dans le taux (elles n'ont pas de dénominateur).
+      reponses_relance: {
+        total: relance.length,
+        interesse: relance.filter((c) => c.reponse === "interesse").length,
+        deja_equipe: relance.filter((c) => c.reponse === "deja_equipe").length,
+        non: relance.filter((c) => c.reponse === "non").length,
+      },
       eligibles: eligibles[topic],
       affichages: affichages[topic],
       affichages_hors_periode: affichagesAvant[topic],

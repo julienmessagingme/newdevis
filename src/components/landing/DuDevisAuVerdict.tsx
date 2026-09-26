@@ -47,7 +47,7 @@ import { poste, CATALOGUE_TAILLE, ANALYSES_TOTAL } from "@/lib/prix/reference";
  * ⚠️ TOUT CE QUI DESCEND DOIT ATTERRIR, SINON C'EST UNE PERTE. Trois éléments
  * n'ont pas d'équivalent dans la carte et vivent désormais dans `preuves` :
  * le compteur d'analyses, la relecture humaine, et surtout la signature « sans
- * commission / sans revente de lead » — documentée le 07/09 comme la seule
+ * commission / nous ne vendons pas vos données » — documentée le 07/09 comme la seule
  * promesse qu'un comparateur ne peut pas copier. **Ne jamais la laisser
  * disparaître d'une refonte.**
  */
@@ -73,7 +73,13 @@ const etapes = [
 const preuves = [
   { fort: `${ANALYSES_TOTAL.toLocaleString("fr-FR")} devis analysés`, suite: "" },
   { fort: "Relu par un expert", suite: "— tant qu'il n'a pas tranché, aucun montant n'est affiché" },
-  { fort: "Sans commission d'artisan. Sans revente de lead.", suite: "" },
+  // ⚠️ « Sans revente de lead » (07/09) est devenu « nous ne vendons pas vos
+  // données » le 26/09, retour Johan : « c'est plus français et plus clair ».
+  // « Lead » est un mot de notre métier, pas de celui du lecteur — et c'est
+  // précisément la promesse qu'il doit comprendre du premier coup, puisqu'elle
+  // est la seule qu'un comparateur ne puisse pas copier. La PORTÉE est
+  // inchangée : aucun lead n'est transmis à un tiers.
+  { fort: "Sans commission d'artisan. Nous ne vendons pas vos données.", suite: "" },
 ];
 
 const carrelage = poste("carrelage_fourni_pose");
