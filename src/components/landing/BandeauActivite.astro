@@ -55,14 +55,20 @@ const CHIFFRES = [
   // compréhensible »). On dit ce que le chiffre VAUT POUR LE LECTEUR : ce
   // qu'il peut aller négocier.
   //
-  // ⚠️ MAIS PAS « EN MOYENNE », ET C'EST MESURÉ. Sur les 38 devis qui affichent
-  // un montant : médiane 1 536 €, **moyenne 2 295 €** — 1,49×, tirée par un
-  // seul devis à 12 300 €. Écrire « en moyenne » sur la médiane serait faux ;
-  // publier la vraie moyenne mettrait 24 lecteurs sur 38 en dessous de ce qu'on
-  // leur promet. On retire donc le mot statistique sans lui en substituer un
-  // autre — la valeur reste la médiane, la phrase n'affirme rien de plus que ce
-  // qu'elle est.
-  { valeur: nb(ECART_MEDIAN_EUROS), unite: ' €', libelle: 'à négocier avec votre artisan, quand nous trouvons un écart' },
+  // ⚠️ « EN MOYENNE » EST ICI AU SENS COURANT (« généralement »), ET LA VALEUR
+  // RESTE LA MÉDIANE — décision Johan du 26/09, après que j'ai signalé l'écart.
+  // Mesuré sur les 38 devis qui affichent un montant : médiane **1 536 €**,
+  // moyenne arithmétique **2 295 €** (1,49×, tirée par UN seul devis à
+  // 12 300 €).
+  //
+  // 🔴 NE PAS « CORRIGER » EN PUBLIANT LA VRAIE MOYENNE : elle mettrait
+  // 24 lecteurs sur 38 en dessous de ce qu'on leur annonce. La médiane
+  // représente mieux le cas typique — c'est précisément ce que le lecteur
+  // comprend par « en moyenne ».
+  //
+  // ⚠️ Et ne pas remettre le mot « médian » : il a été retiré parce qu'il
+  // n'était pas compris (« ce n'est pas compréhensible »).
+  { valeur: nb(ECART_MEDIAN_EUROS), unite: ' €', libelle: 'en moyenne à négocier avec votre artisan, quand nous trouvons un écart' },
   { valeur: String(PART_DECONSEILLES_PCT), unite: ' %', libelle: 'de devis que nous déconseillons de signer en l’état' },
 ];
 ---
