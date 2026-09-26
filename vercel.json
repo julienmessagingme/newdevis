@@ -36,6 +36,11 @@
       "permanent": true
     },
     {
+      "source": "/verifier-devis-plomberie",
+      "destination": "/verifier-devis-travaux",
+      "permanent": true
+    },
+    {
       "source": "/comment-lire-un-devis",
       "destination": "/guides/devis-travaux",
       "permanent": true

@@ -544,18 +544,23 @@ const jsonLd = [
                   <p class="text-xs text-slate-600 mt-0.5">Méthode 7 critères + analyse IA gratuite</p>
                 </div>
               </a>
-              <a href="/verifier-devis-plomberie" class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
+              {/* 🔴 CES DEUX CARTES POINTAIENT DANS LE VIDE (mesuré le 26/09) :
+                  « Vérifier un devis plomberie » → /verifier-devis-plomberie, **404**
+                  « Vérifier un devis rénovation » → /verifier-devis-renovation,
+                  **301 qui ramène ICI**. La seconde est donc supprimée : un lien
+                  qui renvoie à la page qu'on lit n'apporte rien au lecteur, et
+                  une redirection interne coûte un saut de crawl pour rien.
+                  La grille passe de 5 à 4 cartes — 2×2, plus propre.
+                  ⚠️ La redirection 301 de /verifier-devis-plomberie est quand même
+                  ajoutée dans vercel.json : Google connaît déjà cette URL, cesser
+                  de la lier ne suffit pas à réparer ce qu'il a indexé. */}
+              <a href="/observatoire/metiers/plomberie-sanitaires" class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
                 <span class="text-2xl leading-none mt-0.5">🚿</span>
                 <div>
-                  <p class="font-semibold text-slate-800 text-sm leading-snug">Vérifier un devis plomberie</p>
-                  <p class="text-xs text-slate-600 mt-0.5">Prix au poste, signaux d'alerte spécifiques</p>
-                </div>
-              </a>
-              <a href="/verifier-devis-renovation" class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
-                <span class="text-2xl leading-none mt-0.5">🏠</span>
-                <div>
-                  <p class="font-semibold text-slate-800 text-sm leading-snug">Vérifier un devis rénovation</p>
-                  <p class="text-xs text-slate-600 mt-0.5">Rénovation complète, partielle ou énergétique</p>
+                  {/* Le libellé dit ce que la page DONNE, pas ce qu'on aimerait
+                      promettre : c'est une page de PRIX, pas de vérification. */}
+                  <p class="font-semibold text-slate-800 text-sm leading-snug">Prix plomberie : les fourchettes réelles</p>
+                  <p class="text-xs text-slate-600 mt-0.5">Poste par poste, mesuré sur nos devis analysés</p>
                 </div>
               </a>
             </div>
@@ -567,7 +572,7 @@ const jsonLd = [
                 <strong>devis de carrelage est trop cher</strong>, ou à comprendre comment
                 <strong>lire un devis d'artisan poste par poste</strong> ?
                 Notre outil analyse tous types de devis travaux : isolation, toiture, électricité, peinture, extension.
-                Consultez aussi notre guide <a href="/comment-lire-un-devis" class="text-indigo-600 font-medium hover:underline">comment lire un devis d'artisan</a> pour décrypter chaque ligne avant de signer.
+                Consultez aussi notre guide <a href="/guides/devis-travaux" class="text-indigo-600 font-medium hover:underline">comment lire un devis d'artisan</a> pour décrypter chaque ligne avant de signer.
               </p>
             </div>
             <!-- Articles blog -->

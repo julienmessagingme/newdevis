@@ -125,14 +125,37 @@ export function controleArithmetique(
     }
   }
 
+  // 🔴 CE SEAU EST DOMINÉ PAR NOTRE PROPRE EXTRACTION, PAS PAR DES DEVIS FAUX —
+  // et c'est mesuré (410 documents dédupliqués, 2026-09-26) : 85 des 345 devis
+  // testables tombent ici, avec un ratio Σ/HT à **Q1 0,91 · médiane 1,03 ·
+  // Q3 1,14**. La plupart sont à quelques pourcents de 1 — une ligne ratée à la
+  // lecture, une remise, un arrondi. Aux extrêmes, la cause est indiscutablement
+  // la nôtre : 13 lignes sommant 607 € contre 13 999 € de HT (lignes non
+  // extraites), 8 lignes sommant 13 350 € contre 1 818 € (sous-lignes comptées
+  // deux fois).
+  //
+  // ⚠️ DONC ON NE DONNE PAS DE PERMISSION DE SIGNALER ICI. Une première version
+  // disait « Tu PEUX signaler ce point » : elle invitait à présenter un défaut
+  // de NOTRE lecture comme une incohésence du devis, sur un quart des devis.
+  // C'est exactement le tort qu'on venait de réparer, déplacé d'un cran.
+  //
+  // 🟢 LA SORTIE EST LA VÉRIFICATION À LA SOURCE, ET ELLE EST POSSIBLE : le
+  // relecteur a le PDF, nous ne l'avons pas. Lui seul peut trancher entre « le
+  // devis ne tombe pas juste » et « nous avons mal lu ses lignes ». La consigne
+  // exige donc de recompter DANS le document, et interdit d'accuser autrement.
   const ecart = somme - ht;
   return {
     verdict: "ecart_reel", sommeLignes: somme, ht, tauxDeduitPct: null,
     phrase:
-      `La somme des lignes (${eur(somme)} €) ne correspond ni au sous-total HT ` +
-      `(${eur(ht)} €), ni à ce HT majoré d'un taux de TVA usuel (5,5 · 10 · 20 %). ` +
-      `Écart : ${eur(ecart)} €. Tu PEUX signaler ce point — cite les deux montants, ` +
-      "et demande la clarification plutôt que d'affirmer un total de remplacement.",
+      `La somme des lignes QUE NOUS AVONS EXTRAITES (${eur(somme)} €) ne correspond ` +
+      `ni au sous-total HT (${eur(ht)} €), ni à ce HT majoré d'un taux de TVA usuel ` +
+      `(5,5 · 10 · 20 %). Écart : ${eur(ecart)} €. ` +
+      "⚠️ LA CAUSE LA PLUS FRÉQUENTE EST NOTRE EXTRACTION, PAS LE DEVIS : lignes " +
+      "manquantes, sous-totaux de section comptés en double, remise non reprise. " +
+      "N'annonce AUCUNE erreur de calcul sur cette seule base. Tu ne peux signaler " +
+      "ce point QUE si tu as recompté toi-même les lignes DANS LE PDF et que le " +
+      "document lui-même ne tombe pas juste — auquel cas cite les montants du PDF, " +
+      "et demande une clarification plutôt que d'affirmer un total de remplacement.",
   };
 }
 

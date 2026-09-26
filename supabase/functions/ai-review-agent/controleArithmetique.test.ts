@@ -60,11 +60,25 @@ console.log("\n── Contrôle arithmétique du relecteur ──\n");
 }
 
 // 5. 🔴 TÉMOIN INVERSE — un VRAI écart doit rester signalable.
+//
+// ⚠️ L'ASSERTION A CHANGÉ LE 2026-09-26, PAS L'INTENTION. La première version
+// exigeait « tu PEUX signaler » — une permission inconditionnelle. Mesuré sur
+// 410 documents : 85 des 345 testables tombent dans ce seau, avec un ratio Σ/HT
+// à Q1 0,91 / médiane 1,03 / Q3 1,14 — donc dominé par NOTRE extraction (lignes
+// ratées, sous-totaux comptés deux fois), pas par des devis faux. La permission
+// invitait à présenter notre défaut de lecture comme une incohérence du devis.
+//
+// Le chemin de signalement EXISTE toujours — c'est ce que ce témoin protège —
+// mais il passe par une vérification dans le PDF, que seul le relecteur peut
+// faire. Sans ce témoin, « ne jamais rien dire » passerait le test principal.
 {
   const r = controleArithmetique([{ montant: 8000 }, { montant: 1000 }], { ht: 10000, tva: 1000, ttc: 11000 });
   check("écart réel → signalable", r.verdict === "ecart_reel", r.verdict);
-  check("  la phrase AUTORISE le signalement", /tu PEUX signaler/i.test(r.phrase));
+  check("  un chemin de signalement subsiste", /tu ne peux signaler ce point QUE si/i.test(r.phrase));
+  check("  conditionné à un recomptage DANS le PDF", /recompté toi-même les lignes DANS LE PDF/i.test(r.phrase));
+  check("  et la cause la plus fréquente est nommée", /notre extraction, pas le devis/i.test(r.phrase));
   check("  mais interdit d'affirmer un total de remplacement", /plutôt que d'affirmer un total/i.test(r.phrase));
+  check("  et interdit d'accuser sur la seule somme", /n'annonce AUCUNE erreur de calcul sur cette seule base/i.test(r.phrase));
 }
 
 // 6. Données absentes : on ne se prononce pas — et on le DIT.
