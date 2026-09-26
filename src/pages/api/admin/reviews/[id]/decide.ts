@@ -4,6 +4,7 @@ import type { APIRoute } from "astro";
 import { optionsResponse, jsonOk, jsonError, requireAuth } from "@/lib/api/apiHelpers";
 import { deriveMotifHero } from "@/lib/analyse/motifHero";
 import { verdictContreditLeMessage } from "@/lib/analyse/refusExplicite";
+import { invaliderRapprochements } from "@/lib/analyse/invalidationRapprochement";
 import {
   sendReviewNotificationEmail,
   journaliserNotificationRevue,
@@ -111,7 +112,12 @@ export const POST: APIRoute = async ({ request, params }) => {
   // Fetch l'analyse actuelle (snapshot)
   const { data: analysis, error: fetchErr } = await supabase
     .from("analyses")
-    .select("id, conclusion_ia, review_status, file_name, user_id")
+    // ⚠️ `raw_text` est nécessaire pour invalider un rapprochement : les
+    // fourchettes affichées poste par poste vivent dans `n8n_price_data`, pas
+    // dans `conclusion_ia`. Sans lui, l'expert peut annuler un MONTANT mais pas
+    // la CARTE qui le porte — c'est exactement le trou constaté sur le devis
+    // « noreco peinture2 » le 2026-09-26.
+    .select("id, conclusion_ia, raw_text, review_status, file_name, user_id")
     .eq("id", id)
     .single();
   if (fetchErr || !analysis) return jsonError("Analyse introuvable", 404);
@@ -151,6 +157,28 @@ export const POST: APIRoute = async ({ request, params }) => {
   let correctedSurcoutMin: number | null = null;
   let correctedSurcoutMax: number | null = null;
   let correctedAnomalies: any[] | null = null;
+  // `null` tant qu'aucun rapprochement n'est invalidé : on ne réécrit jamais
+  // `raw_text` sans raison — c'est la donnée d'extraction d'origine.
+  let rawTextToPersist: string | null = null;
+  let rapprochementsDemandes = 0;
+  let rapprochementsInvalides = 0;
+
+  // ⚠️ INVALIDER UN RAPPROCHEMENT N'EST POSSIBLE QUE SOUS « corrected », ET CE
+  // N'EST PAS UNE COQUETTERIE DE VOCABULAIRE. Seul ce statut protège l'écriture
+  // (filet du 04/09 : une conclusion `corrected` n'est jamais régénérée). Sous
+  // « rejected », l'analyse repasse en `auto_approved` et le prochain bump
+  // d'`ENGINE_VERSION` effacerait l'invalidation en silence.
+  if (
+    Array.isArray(body.rapprochements_invalides) &&
+    body.rapprochements_invalides.length > 0 &&
+    action !== "corrected"
+  ) {
+    return jsonError(
+      "Invalider un rapprochement est une correction de contenu : utilisez l'action « corrected ». " +
+        "Sous « validated » ou « rejected », l'invalidation serait perdue à la prochaine régénération.",
+      400,
+    );
+  }
 
   if (action === "corrected") {
     correctedVerdictGlobal =
@@ -191,6 +219,57 @@ export const POST: APIRoute = async ({ request, params }) => {
     // sans plus aucun argument à l'appui (retour Johan sur le devis 25030).
     if (typeof body.expert_message === "string" && body.expert_message.trim()) {
       conclusionToPersist.expert_message = body.expert_message.trim();
+    }
+
+    // ── 🔴 L'EXPERT PEUT INVALIDER UN RAPPROCHEMENT (2026-09-26) ────────────
+    //
+    // Jusqu'ici cette route n'écrivait QUE `conclusion_ia`. Un expert pouvait
+    // donc ramener un surcoût à zéro sans que la CARTE qui le portait change :
+    // la fourchette catalogue restait affichée, avec son badge.
+    //
+    // 🔴 ET LE DÉFAUT NE VA PAS QUE DANS LE SENS DE L'ACCUSATION. Mesuré sur
+    // le devis « noreco peinture2 » (peinture, 9 pièces) : quatre noms de
+    // pièces avaient été rapprochés d'un miroir, d'une cuisine, d'une douche et
+    // d'un WC — tarifs À L'UNITÉ multipliés par une quantité en m². La page
+    // affichait « salon 2 800 € · marché 10 500–42 000 € » en VERT. Un
+    // rapprochement faux ne produit pas seulement de fausses accusations : il
+    // fabrique de la réassurance.
+    //
+    // ⚠️ ON IDENTIFIE PAR INDICE, JAMAIS PAR LIBELLÉ. Plusieurs groupes d'un
+    // même devis portent le même intitulé (règle du 17/09) — un rapprochement
+    // par libellé y désignerait le mauvais poste, en silence.
+    if (Array.isArray(body.rapprochements_invalides) && body.rapprochements_invalides.length) {
+      let raw: any = null;
+      try {
+        raw = typeof analysis.raw_text === "string" ? JSON.parse(analysis.raw_text) : null;
+      } catch {
+        raw = null;
+      }
+      if (!raw || !Array.isArray(raw.n8n_price_data)) {
+        return jsonError("raw_text illisible : impossible d'invalider un rapprochement", 500);
+      }
+
+      // ⚠️ LA RÈGLE VIT DANS `invalidationRapprochement.ts`, ET ELLE Y EST
+      // TESTÉE. La recopier ici ferait diverger le comportement du premier
+      // ajustement — c'est ce que ce dépôt a déjà payé plusieurs fois.
+      const resultat = invaliderRapprochements(raw.n8n_price_data, body.rapprochements_invalides);
+
+      if (resultat.indicesInvalides.length > 0) {
+        return jsonError(
+          `rapprochements_invalides : indice hors des groupes de ce devis (${resultat.indicesInvalides.join(", ")})`,
+          400,
+        );
+      }
+
+      if (resultat.invalides.length) {
+        raw.n8n_price_data = resultat.groupes;
+        rawTextToPersist = JSON.stringify(raw);
+        // Trace durable, dans la conclusion que la machine ne réécrira plus
+        // (filet du 04/09 : une conclusion `corrected` n'est jamais régénérée).
+        conclusionToPersist.rapprochements_invalides_par_expert = resultat.invalides;
+      }
+      rapprochementsDemandes = resultat.demandes;
+      rapprochementsInvalides = resultat.invalides.length;
     }
 
     // ── 🔴 LE MESSAGE ET LE VERDICT NE PEUVENT PAS SE CONTREDIRE ───────────
@@ -364,6 +443,10 @@ export const POST: APIRoute = async ({ request, params }) => {
   if (action === "corrected") {
     updatePayload.conclusion_ia = JSON.stringify(conclusionToPersist);
   }
+  // Écrit UNIQUEMENT si au moins un rapprochement a réellement été invalidé.
+  if (rawTextToPersist) {
+    updatePayload.raw_text = rawTextToPersist;
+  }
 
   const { error: updateErr } = await supabase
     .from("analyses")
@@ -463,6 +546,13 @@ export const POST: APIRoute = async ({ request, params }) => {
     // L'écran de revue l'affiche : sans cette information, on ne sait pas si
     // l'utilisateur a réellement été prévenu.
     notification,
+    // ⚠️ DEUX COMPTES, PAS UN. Un groupe déjà sans tarif est ignoré : si l'on
+    // ne renvoyait que le nombre invalidé, une demande partiellement sans effet
+    // passerait pour un succès complet.
+    rapprochements: {
+      demandes: rapprochementsDemandes,
+      invalides: rapprochementsInvalides,
+    },
   });
 };
 

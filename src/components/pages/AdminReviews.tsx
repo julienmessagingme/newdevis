@@ -207,6 +207,37 @@ function ReviewDetail({
   const [keptAnomalies, setKeptAnomalies] = useState<boolean[]>(() => anomalies.map(() => true));
 
   /**
+   * 🔴 2026-09-26 — L'expert pouvait annuler un MONTANT, jamais la CARTE qui le
+   * portait. Sur le devis « noreco peinture2 » (peinture, 9 pièces), quatre noms
+   * de pièces avaient été rapprochés d'un miroir, d'une cuisine, d'une douche et
+   * d'un WC : tarifs à l'unité multipliés par une quantité en m², donc la page
+   * affichait « salon 2 800 € · marché 10 500–42 000 € » en VERT.
+   *
+   * ⚠️ UN RAPPROCHEMENT FAUX NE FAIT PAS QU'ACCUSER À TORT, IL ABSOUT À TORT.
+   * C'est pourquoi la liste montre TOUS les postes rapprochés, pas seulement
+   * ceux qui portent une anomalie.
+   *
+   * ⚠️ On conserve l'INDICE d'origine dans `n8n_price_data` : plusieurs groupes
+   * d'un même devis portent le même libellé, un rapprochement par intitulé y
+   * désignerait le mauvais poste en silence (règle du 17/09).
+   */
+  const rapprochements: Array<{ idx: number; ligne: string; label: string; montant: number }> =
+    (Array.isArray(detail.raw?.n8n_price_data) ? detail.raw.n8n_price_data : [])
+      .map((g: any, idx: number) => ({ g, idx }))
+      .filter(({ g }: any) => Array.isArray(g?.prices) && g.prices.length > 0)
+      .map(({ g, idx }: any) => ({
+        idx,
+        ligne: String(g.devis_lines?.[0]?.description ?? "(ligne sans libellé)"),
+        label: String(g.job_type_label ?? g.prices?.[0]?.label ?? "—"),
+        montant: Number(g.devis_total_ht) || 0,
+      }));
+
+  const [keptRapprochements, setKeptRapprochements] = useState<Record<number, boolean>>({});
+  const rapprochementInvalide = (idx: number) => keptRapprochements[idx] === false;
+  const toggleRapprochement = (idx: number) =>
+    setKeptRapprochements((prev) => ({ ...prev, [idx]: prev[idx] === false }));
+
+  /**
    * 🔴 2026-09-17 — « je ne veux pas que les mails repartent chez les clients ».
    * La file contient 65 devis d'avril à juillet que NOTRE passe de régénération
    * du 15/09 y a remis — leurs utilisateurs n'attendent rien.
@@ -254,6 +285,10 @@ function ReviewDetail({
         if (keptAnomalies.some((k) => !k)) {
           body.corrected_anomalies = anomalies.filter((_, i) => keptAnomalies[i]);
         }
+        // N'envoyer que si l'expert a réellement décoché : un tableau vide
+        // déclencherait une écriture de `raw_text` sans objet.
+        const invalides = rapprochements.filter((r) => rapprochementInvalide(r.idx)).map((r) => r.idx);
+        if (invalides.length) body.rapprochements_invalides = invalides;
       }
 
       const res = await fetch(`/api/admin/reviews/${detail.analysis.id}/decide`, {
@@ -281,10 +316,21 @@ function ReviewDetail({
       // avec « rien ne s'est passé ».
       const json = await res.json().catch(() => null);
       const notif = json?.data?.notification ?? json?.notification;
+
+      // ⚠️ UN COMPTE DEMANDÉ QUI DIFFÈRE DU COMPTE RÉALISÉ DOIT SE VOIR. Un
+      // groupe déjà sans tarif est ignoré côté serveur : sans ce rappel, une
+      // demande partiellement sans effet passerait pour un succès complet.
+      const rap = json?.data?.rapprochements ?? json?.rapprochements;
+      const suffixeRap =
+        rap && rap.demandes > 0
+          ? ` · ${rap.invalides}/${rap.demandes} rapprochement(s) invalidé(s)` +
+            (rap.invalides < rap.demandes ? " — les autres ne portaient déjà aucun tarif" : "")
+          : "";
+
       onActionComplete(
         notif
-          ? { ok: Boolean(notif.ok), raison: String(notif.raison ?? "") }
-          : { ok: false, raison: "l'API n'a rien répondu sur la notification" },
+          ? { ok: Boolean(notif.ok), raison: String(notif.raison ?? "") + suffixeRap }
+          : { ok: false, raison: "l'API n'a rien répondu sur la notification" + suffixeRap },
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur réseau");
@@ -442,6 +488,56 @@ function ReviewDetail({
                   {a.explication && (
                     <p className="text-muted-foreground italic mt-1">{a.explication}</p>
                   )}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
+        {/* 🔴 LES POSTES RAPPROCHÉS — invalidables depuis le 2026-09-26.
+            Ils sont listés MÊME sans anomalie : un faux rapprochement absout
+            aussi souvent qu'il accuse, et c'est l'absolution que personne ne
+            vient signaler. */}
+        {rapprochements.length > 0 && (
+          <details className="mt-3 border rounded" open={mode === "correct"}>
+            <summary className="px-3 py-2 text-xs font-semibold cursor-pointer bg-slate-50">
+              Postes rapprochés d'un tarif ({rapprochements.length})
+            </summary>
+            <div className="px-3 py-2 space-y-2 text-xs">
+              {mode === "correct" && (
+                <p className="text-[11px] text-muted-foreground">
+                  Décochez les rapprochements que vous jugez faux : la carte du poste
+                  passera en « Non comparable » sur la page de l'utilisateur — plus de
+                  fourchette, plus de badge de prix. Les tarifs d'origine sont conservés
+                  en base, l'invalidation reste réversible.
+                </p>
+              )}
+              {rapprochements.map((r) => (
+                <div
+                  key={r.idx}
+                  className={`border-l-2 pl-2 ${
+                    rapprochementInvalide(r.idx) ? "border-gray-200 opacity-50" : "border-sky-300"
+                  }`}
+                >
+                  <p className="font-medium">
+                    {mode === "correct" && (
+                      <input
+                        type="checkbox"
+                        checked={!rapprochementInvalide(r.idx)}
+                        onChange={() => toggleRapprochement(r.idx)}
+                        className="mr-2 align-middle"
+                        aria-label={`Conserver le rapprochement de la ligne « ${r.ligne} »`}
+                      />
+                    )}
+                    {/* La LIGNE DU DEVIS d'abord — c'est ce que l'artisan a écrit.
+                        Notre étiquette catalogue n'est qu'une hypothèse, et la
+                        présenter en tête ferait juger notre vocabulaire plutôt
+                        que le rapprochement (règle du 10/09). */}
+                    « {r.ligne} »
+                  </p>
+                  <p className="text-muted-foreground">
+                    {Math.round(r.montant).toLocaleString("fr-FR")} € → rapproché de « {r.label} »
+                  </p>
                 </div>
               ))}
             </div>

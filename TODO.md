@@ -6,6 +6,27 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ---
 
+## 🔴 L'écran de revue ne couvre toujours pas ce que l'utilisateur LIT (2026-09-26)
+
+Suite directe de l'invalidation des rapprochements, livrée le même jour. Le formulaire « Corriger » écrit désormais `verdict_*`, `surcout_global`, `anomalies`, `expert_message` **et** `raw_text.n8n_price_data`. Il ne touche toujours pas aux **textes affichés**, qui restent ceux de la machine et peuvent contredire la correction.
+
+Mesuré sur le devis « noreco peinture2 » (corrigé en `signer` / surcoût 0 / 0 anomalie) — les quatre champs disaient l'inverse :
+
+| champ | ce qu'il affichait encore |
+|---|---|
+| `phrase_intro` | « ce devis est **à négocier** en raison de certains postes **surévalués** » |
+| `justifications` | cite « l'aménagement de la **cuisine**, la pose de **douche** et le **miroir** de salon » — sur un devis de peinture |
+| `actions_avant_signature` | « demandez une **révision du prix** pour le poste Peinture » — celui que l'expert venait de valider |
+| `verdict_reasons` | « surcoût **13 %** (~1,2 k€) », « 1 poste anormalement élevé » |
+
+⚠️ **Ce n'est pas une nouveauté** : la note de mémoire du 03/08 (cas ATEX) le documente déjà, et chaque cas se règle depuis par une chirurgie manuelle en base. Tant que l'écran ne les expose pas, **chaque correction d'expert laissera la page se contredire**.
+
+**À instruire** : exposer ces quatre champs en édition dans `AdminReviews`, ou — plus sûr — les faire **recomposer par le serveur** à partir du verdict corrigé, comme `resyncVerdictLigne` le fait déjà pour `verdict_ligne` depuis le 05/09. La seconde voie évite de demander à l'expert de rédiger quatre textes de plus.
+
+⚠️ **Et `market_context_note` est affiché** (`ConclusionIA.tsx`) : « Marché avec forte variation de prix — tolérance ajustée » décrit NOTRE mécanique et n'a aucun sens quand aucune référence n'est opposable. À neutraliser dans le même mouvement.
+
+---
+
 ## 🟡 Deux défauts trouvés en contrôlant le site après la refonte du hero (2026-09-25)
 
 Aucun des deux ne vient de ce chantier ; ils sont sortis du contrôle de non-régression et **ne sont pas mêlés à son commit** — un correctif de page sans rapport rendrait la révocation plus difficile.
