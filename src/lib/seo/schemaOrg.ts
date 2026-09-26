@@ -123,21 +123,22 @@ export function softwareApplicationSchema() {
       description: "Analyse gratuite, Pass Sérénité 4,99 €/mois",
     },
     // 2026-09-07 — note corrigée : ce helper annonçait « 4,7 sur 127 avis ».
-    // La source réelle est le profil Trustpilot public de verifiermondevis.fr,
-    // vérifié ce jour : **4,7 sur 24 avis**. Le 127 était faux ; la note, elle,
-    // était juste.
+    // La source réelle est le profil Trustpilot public de verifiermondevis.fr.
+    // Le 127 était faux ; la note, elle, était juste.
+    // 2026-09-26 — relevé sur le profil : **4,7 sur 25 avis** (24 au 07/09).
     //
-    // ⚠️ Ces deux valeurs sont RÉPÉTÉES dans six fichiers (BaseLayout, index,
-    // verifier/analyser/comparer-devis-travaux, logiciel-suivi-chantier). Elles
-    // doivent être reprises PARTOUT à chaque évolution du profil Trustpilot —
-    // sinon elles divergent, et un balisage qui ne correspond plus à la source
-    // devient un balisage faux. Cf. `TODO.md` : les centraliser.
+    // ⚠️ RIEN N'EST AUTOMATIQUE : aucun appel à l'API Trustpilot, aucun cron.
+    // Ces valeurs sont RÉPÉTÉES dans SIX balisages (ici, BaseLayout, index,
+    // verifier/analyser/comparer-devis-travaux) plus l'affichage du carrousel
+    // (`TrustpilotSection.tsx`). Elles doivent être reprises PARTOUT à chaque
+    // évolution du profil — sinon elles divergent, et un balisage qui ne
+    // correspond plus à la source devient un balisage faux. Cf. `TODO.md`.
     aggregateRating: {
       "@type": "AggregateRating",
       ratingValue: "4.7",
       bestRating: "5",
       worstRating: "1",
-      ratingCount: "24",
+      ratingCount: "25",
     },
   };
 }

@@ -6,24 +6,25 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ---
 
-## 🔴 L'écran de revue ne couvre toujours pas ce que l'utilisateur LIT (2026-09-26)
+## 🟡 La note Trustpilot ne se met pas à jour toute seule — 7 endroits à la main (2026-09-26)
 
-Suite directe de l'invalidation des rapprochements, livrée le même jour. Le formulaire « Corriger » écrit désormais `verdict_*`, `surcout_global`, `anomalies`, `expert_message` **et** `raw_text.n8n_price_data`. Il ne touche toujours pas aux **textes affichés**, qui restent ceux de la machine et peuvent contredire la correction.
+**Aucun avis Trustpilot n'arrive automatiquement sur le site** : il n'existe ni appel à l'API Trustpilot, ni cron. Constaté en répondant à Johan, qui venait d'en recevoir un nouveau. Tout est écrit à la main, à **sept endroits** qui doivent bouger ensemble :
 
-Mesuré sur le devis « noreco peinture2 » (corrigé en `signer` / surcoût 0 / 0 anomalie) — les quatre champs disaient l'inverse :
-
-| champ | ce qu'il affichait encore |
+| où | ce qui y est figé |
 |---|---|
-| `phrase_intro` | « ce devis est **à négocier** en raison de certains postes **surévalués** » |
-| `justifications` | cite « l'aménagement de la **cuisine**, la pose de **douche** et le **miroir** de salon » — sur un devis de peinture |
-| `actions_avant_signature` | « demandez une **révision du prix** pour le poste Peinture » — celui que l'expert venait de valider |
-| `verdict_reasons` | « surcoût **13 %** (~1,2 k€) », « 1 poste anormalement élevé » |
+| `TrustpilotSection.tsx` | la note affichée, le total « N avis vérifiés », **et les avis recopiés un par un** |
+| `BaseLayout.astro` | `ratingValue` · `ratingCount` · `reviewCount` — le balisage servi à Google sur **tout** le site |
+| `index.astro` | les mêmes valeurs, en double |
+| `seo/schemaOrg.ts` | idem (helper partagé) |
+| `analyser-` · `comparer-` · `verifier-devis-travaux.astro` | idem, **une copie par page** |
 
-⚠️ **Ce n'est pas une nouveauté** : la note de mémoire du 03/08 (cas ATEX) le documente déjà, et chaque cas se règle depuis par une chirurgie manuelle en base. Tant que l'écran ne les expose pas, **chaque correction d'expert laissera la page se contredire**.
+⚠️ **J'ai sous-compté en répondant à Johan** : j'avais annoncé quatre endroits après un `grep` sur quatre fichiers seulement. Le compte juste vient d'un `grep -rn "ratingCount\|reviewCount"` sur tout `src/` — **six balisages, plus l'affichage**. Chercher la valeur dans les fichiers qu'on soupçonne, c'est retrouver ce qu'on cherchait ; chercher la **forme** de l'affirmation, c'est trouver ce qu'on avait oublié (règle du 21/09).
 
-**À instruire** : exposer ces quatre champs en édition dans `AdminReviews`, ou — plus sûr — les faire **recomposer par le serveur** à partir du verdict corrigé, comme `resyncVerdictLigne` le fait déjà pour `verdict_ligne` depuis le 05/09. La seconde voie évite de demander à l'expert de rédiger quatre textes de plus.
+Mis à jour le 26/09 : **4,7 sur 25 avis** (24 au 07/09), et l'avis de Sophie BH ajouté au carrousel. ⚠️ Sa chute est **tronquée sur le profil** (« Merci a ce site de m'avoir peut-… ») : on s'arrête à la dernière phrase complète plutôt que de la reconstituer.
 
-⚠️ **Et `market_context_note` est affiché** (`ConclusionIA.tsx`) : « Marché avec forte variation de prix — tolérance ajustée » décrit NOTRE mécanique et n'a aucun sens quand aucune référence n'est opposable. À neutraliser dans le même mouvement.
+⚠️ **Ces chiffres ne s'inventent pas** : la page Trustpilot est derrière un anti-robot, donc la note et le total viennent de Johan ou d'une lecture manuelle du profil. Le précédent du 07/09 est explicite — j'avais conclu d'un **commentaire de code** que la note était inventée, et Johan a arrêté la suppression à temps. **Un commentaire n'est pas une source ; le profil public l'est.** Le commentaire fautif annonçait d'ailleurs « 8 avis » quand le carrousel en portait 23.
+
+**À instruire** : centraliser la note et le total dans une constante unique (comme `ANALYSES_TOTAL` / `CATALOGUE_TAILLE` le sont déjà dans `reference.json`), et décider si le carrousel se remplit à la main ou depuis l'API Trustpilot.
 
 ---
 

@@ -141,7 +141,8 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
         Ce bloc était codé en dur sur VerifierMonDevis.fr — nom, URL, logo,
         e-mail, `@id` ET la note Trustpilot — alors que `BaseLayout` sert LES
         DEUX domaines. Chaque page de gerermonchantier.fr déclarait donc
-        appartenir à VMD et portait ses 24 avis, qui ne la concernent pas.
+        appartenir à VMD et portait ses avis Trustpilot, qui ne la concernent
+        pas.
         Le hostname est déjà utilisé plus bas pour choisir le flux GA4 : on
         applique la même règle ici. */}
     <script type="application/ld+json" set:html={JSON.stringify(
@@ -193,16 +194,18 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
             "contactType": "customer service",
             "availableLanguage": "French",
           },
-          // Source : profil Trustpilot public de verifiermondevis.fr, vérifié
-          // le 2026-09-07 (4,7 sur 24 avis). Valeur également répétée dans
-          // cinq autres fichiers — cf. TODO.md, à centraliser.
+          // Source : profil Trustpilot public de verifiermondevis.fr, relevé
+          // le 2026-09-26 (4,7 sur **25** avis ; 24 au 07/09). Valeur répétée
+          // dans trois autres fichiers — `TrustpilotSection.tsx`,
+          // `index.astro`, `lib/seo/schemaOrg.ts` — qui doivent bouger avec
+          // elle. Rien n'est automatique : cf. TODO.md, à centraliser.
           "aggregateRating": {
             "@type": "AggregateRating",
             "ratingValue": "4.7",
             "bestRating": "5",
             "worstRating": "1",
-            "ratingCount": "24",
-            "reviewCount": "24",
+            "ratingCount": "25",
+            "reviewCount": "25",
           },
         };
       })(),

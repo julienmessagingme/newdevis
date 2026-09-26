@@ -101,10 +101,13 @@ const jsonLd = {
     "priceCurrency": "EUR",
     "description": "Analyse gratuite de devis artisan"
   },
+  // Profil Trustpilot public, relevé le 2026-09-26 (4,7 sur 25 avis).
+  // ⚠️ Doit rester aligné sur BaseLayout.astro, TrustpilotSection.tsx et
+  // lib/seo/schemaOrg.ts — rien n'est automatique.
   "aggregateRating": {
     "@type": "AggregateRating",
     "ratingValue": "4.7",
-    "reviewCount": "24",
+    "reviewCount": "25",
     "bestRating": "5",
     "worstRating": "1"
   },

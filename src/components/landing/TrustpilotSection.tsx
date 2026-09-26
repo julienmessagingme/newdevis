@@ -1,10 +1,18 @@
 /**
  * TrustpilotSection — Carrousel d'avis Trustpilot + CTA "Laisser un avis".
- * Avis hardcodés depuis la boîte de réception Trustpilot : 8 avis recopiés ici
- * pour le carrousel. ⚠️ Ce n'est PAS le total du profil — Trustpilot en compte
- * 24 (4,7/5, vérifié le 2026-09-07). Le commentaire précédent laissait croire
- * l'inverse et m'a fait conclure à tort que le balisage aggregateRating était
- * inventé.
+ *
+ * Avis RECOPIÉS À LA MAIN depuis le profil Trustpilot — aucun appel d'API,
+ * aucun cron : un nouvel avis n'arrive ici que si quelqu'un l'y met.
+ *
+ * ⚠️ LE NOMBRE D'AVIS DU CARROUSEL N'EST PAS LE TOTAL DU PROFIL. Le carrousel
+ * en porte 24 ; Trustpilot en compte **25** (4,7/5, relevé le 2026-09-26 sur
+ * le profil public). Le commentaire d'origine annonçait « 8 avis » — il était
+ * périmé et m'avait fait conclure à tort, le 07/09, que le balisage
+ * aggregateRating était inventé. **Un commentaire n'est pas une source.**
+ *
+ * ⚠️ LE TOTAL EST RÉPÉTÉ DANS 3 AUTRES FICHIERS et doit bouger avec celui-ci :
+ * `BaseLayout.astro`, `index.astro`, `lib/seo/schemaOrg.ts`. Centralisation au
+ * `TODO.md`.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Star, ExternalLink } from 'lucide-react';
@@ -12,6 +20,18 @@ import { ChevronLeft, ChevronRight, Star, ExternalLink } from 'lucide-react';
 // ── Données ────────────────────────────────────────────────────────────────────
 
 const REVIEWS = [
+  {
+    // ⚠️ Le texte d'origine est TRONQUÉ sur le profil (« Merci a ce site de
+    // m'avoir peut-… »). On s'arrête à la dernière phrase complète plutôt que
+    // de reconstituer la fin : un avis client ne s'invente pas, même sa chute.
+    id: 24,
+    author: 'Sophie BH',
+    initials: 'SB',
+    title: 'La boîte était en liquidation judiciaire',
+    body: "J'avais fait réaliser un devis pour faire réaliser de gros travaux de maçonnerie. J'ai découvert en vérifiant mon devis que la boite était en liquidation judiciaire !!!",
+    date: '26 septembre 2026',
+    stars: 5,
+  },
   {
     id: 1,
     author: 'Bertrand Loney',
@@ -363,7 +383,7 @@ export default function TrustpilotSection() {
               <span className="text-sm text-gray-500">·</span>
               <a href={TRUSTPILOT_PROFILE_URL} target="_blank" rel="noopener noreferrer"
                 className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors">
-                24 avis vérifiés
+                25 avis vérifiés
               </a>
             </div>
           </div>
