@@ -21,15 +21,12 @@ import { ChevronLeft, ChevronRight, Star, ExternalLink } from 'lucide-react';
 
 const REVIEWS = [
   {
-    // ⚠️ Le texte d'origine est TRONQUÉ sur le profil (« Merci a ce site de
-    // m'avoir peut-… »). On s'arrête à la dernière phrase complète plutôt que
-    // de reconstituer la fin : un avis client ne s'invente pas, même sa chute.
     id: 24,
     author: 'Sophie BH',
     initials: 'SB',
-    title: 'La boîte était en liquidation judiciaire',
-    body: "J'avais fait réaliser un devis pour faire réaliser de gros travaux de maçonnerie. J'ai découvert en vérifiant mon devis que la boite était en liquidation judiciaire !!!",
-    date: '26 septembre 2026',
+    title: "Merci de m'avoir évité une galère",
+    body: "J'avais fait réaliser un devis pour faire réaliser de gros travaux de maçonnerie. J'ai découvert en vérifiant mon devis que la boite était en liquidation judiciaire !!! Merci à ce site de m'avoir peut-être évité une grosse galère",
+    date: '24 septembre 2026',
     stars: 5,
   },
   {

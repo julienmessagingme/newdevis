@@ -20,7 +20,9 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ⚠️ **J'ai sous-compté en répondant à Johan** : j'avais annoncé quatre endroits après un `grep` sur quatre fichiers seulement. Le compte juste vient d'un `grep -rn "ratingCount\|reviewCount"` sur tout `src/` — **six balisages, plus l'affichage**. Chercher la valeur dans les fichiers qu'on soupçonne, c'est retrouver ce qu'on cherchait ; chercher la **forme** de l'affirmation, c'est trouver ce qu'on avait oublié (règle du 21/09).
 
-Mis à jour le 26/09 : **4,7 sur 25 avis** (24 au 07/09), et l'avis de Sophie BH ajouté au carrousel. ⚠️ Sa chute est **tronquée sur le profil** (« Merci a ce site de m'avoir peut-… ») : on s'arrête à la dernière phrase complète plutôt que de la reconstituer.
+Mis à jour le 26/09 : **4,7 sur 25 avis** (24 au 07/09), et l'avis de Sophie BH ajouté au carrousel (24/09, 5 étoiles, « Merci de m'avoir évité une galère »).
+
+⚠️ **LE TITRE ET LA CHUTE ONT DÛ ÊTRE REPRIS SUR CAPTURE.** L'aperçu du profil tronque l'avis (« Merci a ce site de m'avoir peut-… ») et **n'affiche pas son titre**. J'avais d'abord composé un titre à partir d'une phrase du corps et coupé la dernière phrase — le vrai titre était tout autre. **Un avis client se recopie depuis la fiche ouverte, jamais depuis l'aperçu de la liste.**
 
 ⚠️ **Ces chiffres ne s'inventent pas** : la page Trustpilot est derrière un anti-robot, donc la note et le total viennent de Johan ou d'une lecture manuelle du profil. Le précédent du 07/09 est explicite — j'avais conclu d'un **commentaire de code** que la note était inventée, et Johan a arrêté la suppression à temps. **Un commentaire n'est pas une source ; le profil public l'est.** Le commentaire fautif annonçait d'ailleurs « 8 avis » quand le carrousel en portait 23.
 
