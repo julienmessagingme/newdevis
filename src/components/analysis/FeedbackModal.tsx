@@ -13,6 +13,14 @@
  *     VMD (analyser → gérer), wording centré sur "continuer son projet".
  *
  * Persistence anti-spam : localStorage 'vmdf_feedback_shown' avec TTL 7 jours.
+ *
+ * 2026-09-26 — TRUSTPILOT REBRANCHÉ APRÈS LE SONDAGE (option 2, décision
+ * Johan). Depuis le 16/09, `REMPLACEMENT_CREDIT` court-circuite tout le
+ * parcours feedback : le lien Trustpilot, qui ne vivait que dans `StepDone`
+ * après un avis POSITIF, n'était donc plus atteignable. Mesuré le 26/09 : le
+ * profil public n'a reçu **aucun avis depuis le 12 avril**. Il vit désormais
+ * dans l'écran de remerciement de `StepCredit` — une seule demande, puis le
+ * lien. Cf. le commentaire sur place pour la garde du « Si ».
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -534,7 +542,52 @@ function StepCredit({
         <p className="mt-1.5 text-[13.5px] text-slate-600 leading-relaxed">
           Votre réponse nous aide à décider si nous développons ce service.
         </p>
-        <Button onClick={onClose} className="mt-5 w-full">Fermer</Button>
+
+        {/* 🔴 TRUSTPILOT REVIENT ICI, APRÈS LA RÉPONSE — PAS À LA PLACE DU
+            SONDAGE (option 2 validée Johan, 26/09).
+
+            MESURÉ LE 26/09, ET C'EST LE CHIFFRE QUI A DÉCIDÉ : le profil
+            public n'a reçu **aucun avis depuis le 12 avril** — cinq mois et
+            demi — alors que des centaines de devis ont été analysés. La cause
+            était chez nous : le lien ne vivait que dans l'écran `StepDone`,
+            atteignable uniquement après un avis POSITIF, et tout ce parcours
+            est court-circuité depuis le 16/09 par `REMPLACEMENT_CREDIT`. Le
+            bloc existait toujours dans le code — il n'était plus atteignable.
+            C'était documenté comme un coût assumé du test, mais celui-ci court
+            jusqu'au 16/12 : trois mois de collecte en plus auraient été perdus.
+
+            ⚠️ UNE SEULE DEMANDE, ET ELLE EST DÉJÀ FAITE. On ne redemande rien :
+            la personne a répondu, on la remercie, et on lui OFFRE un lien.
+            C'est la règle du 16/09 (« on ne brouille pas et on ne fait pas
+            2 demandes en même temps ») — respectée, parce que les deux ne sont
+            pas simultanées.
+
+            ⚠️ LE « SI » FAIT LE TRI, ET IL EST INDISPENSABLE. Avant le 16/09 le
+            lien n'était montré qu'après un avis positif ; cette question de
+            satisfaction n'existe plus, donc nous ne savons PLUS si la personne
+            est contente. Solliciter un avis public sans le savoir serait
+            imprudent — la conditionnelle laisse le lecteur se qualifier
+            lui-même. Ne pas la retirer pour « simplifier ». */}
+        <div className="mt-5 pt-4 border-t border-slate-200 text-left">
+          <p className="text-[13px] text-slate-700 leading-relaxed">
+            Si l'analyse vous a été utile, vous pouvez nous aider en laissant un
+            avis — ça fait toute la différence pour un petit outil comme le nôtre.
+          </p>
+          <a
+            href={TRUSTPILOT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => track("trustpilot_click", { from: "sondage_credit" })}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl
+                       bg-[#00B67A] px-5 py-2.5 text-sm font-semibold text-white
+                       transition-colors hover:bg-[#00a369] touch-manipulation"
+          >
+            Laisser un avis sur Trustpilot
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </a>
+        </div>
+
+        <Button variant="ghost" onClick={onClose} className="mt-3 w-full">Fermer</Button>
       </div>
     );
   }
