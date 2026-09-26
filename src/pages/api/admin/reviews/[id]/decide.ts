@@ -5,6 +5,7 @@ import { optionsResponse, jsonOk, jsonError, requireAuth } from "@/lib/api/apiHe
 import { deriveMotifHero } from "@/lib/analyse/motifHero";
 import { verdictContreditLeMessage } from "@/lib/analyse/refusExplicite";
 import { invaliderRapprochements } from "@/lib/analyse/invalidationRapprochement";
+import { resyncTextesExpert } from "@/lib/analyse/resyncTextesExpert";
 import {
   sendReviewNotificationEmail,
   journaliserNotificationRevue,
@@ -383,6 +384,26 @@ export const POST: APIRoute = async ({ request, params }) => {
       if (montantCorrige || correctedVerdictGlobal || correctedVerdictDecisionnel) {
         resyncVerdictLigne(conclusionToPersist.verdict_ligne, conclusionToPersist);
       }
+    }
+
+    // ── 🔴 LES TEXTES DOIVENT CESSER DE CONTREDIRE LE VERDICT (2026-09-26) ───
+    //
+    // Jusqu'ici cette route écrivait le verdict, le surcoût, les anomalies, le
+    // message d'expert et `verdict_ligne`. Les QUATRE textes affichés au-dessus
+    // gardaient ceux de la machine. Sur le devis « noreco peinture2 », corrigé
+    // en `signer` / surcoût 0 / zéro anomalie, la page annonçait encore « ce
+    // devis est à négocier en raison de certains postes surévalués » et citait
+    // « l'aménagement de la cuisine, la pose de douche et le miroir de salon »
+    // — sur un devis de PEINTURE. Chaque correction demandait une chirurgie
+    // manuelle en base (note de mémoire du 03/08, cas ATEX).
+    //
+    // ⚠️ La règle vit dans `resyncTextesExpert` et elle est TESTÉE (14 cas) —
+    // la recopier ici la ferait diverger au premier ajustement.
+    const resyncTextes = resyncTextesExpert(conclusionToPersist);
+    if (resyncTextes.recompose) {
+      console.log(
+        `[decide.ts] textes recomposés après correction : ${resyncTextes.champsReecrits.join(", ")}`,
+      );
     }
   }
 
