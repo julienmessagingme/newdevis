@@ -49,8 +49,32 @@ const nb = (n: number) => n.toLocaleString('fr-FR').replace(/ | /g, ' ');
 // dans ses preuves, un écran plus bas. Deux fois le même nombre sur une même
 // page ne le rend pas plus crédible — il occupe juste la place d'un fait
 // qu'on ne dit nulle part ailleurs.
+/*
+ * 🔴 TROIS TEINTES, ET ELLES VIENNENT TOUTES DE JETONS EXISTANTS (retour Johan,
+ * 26/09 : « un peu de relief […] utilise le pattern design pour ne pas remettre
+ * des couleurs supplémentaires »). Le volume est neutre, le montant à négocier
+ * est un gain pour le lecteur, la part déconseillée est un signal d'alerte —
+ * chacune reprend la sémantique que le produit emploie déjà sur l'analyse.
+ *
+ * ⚠️ CE SONT LES VARIANTES `-foreground`, PAS LES JETONS D'APLAT, et la mesure
+ * l'impose (règle du 23/09) : sur le crème #F7F5F0, `--score-green` tombe à
+ * **2,11:1** — échec net, même pour du 27 px gras. Les valeurs retenues :
+ * `--foreground` 14,6:1 · `--score-green-foreground` 5,9:1 ·
+ * `--score-red-foreground` 9,2:1. ⚠️ Le seuil à tenir est **4,5:1**, pas 3:1 :
+ * l'unité (« € », « % ») partage la couleur et ne fait que 15 px.
+ *
+ * ⚠️ `--score-red` brut passerait (4,79:1) mais il est ÉCARTÉ VOLONTAIREMENT :
+ * bien plus clair que le vert retenu, il crierait deux fois plus fort à côté de
+ * lui. Les trois `-foreground` sont d'une profondeur comparable — c'est ce qui
+ * laisse la teinte porter le sens sans rendre le bandeau bruyant.
+ *
+ * ⚠️ ET LA COULEUR NE VA QUE SUR LE CHIFFRE. Le commentaire d'en-tête de ce
+ * fichier notait qu'un bandeau à pastilles vert/ambre/rouge rajouterait trois
+ * couleurs à 400 px du bouton — c'est toujours vrai d'une SURFACE colorée. Ne
+ * pas étendre ces teintes au fond des cellules ni aux libellés.
+ */
 const CHIFFRES = [
-  { valeur: montantAnalyseCourt(), unite: '', libelle: 'de travaux passés au crible' },
+  { valeur: montantAnalyseCourt(), unite: '', libelle: 'de travaux passés au crible', ton: 'neutre' },
   // 🔴 « ÉCART MÉDIAN » EST DU JARGON (retour Johan, 26/09 : « ce n'est pas
   // compréhensible »). On dit ce que le chiffre VAUT POUR LE LECTEUR : ce
   // qu'il peut aller négocier.
@@ -68,17 +92,17 @@ const CHIFFRES = [
   //
   // ⚠️ Et ne pas remettre le mot « médian » : il a été retiré parce qu'il
   // n'était pas compris (« ce n'est pas compréhensible »).
-  { valeur: nb(ECART_MEDIAN_EUROS), unite: ' €', libelle: 'en moyenne à négocier avec votre artisan, quand nous trouvons un écart' },
-  { valeur: String(PART_DECONSEILLES_PCT), unite: ' %', libelle: 'de devis que nous déconseillons de signer en l’état' },
+  { valeur: nb(ECART_MEDIAN_EUROS), unite: ' €', libelle: 'en moyenne à négocier avec votre artisan, quand nous trouvons un écart', ton: 'gain' },
+  { valeur: String(PART_DECONSEILLES_PCT), unite: ' %', libelle: 'de devis que nous déconseillons de signer en l’état', ton: 'alerte' },
 ];
 ---
 
 <section class="ba-band" aria-label="Notre activité en chiffres">
   <div class="container">
     <div class="ba-grid">
-      {CHIFFRES.map(({ valeur, unite, libelle }) => (
+      {CHIFFRES.map(({ valeur, unite, libelle, ton }) => (
         <div class="ba-cell">
-          <p class="ba-n">{valeur}<span class="ba-u">{unite}</span></p>
+          <p class:list={['ba-n', `ba-${ton}`]}>{valeur}<span class="ba-u">{unite}</span></p>
           <p class="ba-l">{libelle}</p>
         </div>
       ))}
@@ -126,11 +150,20 @@ const CHIFFRES = [
   .ba-n {
     font-size: 25px;
     font-weight: 700;
-    color: #1B3C7F;          /* navy de marque, ~9:1 sur le crème */
     letter-spacing: -0.02em;
     line-height: 1.05;
     font-variant-numeric: tabular-nums;
   }
+
+  /* Trois jetons du système, aucune valeur en dur — cf. le bloc « TROIS TEINTES »
+     en tête de fichier pour les contrastes mesurés sur ce fond crème. */
+  .ba-neutre { color: hsl(var(--foreground)); }
+  .ba-gain   { color: hsl(var(--score-green-foreground)); }
+  .ba-alerte { color: hsl(var(--score-red-foreground)); }
+
+  /* L'unité hérite de la teinte du chiffre — la séparer ferait lire « 1 536 » et
+     « € » comme deux informations. ⚠️ Elle est à 15 px, donc c'est ELLE qui
+     impose le seuil de 4,5:1 (et non le 3:1 du gros texte gras). */
   .ba-u { font-size: 15px; font-weight: 600; }
 
   .ba-l {
