@@ -10,8 +10,32 @@ import { serviceRoleKey } from "../_shared/supabase-key.ts";
 //   J+8  vmd_aides           (pont GMC aides)     -> SKIP si deja dans le funnel GMC
 //   J+12 vmd_pass            (Pass Serenite)      -> SEULEMENT si >=2 analyses ET pas premium
 //   J+18 vmd_chantier_final  (derniere invitation GMC) -> SKIP si deja dans le funnel GMC
+//   J+21 vmd_avis            (invitation a laisser un avis) -> SEULEMENT si >=1 analyse
 //
 // Le welcome (vmd_welcome, immediat) est envoye par vmd-on-signup, pas ici.
+//
+// ── vmd_avis (2026-09-26) ───────────────────────────────────────────────────
+// 25 avis Trustpilot pour ~409 devis analyses, TOUS spontanes : personne n'a
+// jamais ete invite. Trustpilot l'affiche d'ailleurs sur la fiche publique
+// (« Cette entreprise n'a pas invite de clients recemment »).
+//
+// POURQUOI ICI ET PAS AILLEURS — mesure du 26/09 sur 90 jours :
+//   page de merci du J+15 ......   3 personnes  (canal trop etroit, ecarte)
+//   e-mail J+15 ................  56 personnes  (et son seul role est la question
+//                                                d'issue : y ajouter un 2e bouton
+//                                                casserait la regle du 16/09)
+//   cette sequence ............. 148 personnes  <- le seul canal qui touche tout
+//                                                le monde, et il tourne deja
+//
+// J+21 ET PAS PLUS TOT : la sequence occupe J+1 a J+18. Glisser l'invitation au
+// milieu la mettrait en concurrence avec une demande commerciale (vmd_pass a
+// J+12) — « on ne fait pas 2 demandes en meme temps » (regle du 16/09).
+//
+// ⚠️ AUCUN FILTRE SUR LE RESSENTI, et ce n'est pas un detail : Trustpilot
+// INTERDIT de n'inviter que les clients supposes satisfaits (« review
+// gating »), sous peine de perdre le badge. L'ancien flux ne proposait
+// Trustpilot qu'apres un retour positif dans la modale — c'etait precisement
+// ca. La seule condition ici est « a utilise le produit ».
 // Anti-doublon : vmd_email_log (unique user_id+template_id), reservation log-first.
 // 1 email/user/run. Dry-run : POST {"dry":true}.
 // Resend : RESEND_API_KEY_VMD (fallback RESEND_API_KEY).
@@ -25,8 +49,14 @@ const SUPABASE_URL   = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE   = serviceRoleKey()!;
 const FROM           = "VerifierMonDevis <bonjour@verifiermondevis.fr>";
 const DAY_MS         = 86_400_000;
-// Fenetre d'audience : la sequence se termine a J+18, on scanne ~25j (marge).
-const WINDOW_DAYS    = 25;
+// Fenetre d'audience : la sequence se termine a J+21, on scanne 32j.
+// ⚠️ ELLE DOIT DEPASSER LE DERNIER JALON AVEC DE LA MARGE. Le scheduler
+// n'envoie qu'UN e-mail par personne et par run : quelqu'un qui a du retard
+// rattrape un jalon par jour. Sorti de la fenetre, il ne le recevra JAMAIS.
+// A 25j (l'ancienne valeur) le jalon J+21 n'aurait laisse que 4 jours de
+// rattrapage — le mail J+15 ne couvre deja que 56 analyses sur 148 pour une
+// raison de ce genre.
+const WINDOW_DAYS    = 32;
 
 type Signup = { user_id: string; created_at: string };
 type Ctx = { e: number; hasGmc: boolean; isPremium: boolean; nbAnalyses: number };
@@ -39,6 +69,7 @@ const MILESTONES: { id: VmdEmailId; due: (e: number) => boolean; allow: (c: Ctx)
   { id: "vmd_aides",          due: (e) => e >= 8,  allow: (c) => !c.hasGmc },
   { id: "vmd_pass",           due: (e) => e >= 12, allow: (c) => !c.isPremium && c.nbAnalyses >= 2 },
   { id: "vmd_chantier_final", due: (e) => e >= 18, allow: (c) => !c.hasGmc },
+  { id: "vmd_avis",           due: (e) => e >= 21, allow: (c) => c.nbAnalyses >= 1 },
 ];
 
 function pickTemplate(already: Set<string>, ctx: Ctx): VmdEmailId | null {

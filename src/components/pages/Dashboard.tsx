@@ -357,7 +357,10 @@ const Dashboard = () => {
               Notre service vous est utile ? Votre avis nous aide à nous améliorer 🙏
             </p>
             <a
-              href="https://fr.trustpilot.com/review/verifiermondevis.fr"
+              // ⚠️ /evaluate/ = la page pour ÉCRIRE un avis. /review/ est la page
+              // pour les LIRE — c'est là que ce bouton envoyait, sous un texte qui
+              // demandait justement d'en laisser un.
+              href="https://fr.trustpilot.com/evaluate/verifiermondevis.fr"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#00b67a] hover:bg-[#00a06a] text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
